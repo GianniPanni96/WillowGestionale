@@ -72,9 +72,6 @@ class DBInvoicesColumns(Enum):
     DATA_SCADENZA_1 = "expiration_date_1" #controller -> funzione di rate
     DATA_SCADENZA_2 = "expiration_date_2"
     DATA_SCADENZA_3 = "expiration_date_3"
-    DATA_PAGAMENTO_1 = "payment_date_1" #controller -> dipende da pagamento
-    DATA_PAGAMENTO_2 = "payment_date_2"
-    DATA_PAGAMENTO_3 = "payment_date_3"
     ID_UTENTE = "invoicer_id" #controller(view)
     ID_CLIENTE = "client_id" #controller(view)
     NOTE = "note" #view
@@ -429,8 +426,49 @@ class DatabaseModel:
             cursor.execute(query, (datum, invoice_id))
             conn.commit()
 
+    def fetch_invoices_with_payments(self):
+        """
+        Recupera tutte le fatture unite ai dati dei pagamenti associati.
+        Utilizza un LEFT JOIN per includere tutte le fatture anche se non hanno pagamenti.
 
+        Ritorna una lista di tuple, in cui le colonne delle fatture compaiono per prime,
+        seguite dalle colonne dei pagamenti (che possono essere NULL se non esistono).
+        """
+        # Costruzione dinamica delle colonne per invoices e payments
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        payment_columns = [f"p.{col.value}" for col in DBPaymentsColumns]
+        all_columns = invoice_columns + payment_columns
 
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM invoices i
+        LEFT JOIN payments p ON i.{DBInvoicesColumns.ID.value} = p.{DBPaymentsColumns.INVOICE_ID.value}
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def fetch_unpaid_invoices(self):
+        """
+        Recupera una lista di fatture a cui non è associato alcun pagamento.
+
+        Utilizza una LEFT JOIN tra la tabella invoices e payments e filtra le fatture
+        per cui non esiste corrispondenza (ovvero, la colonna ID di payments risulta NULL).
+
+        Ritorna una lista di tuple contenenti i dati delle fatture.
+        """
+        query = f"""
+        SELECT i.*
+        FROM invoices i
+        LEFT JOIN payments p ON i.{DBInvoicesColumns.ID.value} = p.{DBPaymentsColumns.INVOICE_ID.value}
+        WHERE p.{DBPaymentsColumns.ID.value} IS NULL
+        """
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
 
 
 

@@ -9,7 +9,7 @@ from Views.View_utils import ViewUtils
 
 
 from Controllers import ValidationUtils, UserController, AccountController, ClientController, InvoiceController, \
-    PaymentsController, ProductionController
+    PaymentsController, ProductionController, UpdatesController
 from Model import DatabaseModel, db_path, DBUsersColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
@@ -31,6 +31,7 @@ class MainWindow(ctk.CTk):
         self.payment_controller = PaymentsController(self.db_model, self.account_controller)
         self.production_controller = ProductionController(self.db_model, self.client_controller)
         self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, fiscal_settings)
+        self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
 
         # ConfigManager per la gestione della configurazione
         self.config_manager = config_manager
@@ -59,7 +60,7 @@ class MainWindow(ctk.CTk):
         #self.geometry(f"{self.winfo_screenwidth()}x{self.winfo_screenheight()}+0+0")
         #self.attributes("-fullscreen", True)
         # Massimizza dopo che tutto è stato inizializzato
-        self.after(1000, lambda: self.state("zoomed"))
+        self.after(2000, lambda: self.state("zoomed"))
 
         # Toolbar simulata con pulsanti
         self.toolbar_frame = ctk.CTkFrame(self)
@@ -105,9 +106,9 @@ class MainWindow(ctk.CTk):
         #Aggiungi widget alla tab clienti tramite la classe ClientsView
         self.client_tab = ClientsView(self.db_model, self.client_controller, self.tabview.tab("Clienti"))
         self.client_tab.create_client_tab()
-        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.tabview.tab("Fatture"), fiscal_settings)
+        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.tabview.tab("Fatture"), fiscal_settings)
         self.invoice_tab.create_invoices_tab()
-        self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.account_controller, self.tabview.tab("Pagamenti"))
+        self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"))
         self.payment_tab.create_payments_tab()
         self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.tabview.tab("Produzioni"))
         self.production_tab.create_productions_tab()

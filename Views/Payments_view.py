@@ -10,7 +10,7 @@ from enum import Enum
 
 class PaymentsView(ctk.CTk):
 
-    def __init__(self, db_model, payment_controller, invoice_controller, user_controller, client_controller, production_controller, account_controller, tab):
+    def __init__(self, db_model, payment_controller, invoice_controller, user_controller, client_controller, production_controller, account_controller, update_controller, tab):
         super().__init__()
 
         self.db_model = db_model
@@ -20,6 +20,7 @@ class PaymentsView(ctk.CTk):
         self.payment_controller = payment_controller
         self.production_controller = production_controller
         self.account_controller = account_controller
+        self.update_controller = update_controller
         self.tab = tab
 
         self.global_infos = {}
@@ -175,7 +176,7 @@ class PaymentsView(ctk.CTk):
         # Bottone per salvare
         self.save_button = ctk.CTkButton(
             self.payment_window_scrollableFrame,
-            text="Salva Produzione",
+            text="Salva Pagamento",
             command=self.save_payment_data
         )
         self.save_button.pack(pady=(35, 15))
@@ -252,12 +253,16 @@ class PaymentsView(ctk.CTk):
         #sistemo il nome della fattura che è ViewFriendly:
         nome_fattura_array = payment_data[self.nome_fattura_string].split(" - ")
         nome_fattura_ricostruito = nome_fattura_array[0] + " - " + nome_fattura_array[1]
-        payment_data[self.nome_fattura_string] = nome_fattura_ricostruito
+        invoice_id = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura_ricostruito)[DBInvoicesColumns.ID.value]
+        payment_data[DBPaymentsColumns.INVOICE_ID.value] = invoice_id
 
         # chiamata al controller per salvare i dati
         success, message = self.payment_controller.save_payment(payment_data)
 
         if success:
+            #aggiorno il controller delle fatture
+            self.update_controller.update_invoices()
+
             # prendo l'ID della fattura appena creata
             payment_map = self.payment_controller.retrieve_last_payment_insert_map()
             print(f"Pagamento {payment_data[DBPaymentsColumns.PAYMENT_NAME.value]} salvato con successo")
@@ -334,7 +339,6 @@ class PaymentsView(ctk.CTk):
         self.payment_widgets[self.nome_fattura_string].set(invoice_name)
         self.payment_widgets[DBPaymentsColumns.LINKED_RATA.value].set(payment[DBPaymentsColumns.LINKED_RATA.value])
         self.payment_widgets[self.nome_conto_string].set(conto_name)
-
 
     def modify_payment_data(self):
         return

@@ -3,7 +3,7 @@ import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
 from Controllers import ValidationUtils, InvoiceController, UserController, ControllerUtils
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns
+from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns
 from datetime import datetime
 import re
 from enum import Enum
@@ -18,7 +18,7 @@ class InvoicesView(ctk.CTk):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, tab, fiscal_settings):
+    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, tab, fiscal_settings):
         super().__init__()
 
         self.db_model = db_model
@@ -26,6 +26,7 @@ class InvoicesView(ctk.CTk):
         self.user_controller = user_controller
         self.client_controller = client_controller
         self.production_controller = production_controller
+        self.payment_controller = payment_controller
         self.tab = tab
         self.fiscal_settings = fiscal_settings
 
@@ -41,7 +42,7 @@ class InvoicesView(ctk.CTk):
         self.productions_list_of_client = {}
         self.populate_production_list_by_selected_client(self.client_controller.clients_list[0][DBClientsColumns.NAME.value])
 
-        #self.invoice_controller.register_on_modify_invoice_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
+        self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
 
     def create_invoices_tab(self):
 
@@ -328,7 +329,7 @@ class InvoicesView(ctk.CTk):
 
 
         # Dati da visualizzare nella card
-        data = [cliente, utente, ViewUtils.invert_data_string(data_creazione), stato, rate, tot_documento, tipologia]
+        data = [cliente, utente, ViewUtils.invert_data_string(data_creazione), stato, rate, round(tot_documento, 2), tipologia]
         units = ["", "", "", "", "", "€", ""]
         i = 0
         # Aggiunta dei dati alla card
@@ -479,7 +480,6 @@ class InvoicesView(ctk.CTk):
         client_id = client[DBClientsColumns.ID.value]
         #retrievo la lista delle produzioni associate allo specifico cliente
         self.productions_list_of_client = self.production_controller.retrieve_productions_map_list_by_client_id(client_id)
-
 
     def get_regime_fiscale_from_view(self, user_full_name):
         user_name = user_full_name.split(" ")
@@ -661,7 +661,7 @@ class InvoicesView(ctk.CTk):
             elif rateizzazione == int(InvoiceController.Rateizzazione.UNA.value):
                 if stato == InvoiceController.InvoiceSatus.EMESSA.value:
                     label.configure(text_color=InvoicesView.InvoicesStatusColors.NORMAL.value)
-                elif stato == InvoiceController.InvoiceSatus.SALDATA.value:
+                elif stato == InvoiceController.InvoiceRateizzSatus.PAGATA.value:
                     label.configure(text_color=InvoicesView.InvoicesStatusColors.GOOD.value)
                 elif stato == InvoiceController.InvoiceSatus.DA_EMETTERE.value:
                     label.configure(text_color=InvoicesView.InvoicesStatusColors.NORMAL.value)
@@ -672,12 +672,11 @@ class InvoicesView(ctk.CTk):
                 elif stato == InvoiceController.InvoiceSatus.STORNATA.value:
                     label.configure(text_color=InvoicesView.InvoicesStatusColors.STORNATA.value)
 
-        return
 
     #callback da registrare nel controller
     def toggle_specific_invoice_status_color(self, invoice_id):
         fattura = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
-        label = self.invoices_card_list[fattura[DBInvoicesColumns.NUMERO_FATTURA.value]]
+        label = self.invoice_card_labels_status[invoice_id]
         stato = fattura[DBInvoicesColumns.STATUS.value]
         rateizzazione = fattura[DBInvoicesColumns.NUMERO_RATE.value]
 
@@ -727,10 +726,26 @@ class InvoicesView(ctk.CTk):
                 if invoice[DBInvoicesColumns.ID.value] == key:
                     fattura = invoice
                     break
+            invoice_id = fattura[DBInvoicesColumns.ID.value]
 
-            pagamento_1 = fattura[DBInvoicesColumns.DATA_PAGAMENTO_1.value]
-            pagamento_2 = fattura[DBInvoicesColumns.DATA_PAGAMENTO_2.value]
-            pagamento_3 = fattura[DBInvoicesColumns.DATA_PAGAMENTO_3.value]
+            #cerco i pagamenti associati a questa fattura
+            pagamenti = []
+            for payment in self.payment_controller.CY_payment_list:
+                if payment[DBPaymentsColumns.INVOICE_ID.value] == invoice_id:
+                    pagamenti.append(payment)
+
+            pagamento_1 = None
+            pagamento_2 = None
+            pagamento_3 = None
+
+            for p in pagamenti:
+                if p and int(p[DBPaymentsColumns.LINKED_RATA.value]) == 1:
+                    pagamento_1 = p[DBPaymentsColumns.LINKED_RATA.value]
+                if p and int(p[DBPaymentsColumns.LINKED_RATA.value]) == 2:
+                    pagamento_2 = p[DBPaymentsColumns.LINKED_RATA.value]
+                if p and int(p[DBPaymentsColumns.LINKED_RATA.value]) == 3:
+                    pagamento_3 = p[DBPaymentsColumns.LINKED_RATA.value]
+
             scadenza_1 = fattura[DBInvoicesColumns.DATA_SCADENZA_1.value]
             scadenza_2 = fattura[DBInvoicesColumns.DATA_SCADENZA_2.value]
             scadenza_3 = fattura[DBInvoicesColumns.DATA_SCADENZA_3.value]
@@ -781,11 +796,27 @@ class InvoicesView(ctk.CTk):
         today = datetime.today().date()
 
         fattura = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+
+        # cerco i pagamenti associati a questa fattura
+        pagamenti = []
+        for payment in self.payment_controller.CY_payment_list:
+            if int(payment[DBPaymentsColumns.INVOICE_ID.value]) == int(invoice_id):
+                pagamenti.append(payment)
+
+        pagamento_1 = None
+        pagamento_2 = None
+        pagamento_3 = None
+
+        for p in pagamenti:
+            if p and int(p[DBPaymentsColumns.LINKED_RATA.value]) == 1:
+                pagamento_1 = p[DBPaymentsColumns.LINKED_RATA.value]
+            if p and int(p[DBPaymentsColumns.LINKED_RATA.value]) == 2:
+                pagamento_2 = p[DBPaymentsColumns.LINKED_RATA.value]
+            if p and int(p[DBPaymentsColumns.LINKED_RATA.value]) == 3:
+                pagamento_3 = p[DBPaymentsColumns.LINKED_RATA.value]
+
         frame = self.invoice_card_rate_frames[invoice_id]
 
-        pagamento_1 = fattura[DBInvoicesColumns.DATA_PAGAMENTO_1.value]
-        pagamento_2 = fattura[DBInvoicesColumns.DATA_PAGAMENTO_2.value]
-        pagamento_3 = fattura[DBInvoicesColumns.DATA_PAGAMENTO_3.value]
         scadenza_1 = fattura[DBInvoicesColumns.DATA_SCADENZA_1.value]
         scadenza_2 = fattura[DBInvoicesColumns.DATA_SCADENZA_2.value]
         scadenza_3 = fattura[DBInvoicesColumns.DATA_SCADENZA_3.value]
@@ -835,7 +866,6 @@ class InvoicesView(ctk.CTk):
         else: # se è vero allora mostro i netti
             for (key,label) in self.amount_aggregate_labels.items():
                 self.amount_aggregate_labels[key].configure(text=f"{self.global_infos_netti[key]}")
-
 
     def clear_class_variable(self):  #potrebbe non servire in quanto vengono inizializzate all'apertura della funzione
         self.invoice_widgets.clear()

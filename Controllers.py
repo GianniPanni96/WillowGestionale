@@ -718,7 +718,7 @@ class InvoiceController:
         self.current_year_invoices_list = {}
 
         #updates al database
-        self.update_invoices_payment_dates()
+        #self.update_invoices_payment_dates()
 
         #updates alle liste locali
         self.update_invoices_list()
@@ -812,9 +812,6 @@ class InvoiceController:
                 DBInvoicesColumns.DATA_SCADENZA_1.value : self.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[0],
                 DBInvoicesColumns.DATA_SCADENZA_2.value : self.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[1] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == InvoiceController.Rateizzazione.TRE.value else None,
                 DBInvoicesColumns.DATA_SCADENZA_3.value : self.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[2] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == InvoiceController.Rateizzazione.TRE.value else None,
-                DBInvoicesColumns.DATA_PAGAMENTO_1.value : None,  # controller -> dipende da pagamento
-                DBInvoicesColumns.DATA_PAGAMENTO_2.value: None,  # controller -> dipende da pagamento
-                DBInvoicesColumns.DATA_PAGAMENTO_3.value: None,  # controller -> dipende da pagamento
                 DBInvoicesColumns.ID_UTENTE.value : id_utente,  # controller(view)
                 DBInvoicesColumns.ID_CLIENTE.value : id_cliente,  # controller(view)
                 DBInvoicesColumns.NOTE.value : invoice_data.get(DBInvoicesColumns.NOTE.value),  # view
@@ -842,9 +839,6 @@ class InvoiceController:
                 DBInvoicesColumns.DATA_SCADENZA_1.value: self.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[0],
                 DBInvoicesColumns.DATA_SCADENZA_2.value: self.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[1] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == InvoiceController.Rateizzazione.TRE.value else None,
                 DBInvoicesColumns.DATA_SCADENZA_3.value: self.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[2] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == InvoiceController.Rateizzazione.TRE.value else None,
-                DBInvoicesColumns.DATA_PAGAMENTO_1.value: None,  # controller -> dipende da pagamento
-                DBInvoicesColumns.DATA_PAGAMENTO_2.value: None,  # controller -> dipende da pagamento
-                DBInvoicesColumns.DATA_PAGAMENTO_3.value: None,  # controller -> dipende da pagamento
                 DBInvoicesColumns.ID_UTENTE.value: id_utente,  # controller(view)
                 DBInvoicesColumns.ID_CLIENTE.value: id_cliente,  # controller(view)
                 DBInvoicesColumns.NOTE.value: invoice_data.get(DBInvoicesColumns.NOTE.value),  # view
@@ -1050,56 +1044,6 @@ class InvoiceController:
 
         return len(invoices)
 
-    def update_invoices_payment_dates(self):
-        """
-        Aggiorna le date di pagamento delle rate per le fatture associate.
-
-        Per ogni record nella join tra payments e invoices, la funzione estrae:
-          - l'ID della fattura (INVOICE_ID),
-          - la data del pagamento (PAYMENT_DATE),
-          - il valore di LINKED_RATA (che indica a quale rata appartiene il pagamento).
-
-        In base al valore di LINKED_RATA:
-          - se è 1, aggiorna la colonna DATA_PAGAMENTO_1,
-          - se è 2, aggiorna la colonna DATA_PAGAMENTO_2,
-          - se è 3, aggiorna la colonna DATA_PAGAMENTO_3.
-
-        Utilizza il metodo del model `modify_invoice_datum` per aggiornare il dato.
-        """
-        # Recupera la join tra payments e invoices
-        rows = self.db_model.fetch_payments_with_invoice()
-
-        # Costruiamo la lista delle colonne della tabella payments in base all'enum
-        payment_columns = [col.value for col in DBPaymentsColumns]
-        # Troviamo gli indici dei campi necessari
-        payment_date_index = payment_columns.index(DBPaymentsColumns.PAYMENT_DATE.value)
-        linked_rata_index = payment_columns.index(DBPaymentsColumns.LINKED_RATA.value)
-        invoice_id_index = payment_columns.index(DBPaymentsColumns.INVOICE_ID.value)
-
-        # Itera sui record ottenuti
-        for row in rows:
-            payment_date = row[payment_date_index]
-            linked_rata = row[linked_rata_index]
-            invoice_id = row[invoice_id_index]
-
-            # Se il valore di linked_rata non è 1,2 o 3, salta questo record
-            if linked_rata not in (1, 2, 3):
-                continue
-
-            # Determina la colonna della fattura da aggiornare in base al numero di rata
-            if linked_rata == 1:
-                invoice_column = DBInvoicesColumns.DATA_PAGAMENTO_1.value
-            elif linked_rata == 2:
-                invoice_column = DBInvoicesColumns.DATA_PAGAMENTO_2.value
-            elif linked_rata == 3:
-                invoice_column = DBInvoicesColumns.DATA_PAGAMENTO_3.value
-
-            # Aggiorna la fattura chiamando il metodo del model
-            try:
-                self.db_model.modify_invoice_datum(invoice_id, invoice_column, payment_date)
-            except Exception as e:
-                print(f"Errore durante l'update delle date di pagamento delle fatture")
-
     def calculate_TOT_DOCUMENTO_invoiced(self, current_year=True):
         if current_year:
             invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.current_year_invoices_list)
@@ -1148,52 +1092,219 @@ class InvoiceController:
         return fatt_netto
 
     def calculate_CRED_LORDO_invoiced(self, current_year=True):
-        if current_year:
-            fatture_non_saldate = [inv for inv in InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.current_year_invoices_list) if not
-                                   inv[DBInvoicesColumns.DATA_PAGAMENTO_1.value] or inv[DBInvoicesColumns.DATA_PAGAMENTO_2.value] or inv[DBInvoicesColumns.DATA_PAGAMENTO_3.value]]
-        else:
-            fatture_non_saldate = [inv for inv in InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.invoices_list) if not
-                                   inv[DBInvoicesColumns.DATA_PAGAMENTO_1.value] or inv[DBInvoicesColumns.DATA_PAGAMENTO_2.value] or inv[DBInvoicesColumns.DATA_PAGAMENTO_3.value]]
+        """
+        Calcola i crediti lordi basandosi sulle fatture (non note di credito e non stornate)
+        e sui pagamenti ad esse associati, sfruttando il join tra invoices e payments.
+        L'IVA viene sottratta dal totale della fattura (o dalla rata, per le fatture rateizzate).
 
-        totale_credito = 0.00
-        for invoice in fatture_non_saldate:
-            if invoice[DBInvoicesColumns.NUMERO_RATE.value] == int(InvoiceController.Rateizzazione.UNA.value):
-                if not invoice[DBInvoicesColumns.DATA_PAGAMENTO_1.value]:
-                    lordo_fattura = (float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]) - float(invoice[DBInvoicesColumns.IVA.value]))
-                    totale_credito = totale_credito + lordo_fattura
-            elif invoice[DBInvoicesColumns.NUMERO_RATE.value] == int(InvoiceController.Rateizzazione.TRE.value):
-                lordo_fattura_rateizz = (float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]) - float(invoice[DBInvoicesColumns.IVA.value])) / int(InvoiceController.Rateizzazione.TRE.value)
-                if not invoice[DBInvoicesColumns.DATA_PAGAMENTO_1.value]:
-                    totale_credito = totale_credito + lordo_fattura_rateizz
-                if not invoice[DBInvoicesColumns.DATA_PAGAMENTO_2.value]:
-                    totale_credito = totale_credito + lordo_fattura_rateizz
-                if not invoice[DBInvoicesColumns.DATA_PAGAMENTO_3.value]:
-                    totale_credito = totale_credito + lordo_fattura_rateizz
+        :param current_year: Se True, considera solo le fatture dell'anno corrente.
+        :return: Totale del credito lordo (float).
+        """
+        # Recupera i dati dal join: la query restituisce una lista di tuple,
+        # in cui le prime N colonne corrispondono ai dati della fattura (invoices)
+        # e le colonne successive ai dati del pagamento (payments).
+        rows = self.db_model.fetch_invoices_with_payments()
+        oggi = datetime.today().date()
+
+        # Raggruppa i record per invoice_id.
+        # Supponiamo che l'ordine delle colonne in invoices sia quello definito in DBInvoicesColumns;
+        # pertanto, il numero di colonne della fattura è:
+        num_invoice_cols = len(DBInvoicesColumns)
+
+        grouped = {}
+        for row in rows:
+            # L'ID della fattura è la prima colonna della parte invoices.
+            invoice_id = row[0]
+            if invoice_id not in grouped:
+                # Salva i dati della fattura (parte iniziale della tupla) e inizializza la lista dei pagamenti.
+                grouped[invoice_id] = {
+                    "invoice_raw": row[0:num_invoice_cols],
+                    "payments": []
+                }
+            # Le colonne successive rappresentano un pagamento.
+            # Se il record di pagamento è presente (id pagamento non None), lo aggiungiamo.
+            payment_raw = row[num_invoice_cols:]
+            if payment_raw and payment_raw[0] is not None:
+                grouped[invoice_id]["payments"].append(payment_raw)
+
+        # Convertiamo le fatture raggruppate in mappe (dizionari) per poterle filtrare.
+        all_invoice_maps = {}
+        for inv_id, data in grouped.items():
+            # Converte la parte "invoice_raw" in una mappa utilizzando l'enum DBInvoicesColumns.
+            inv_map = ValidationUtils._row_to_map(data["invoice_raw"], DBInvoicesColumns)
+            # Aggiunge alla mappa anche i dati dei pagamenti associati (li lasciamo in forma grezza)
+            inv_map["payments"] = data["payments"]
+            all_invoice_maps[inv_id] = inv_map
+
+        # Filtra le fatture rimuovendo note di credito e fatture stornate.
+        # Il metodo statico clear_invoices_list_from_NDC_and_stornate() riceve una lista di mappe.
+        filtered_invoices = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
+            list(all_invoice_maps.values())
+        )
+
+        totale_credito = 0.0
+
+        # Itera sulle fatture filtrate
+        for invoice in filtered_invoices:
+            # Se si vuole filtrare per anno corrente, controlla DATA_CREAZIONE
+            if current_year:
+                creation_date_str = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
+                try:
+                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d")
+                if dt.year != datetime.today().year:
+                    continue
+
+            # Estrae i campi necessari dalla fattura
+            try:
+                num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
+            except (ValueError, TypeError):
+                continue
+            tot_documento = float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value])
+            iva = float(invoice[DBInvoicesColumns.IVA.value])
+            # Lo stato è già filtrato dalla clear_invoices_list_from_NDC_and_stornate, per cui non è stornata.
+
+            # Recupera i pagamenti associati (li avevamo salvati sotto la chiave "payments")
+            payments = invoice.get("payments", [])
+            # I pagamenti sono ancora in forma di tuple: per accedere al campo LINKED_RATA, usiamo l'enum DBPaymentsColumns.
+            # Creiamo una lista dei pagamenti convertiti in dizionari per comodità:
+            payment_cols = [col.value for col in DBPaymentsColumns]
+            payments_maps = []
+            for p in payments:
+                if p and p[0] is not None:
+                    payments_maps.append(dict(zip(payment_cols, p)))
+
+            if num_rate == int(InvoiceController.Rateizzazione.UNA.value):
+                # Per fatture con 1 rata, verifichiamo se esiste un pagamento associato con LINKED_RATA == 1.
+                paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == 1 for pm in payments_maps)
+                if not paid:
+                    lordo_fattura = tot_documento - iva
+                    totale_credito += lordo_fattura
+            elif num_rate == int(InvoiceController.Rateizzazione.TRE.value):
+                # Per fatture con 3 rate, dividiamo il totale lordo per 3
+                lordo_rate = (tot_documento - iva) / 3.0
+                # Controlla per ciascuna rata (1, 2, 3) se esiste un pagamento associato
+                for rata in [1, 2, 3]:
+                    paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == rata for pm in payments_maps)
+                    if not paid:
+                        totale_credito += lordo_rate
+            else:
+                print(
+                    f"Invoice id {invoice[DBInvoicesColumns.ID.value]}: numero rate non riconosciuto (valore: {num_rate}). Nessuna azione effettuata.")
 
         return totale_credito
 
     def calculate_CRED_NETTO_invoiced(self, current_year=True):
-        if current_year:
-            fatture_non_saldate = [inv for inv in InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.current_year_invoices_list) if not
-                                   inv[DBInvoicesColumns.DATA_PAGAMENTO_1.value] or inv[DBInvoicesColumns.DATA_PAGAMENTO_2.value] or inv[DBInvoicesColumns.DATA_PAGAMENTO_3.value]]
-        else:
-            fatture_non_saldate = [inv for inv in InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.invoices_list) if not
-                                   inv[DBInvoicesColumns.DATA_PAGAMENTO_1.value] or inv[DBInvoicesColumns.DATA_PAGAMENTO_2.value] or inv[DBInvoicesColumns.DATA_PAGAMENTO_3.value]]
+        """
+        Calcola i crediti netti basandosi sulle fatture non stornate e sui pagamenti associati,
+        sottraendo IVA e RITENUTA dal totale delle fatture.
 
-        totale_credito = 0.00
-        for invoice in fatture_non_saldate:
-            if invoice[DBInvoicesColumns.NUMERO_RATE.value] == int(InvoiceController.Rateizzazione.UNA.value):
-                if not invoice[DBInvoicesColumns.DATA_PAGAMENTO_1.value]:
-                    lordo_fattura = float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]) - float(invoice[DBInvoicesColumns.IVA.value]) - float(invoice[DBInvoicesColumns.RITENUTA.value])
-                    totale_credito = totale_credito + lordo_fattura
-            elif invoice[DBInvoicesColumns.NUMERO_RATE.value] == int(InvoiceController.Rateizzazione.TRE.value):
-                lordo_fattura_rateizz = (float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]) - float(invoice[DBInvoicesColumns.IVA.value]) - float(invoice[DBInvoicesColumns.RITENUTA.value])) / int(InvoiceController.Rateizzazione.TRE.value)
-                if not invoice[DBInvoicesColumns.DATA_PAGAMENTO_1.value]:
-                    totale_credito = totale_credito + lordo_fattura_rateizz
-                if not invoice[DBInvoicesColumns.DATA_PAGAMENTO_2.value]:
-                    totale_credito = totale_credito + lordo_fattura_rateizz
-                if not invoice[DBInvoicesColumns.DATA_PAGAMENTO_3.value]:
-                    totale_credito = totale_credito + lordo_fattura_rateizz
+        Il calcolo si basa sulle seguenti regole:
+
+          Per fatture con una rata:
+            - Se non esiste un pagamento associato (LINKED_RATA == 1), il credito netto è:
+                  tot_documento - IVA - RITENUTA.
+
+          Per fatture rateizzate in 3:
+            - Il credito netto per rata è:
+                  (tot_documento - IVA - RITENUTA) / 3.
+            - Viene sommato per ciascuna rata (1, 2, 3) per cui non esiste un pagamento associato.
+
+        Le fatture vengono ottenute tramite il join tra invoices e payments (con il metodo
+        fetch_invoices_with_payments()) e successivamente filtrate per escludere note di credito
+        e fatture stornate.
+
+        :param current_year: Se True, considera solo le fatture dell'anno corrente.
+        :return: Totale del credito netto (float).
+        """
+        # Recupera le righe dal join tra invoices e payments.
+        rows = self.db_model.fetch_invoices_with_payments()
+        oggi = datetime.today().date()
+
+        # Determina quante colonne appartengono a invoices.
+        num_invoice_cols = len(DBInvoicesColumns)
+
+        # Raggruppa i risultati per invoice_id.
+        grouped = {}
+        for row in rows:
+            # L'ID della fattura è la prima colonna della parte invoices.
+            invoice_id = row[0]
+            if invoice_id not in grouped:
+                grouped[invoice_id] = {
+                    "invoice_raw": row[0:num_invoice_cols],
+                    "payments": []
+                }
+            # Le colonne successive sono quelle del pagamento; se il pagamento non è presente, il primo campo sarà None.
+            payment_raw = row[num_invoice_cols:]
+            if payment_raw and payment_raw[0] is not None:
+                grouped[invoice_id]["payments"].append(payment_raw)
+
+        # Converti ogni fattura in una mappa (dizionario) e associa la lista dei pagamenti (ancora in forma di tuple)
+        all_invoice_maps = {}
+        for inv_id, data in grouped.items():
+            inv_map = ValidationUtils._row_to_map(data["invoice_raw"], DBInvoicesColumns)
+            inv_map["payments"] = data["payments"]
+            all_invoice_maps[inv_id] = inv_map
+
+        # Filtra le fatture rimuovendo quelle che sono note di credito o stornate.
+        filtered_invoices = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
+            list(all_invoice_maps.values())
+        )
+
+        totale_credito = 0.0
+        # Prepara la lista dei nomi delle colonne per accedere ai campi dei pagamenti.
+        payment_cols = [col.value for col in DBPaymentsColumns]
+
+        # Itera sulle fatture filtrate
+        for invoice in filtered_invoices:
+            # Se si vuole considerare solo l'anno corrente, controlla DATA_CREAZIONE.
+            if current_year:
+                creation_date_str = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
+                try:
+                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d")
+                if dt.year != datetime.today().year:
+                    continue
+
+            # Estrai i dati necessari dalla fattura
+            try:
+                num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
+            except (ValueError, TypeError):
+                continue
+            tot_documento = float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value])
+            iva = float(invoice[DBInvoicesColumns.IVA.value])
+            # Ritenuta può essere None, quindi se non presente la consideriamo zero.
+            ritenuta = float(invoice[DBInvoicesColumns.RITENUTA.value] or 0)
+
+            # I pagamenti sono memorizzati nella chiave "payments" (lista di tuple).
+            # Convertiamo ciascun pagamento in un dizionario per accedere ai campi.
+            payments = invoice.get("payments", [])
+            payments_maps = []
+            for p in payments:
+                if p and p[0] is not None:
+                    payments_maps.append(dict(zip(payment_cols, p)))
+
+            # Calcola il credito netto in base alla tipologia di rateizzazione
+            if num_rate == int(InvoiceController.Rateizzazione.UNA.value):
+                # Fattura con 1 rata: se non esiste un pagamento (LINKED_RATA == 1) allora il credito è:
+                # tot_documento - IVA - RITENUTA.
+                paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == 1 for pm in payments_maps)
+                if not paid:
+                    credito = tot_documento - iva - ritenuta
+                    totale_credito += credito
+            elif num_rate == int(InvoiceController.Rateizzazione.TRE.value):
+                # Fattura rateizzata in 3: ogni rata ha un credito netto pari a:
+                # (tot_documento - IVA - RITENUTA) / 3.
+                credito_rate = (tot_documento - iva - ritenuta) / 3.0
+                for rata in [1, 2, 3]:
+                    paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == rata for pm in payments_maps)
+                    if not paid:
+                        totale_credito += credito_rate
+            else:
+                print(
+                    f"Invoice id {invoice[DBInvoicesColumns.ID.value]}: numero rate non riconosciuto (valore: {num_rate}). Nessuna azione effettuata.")
 
         return totale_credito
 
@@ -1314,104 +1425,165 @@ class InvoiceController:
         for invoice in invoices:
             self.print_invoice(invoice)
 
-    def update_stato_fatture(self):
+    def update_stato_fatture(self, current_year=True):
         """
         Aggiorna lo stato di tutte le fatture nel database in base ai dati correnti,
-        utilizzando il nuovo enum InvoiceRateizzSatus.
+        utilizzando il nuovo enum InvoiceRateizzSatus e sfruttando i dati dei pagamenti
+        ottenuti dal join tra invoices e payments.
 
         Per fatture con 1 rata:
-          - Se la rata è pagata → PAGATA
-          - Se la rata non è pagata e la scadenza è passata → SCADUTA
+          - Se esiste un pagamento associato (con LINKED_RATA == 1) → PAGATA
+          - Se non esiste pagamento e la scadenza (DATA_SCADENZA_1) è passata → SCADUTA
           - Altrimenti → EMESSA
 
         Per fatture con 3 rate:
-          - Se tutte le rate sono pagate → PAGATA
+          - Se tutte le 3 rate sono pagate → PAGATA
           - Se nessuna rata è pagata:
-              * Se tutte sono scadute → SCADUTA
-              * Altrimenti → EMESSA
-          - Se alcune rate sono pagate (ma non tutte):
-              * Se almeno una rata, ancora non pagata, è scaduta → CRITICA
-              * Altrimenti → PARZIALMENTE_SALDATA
+                * Se tutte le scadenze sono passate → SCADUTA
+                * Se almeno una rata non pagata è scaduta (ma non tutte) → CRITICA
+                * Altrimenti → EMESSA
+          - Se alcune rate sono pagate (1 o 2):
+                * Se almeno una rata ancora non pagata è scaduta → CRITICA
+                * Altrimenti → PARZIALMENTE_SALDATA
 
         Viene stampato a console il feedback per ogni fattura e un riepilogo finale.
         """
-        # Recupera tutte le fatture dal database
-        fatture = self.retrieve_invoices_map_list()  # Supponiamo restituisca una lista (ad es. fetchall())
+        # Recupera i dati dal join tra invoices e payments
+        # La funzione fetch_invoices_with_payments() restituisce una lista di tuple in cui:
+        # - le prime N colonne (N = len(DBInvoicesColumns)) sono i dati della fattura,
+        # - le colonne successive sono i dati dei pagamenti associati.
+        rows = self.db_model.fetch_invoices_with_payments()
         oggi = datetime.today().date()
-        updates = 0
-        total = len(fatture)
 
-        for fattura in fatture:
-            invoice_id = fattura[DBInvoicesColumns.ID.value]
-            stato_attuale = fattura[DBInvoicesColumns.STATUS.value]
-            num_rate = fattura[DBInvoicesColumns.NUMERO_RATE.value]
+        # Raggruppa i record per invoice_id.
+        num_invoice_cols = len(DBInvoicesColumns)
+        grouped = {}
+        for row in rows:
+            # L'ID della fattura è la prima colonna della parte invoices
+            invoice_id = row[0]
+            if invoice_id not in grouped:
+                grouped[invoice_id] = {
+                    "invoice_raw": row[0:num_invoice_cols],
+                    "payments": []
+                }
+            payment_raw = row[num_invoice_cols:]
+            # Se il record di pagamento esiste (ID pagamento non None), lo aggiungiamo.
+            if payment_raw and payment_raw[0] is not None:
+                grouped[invoice_id]["payments"].append(payment_raw)
+
+        # Converte ogni gruppo in una mappa (dizionario) per la fattura e conserva la lista dei pagamenti.
+        all_invoice_maps = {}
+        for inv_id, data in grouped.items():
+            inv_map = ValidationUtils._row_to_map(data["invoice_raw"], DBInvoicesColumns)
+            # Aggiungiamo i pagamenti grezzi (li convertiremo in mappe più avanti)
+            inv_map["payments"] = data["payments"]
+            all_invoice_maps[inv_id] = inv_map
+
+        # Filtra le fatture, rimuovendo note di credito e fatture stornate
+        filtered_invoices = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
+            list(all_invoice_maps.values())
+        )
+
+        updates = 0
+        total = len(filtered_invoices)
+        # Prepara la lista dei nomi delle colonne dei pagamenti per accedere ai campi
+        payment_cols = [col.value for col in DBPaymentsColumns]
+
+        for invoice in filtered_invoices:
+            invoice_id = invoice[DBInvoicesColumns.ID.value]
+            stato_attuale = invoice[DBInvoicesColumns.STATUS.value]
+            num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
             nuovo_stato = stato_attuale  # default
 
-            if stato_attuale != InvoiceController.InvoiceSatus.STORNATA.value:
+            # Se la fattura è segnata come stornata (nota di credito), non viene modificata
+            if stato_attuale == InvoiceController.InvoiceSatus.STORNATA.value:
+                print(f"Fattura {invoice_id} non aggiornata poichè è nota di credito")
+                continue
 
-                if num_rate == int(InvoiceController.Rateizzazione.UNA.value):
-                    # Gestione della fattura con 1 rata
-                    pagamento = ControllerUtils.parse_date(fattura[DBInvoicesColumns.DATA_PAGAMENTO_1.value])
-                    scadenza = ControllerUtils.parse_date(fattura[DBInvoicesColumns.DATA_SCADENZA_1.value])
-
-                    if pagamento is not None:
-                        nuovo_stato = InvoiceController.InvoiceRateizzSatus.PAGATA.value
-                    else:
-                        if scadenza is not None and oggi > scadenza:
-                            nuovo_stato = InvoiceController.InvoiceRateizzSatus.SCADUTA.value
-                        else:
-                            nuovo_stato = InvoiceController.InvoiceRateizzSatus.EMESSA.value
-
-                elif num_rate == int(InvoiceController.Rateizzazione.TRE.value):
-                    # Gestione della fattura rateizzata a 3 rate
-                    # Raccogliamo i dati dei pagamenti e delle scadenze
-                    pagamenti = [
-                        ControllerUtils.parse_date(fattura[DBInvoicesColumns.DATA_PAGAMENTO_1.value]),
-                        ControllerUtils.parse_date(fattura[DBInvoicesColumns.DATA_PAGAMENTO_2.value]),
-                        ControllerUtils.parse_date(fattura[DBInvoicesColumns.DATA_PAGAMENTO_3.value])
-                    ]
-                    scadenze = [
-                        ControllerUtils.parse_date(fattura[DBInvoicesColumns.DATA_SCADENZA_1.value]),
-                        ControllerUtils.parse_date(fattura[DBInvoicesColumns.DATA_SCADENZA_2.value]),
-                        ControllerUtils.parse_date(fattura[DBInvoicesColumns.DATA_SCADENZA_3.value])
-                    ]
-
-                    count_paid = sum(1 for p in pagamenti if p is not None)
-                    # Una rata è considerata "scaduta" se non è pagata e la sua scadenza è passata
-                    count_overdue = sum(
-                        1 for i in range(3) if (pagamenti[i] is None and scadenze[i] is not None and oggi > scadenze[i]))
-
-                    if count_paid == 3:
-                        nuovo_stato = InvoiceController.InvoiceRateizzSatus.PAGATA.value
-                    elif count_paid == 0:
-                        # Nessun pagamento: se tutte le rate (definite) sono scadute, allora SCADUTA, altrimenti EMESSA
-                        if all(scadenza is not None and oggi > scadenza for scadenza in scadenze):
-                            nuovo_stato = InvoiceController.InvoiceRateizzSatus.SCADUTA.value
-                        elif count_overdue > 0 and count_overdue < 3:
-                            nuovo_stato = InvoiceController.InvoiceRateizzSatus.CRITICA.value
-                    else:
-                        # Alcune rate sono pagate (1 o 2)
-                        if count_overdue > 0:
-                            nuovo_stato = InvoiceController.InvoiceRateizzSatus.CRITICA.value
-                        else:
-                            nuovo_stato = InvoiceController.InvoiceRateizzSatus.PARZIALMENTE_SALDATA.value
-                else:
-                    print(
-                        f"Invoice id {invoice_id}: numero rate non riconosciuto (valore: {num_rate}). Nessuna azione effettuata.")
+            # Se si filtra per anno corrente, controlla DATA_CREAZIONE
+            if current_year:
+                creation_date_str = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
+                try:
+                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d")
+                if dt.year != datetime.today().year:
                     continue
 
-                # Aggiorna lo stato se è cambiato
-                if nuovo_stato != stato_attuale:
-                    self.db_model.modify_invoice_datum(invoice_id, DBInvoicesColumns.STATUS.value, nuovo_stato)
-                    print(f"Invoice id {invoice_id}: stato aggiornato da '{stato_attuale}' a '{nuovo_stato}'.")
-                    updates += 1
-                else:
-                    print(f"Invoice id {invoice_id}: nessun cambiamento (stato corrente: '{stato_attuale}').")
+            # Converti i pagamenti in mappe per accedere ai campi (es. LINKED_RATA)
+            payments = invoice.get("payments", [])
+            payments_maps = []
+            for p in payments:
+                if p and p[0] is not None:
+                    payments_maps.append(dict(zip(payment_cols, p)))
 
+            if num_rate == int(InvoiceController.Rateizzazione.UNA.value):
+                # Fattura con 1 rata: se esiste un pagamento con LINKED_RATA == 1 → PAGATA,
+                # altrimenti se la scadenza (DATA_SCADENZA_1) è passata → SCADUTA, altrimenti EMESSA.
+                paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == 1 for pm in payments_maps)
+                scadenza = ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_1.value])
+                if paid:
+                    nuovo_stato = InvoiceController.InvoiceRateizzSatus.PAGATA.value
+                else:
+                    if scadenza is not None and oggi > scadenza:
+                        nuovo_stato = InvoiceController.InvoiceRateizzSatus.SCADUTA.value
+                    else:
+                        nuovo_stato = InvoiceController.InvoiceRateizzSatus.EMESSA.value
+
+            elif num_rate == int(InvoiceController.Rateizzazione.TRE.value):
+                # Fattura con 3 rate: raggruppa i pagamenti per rata.
+                # Per ciascuna rata (1, 2, 3) verifica se esiste un pagamento con LINKED_RATA uguale.
+                pagamenti = []
+                for rata in [1, 2, 3]:
+                    # Per ogni rata, seleziona il pagamento (se esiste) con LINKED_RATA == rata
+                    payment = next((pm for pm in payments_maps if int(pm[DBPaymentsColumns.LINKED_RATA.value]) == rata),
+                                   None)
+                    pagamenti.append(
+                        ControllerUtils.parse_date(payment[DBPaymentsColumns.PAYMENT_DATE.value]) if payment else None)
+                # Recupera le scadenze dalle fatture
+                scadenze = [
+                    ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_1.value]),
+                    ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_2.value]),
+                    ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_3.value])
+                ]
+                count_paid = sum(1 for p in pagamenti if p is not None)
+                count_overdue = sum(
+                    1 for i in range(3) if pagamenti[i] is None and scadenze[i] is not None and oggi > scadenze[i]
+                )
+
+                if count_paid == 3:
+                    nuovo_stato = InvoiceController.InvoiceRateizzSatus.PAGATA.value
+                elif count_paid == 0:
+                    # Se nessun pagamento: se tutte le scadenze (definite) sono passate → SCADUTA,
+                    # altrimenti se almeno una rata non pagata è scaduta (ma non tutte) → CRITICA,
+                    # altrimenti EMESSA.
+                    if all(s is not None and oggi > s for s in scadenze):
+                        nuovo_stato = InvoiceController.InvoiceRateizzSatus.SCADUTA.value
+                    elif count_overdue > 0 and count_overdue < 3:
+                        nuovo_stato = InvoiceController.InvoiceRateizzSatus.CRITICA.value
+                    else:
+                        nuovo_stato = InvoiceController.InvoiceRateizzSatus.EMESSA.value
+                else:
+                    # Se alcune rate sono pagate (1 o 2):
+                    if count_overdue > 0:
+                        nuovo_stato = InvoiceController.InvoiceRateizzSatus.CRITICA.value
+                    else:
+                        nuovo_stato = InvoiceController.InvoiceRateizzSatus.PARZIALMENTE_SALDATA.value
             else:
-               print(f"Fattura {invoice_id} non aggiornata poichè è nota di credito")
+                print(
+                    f"Invoice id {invoice_id}: numero rate non riconosciuto (valore: {num_rate}). Nessuna azione effettuata.")
+                continue
+
+            # Aggiorna lo stato della fattura se è cambiato
+            if nuovo_stato != stato_attuale:
+                self.db_model.modify_invoice_datum(invoice_id, DBInvoicesColumns.STATUS.value, nuovo_stato)
+                print(f"Invoice id {invoice_id}: stato aggiornato da '{stato_attuale}' a '{nuovo_stato}'.")
+                updates += 1
+            else:
+                print(f"Invoice id {invoice_id}: nessun cambiamento (stato corrente: '{stato_attuale}').")
 
         print(f"Aggiornamento completato: {updates} su {total} fatture aggiornate.")
+
 
     @staticmethod
     def calculate_three_expiration_dates(creation_date):
@@ -1471,6 +1643,8 @@ class PaymentsController:
         self.update_payments_lists()
         self.update_aggregate_data()
 
+        self.on_adding_payment_callbacks = []
+
     def update_payments_lists(self):
         self.CY_payment_list = self.retrieve_payments_map_list(True)
         self.payment_list = self.retrieve_payments_map_list(False)
@@ -1508,37 +1682,24 @@ class PaymentsController:
         id_conto = conto[DBAccountsColumns.ID.value]
 
 
-        production_data_prepared = {
+        payment_data_prepared = {
             DBPaymentsColumns.PAYMENT_NAME.value : payment_data.get(DBPaymentsColumns.PAYMENT_NAME.value),
             DBPaymentsColumns.PAYMENT_AMOUNT.value: payment_data.get(DBPaymentsColumns.PAYMENT_AMOUNT.value),
+            DBPaymentsColumns.INVOICE_ID.value : payment_data.get(DBPaymentsColumns.INVOICE_ID.value),
             DBPaymentsColumns.PAYMENT_DATE.value: payment_data.get(DBPaymentsColumns.PAYMENT_DATE.value),
             DBPaymentsColumns.LINKED_RATA.value: payment_data.get(DBPaymentsColumns.LINKED_RATA.value),
             DBPaymentsColumns.CONTO_ID.value: id_conto,
         }
 
         try:
-            self.db_model.add_payment(**production_data_prepared)
+            self.db_model.add_payment(**payment_data_prepared)
             self.update_payments_lists()
             self.update_aggregate_data()
-            #self.update_linked_invoice(id_fattura, payment_data.get(DBPaymentsColumns.LINKED_RATA.value), payment_data.get(DBPaymentsColumns.PAYMENT_DATE.value))
+            for callback in self.on_adding_payment_callbacks:
+                callback(payment_data.get(DBPaymentsColumns.INVOICE_ID.value))
             return True, "Produzione salvata con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
-
-    def update_linked_invoice(self, invoice_id, linked_rata, payment_date):
-        if int(linked_rata) == 1:
-            column = DBInvoicesColumns.DATA_PAGAMENTO_1.value
-        elif int(linked_rata) == 2:
-            column = DBInvoicesColumns.DATA_PAGAMENTO_2.value
-        elif int(linked_rata) == 3:
-            column = DBInvoicesColumns.DATA_PAGAMENTO_3.value
-
-        try:
-            self.db_model.modify_invoice_datum(invoice_id, column, payment_date)
-            success = True
-        except Exception as e:
-            success = False
-            print(f"Impossibile modificare la fattura associata a questo pagamento: {str(e)}")
 
     def retrieve_payments(self, current_year=True):
         """
@@ -1702,8 +1863,25 @@ class PaymentsController:
         except Exception as e:
             return False, f"Errore durante l'aggiornamento del pagamento: {str(e)}"
 
+    def register_on_adding_payment_callbacks(self, *callbacks):
+        self.on_adding_payment_callbacks = list(callbacks)
 
 
+
+class UpdatesController:
+
+    def __init__(self, user_controller, client_controller, invoice_controller, payments_controller, account_controller, production_controller):
+        self.user_controller = user_controller
+        self.client_controller = client_controller
+        self.invoice_controller = invoice_controller
+        self.payments_controller = payments_controller
+        self.account_controller = account_controller
+        self.production_controller = production_controller
+
+    def update_invoices(self):
+        self.invoice_controller.update_invoices_list()
+        self.invoice_controller.update_aggregated_data()
+        self.invoice_controller.update_stato_fatture()
 
 
 

@@ -1,0 +1,343 @@
+import customtkinter as ctk
+import tkinter as tk
+from tkcalendar import Calendar
+from Views.View_utils import ViewUtils
+from Controllers import ProductionController, PaymentsController, InvoiceController, UserController, ControllerUtils
+from Model import DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns
+from datetime import datetime
+import re
+from enum import Enum
+
+class ProductionsView(ctk.CTk):
+
+    def __init__(self, db_model, production_controller, payment_controller, invoice_controller, user_controller, client_controller, tab):
+        super().__init__()
+
+        self.db_model = db_model
+        self.production_controller = production_controller
+        self.invoice_controller = invoice_controller
+        self.user_controller = user_controller
+        self.client_controller = client_controller
+        self.payment_controller = payment_controller
+        self.tab = tab
+
+        self.global_infos = {}
+        self.amount_aggregate_labels = {}
+        self.production_labels = {}
+        self.production_widgets = {}
+        self.production_card_labels_status = {}
+        self.production_card_list = {}
+
+    def create_productions_tab(self):
+        self.global_info_frame = ctk.CTkFrame(self.tab)
+        self.global_info_frame.pack(pady=(5, 10), fill="x", anchor="n")
+
+        self.populate_global_infos()
+
+        for (key, info) in self.global_infos.items():
+            card = ctk.CTkFrame(self.global_info_frame)
+
+            if key == ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value or \
+                key == ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value or \
+                key == ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value:
+                    global_info_unità_di_misura = ""
+            elif key == ProductionController.ProductionsAggregateData.MEDIA_ORE_PRODUZIONE.value:
+                global_info_unità_di_misura = "h"
+            elif key == ProductionController.ProductionsAggregateData.MEDIA_PREZZO_ORARIO.value:
+                global_info_unità_di_misura = "€/h"
+
+            title = ctk.CTkLabel(card, text=f"{key}", font=("Arial", 12), bg_color="#1F6AA5")
+            amount = ctk.CTkLabel(card, text=f"{info} {global_info_unità_di_misura}", font=("Arial", 16))
+
+            card.pack(side="left", anchor="w", padx=10, pady=(10, 5))
+            title.pack(anchor="n", padx=10, pady=(10, 5), ipadx=7, ipady=5)
+            amount.pack(anchor="s", padx=10, pady=5)
+
+            #salvo i dati che potrebbero avere bisogno di configure successivamente
+            self.amount_aggregate_labels[f"{key}"] = amount
+
+        self.productions_table_frame = ctk.CTkFrame(self.tab)
+        self.productions_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
+
+        self.table_headers = ["NOME", "CLIENTE", ViewUtils.split_string_by_length("TIPOLOGIA DI PRODUZIONE", 12),
+                              ViewUtils.split_string_by_length("TIPOLOGIA DI OUTPUT", 10), "STATO",
+                              ViewUtils.split_string_by_length("DATA DI CONSEGNA", 8),
+                              ViewUtils.split_string_by_length("TOTALE PREVENTIVO", 8),
+                              ViewUtils.split_string_by_length("DURATA PRODUZIONE", 8),
+                              ViewUtils.split_string_by_length("PREZZO ORARIO", 8)
+                              ]
+
+        for i, header in enumerate(self.table_headers):
+            column = ctk.CTkFrame(self.productions_table_frame)
+            label = ctk.CTkLabel(column, text=f"{header}", font=("Arial", 14), width=188)
+            column.pack(padx=(0, 5), pady=5, fill="both", expand=True, side="left")
+            label.pack(padx=5, pady=15, anchor="n")
+
+        # Creazione del frame delle cards
+        self.productions_cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.productions_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
+
+        self.add_production_frame = ctk.CTkFrame(self.tab)
+        self.add_production_frame.pack(padx=0, pady=(5, 20), fill="x")
+
+        self.save_button = ctk.CTkButton(self.add_production_frame, text="Aggiungi una produzione",
+                                         command=self.open_add_production_window)
+        self.save_button.pack()
+
+        for production in self.production_controller.CY_production_list:
+            production_id = production[DBProductionsColumns.ID.value]
+            production_name = production[DBProductionsColumns.NAME.value]
+            client_id = production[DBProductionsColumns.CLIENT_ID.value]
+            client_name = self.client_controller.retrieve_client_map_by_id(client_id)[DBClientsColumns.NAME.value]
+            tipologia_produzione = production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value]
+            tipologia_output = production[DBProductionsColumns.TIPOLOGIA_OUTPUT.value]
+            produzione_stato = production[DBProductionsColumns.STATO.value]
+            data_di_consegna = production[DBProductionsColumns.END_DATE.value]
+            totale_preventivo = production[DBProductionsColumns.TOTALE_PREVENTIVO.value]
+            durata_produzione = production[DBProductionsColumns.HOURS.value]
+            prezzo_orario = self.production_controller.calculate_production_cost_per_hour(production_id)
+
+            self.add_production_card(production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario)
+
+    def populate_global_infos(self):
+        self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value}"] = self.production_controller.count_productions(True)
+        self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value}"] = self.production_controller.count_active_productions(True)
+        self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value}"] = self.production_controller.count_closed_productions(True)
+        self.global_infos[f"{ProductionController.ProductionsAggregateData.MEDIA_ORE_PRODUZIONE.value}"] = round(self.production_controller.mean_hours_for_production(True), 2)
+        self.global_infos[f"{ProductionController.ProductionsAggregateData.MEDIA_PREZZO_ORARIO.value}"] = round(self.production_controller.mean_prezzo_orario(True), 2)
+
+    def open_add_production_window(self):
+        """Apre una finestra per aggiungere una nuova produzione"""
+
+        self.add_production_window = ctk.CTkToplevel(self)
+        self.add_production_window.title("Aggiungi Nuova Produzione")
+
+        # Assicurati che la finestra rimanga sopra
+        self.add_production_window.lift()  # Porta la finestra sopra quella principale
+        self.add_production_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+
+        self.add_production_window.geometry("550x700")
+
+        self.production_window_scrollableFrame = ctk.CTkScrollableFrame(self.add_production_window)
+        self.production_window_scrollableFrame.pack(fill="both", expand=True)
+
+        self.nome_utente_string = "NOME UTENTE"
+        self.nome_cliente_string = "NOME CLIENTE"
+        self.nome_produzione_string = "NOME PRODUZIONE"
+
+        self.entry_fields = {
+            self.nome_cliente_string : ctk.CTkOptionMenu,
+            DBProductionsColumns.NAME.value: ctk.CTkEntry,
+            DBProductionsColumns.HOURS.value : ctk.CTkEntry,
+            DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value: ctk.CTkOptionMenu,
+            DBProductionsColumns.TIPOLOGIA_OUTPUT.value: ctk.CTkOptionMenu,
+            DBProductionsColumns.STATO.value: ctk.CTkOptionMenu,
+            DBProductionsColumns.END_DATE.value: Calendar,
+            DBProductionsColumns.TOTALE_PREVENTIVO.value: ctk.CTkEntry
+        }
+
+        self.error_fields = {
+            DBProductionsColumns.NAME.value : ctk.CTkLabel,
+            DBProductionsColumns.HOURS.value : ctk.CTkLabel,
+            DBProductionsColumns.TOTALE_PREVENTIVO.value: ctk.CTkLabel
+        }
+
+        self.invoice_widgets = {}
+        self.error_labels = {}
+        self.invoice_labels = {}
+
+        #Creo i labels e i widgets
+        for i, (label_text, widget_class) in enumerate(self.entry_fields.items()):
+            # Etichetta
+            label = ctk.CTkLabel(self.production_window_scrollableFrame, text=label_text)
+            #disegno i labels
+            if i == 0:
+                label.pack(pady=5)
+            else:
+                label.pack(pady=(35, 0))
+
+            self.production_labels[label_text] = label
+
+            #creo i widgets
+            if label_text == self.nome_cliente_string:
+                widget = widget_class(self.production_window_scrollableFrame,
+                                      values=[f"{item[DBClientsColumns.NAME.value]}" for item in self.client_controller.clients_list],
+                                      command=lambda selected_value: self.auto_compile_name_entry(selected_value))
+            elif label_text == DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value:
+                widget = widget_class(self.production_window_scrollableFrame,
+                                      values=[item.value for item in ProductionController.TipologiaProduzione])
+            elif label_text == DBProductionsColumns.TIPOLOGIA_OUTPUT.value:
+                widget = widget_class(self.production_window_scrollableFrame,
+                                      values=[item.value for item in ProductionController.TipologiaOutput])
+            elif label_text == DBProductionsColumns.STATO.value:
+                widget = widget_class(self.production_window_scrollableFrame,
+                                      values=[item.value for item in ProductionController.Stato])
+            elif label_text == DBProductionsColumns.END_DATE.value:
+                widget = widget_class(self.production_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
+            else:
+                widget = widget_class(self.production_window_scrollableFrame)
+
+            widget.pack(pady=5, padx=10, fill="x", expand=True)
+
+            self.production_widgets[label_text] = widget
+
+            if self.error_fields.get(label_text) is not None:
+                error_label = ctk.CTkLabel(self.production_window_scrollableFrame, text="")
+                error_label.pack(pady=(0,15))
+                self.error_labels[label_text] = error_label
+
+        # Bottone per salvare
+        self.save_button = ctk.CTkButton(
+            self.production_window_scrollableFrame,
+            text="Salva Produzione",
+            command=self.save_production_data
+        )
+        self.save_button.pack(pady=(35, 15))
+
+        self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{self.client_controller.clients_list[0][DBClientsColumns.NAME.value]}-")
+
+        # Aggiungi validazione agli eventi di perdita del focus
+        self.production_widgets[DBProductionsColumns.NAME.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
+            self.production_widgets[DBProductionsColumns.NAME.value],
+            lambda val: val.strip() != "",
+            self.error_labels[DBProductionsColumns.NAME.value],
+            "Il campo non può essere vuoto."
+        ))
+
+        self.production_widgets[DBProductionsColumns.HOURS.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
+            self.production_widgets[DBProductionsColumns.HOURS.value],
+            lambda val: val.strip() != "" and val.isdigit(),
+            self.error_labels[DBProductionsColumns.HOURS.value],
+            "Il campo deve contenere un numero intero."
+        ))
+
+        self.production_widgets[DBProductionsColumns.TOTALE_PREVENTIVO.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
+            self.production_widgets[DBProductionsColumns.TOTALE_PREVENTIVO.value],
+            lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val.strip()) is not None,
+            self.error_labels[DBProductionsColumns.TOTALE_PREVENTIVO.value],
+            "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
+        ))
+
+    def add_production_card(self, production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario):
+        """
+          Aggiunge una singola card con i dati forniti alla scrollable frame.
+
+          :param production_id: ID della produzione associato dal database
+          :param production_name: Nome della produzione
+          :param client_name: nome del cliente
+          :param tipologia_produzione:
+          :param tipologia_output:
+          :param produzione_stato: da ProductionController.Sato
+          :param data_di_consegna: Data prevista per la chiusura della produzione
+          :param totale_preventivo:
+          :param durata_produzione: Numero di ore spese per consegnare il prodotto finito
+          :param prezzo_orario: totale_preventivo/durata_produzione
+
+          """
+        # Creazione della card
+        card = ctk.CTkFrame(self.productions_cards_frame, fg_color="dimgray")
+        card.pack(pady=10, padx=8, fill="x", expand=True)  # Spaziatura tra le card
+
+        ctk.CTkButton(card, text=f"{production_name}", width=180, command=lambda: self.open_modify_production(production_id)).pack(
+            padx=(10, 0), pady=10, fill="both", side="left")
+
+        # Dati da visualizzare nella card
+        data = [client_name, tipologia_produzione, tipologia_output, produzione_stato, ViewUtils.invert_data_string(data_di_consegna), totale_preventivo, durata_produzione, round(prezzo_orario, 2)]
+        units = ["", "", "", "", "", "€", "h", "€/h"]
+        i = 0
+        # Aggiunta dei dati alla card
+        for value in data:
+            label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=180)
+            label.pack(padx=0, pady=5, fill="both", expand=True, side="left")
+
+            # salvo i labels dello stato per poter eseguire dei configure per cambiare il colore
+            if i == 4:
+                self.production_card_labels_status[production_id] = label
+
+            i = i + 1
+
+        self.production_card_list[production_name] = card
+
+    def save_production_data(self):
+        production_data = {}
+
+        # riempi il dizionario con i dati dei widgets primari
+        for label_text, widget in self.production_widgets.items():
+            if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
+                production_data[label_text] = widget.get()
+            elif isinstance(widget, Calendar):
+                production_data[label_text] = widget.get_date()
+            elif isinstance(widget, ctk.CTkTextbox):
+                production_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+
+        # chiamata al controller per salvare i dati
+        success, message = self.production_controller.save_production(production_data)
+
+        if success:
+            #prendo l'ID della fattura appena creata
+            production_map = self.production_controller.retrieve_last_production_insert_map()
+            print(f"Fattura {production_data[DBProductionsColumns.NAME.value]} salvato con successo")
+
+            client_name = self.client_controller.retrieve_client_map_by_id(production_map[DBProductionsColumns.CLIENT_ID.value])[DBClientsColumns.NAME.value]
+
+            self.add_production_card(
+                production_map[DBProductionsColumns.ID.value],
+                production_map[DBProductionsColumns.NAME.value],
+                client_name,
+                production_map[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value],
+                production_map[DBProductionsColumns.TIPOLOGIA_OUTPUT.value],
+                production_map[DBProductionsColumns.STATO.value],
+                production_map[DBProductionsColumns.END_DATE.value],
+                production_map[DBProductionsColumns.TOTALE_PREVENTIVO.value],
+                production_map[DBProductionsColumns.HOURS.value],
+                self.production_controller.calculate_production_cost_per_hour(production_map[DBProductionsColumns.ID.value])
+            )
+
+            self.clear_class_variable()
+            self.add_production_window.destroy()
+        else:
+            print(message)
+            ViewUtils.show_error_popup(self.add_production_window, "ERRORE", message)
+
+    def open_modify_production(self, production_id):
+
+        #prendo i dati della produzione
+        production = self.production_controller.retrieve_production_map_by_id(production_id, True)
+        client_name = self.client_controller.retrieve_client_map_by_id(production[DBProductionsColumns.CLIENT_ID.value])[DBClientsColumns.NAME.value]
+
+        self.open_add_production_window()
+
+        #configuro la finestra
+        #self.add_production_window.configure(title=f"Modifica i dati della produzione {production[DBProductionsColumns.NAME.value]}")
+        self.add_production_window.title(f"Modifica i dati della produzione {production[DBProductionsColumns.NAME.value]}")
+        self.save_button.configure(text="Salva Modifiche", command=self.modify_production_data)
+        self.production_widgets[self.nome_cliente_string].set(client_name)
+        self.production_widgets[DBProductionsColumns.NAME.value].delete(0, tk.END)
+        self.production_widgets[DBProductionsColumns.NAME.value].insert(0, production[DBProductionsColumns.NAME.value])
+        self.production_widgets[DBProductionsColumns.HOURS.value].delete(0, tk.END)
+        self.production_widgets[DBProductionsColumns.HOURS.value].insert(0, int(production[DBProductionsColumns.HOURS.value]))
+        self.production_widgets[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value].set(production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value])
+        self.production_widgets[DBProductionsColumns.TIPOLOGIA_OUTPUT.value].set(production[DBProductionsColumns.TIPOLOGIA_OUTPUT.value])
+        self.production_widgets[DBProductionsColumns.STATO.value].set(production[DBProductionsColumns.STATO.value])
+        self.production_widgets[DBProductionsColumns.END_DATE.value].selection_set(production[DBProductionsColumns.END_DATE.value])
+        self.production_widgets[DBProductionsColumns.TOTALE_PREVENTIVO.value].delete(0, tk.END)
+        self.production_widgets[DBProductionsColumns.TOTALE_PREVENTIVO.value].insert(0, f"{production[DBProductionsColumns.TOTALE_PREVENTIVO.value]:.2f}")
+
+    def auto_compile_name_entry(self, selected_value):
+        self.production_widgets[DBProductionsColumns.NAME.value].delete(0, tk.END)
+        self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{selected_value}-")
+
+    def clear_class_variable(self):  #potrebbe non servire in quanto vengono inizializzate all'apertura della funzione
+        self.production_widgets.clear()
+        self.production_labels.clear()
+
+    # da implementare
+    def modify_production_data(self):
+        """
+        salva le modifiche apportate alla produzione tramite i widgets dell'interfaccia
+        :return:
+        """
+
+
+
+

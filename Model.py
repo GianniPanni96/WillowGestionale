@@ -1,0 +1,819 @@
+import sqlite3
+import os
+from enum import Enum
+import shutil
+from datetime import datetime, timedelta
+
+# Nome della variabile d'ambiente
+DB_PATH_ENV_VAR = "GESTIONALE_DB_PATH"
+
+# Ottieni il percorso del database dalla variabile d'ambiente
+db_path = os.environ.get(DB_PATH_ENV_VAR)
+
+if not db_path:
+    raise EnvironmentError(f"La variabile d'ambiente {DB_PATH_ENV_VAR} non è stata configurata.")
+
+db_path = os.path.join(db_path, "gestionale.db")
+print(db_path)
+
+
+class DBUsersColumns(Enum):
+    """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE UTENTE DELLA VIEW"""
+    ID = "id"
+    FIRST_NAME = "first_name"
+    LAST_NAME = "last_name"
+    PARTITA_IVA = "partita_iva"
+    CODICE_FISCALE = "codice_fiscale"
+    TELEFONO = "telefono"
+    EMAIL = "email"
+    ALIQUOTA_TAX = "aliquota_tax"
+    ALIQUOTA_INPS = "aliquota_inps"
+    ALIQUOTA_IVA = "aliquota_iva"
+    ALIQUOTA_CASSA_INPS = "aliquota_cassa_inps"
+    ALIQUOTA_RIVALSA_INPS = "aliquota_rivalsa_inps"
+    ALIQUOTA_RITENUTA_ACCONTO = "aliquota_ritenuta_acconto"
+    REGIME_FISCALE = "regime_fiscale"
+    IMPONIBILE_IVA = "imponibile_iva"
+    IMPONIBILE_TAX = "imponibile_tax"
+    IMPONIBILE_CASSA_INPS = "imponibile_cassa_inps"
+    IMPONIBILE_INPS = "imponibile_inps"
+    ANNO_APERTURA_PIVA = "anno_apertura_piva"
+    REDDITO_ESTERNO = "reddito_esterno"
+    CONTO_CORRENTE_ID = "conto_corrente_id"
+    PROVIDER_FATTURE = "provider_fatture"
+    USERNAME_PROVIDER = "username_provider"
+    PASSWORD_PROVIDER = "password_provider"
+    STATUS = "status"
+    PHOTO_PATH = "photo_path"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
+class DBClientsColumns(Enum):
+    """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE CLIENTE DELLA VIEW"""
+    ID = "id"
+    NAME = "name"
+    PARTITA_IVA = "partita_iva"
+    EMAIL = "email"
+    SEDE_LEGALE = "sede_legale"
+    SETTORE = "settore"
+    TIPOLOGIA = "tipologia"
+    REFERENTE = "referente"
+    CONTATTO_REFERENTE = "contatto_referente"
+    NOTE = "note"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
+class DBInvoicesColumns(Enum):
+    """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE INVOICE DELLA VIEW"""
+
+    ID = "id" #db
+    NUMERO_FATTURA = "numero_fattura" #view
+    DATA_CREAZIONE = "creation_date" #view
+    DATA_SCADENZA_1 = "expiration_date_1" #controller -> funzione di rate
+    DATA_SCADENZA_2 = "expiration_date_2"
+    DATA_SCADENZA_3 = "expiration_date_3"
+    DATA_PAGAMENTO_1 = "payment_date_1" #controller -> dipende da pagamento
+    DATA_PAGAMENTO_2 = "payment_date_2"
+    DATA_PAGAMENTO_3 = "payment_date_3"
+    ID_UTENTE = "invoicer_id" #controller(view)
+    ID_CLIENTE = "client_id" #controller(view)
+    NOTE = "note" #view
+    SERVIZI = "importo_servizi" #view (comprensivo di rivalsa)
+    CASSA_INPS = "cassa_inps" #controller -> servizi*coeff redditività*aliquota INPS
+    IMPONIBILE = "imponibile" #controller -> servizi*coeff redditività
+    IVA = "iva" #controller = 0
+    RIMBORSI = "rimborsi" #view
+    RIVALSA_INPS = "rivalsa_inps"
+    TOT_DOCUMENTO = "tot_documento"
+    RITENUTA = "ritenuta" #controller = 0
+    NETTO_A_PAGARE = "netto_a_pagare" #controller = 0
+    STATUS = "status" #controller -> default: emessa
+    METODO_PAGAMENTO = "metodo_pagamento" #view
+    NUMERO_RATE = "rate_totali" #view
+    TIPO = "tipo"  # se è nota di credito #view
+    ID_FATTURA_ASSOCIATA = "id_fattura_associata"  #view (a comparsa)
+    ID_PRODUZIONE_ASSOCIATA = "id_produzione_associata"
+    CREATED_AT = "created_at" #db
+    UPDATED_AT = "updated_at" #db
+
+class DBPaymentsColumns(Enum):
+    """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE PAYMENT DELLA VIEW"""
+
+    ID = "ID"
+    PAYMENT_NAME = "PAYMENT_NAME" #NomeCliente_NomeProduzione_NomeFattura_1/2/3
+    PAYMENT_AMOUNT = "PAYMENT_AMOUNT"
+    PAYMENT_DATE = "PAYMENT_DATE"
+    LINKED_RATA = "LINKED_RATA" # 1, 2, 3
+    INVOICE_ID = "INVOICE_ID"
+    CONTO_ID = "CONTO_ID"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
+class DBProductionsColumns(Enum):
+    ID = "ID"
+    NAME = "NAME"
+    CLIENT_ID = "CLIENT_ID"
+    HOURS = "HOURS"
+    TIPOLOGIA_PRODUZIONE = "TIPOLOGIA_PRODUZIONE"
+    TIPOLOGIA_OUTPUT = "TIPOLOGIA_OUTPUT"
+    STATO = "STATO"
+    END_DATE = "END_DATE"
+    TOTALE_PREVENTIVO = "TOTALE_PREVENTIVO"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
+class DBAccountsColumns(Enum):
+    ID = "ID"
+    NAME = "NAME"
+    BALANCE = "BALANCE"
+    ULTIMO_MOV = "ULTIMO_MOV"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
+
+
+class DatabaseModel:
+    def __init__(self, db_path):
+        """ Inizializza il percorso al database """
+        self.db_path = db_path
+
+    def _connect(self):
+        """ Crea una nuova connessione al database """
+        return sqlite3.connect(self.db_path)
+
+    # Funzioni generali
+    def delete_row(self, table_name, primary_key_column, primary_key_value):
+        """ Elimina una riga dalla tabella specificata """
+        query = f"DELETE FROM {table_name} WHERE {primary_key_column} = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (primary_key_value,))
+            conn.commit()
+
+    def update_row(self, table_name, column_name, new_value, primary_key_column, primary_key_value):
+        """ Aggiorna una colonna specifica in una riga della tabella """
+        query = f"UPDATE {table_name} SET {column_name} = ? WHERE {primary_key_column} = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (new_value, primary_key_value))
+            conn.commit()
+
+    def fetch_table(self, table_name):
+        query = f"SELECT * FROM {table_name}"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+
+
+
+    # Funzioni per gli utenti (users)
+    def fetch_users(self):
+        """ Recupera tutti gli utenti dal database """
+        query = "SELECT * FROM users"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def fetch_user_by_id(self, user_id):
+        """Recupera uno specifico utente"""
+        query = "SELECT * FROM users WHERE id = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (user_id,))
+            return cursor.fetchone()
+
+    def fetch_user_by_fullname(self, user_first_name, user_last_name):
+        """Recupera uno specifico utente"""
+        query = "SELECT * FROM users WHERE first_name = ? AND last_name = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (user_first_name, user_last_name))
+            return cursor.fetchone()
+
+    def add_user(self, **kwargs):
+        """
+        Aggiungi un nuovo utente nella tabella `users`.
+        I campi da aggiungere devono essere passati come keyword arguments.
+        """
+        # Estrarre le colonne valide dall'Enum
+        valid_columns = {column.value for column in DBUsersColumns}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        # Creazione dinamica della query SQL
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO users ({columns}) VALUES ({placeholders})"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def update_user(self, user_id, **kwargs):
+        """
+        Aggiorna i valori di un utente esistente nella tabella `users`.
+        I campi da aggiornare devono essere passati come keyword arguments.
+
+        :param user_id: ID dell'utente da aggiornare
+        :param kwargs: Campi da aggiornare (anche `None` per settare `NULL`)
+        :raises ValueError: Se non vengono specificati campi validi per l'aggiornamento
+        """
+        # Controllo che i campi passati siano validi
+        valid_columns = {column.value for column in DBUsersColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        # Creazione dinamica della query SQL senza COALESCE per permettere valori NULL
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE users SET {set_clause} WHERE {DBUsersColumns.ID.value} = ?"
+
+        # Esecuzione della query
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), user_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento dell'utente: {str(e)}")
+
+    def update_user_tax_rate(self, user_id, new_tax_rate):
+        """
+        Aggiorna l'aliquota fiscale di un utente.
+        :param user_id: ID dell'utente.
+        :param new_tax_rate: Nuova aliquota fiscale.
+        """
+        query = f"UPDATE Users SET {DBUsersColumns.ALIQUOTA_TAX.value} = ? WHERE {DBUsersColumns.ID.value} = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (new_tax_rate, user_id))
+            conn.commit()
+
+
+
+
+
+
+
+
+
+
+    # Funzioni per i clienti (clients)
+    def fetch_clients(self):
+        """ Recupera tutti i clienti """
+        query = "SELECT * FROM clients"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_client(self, **kwargs):
+        """Aggiungi un nuovo cliente, utilizzando campi dinamici basati sull'Enum."""
+        columns = [column.value for column in DBClientsColumns if column.value in kwargs]
+        placeholders = ", ".join(["?"] * len(columns))
+        query = f"INSERT INTO clients ({', '.join(columns)}) VALUES ({placeholders})"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(kwargs[column] for column in columns))
+            conn.commit()
+
+    def fetch_client_by_id(self, client_id):
+        """Recupera uno specifico cliente in modo dinamico."""
+        columns = [column.value for column in DBClientsColumns]
+        query = f"SELECT {', '.join(columns)} FROM clients WHERE {DBClientsColumns.ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (client_id,))
+            return cursor.fetchone()
+
+    def fetch_client_by_name(self, client_name):
+        """Recupera uno specifico cliente per nome."""
+        query = "SELECT * FROM clients WHERE name = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (client_name,))
+            return cursor.fetchone()
+
+
+
+
+
+
+
+
+
+
+    # Funzioni per le spese (expenses)
+    def fetch_expenses(self):
+        """ Recupera tutte le spese """
+        query = "SELECT * FROM expenses"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_expense(self, voce, type, amount, data, anticipata, deducibile, ivabile):
+        """ Aggiungi una nuova spesa """
+        query = (
+            "INSERT INTO expenses (voce, type, amount, data, anticipata, deducibile, ivabile) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+        )
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (voce, type, amount, data, anticipata, deducibile, ivabile))
+            conn.commit()
+
+
+
+
+
+
+
+
+
+    # Funzioni per le fatture (invoices)
+    def fetch_invoices(self):
+        """ Recupera tutte le fatture """
+        query = "SELECT * FROM invoices"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_invoice(self, **kwargs):
+        """
+        Aggiungi una nuova fattura
+        I campi da aggiungere devono essere passati come keyword arguments
+        """
+        # Estrarre le colonne valide dall'Enum
+        valid_columns = {column.value for column in DBInvoicesColumns}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        # Creazione dinamica della query SQL
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO invoices ({columns}) VALUES ({placeholders})"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def fetch_invoice_by_id(self, invoice_id):
+        """Recupera una specifica fattura in modo dinamico."""
+        columns = [column.value for column in DBInvoicesColumns]
+        query = f"SELECT {', '.join(columns)} FROM invoices WHERE {DBInvoicesColumns.ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (invoice_id,))
+            return cursor.fetchone()
+
+    def fetch_invoice_by_name(self, invoice_name):
+        """Recupera una specifica fattura in modo dinamico."""
+        columns = [column.value for column in DBInvoicesColumns]
+        query = f"SELECT {', '.join(columns)} FROM invoices WHERE {DBInvoicesColumns.NUMERO_FATTURA.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (invoice_name,))
+            return cursor.fetchone()
+
+    def fetch_invoices_by_user_id(self, user_id):
+        """Recupera una specifica fattura in modo dinamico."""
+        columns = [column.value for column in DBInvoicesColumns]
+        query = f"SELECT {', '.join(columns)} FROM invoices WHERE {DBInvoicesColumns.ID_UTENTE.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (user_id,))
+            return cursor.fetchall()
+
+    def fetch_last_invoice_insert(self):
+        """
+        Recupera l'ultima fattura inserita nel database, ordinando in base alla colonna CREATED_AT.
+        :return: Un dizionario contenente i dati dell'ultima fattura oppure None se non viene trovata.
+        """
+        columns = [column.value for column in DBInvoicesColumns]
+        query = f"SELECT {', '.join(columns)} FROM invoices ORDER BY {DBInvoicesColumns.CREATED_AT.value} DESC LIMIT 1"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+    def modify_invoice_datum(self, invoice_id, column, datum):
+        """
+        Modifica la specifica fattura inserendo il dato nella colonna passata come argomento.
+        :param invoice_id: ID della fattura da modificare
+        :param column: Colonna da modificare.
+        :param datum: Dato da inserire.
+        """
+        query = f"UPDATE Invoices SET {column} = ? WHERE {DBInvoicesColumns.ID.value} = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (datum, invoice_id))
+            conn.commit()
+
+
+
+
+
+
+
+
+
+
+    # Funzioni per i pagamenti (payments)
+    def fetch_payments(self):
+        """ Recupera tutti i pagamenti """
+        query = "SELECT * FROM payments"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_payment(self, **kwargs):
+        """
+        Aggiungi un nuovo payment.
+        I campi da aggiungere devono essere passati come keyword arguments.
+        """
+        # Estrarre le colonne valide dall'Enum dei payments
+        valid_columns = {column.value for column in DBPaymentsColumns}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        # Creazione dinamica della query SQL per la tabella payments
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO payments ({columns}) VALUES ({placeholders})"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def fetch_payment_by_id(self, payment_id):
+        """
+        Recupera un payment specifico in modo dinamico.
+        """
+        # Creazione della lista delle colonne dal DBPaymentsColumns
+        columns = [column.value for column in DBPaymentsColumns]
+        query = f"SELECT {', '.join(columns)} FROM payments WHERE {DBPaymentsColumns.ID.value} = ?"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (payment_id,))
+            return cursor.fetchone()
+
+    def fetch_payments_by_invoice_id(self, invoice_id):
+        """
+        Recupera dei payments specifici in modo dinamico.
+        """
+        # Creazione della lista delle colonne dal DBPaymentsColumns
+        columns = [column.value for column in DBPaymentsColumns]
+        query = f"SELECT {', '.join(columns)} FROM payments WHERE {DBPaymentsColumns.INVOICE_ID.value} = ?"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (invoice_id,))
+            return cursor.fetchall()
+
+    def fetch_last_payment_insert(self):
+        """
+        Recupera l'ultimo pagamento inserito nel database, ordinando in base alla colonna PAYMENT_DATE.
+        :return: Una tupla contenente i dati dell'ultimo pagamento oppure None se non viene trovato.
+        """
+        columns = [column.value for column in DBPaymentsColumns]
+        query = f"SELECT {', '.join(columns)} FROM payments ORDER BY {DBPaymentsColumns.PAYMENT_DATE.value} DESC LIMIT 1"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+    def update_payment(self, payment_id, **kwargs):
+        """
+        Aggiorna i valori di un pagamento esistente nella tabella `payments`.
+        I campi da aggiornare devono essere passati come keyword arguments.
+
+        :param payment_id: ID del pagamento da aggiornare.
+        :param kwargs: Campi da aggiornare (anche `None` per settare `NULL`).
+        :raises ValueError: Se non vengono specificati campi validi per l'aggiornamento.
+        """
+        # Controllo che i campi passati siano validi per la tabella payments
+        valid_columns = {column.value for column in DBPaymentsColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        # Creazione dinamica della query SQL
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE payments SET {set_clause} WHERE {DBPaymentsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), payment_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento del pagamento: {str(e)}")
+
+    def fetch_payments_with_invoice(self):
+        """
+        Recupera i dati dei pagamenti uniti ai dati delle fatture tramite la foreign key INVOICE_ID.
+
+        Ritorna una lista di tuple, in cui ogni tupla contiene i dati delle colonne della tabella
+        payments seguiti dai dati delle colonne della tabella invoices.
+        """
+        # Costruzione dinamica della lista delle colonne da entrambe le tabelle
+        payment_columns = [f"p.{col.value}" for col in DBPaymentsColumns]
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = payment_columns + invoice_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM payments p
+        JOIN invoices i ON p.{DBPaymentsColumns.INVOICE_ID.value} = i.{DBInvoicesColumns.ID.value}
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+
+
+
+
+
+
+
+    def fetch_productions(self):
+        """Recupera tutte le produzioni"""
+        query = "SELECT * FROM productions"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_production(self, **kwargs):
+        """
+        Aggiungi una nuova production.
+        I campi da aggiungere devono essere passati come keyword arguments.
+        """
+        # Estrarre le colonne valide dall'Enum dei productions
+        valid_columns = {column.value for column in DBProductionsColumns}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        # Creazione dinamica della query SQL per la tabella productions
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO productions ({columns}) VALUES ({placeholders})"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def fetch_production_by_id(self, production_id):
+        """
+        Recupera una production specifica in modo dinamico.
+        """
+        # Creazione della lista delle colonne dal DBProductionsColumns
+        columns = [column.value for column in DBProductionsColumns]
+        query = f"SELECT {', '.join(columns)} FROM productions WHERE {DBProductionsColumns.ID.value} = ?"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (production_id,))
+            return cursor.fetchone()
+
+    def fetch_production_by_name(self, production_name):
+        """
+        Recupera una production specifica in modo dinamico.
+        """
+        # Creazione della lista delle colonne dal DBProductionsColumns
+        columns = [column.value for column in DBProductionsColumns]
+        query = f"SELECT {', '.join(columns)} FROM productions WHERE {DBProductionsColumns.NAME.value} = ?"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (production_name,))
+            return cursor.fetchone()
+
+    def fetch_productions_by_client_id(self, client_id):
+        """
+        Recupera delle productions specifiche in modo dinamico.
+        """
+        # Creazione della lista delle colonne dal DBProductionsColumns
+        columns = [column.value for column in DBProductionsColumns]
+        query = f"SELECT {', '.join(columns)} FROM productions WHERE {DBProductionsColumns.CLIENT_ID.value} = ?"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (client_id,))
+            return cursor.fetchall()
+
+    def fetch_last_production_insert(self):
+        """
+        Recupera l'ultima production inserita nel database, ordinando in base alla colonna CREATION_DATE.
+        :return: Una tupla contenente i dati dell'ultima production oppure None se non viene trovata.
+        """
+        columns = [column.value for column in DBProductionsColumns]
+        query = f"SELECT {', '.join(columns)} FROM productions ORDER BY {DBProductionsColumns.CREATED_AT.value} DESC LIMIT 1"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+    def update_production(self, production_id, **kwargs):
+        """
+        Aggiorna i valori di una produzione esistente nella tabella `productions`.
+        I campi da aggiornare devono essere passati come keyword arguments.
+
+        :param production_id: ID della produzione da aggiornare.
+        :param kwargs: Campi da aggiornare (anche `None` per settare `NULL`).
+        :raises ValueError: Se non vengono specificati campi validi per l'aggiornamento.
+        """
+        # Controllo che i campi passati siano validi per la tabella productions
+        valid_columns = {column.value for column in DBProductionsColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        # Creazione dinamica della query SQL
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE productions SET {set_clause} WHERE {DBProductionsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), production_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento della produzione: {str(e)}")
+
+
+
+
+
+
+
+
+
+    def fetch_accounts(self):
+        """Recupera tutti gli account"""
+        query = "SELECT * FROM accounts"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_account(self, **kwargs):
+        """
+        Aggiungi un nuovo account.
+        I campi da aggiungere devono essere passati come keyword arguments.
+        """
+        # Estrarre le colonne valide dall'Enum dei accounts
+        valid_columns = {column.value for column in DBAccountsColumns}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        # Creazione dinamica della query SQL per la tabella accounts
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO accounts ({columns}) VALUES ({placeholders})"
+
+        # Esecuzione della query
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def fetch_account_by_id(self, account_id):
+        """
+        Recupera un account specifico in base all'ID.
+        """
+        # Creazione della lista delle colonne dall'enum DBAccountsColumns
+        columns = [column.value for column in DBAccountsColumns]
+        query = f"SELECT {', '.join(columns)} FROM accounts WHERE {DBAccountsColumns.ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (account_id,))
+            return cursor.fetchone()
+
+    def fetch_account_by_name(self, account_name):
+        """
+        Recupera un account specifico in base al NAME.
+        """
+        # Creazione della lista delle colonne dall'enum DBAccountsColumns
+        columns = [column.value for column in DBAccountsColumns]
+        query = f"SELECT {', '.join(columns)} FROM accounts WHERE {DBAccountsColumns.NAME.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (account_name,))
+            return cursor.fetchone()
+
+    def fetch_last_account_insert(self):
+        """
+        Recupera l'ultimo account inserito nel database, ordinando in base alla colonna CREATED_AT.
+        :return: Una tupla contenente i dati dell'ultimo account oppure None se non viene trovato.
+        """
+        columns = [column.value for column in DBAccountsColumns]
+        query = f"SELECT {', '.join(columns)} FROM accounts ORDER BY {DBAccountsColumns.CREATED_AT.value} DESC LIMIT 1"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+    @staticmethod
+    def backup_gestionale_db(n, backup_base_path, delta_days):
+        """
+        Esegue il backup del database gestionale con una logica FIFO per mantenere un numero massimo di n backup
+        in cartelle organizzate per intervallo di tempo.
+
+        :param n: Numero massimo di backup da conservare per intervallo.
+        :param backup_base_path: Path base dove salvare i backup.
+        :param delta_days: Intervallo di tempo in giorni per organizzare le cartelle dei backup.
+        """
+
+        # Recupera il percorso del DB tramite la variabile di ambiente
+        db_path = os.getenv("GESTIONALE_DB_PATH")
+        if not db_path:
+            print("Errore: variabile di ambiente GESTIONALE_DB_PATH non definita.")
+            return
+
+        # Verifica che il file gestionale.db esista
+        db_file = os.path.join(db_path, "gestionale.db")
+        if not os.path.exists(db_file):
+            print(f"Errore: Il file {db_file} non esiste.")
+            return
+
+        # Verifica o crea la cartella base dei backup
+        if not os.path.exists(backup_base_path):
+            os.makedirs(backup_base_path)
+
+        # Determina l'intervallo di tempo corrente e il nome della sottocartella
+        now = datetime.now()
+        start_interval = now - timedelta(days=now.day % delta_days)
+        folder_name = f"{start_interval.strftime('%Y%m%d')}_to_{(start_interval + timedelta(days=delta_days)).strftime('%Y%m%d')}"
+        interval_folder = os.path.join(backup_base_path, folder_name)
+
+        # Verifica o crea la cartella per l'intervallo corrente
+        if not os.path.exists(interval_folder):
+            os.makedirs(interval_folder)
+
+        # Crea il nome del file di backup basato sulla data e ora correnti
+        backup_filename = f"gestionale_data_{now.strftime('%Y%m%d_%H%M%S')}.db"
+        backup_filepath = os.path.join(interval_folder, backup_filename)
+
+        # Copia il database nella cartella dell'intervallo corrente
+        shutil.copy2(db_file, backup_filepath)
+
+        # Ottieni una lista dei file di backup nella cartella dell'intervallo corrente
+        backups = [f for f in os.listdir(interval_folder) if f.endswith(".db")]
+        backups.sort(
+            key=lambda x: os.path.getctime(os.path.join(interval_folder, x)))  # Ordina i file per data di creazione
+
+        # Se il numero di backup è maggiore o uguale a n, elimina i più vecchi
+        while len(backups) > n:
+            oldest_backup = backups.pop(0)
+            os.remove(os.path.join(interval_folder, oldest_backup))  # Rimuove il backup più vecchio
+
+        print(f"Backup creato: {backup_filepath}")
+

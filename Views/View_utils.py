@@ -1,0 +1,128 @@
+from enum import Enum
+import customtkinter as ctk
+
+
+class ViewUtils(ctk.CTk):
+
+    class InterfaceOperations(Enum):
+        AGGIUNTA_UTENTE = "AGGIUNTA UTENTE"
+        ELIMINAZIONE_UTENTE = "ELIMINAZIONE UTENTE"
+        MODIFICA_UTENTE = "MODIFICA UTENTE"
+
+        AGGIUNTA_CLIENTE = "AGGIUNTA CLIENTE"
+        ELIMINAZIONE_CLIENTE = "ELIMINAZIONE CLIENTE"
+        MODIFICA_CLIENTE = "MODIFICA CLIENTE"
+
+        AGGIUNTA_FATTURA = "AGGIUNTA FATTURA"
+        ELIMINAZIONE_FATTURA = "ELIMINAZIONE FATTURA"
+        MODIFICA_FATTURA = "MODIFICA FATTURA"
+
+    date_pattern = "yyyy-mm-dd"
+
+    disabled_label_color = "#4a4948"
+
+    @staticmethod
+    def validate_entry(entry_widget, validation_func, error_label, error_message):
+        """
+        Valida un campo specifico.
+        :param entry_widget: Il widget dell'entry da validare.
+        :param validation_func: La funzione di validazione da applicare.
+        :param error_label: Il widget dove mostrare il messaggio di errore.
+        :param error_message: Il messaggio di errore da mostrare.
+        """
+        value = entry_widget.get()
+        if validation_func(value):
+            entry_widget.configure(border_color="green")  # Sfondo normale
+            error_label.configure(text="")  # Nessun messaggio di errore
+        else:
+            entry_widget.configure(border_color="red")  # Sfondo rosso per errore
+            error_label.configure(text_color="#e8e5dc", text=error_message)  # Mostra il messaggio di errore
+
+
+    @staticmethod
+    def show_error_popup(parent, title="Errore", message="Si è verificato un errore"):
+        """
+        Genera un pop-up di errore.
+        :param parent: La finestra principale da cui viene lanciato il pop-up.
+        :param title: Il titolo del pop-up.
+        :param message: Il messaggio di errore da mostrare.
+        """
+        error_popup = ctk.CTkToplevel(parent)
+        error_popup.title(title)
+        error_popup.geometry("300x150")
+
+        # Assicurati che il pop-up sia modale
+        error_popup.grab_set()
+        error_popup.lift()
+
+        # Etichetta per il messaggio di errore
+        error_label = ctk.CTkLabel(error_popup, text=message, wraplength=250, font=("Arial", 14))
+        error_label.pack(pady=(20, 10))
+
+        # Bottone per chiudere il pop-up
+        close_button = ctk.CTkButton(error_popup, text="Chiudi", command=error_popup.destroy)
+        close_button.pack(pady=(10, 20))
+
+    @staticmethod
+    def show_confirm_popup(parent, title="CONFERMA", message="L'operazione è andata a buon fine"):
+        """
+        Genera un pop-up di errore.
+        :param parent: La finestra principale da cui viene lanciato il pop-up.
+        :param title: Il titolo del pop-up.
+        :param message: Il messaggio di errore da mostrare.
+        """
+        confirm_popup = ctk.CTkToplevel(parent)
+        confirm_popup.title(title)
+        confirm_popup.geometry("300x150")
+
+        # Assicurati che il pop-up sia modale
+        confirm_popup.grab_set()
+        confirm_popup.lift()
+
+        # Etichetta per il messaggio di errore
+        confirm_label = ctk.CTkLabel(confirm_popup, text=message, wraplength=250, font=("Arial", 14))
+        confirm_label.pack(pady=(20, 10))
+
+        # Bottone per chiudere il pop-up
+        close_button = ctk.CTkButton(confirm_popup, text="Chiudi", command=lambda: on_closing_popup(confirm_popup, parent))
+        close_button.pack(pady=(10, 20))
+
+        def on_closing_popup(pop_up, parent):
+            pop_up.destroy()
+            parent.destroy()
+
+    @staticmethod
+    def invert_data_string(data):
+        date = data.split("-")
+        return date[2] + "-" + date[1] + "-" + date[0]
+
+    @staticmethod
+    def split_string_by_length(text: str, max_length: int) -> str:
+        """
+        Divide la stringa `text` aggiungendo un '\n' vicino alla metà, ma solo tra parole,
+        se la stringa eccede `max_length`.
+
+        :param text: La stringa da processare.
+        :param max_length: La lunghezza massima prima di spezzare la stringa.
+        :return: La stringa modificata con un '\n' se necessario.
+        """
+        if len(text) <= max_length:
+            return text  # Se la stringa è già corta, non c'è bisogno di modificarla
+
+        words = text.split()  # Divide la stringa in parole
+        current_length = 0
+        split_index = -1
+
+        # Trova il miglior punto di divisione
+        for i, word in enumerate(words):
+            current_length += len(word) + 1  # Aggiunge la lunghezza della parola e lo spazio
+            if current_length >= max_length // 2:
+                split_index = i
+                break
+
+        if split_index == -1 or split_index == len(words) - 1:
+            return text  # Nessun punto valido per la divisione
+
+        return " ".join(words[:split_index + 1]) + "\n" + " ".join(words[split_index + 1:])
+
+

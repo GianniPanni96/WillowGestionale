@@ -717,17 +717,18 @@ class InvoiceController:
         self.invoices_list = {}
         self.current_year_invoices_list = {}
 
-        #updates al database
-        #self.update_invoices_payment_dates()
-
         #updates alle liste locali
         self.update_invoices_list()
+
+        self.update_stato_fatture()
 
         #i dati aggregati sono variabili di classe, aggiornati ogni volta che viene fatto un save di una nuova fattura
         self.invoices_aggregated_data = {}
         self.current_year_invoices_aggregated_data = {}
 
         self.update_aggregated_data() #aggiorna entrambi i dati aggregati, sia per current year, sia in generale
+
+        self.on_updating_invoice_controller_callbacks = []
 
     def update_invoices_list(self):
         self.invoices_list = self.retrieve_invoices_map_list(False)
@@ -1584,6 +1585,8 @@ class InvoiceController:
 
         print(f"Aggiornamento completato: {updates} su {total} fatture aggiornate.")
 
+    def register_on_updating_invoice_controller_callbacks(self, *callbacks):
+        self.on_updating_invoice_controller_callbacks = list(callbacks)
 
     @staticmethod
     def calculate_three_expiration_dates(creation_date):
@@ -1695,8 +1698,8 @@ class PaymentsController:
             self.db_model.add_payment(**payment_data_prepared)
             self.update_payments_lists()
             self.update_aggregate_data()
-            for callback in self.on_adding_payment_callbacks:
-                callback(payment_data.get(DBPaymentsColumns.INVOICE_ID.value))
+            #for callback in self.on_adding_payment_callbacks:
+            #    callback(payment_data.get(DBPaymentsColumns.INVOICE_ID.value))
             return True, "Produzione salvata con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
@@ -1878,10 +1881,18 @@ class UpdatesController:
         self.account_controller = account_controller
         self.production_controller = production_controller
 
-    def update_invoices(self):
+    def update_invoices(self, invoice_id):
+        #richiedo di updatare le liste in back
         self.invoice_controller.update_invoices_list()
         self.invoice_controller.update_aggregated_data()
         self.invoice_controller.update_stato_fatture()
+
+        #updato il frontend
+        for callback in self.invoice_controller.on_updating_invoice_controller_callbacks:
+            try:
+                callback(invoice_id)
+            except TypeError as e:
+                callback()
 
 
 

@@ -261,7 +261,7 @@ class PaymentsView(ctk.CTk):
 
         if success:
             #aggiorno il controller delle fatture
-            self.update_controller.update_invoices()
+            self.update_controller.update_invoices(invoice_id)
 
             # prendo l'ID della fattura appena creata
             payment_map = self.payment_controller.retrieve_last_payment_insert_map()

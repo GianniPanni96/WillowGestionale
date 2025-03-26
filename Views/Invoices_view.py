@@ -38,28 +38,18 @@ class InvoicesView(ctk.CTk):
         self.invoice_card_rate_frames = {}
         self.amount_aggregate_labels = {}
 
+        self.global_infos_lordi = {}
+        self.global_infos_netti = {}
+        self.lordo_netto_switch_var = tk.BooleanVar(value=False)  # false è Lordo
+
         self.invoices_list_of_user = self.invoice_controller.retrieve_invoices_map_list_by_user(1, True) #inizializzo la lista delle fatture con le sole fatture dell'utente con ID 1
         self.productions_list_of_client = {}
         self.populate_production_list_by_selected_client(self.client_controller.clients_list[0][DBClientsColumns.NAME.value])
 
-        self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
+        #self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
+        self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color, self.toggle_aggregate_data())
 
     def create_invoices_tab(self):
-
-        def populate_global_infos():
-            self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
-            self.global_infos_lordi["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[InvoiceController.InvoiceAggregatedData.FATT_LORDO.value]
-            self.global_infos_lordi["CREDITI"] = self.invoice_controller.current_year_invoices_aggregated_data[InvoiceController.InvoiceAggregatedData.CREDITI_LORDO.value]
-            self.global_infos_lordi["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_LORDO.value]
-            self.global_infos_lordi["PAGAMENTO \n ORARIO"] = 0
-
-            self.global_infos_netti["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
-            self.global_infos_netti["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[InvoiceController.InvoiceAggregatedData.FATT_NETTO.value]
-            self.global_infos_netti["CREDITI"] = self.invoice_controller.current_year_invoices_aggregated_data[InvoiceController.InvoiceAggregatedData.CREDITI_NETTO.value]
-            self.global_infos_netti["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_NETTO.value]
-            self.global_infos_netti["PAGAMENTO \n ORARIO"] = 0
-
-        self.lordo_netto_switch_var = tk.BooleanVar(value=False) #false è Lordo
 
         self.switch_frame = ctk.CTkFrame(self.tab)
         self.switch_frame.pack(fill="x")
@@ -72,8 +62,6 @@ class InvoicesView(ctk.CTk):
                                                 variable=self.lordo_netto_switch_var)
         self.lordo_netto_switch.pack(pady=(10,0), anchor="w")
 
-        self.global_infos_lordi = {}
-        self.global_infos_netti = {}
         self.search_bar_frame = ctk.CTkFrame(self.tab)
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="n")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
@@ -83,7 +71,7 @@ class InvoicesView(ctk.CTk):
 
         # Ottieni il valore di default dei corner radius dai pulsanti
         default_corner_radius = ctk.ThemeManager.theme["CTkButton"]["corner_radius"]
-        populate_global_infos()
+        self.populate_global_infos()
         i = 0
 
         #costruisco i capi delle informazioni aggregate
@@ -146,6 +134,27 @@ class InvoicesView(ctk.CTk):
             invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
 
             self.add_invoice_card(invoice_id, invoice_name, invoice_client_name, invoice_user_name, invoice_creation_date, invoice_state, invoice_rate, invoice_tot_documento, invoice_tipologia)
+
+    def populate_global_infos(self):
+        self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
+            InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
+        self.global_infos_lordi["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[
+            InvoiceController.InvoiceAggregatedData.FATT_LORDO.value]
+        self.global_infos_lordi["CREDITI"] = self.invoice_controller.current_year_invoices_aggregated_data[
+            InvoiceController.InvoiceAggregatedData.CREDITI_LORDO.value]
+        self.global_infos_lordi["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
+            InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_LORDO.value]
+        self.global_infos_lordi["PAGAMENTO \n ORARIO"] = 0
+
+        self.global_infos_netti["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
+            InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
+        self.global_infos_netti["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[
+            InvoiceController.InvoiceAggregatedData.FATT_NETTO.value]
+        self.global_infos_netti["CREDITI"] = self.invoice_controller.current_year_invoices_aggregated_data[
+            InvoiceController.InvoiceAggregatedData.CREDITI_NETTO.value]
+        self.global_infos_netti["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
+            InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_NETTO.value]
+        self.global_infos_netti["PAGAMENTO \n ORARIO"] = 0
 
     def open_add_invoice_window(self):
         """Apre una finestra per aggiungere un nuovo cliente"""
@@ -672,7 +681,6 @@ class InvoicesView(ctk.CTk):
                 elif stato == InvoiceController.InvoiceSatus.STORNATA.value:
                     label.configure(text_color=InvoicesView.InvoicesStatusColors.STORNATA.value)
 
-
     #callback da registrare nel controller
     def toggle_specific_invoice_status_color(self, invoice_id):
         fattura = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
@@ -857,6 +865,10 @@ class InvoicesView(ctk.CTk):
         else:
             labels[1].configure(text_color=InvoicesView.InvoicesStatusColors.NOT_EXISTING.value)
             labels[2].configure(text_color=InvoicesView.InvoicesStatusColors.NOT_EXISTING.value)
+
+    def toggle_aggregate_data(self):
+        self.populate_global_infos()
+        self.switch_lordo_netto()
 
     def switch_lordo_netto(self):
         if not self.lordo_netto_switch_var.get(): #se è falsa allora mostro i lordi

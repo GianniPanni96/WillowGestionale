@@ -559,7 +559,7 @@ class ClientController:
         :return: Tuple (success, message), dove success è True/False
         """
         # Campi obbligatori
-        required_fields = {DBClientsColumns.NAME.value, DBClientsColumns.PARTITA_IVA.value, DBClientsColumns.TIPOLOGIA.value}
+        required_fields = {DBClientsColumns.NAME.value, DBClientsColumns.TIPOLOGIA.value}
 
         # Validazione dei campi obbligatori
         missing_fields = [field for field in required_fields if not client_data.get(field)]
@@ -568,7 +568,7 @@ class ClientController:
 
         # Validazione Partita IVA
         partita_iva = client_data.get(DBClientsColumns.PARTITA_IVA.value)
-        if not ValidationUtils.validate_partita_iva(partita_iva):
+        if partita_iva and not ValidationUtils.validate_partita_iva(partita_iva):
             return False, "La partita IVA non è valida. Deve contenere esattamente 11 cifre."
 
         # Validazione Email
@@ -780,6 +780,7 @@ class InvoiceController:
         tipologia_cliente = cliente_map[DBClientsColumns.TIPOLOGIA.value]
 
         totale_servizi = invoice_data.get(DBInvoicesColumns.SERVIZI.value)
+        totale_rimborsi = invoice_data.get(DBInvoicesColumns.RIMBORSI.value)
 
         #se la fattura è una nota di credito prendo l'ID della fattura a cui è collegata
         id_linked_invoice = None
@@ -794,7 +795,8 @@ class InvoiceController:
             float(imponibile_cassa_inps),
             float(imponibile_iva),
             tipologia_cliente,
-            float(totale_servizi)
+            float(totale_servizi),
+            float(totale_rimborsi)
         )
 
         #prendo i dati della produzione associata
@@ -820,7 +822,7 @@ class InvoiceController:
                 DBInvoicesColumns.CASSA_INPS.value : importi_derivati_ordinaria[DBInvoicesColumns.CASSA_INPS.value],  # controller -> servizi*coeff redditività*aliquota INPS
                 DBInvoicesColumns.IMPONIBILE.value : importi_derivati_ordinaria[DBInvoicesColumns.IMPONIBILE.value],  # controller -> servizi*coeff redditività
                 DBInvoicesColumns.IVA.value : importi_derivati_ordinaria[DBInvoicesColumns.IVA.value],  # controller = 0
-                DBInvoicesColumns.RIMBORSI.value : invoice_data.get(DBInvoicesColumns.RIMBORSI.value),  # view
+                DBInvoicesColumns.RIMBORSI.value : totale_rimborsi,  # view
                 DBInvoicesColumns.TOT_DOCUMENTO.value : importi_derivati_ordinaria[DBInvoicesColumns.TOT_DOCUMENTO.value],
                 DBInvoicesColumns.RITENUTA.value : importi_derivati_ordinaria[DBInvoicesColumns.RITENUTA.value],  # controller = 0
                 DBInvoicesColumns.RIVALSA_INPS.value: 0,
@@ -847,11 +849,11 @@ class InvoiceController:
                 DBInvoicesColumns.CASSA_INPS.value: 0,
                 DBInvoicesColumns.IMPONIBILE.value: totale_servizi,
                 DBInvoicesColumns.IVA.value: 0,  # controller = 0
-                DBInvoicesColumns.RIMBORSI.value: invoice_data.get(DBInvoicesColumns.RIMBORSI.value),  # view
+                DBInvoicesColumns.RIMBORSI.value: totale_rimborsi,  # view
                 DBInvoicesColumns.RIVALSA_INPS.value : invoice_data.get(DBInvoicesColumns.RIVALSA_INPS.value),
-                DBInvoicesColumns.TOT_DOCUMENTO.value: tot_lordo,
+                DBInvoicesColumns.TOT_DOCUMENTO.value: tot_lordo + totale_rimborsi,
                 DBInvoicesColumns.RITENUTA.value: 0,
-                DBInvoicesColumns.NETTO_A_PAGARE.value: tot_lordo,
+                DBInvoicesColumns.NETTO_A_PAGARE.value: tot_lordo + totale_rimborsi,
                 DBInvoicesColumns.STATUS.value: InvoiceController.InvoiceRateizzSatus.EMESSA.value if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == InvoiceController.Rateizzazione.TRE.value else InvoiceController.InvoiceSatus.EMESSA.value,
                 DBInvoicesColumns.METODO_PAGAMENTO.value: invoice_data.get(DBInvoicesColumns.METODO_PAGAMENTO.value),
                 DBInvoicesColumns.NUMERO_RATE.value: invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value),  # view
@@ -1383,13 +1385,14 @@ class InvoiceController:
     imponibile_cassa_inps,
     imponibile_iva,
     tipologia_cliente,
-    tot_servizi):
+    tot_servizi,
+    tot_rimborsi):
 
         imponibile = tot_servizi * imponibile_tax
         cassa_inps = tot_servizi * imponibile_cassa_inps * aliquota_cassa_inps
         iva = imponibile * aliquota_iva * imponibile_iva
-        tot_documento = imponibile + cassa_inps + iva
-        ritenuta = 0 if tipologia_cliente.lower() == ClientController.TipologiaCliente.PRIVATO.value else imponibile * aliquota_ritenuta_acconto
+        tot_documento = imponibile + cassa_inps + iva + tot_rimborsi
+        ritenuta = 0 if tipologia_cliente == ClientController.TipologiaCliente.PRIVATO.value else imponibile * aliquota_ritenuta_acconto
         netto_a_pagare = tot_documento - ritenuta
 
         invoice_data = {
@@ -1622,8 +1625,6 @@ class InvoiceController:
         return [inv for inv in invoices_list_of_maps if
                 inv[DBInvoicesColumns.TIPO.value] != InvoiceController.Tipologia.NOTA_DI_CREDITO.value and inv[
                     DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceRateizzSatus.STORNATA.value]
-
-
 
 
 class PaymentsController:
@@ -1870,7 +1871,6 @@ class PaymentsController:
         self.on_adding_payment_callbacks = list(callbacks)
 
 
-
 class UpdatesController:
 
     def __init__(self, user_controller, client_controller, invoice_controller, payments_controller, account_controller, production_controller):
@@ -1893,9 +1893,6 @@ class UpdatesController:
                 callback(invoice_id)
             except TypeError as e:
                 callback()
-
-
-
 
 
 class AccountController:

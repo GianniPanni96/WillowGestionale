@@ -163,6 +163,49 @@ class ConfigManager:
                             "description": "Coefficiente per il calcolo dell'imponibile per la cassa INPS (100%)."
                         }
                     }
+                },
+                "clients_business_sectors": {
+                    "AEROSPACE": "Aerospaziale e Difesa",
+                    "AGRICULTURE": "Agricoltura e Allevamento",
+                    "CREATIVE_AGENCY": "Agenzia Creativa",
+                    "FOOD_AND_BEVERAGE": "Alimentare e Bevande",
+                    "AUTOMOTIVE": "Automobilistico",
+                    "CHEMICAL": "Chimico",
+                    "RETAIL": "Commercio al Dettaglio",
+                    "WHOLESALE": "Commercio all'Ingrosso",
+                    "CONSULTING": "Consulenza e Servizi Professionali",
+                    "CONSTRUCTION": "Costruzioni e Edilizia",
+                    "ENERGY": "Energia e Risorse Naturali",
+                    "PHARMACEUTICAL": "Farmaceutico",
+                    "FINANCE": "Finanza e Assicurazioni",
+                    "GOVERNMENT": "Governo e Settore Pubblico",
+                    "REAL_ESTATE": "Immobiliare",
+                    "EDUCATION": "Istruzione e Formazione",
+                    "ENTERTAINMENT": "Intrattenimento e Media",
+                    "MANUFACTURING": "Manifatturiero e Produzione",
+                    "NON_PROFIT": "Organizzazioni Non Profit",
+                    "RESEARCH_AND_DEVELOPMENT": "Ricerca e Sviluppo",
+                    "HEALTHCARE": "Sanità e Servizi Medici",
+                    "ENVIRONMENTAL_SERVICES": "Servizi Ambientali",
+                    "SECURITY": "Sicurezza e Vigilanza",
+                    "SPORTS": "Sport e Benessere",
+                    "INFORMATION_TECHNOLOGY": "Tecnologia dell'Informazione (IT)",
+                    "TELECOMMUNICATIONS": "Telecomunicazioni",
+                    "TEXTILE": "Tessile e Abbigliamento",
+                    "TOURISM": "Turismo e Ospitalità",
+                    "TRANSPORTATION": "Trasporti e Logistica"
+                },
+                "production_types": {
+                    "PRODUZIONE": "PRODUZIONE",
+                    "POST_PRODUZIONE": "POST_PRODUZIONE",
+                    "MISTA": "MISTA",
+                    "CONSULENZA": "CONSULENZA"
+                },
+                "output_types": {
+                    "VIDEO_MUSICALE": "VIDEO_MUSICALE",
+                    "ADV_SOCIAL": "ADV_SOCIAL",
+                    "COMMERCIAL": "COMMERCIAL",
+                    "INTEGRAZIONE_VFX": "INTEGRAZIONE_VFX"
                 }
             }
             self.save_config(default_config)
@@ -346,6 +389,42 @@ class ConfigManager:
         except Exception as e:
             raise Exception(f"Errore durante l'aggiornamento dei dati fiscali: {str(e)}")
 
+    def update_list_field(self, section_name: str, key: str, value: str = None, operation: str = "update"):
+        """
+        Aggiorna, aggiunge o elimina un elemento all'interno di una sezione della configurazione che rappresenta un elenco.
+
+        :param section_name: Nome della sezione (es. "clients_business_sectors", "production_types", "output_types").
+        :param key: Chiave dell'elemento da aggiornare/agginungere/eliminare.
+        :param value: Nuovo valore associato alla chiave. Non è necessario se operation è "delete".
+        :param operation: Operazione da eseguire: "update" (aggiunge o modifica) oppure "delete" (elimina).
+        :raises Exception: Se l'operazione non è riconosciuta.
+        """
+        # Carica la configurazione corrente
+        config = self.load_config()
+
+        # Se la sezione non esiste, la crea (solo per operazioni di update)
+        if section_name not in config:
+            if operation == "update":
+                config[section_name] = {}
+            else:
+                raise Exception(f"La sezione '{section_name}' non esiste.")
+
+        # Operazioni di update/aggiunta
+        if operation == "update":
+            config[section_name][key] = value
+        # Operazione di eliminazione
+        elif operation == "delete":
+            if key in config[section_name]:
+                del config[section_name][key]
+            else:
+                print(f"Chiave '{key}' non trovata in '{section_name}'. Nessuna operazione eseguita.")
+        else:
+            raise Exception("Operazione non riconosciuta. Utilizzare 'update' o 'delete'.")
+
+        # Salva la configurazione aggiornata
+        self.save_config(config)
+
+
 @dataclass
 class PartitaIVAForfettaria:
     aliquota_irpef_min: float
@@ -478,6 +557,26 @@ if __name__ == "__main__":
     # Crea un'istanza di FiscalSettings
     fiscal_settings = FiscalSettings.from_dict(fiscal_config)
 
+    #creo il dizionario degli elenchi
+    # Trasforma le sezioni in liste di tuple (chiave, valore)
+    clients_business_sectors = [
+        (key, value)
+        for key, value in config.get("clients_business_sectors", {}).items()
+    ]
+    productions_types = [
+        (key, value)
+        for key, value in config.get("production_types", {}).items()
+    ]
+    productions_outputs_types = [
+        (key, value)
+        for key, value in config.get("production_output_types", {}).items()
+    ]
+
+    catalogo_elenchi = {
+        "clients_business_sectors": clients_business_sectors,
+        "production_types": productions_types,
+        "production_output_types": productions_outputs_types,
+    }
 
     # Inizializza il gestore del backup con i parametri dalla configurazione
     scheduler = BackupScheduler(
@@ -495,7 +594,7 @@ if __name__ == "__main__":
         backup_thread.start()
 
         # Avvia il frontend
-        app = MainWindow(config_manager, fiscal_settings)
+        app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi)
         app.mainloop()
 
     except KeyboardInterrupt:

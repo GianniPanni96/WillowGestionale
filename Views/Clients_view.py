@@ -12,12 +12,14 @@ from Model import DBClientsColumns
 
 
 class ClientsView(ctk.CTk):
-    def __init__(self, db_model, client_controller, tab):
+    def __init__(self, db_model, client_controller, catalogo_elenchi, config_manager, tab):
         super().__init__()
 
         self.db_model = db_model
         self.client_controller = client_controller
         self.tab = tab
+        self.catalogo_elenchi = catalogo_elenchi
+        self.config_manager = config_manager
 
         self.clients_list = self.client_controller.retrieve_clients_map_list()
         self.clients_card_list = {}
@@ -162,7 +164,7 @@ class ClientsView(ctk.CTk):
                 widget.set(self.client_controller.TipologiaCliente.PRIVATO.value)  # Imposta valore predefinito
             elif label_text == DBClientsColumns.SETTORE.value:
                 widget = widget_class(self.client_window_scrollableFrame,
-                                      values=[item.value for item in self.client_controller.BusinessSector])
+                                      values=[value for key, value in self.catalogo_elenchi["clients_business_sectors"]])
                 widget.set(self.client_controller.BusinessSector.CREATIVE_AGENCY.value)  # Imposta valore predefinito
             else:
                 widget = widget_class(self.client_window_scrollableFrame)
@@ -196,19 +198,19 @@ class ClientsView(ctk.CTk):
             "Il nome non può essere vuoto."
         ))
 
-        self.client_widgets[DBClientsColumns.PARTITA_IVA.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
+        """self.client_widgets[DBClientsColumns.PARTITA_IVA.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
             self.client_widgets[DBClientsColumns.PARTITA_IVA.value],
             lambda val: val.isdigit() and ValidationUtils.validate_partita_iva(val),
             self.error_labels[DBClientsColumns.PARTITA_IVA.value],
             "La partita IVA deve essere un numero di 11 cifre."
-        ))
+        ))"""
 
-        self.client_widgets[DBClientsColumns.EMAIL.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
+        """self.client_widgets[DBClientsColumns.EMAIL.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
             self.client_widgets[DBClientsColumns.EMAIL.value],
             lambda val: ValidationUtils.validate_email(val),
             self.error_labels[DBClientsColumns.EMAIL.value],
             "Inserisci una e-mail valida."
-        ))
+        ))"""
 
     def save_client_data(self):
         client_data = {}

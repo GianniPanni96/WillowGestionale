@@ -10,7 +10,7 @@ from enum import Enum
 
 class ProductionsView(ctk.CTk):
 
-    def __init__(self, db_model, production_controller, payment_controller, invoice_controller, user_controller, client_controller, tab):
+    def __init__(self, db_model, production_controller, payment_controller, invoice_controller, user_controller, client_controller, catalogo_elenchi, config_manager, tab):
         super().__init__()
 
         self.db_model = db_model
@@ -19,6 +19,8 @@ class ProductionsView(ctk.CTk):
         self.user_controller = user_controller
         self.client_controller = client_controller
         self.payment_controller = payment_controller
+        self.catalogo_elenchi = catalogo_elenchi
+        self.config_manager = config_manager
         self.tab = tab
 
         self.global_infos = {}
@@ -165,10 +167,10 @@ class ProductionsView(ctk.CTk):
                                       command=lambda selected_value: self.auto_compile_name_entry(selected_value))
             elif label_text == DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value:
                 widget = widget_class(self.production_window_scrollableFrame,
-                                      values=[item.value for item in ProductionController.TipologiaProduzione])
+                                      values=[value for key, value in self.catalogo_elenchi["production_types"]])
             elif label_text == DBProductionsColumns.TIPOLOGIA_OUTPUT.value:
                 widget = widget_class(self.production_window_scrollableFrame,
-                                      values=[item.value for item in ProductionController.TipologiaOutput])
+                                      values=[value for key, value in self.catalogo_elenchi["production_output_types"]])
             elif label_text == DBProductionsColumns.STATO.value:
                 widget = widget_class(self.production_window_scrollableFrame,
                                       values=[item.value for item in ProductionController.Stato])

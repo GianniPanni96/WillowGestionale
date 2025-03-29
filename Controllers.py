@@ -242,6 +242,10 @@ class UserController:
     def retrieve_user_by_fullname(self, user_first_name, user_last_name):
         return self.db_model.fetch_user_by_fullname(user_first_name, user_last_name)
 
+    def retrieve_user_map_by_fullname(self, user_first_name, user_last_name):
+        row = self.retrieve_user_by_fullname(user_first_name, user_last_name)
+        return ValidationUtils._row_to_map(row, DBUsersColumns)
+
     def retrieve_user_map_by_id(self, user_id):
         """Recupera un utente specifico e lo restituisce come dizionario."""
         row = self.db_model.fetch_user_by_id(user_id)

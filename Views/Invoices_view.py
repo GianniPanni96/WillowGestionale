@@ -263,6 +263,13 @@ class InvoicesView(ctk.CTk):
         self.auto_compile_invoice_name(self.invoice_widgets[self.nome_utente_string].get())
 
         self.selected_user = self.invoice_widgets[self.nome_utente_string].get()
+        users_regime_fiscale = self.get_regime_fiscale_from_view(self.selected_user)
+        if users_regime_fiscale == UserController.RegimeFiscale.ORDINARIO.value:
+            self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].configure(state=ctk.DISABLED,
+                                                                                 border_color=ViewUtils.disabled_label_color,
+                                                                                 text_color=ViewUtils.disabled_label_color)
+            self.invoice_labels[DBInvoicesColumns.RIVALSA_INPS.value].configure(
+                text_color=ViewUtils.disabled_label_color)
 
         # Se la lista delle fatture dell'utente è vuota allora disabilita la possibilità di creare una nota di credito
         if len(self.invoices_list_of_user) == 0:
@@ -530,41 +537,38 @@ class InvoicesView(ctk.CTk):
             self.auto_set_importi_for_nota_di_credito(self.invoice_widgets[DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value].get())
 
     def auto_set_importi_for_nota_di_credito(self, selected_value=None):
-        invoices = self.invoice_controller.retrieve_invoice_map_by_name(selected_value)
+        invoice = self.invoice_controller.retrieve_invoice_map_by_name(selected_value)
         user_name = self.invoice_widgets[self.nome_utente_string].get()
         user_full_name = user_name.split(" ")
         user_first = user_full_name[0]
         user_last = user_full_name[1]
         user = self.user_controller.retrieve_user_by_fullname(user_first, user_last)
         user_id = user[0]
-        #tengo solo le fatture relative all'utente in questione
-        for i, d in enumerate(invoices):
-            if d[DBInvoicesColumns.ID_UTENTE.value] != user_id:
-                elemento_rimosso = invoices.pop(i)
-                break
 
-        if len(invoices) == 1:
-            nome_fattura = invoices[0][DBInvoicesColumns.NUMERO_FATTURA.value] + " - NDC"
-            servizi = invoices[0][DBInvoicesColumns.SERVIZI.value]
-            id_cliente = invoices[0][DBInvoicesColumns.ID_CLIENTE.value]
-            nome_cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)[DBClientsColumns.NAME.value]
-            rimborsi = invoices[0][DBInvoicesColumns.RIMBORSI.value]
-            rivalsa = invoices[0][DBInvoicesColumns.RIVALSA_INPS.value]
-            metodo_pagamento = invoices[0][DBInvoicesColumns.METODO_PAGAMENTO.value]
-            numero_rate = invoices[0][DBInvoicesColumns.NUMERO_RATE.value]
-            self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].delete(0, tk.END)
-            self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].insert(0, nome_fattura)
-            self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].delete(0, tk.END)
-            self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].insert(0, servizi)
-            self.invoice_widgets[DBInvoicesColumns.RIMBORSI.value].delete(0, tk.END)
-            self.invoice_widgets[DBInvoicesColumns.RIMBORSI.value].insert(0, rimborsi)
-            self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
-            self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].insert(0, rivalsa) if rivalsa else 0
-            self.invoice_widgets[self.nome_cliente_string].set(nome_cliente)
-            self.invoice_widgets[DBInvoicesColumns.METODO_PAGAMENTO.value].set(metodo_pagamento)
-            self.invoice_widgets[DBInvoicesColumns.NUMERO_RATE.value].set(numero_rate)
+        nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value] + " - NDC"
+        servizi = invoice[DBInvoicesColumns.SERVIZI.value]
+        id_cliente = invoice[DBInvoicesColumns.ID_CLIENTE.value]
+        nome_cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)[DBClientsColumns.NAME.value]
+        id_produzione = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+        nome_produzione = self.production_controller.retrieve_production_map_by_id(id_produzione)[DBProductionsColumns.NAME.value]
+        rimborsi = invoice[DBInvoicesColumns.RIMBORSI.value]
+        rivalsa = invoice[DBInvoicesColumns.RIVALSA_INPS.value]
+        metodo_pagamento = invoice[DBInvoicesColumns.METODO_PAGAMENTO.value]
+        numero_rate = invoice[DBInvoicesColumns.NUMERO_RATE.value]
+        self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].delete(0, tk.END)
+        self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].insert(0, nome_fattura)
+        self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].delete(0, tk.END)
+        self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].insert(0, servizi)
+        self.invoice_widgets[DBInvoicesColumns.RIMBORSI.value].delete(0, tk.END)
+        self.invoice_widgets[DBInvoicesColumns.RIMBORSI.value].insert(0, rimborsi)
+        self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
+        self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].insert(0, rivalsa) if rivalsa else 0
+        self.invoice_widgets[self.nome_cliente_string].set(nome_cliente)
+        self.invoice_widgets[self.nome_produzione_string].set(nome_produzione)
+        self.invoice_widgets[DBInvoicesColumns.METODO_PAGAMENTO.value].set(metodo_pagamento)
+        self.invoice_widgets[DBInvoicesColumns.NUMERO_RATE.value].set(numero_rate)
 
-        else:
+        """else:
             self.select_correct_invoice_window = ctk.CTkToplevel(self)
             self.select_correct_invoice_window.title("Seleziona la fattura corretta")
 
@@ -579,7 +583,7 @@ class InvoicesView(ctk.CTk):
             global_frame = ctk.CTkScrollableFrame(self.select_correct_invoice_window)
             global_frame.pack(pady=5)
 
-            for invoice in invoices:
+            for invoice in invoice:
                 invoice_frame = ctk.CTkFrame(global_frame)
                 invoice_frame.pack(side=ctk.LEFT)
                 invoice_content = "\n".join(
@@ -587,7 +591,7 @@ class InvoicesView(ctk.CTk):
                     for column in DBInvoicesColumns
                 )
                 ctk.CTkLabel(invoice_frame, text = invoice_content).pack(pady=5, padx=5)
-                ctk.CTkButton(invoice_frame, text="Seleziona", command=lambda: self.select_correct_invoice(invoice))
+                ctk.CTkButton(invoice_frame, text="Seleziona", command=lambda: self.select_correct_invoice(invoice))"""
 
     def auto_compile_invoice_name(self, user_name):
         user_full_name = user_name.split(" ")

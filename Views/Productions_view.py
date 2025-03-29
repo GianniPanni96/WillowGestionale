@@ -167,10 +167,12 @@ class ProductionsView(ctk.CTk):
                                       command=lambda selected_value: self.auto_compile_name_entry(selected_value))
             elif label_text == DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value:
                 widget = widget_class(self.production_window_scrollableFrame,
-                                      values=[value for key, value in self.catalogo_elenchi["production_types"]])
+                                      values=[value for key, value in self.catalogo_elenchi["production_types"]],
+                                      command = lambda selected_value : self.open_add_prod_type(selected_value))
             elif label_text == DBProductionsColumns.TIPOLOGIA_OUTPUT.value:
                 widget = widget_class(self.production_window_scrollableFrame,
-                                      values=[value for key, value in self.catalogo_elenchi["production_output_types"]])
+                                      values=[value for key, value in self.catalogo_elenchi["production_output_types"]],
+                                      command = lambda selected_value : self.open_add_prod_out_type(selected_value))
             elif label_text == DBProductionsColumns.STATO.value:
                 widget = widget_class(self.production_window_scrollableFrame,
                                       values=[item.value for item in ProductionController.Stato])
@@ -328,6 +330,78 @@ class ProductionsView(ctk.CTk):
     def auto_compile_name_entry(self, selected_value):
         self.production_widgets[DBProductionsColumns.NAME.value].delete(0, tk.END)
         self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{selected_value}-")
+
+    def open_add_prod_type(self, selected_value):
+        prod_type_dict = dict(self.catalogo_elenchi["production_types"])
+        if selected_value == prod_type_dict.get("ADD_PROD_TYPE"):
+            self.add_prod_type_window = ctk.CTkToplevel(self)
+            self.add_prod_type_window.title("Aggiungi una nuova tipologia di produzione")
+
+            # Assicurati che la finestra rimanga sopra
+            self.add_prod_type_window.lift()  # Porta la finestra sopra quella principale
+            self.add_prod_type_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+
+            self.add_prod_type_window.geometry("400x300")
+
+            self.prod_type_window_Frame = ctk.CTkFrame(self.add_prod_type_window)
+            self.prod_type_window_Frame.pack(fill="both", expand=True)
+
+            ctk.CTkLabel(self.prod_type_window_Frame, text="Aggiungi una nuova tipologia di produzione\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
+
+            self.add_prod_type_entry = ctk.CTkEntry(self.prod_type_window_Frame)
+            self.add_prod_type_entry.pack(padx=10, pady=5, fill="x", expand=True)
+
+            ctk.CTkButton(self.prod_type_window_Frame, text="Aggiungi tipologia produzione", command=self.save_prod_type).pack(padx=10, pady=(15, 10))
+
+        else: return
+
+    def save_prod_type(self):
+        new_prod_type = self.add_prod_type_entry.get()
+        new_prod_type_key = ControllerUtils.normalize_string_for_key(new_prod_type)
+        try:
+            self.config_manager.update_list_field("production_types", new_prod_type_key, new_prod_type, "update")
+        except Exception as e:
+            ViewUtils.show_error_popup(self.add_prod_type_window, "Errore", f"Impossibile aggiungere il nuovo settore: {str(e)}")
+            return
+
+        self.production_widgets[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value].set(new_prod_type)
+        self.add_prod_type_window.destroy()
+
+    def open_add_prod_out_type(self, selected_value):
+        prod_out_type_dict = dict(self.catalogo_elenchi["production_output_types"])
+        if selected_value == prod_out_type_dict.get("ADD_PROD_OUT_TYPE"):
+            self.add_prod_out_type_window = ctk.CTkToplevel(self)
+            self.add_prod_out_type_window.title("Aggiungi una nuova tipologia di output")
+
+            # Assicurati che la finestra rimanga sopra
+            self.add_prod_out_type_window.lift()  # Porta la finestra sopra quella principale
+            self.add_prod_out_type_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+
+            self.add_prod_out_type_window.geometry("400x300")
+
+            self.prod_out_type_window_Frame = ctk.CTkFrame(self.add_prod_out_type_window)
+            self.prod_out_type_window_Frame.pack(fill="both", expand=True)
+
+            ctk.CTkLabel(self.prod_out_type_window_Frame, text="Aggiungi una nuova tipologia di output di produzione\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
+
+            self.add_prod_out_type_entry = ctk.CTkEntry(self.prod_out_type_window_Frame)
+            self.add_prod_out_type_entry.pack(padx=10, pady=5, fill="x", expand=True)
+
+            ctk.CTkButton(self.prod_out_type_window_Frame, text="Aggiungi tipologia di output", command=self.save_prod_out_type).pack(padx=10, pady=(15, 10))
+
+        else: return
+
+    def save_prod_out_type(self):
+        new_prod_out_type = self.add_prod_out_type_entry.get()
+        new_prod_out_type_key = ControllerUtils.normalize_string_for_key(new_prod_out_type)
+        try:
+            self.config_manager.update_list_field("production_output_types", new_prod_out_type_key, new_prod_out_type, "update")
+        except Exception as e:
+            ViewUtils.show_error_popup(self.add_prod_out_type_window, "Errore", f"Impossibile aggiungere la nuova tipologia di output: {str(e)}")
+            return
+
+        self.production_widgets[DBProductionsColumns.TIPOLOGIA_OUTPUT.value].set(new_prod_out_type)
+        self.add_prod_out_type_window.destroy()
 
     def clear_class_variable(self):  #potrebbe non servire in quanto vengono inizializzate all'apertura della funzione
         self.production_widgets.clear()

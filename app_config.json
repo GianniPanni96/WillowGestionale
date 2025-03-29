@@ -101,49 +101,52 @@
             }
         }
     },
-	"clients_business_sectors": {
-		"AEROSPACE": "Aerospaziale e Difesa",
-		"AGRICULTURE": "Agricoltura e Allevamento",
-		"CREATIVE_AGENCY": "Agenzia Creativa",
-		"FOOD_AND_BEVERAGE": "Alimentare e Bevande",
-		"AUTOMOTIVE": "Automobilistico",
-		"CHEMICAL": "Chimico",
-		"RETAIL": "Commercio al Dettaglio",
-		"WHOLESALE": "Commercio all'Ingrosso",
-		"CONSULTING": "Consulenza e Servizi Professionali",
-		"CONSTRUCTION": "Costruzioni e Edilizia",
-		"ENERGY": "Energia e Risorse Naturali",
-		"PHARMACEUTICAL": "Farmaceutico",
-		"FINANCE": "Finanza e Assicurazioni",
-		"GOVERNMENT": "Governo e Settore Pubblico",
-		"REAL_ESTATE": "Immobiliare",
-		"EDUCATION": "Istruzione e Formazione",
-		"ENTERTAINMENT": "Intrattenimento e Media",
-		"MANUFACTURING": "Manifatturiero e Produzione",
-		"NON_PROFIT": "Organizzazioni Non Profit",
-		"RESEARCH_AND_DEVELOPMENT": "Ricerca e Sviluppo",
-		"HEALTHCARE": "Sanità e Servizi Medici",
-		"ENVIRONMENTAL_SERVICES": "Servizi Ambientali",
-		"SECURITY": "Sicurezza e Vigilanza",
-		"SPORTS": "Sport e Benessere",
-		"INFORMATION_TECHNOLOGY": "Tecnologia dell'Informazione (IT)",
-		"TELECOMMUNICATIONS": "Telecomunicazioni",
-		"TEXTILE": "Tessile e Abbigliamento",
-		"TOURISM": "Turismo e Ospitalità",
-		"TRANSPORTATION": "Trasporti e Logistica",
-		"ADD_SECTOR": "Aggiungi un settore"
-	},
-	"production_types": {
-		"PRODUZIONE": "PRODUZIONE",
-		"POST_PRODUZIONE": "POST_PRODUZIONE",
-		"MISTA": "MISTA",
-		"CONSULENZA": "CONSULENZA"
-	},
-	"production_output_types": {
-	    "VIDEO_MUSICALE": "VIDEO_MUSICALE",
-	    "ADV_SOCIAL": "ADV_SOCIAL",
-	    "COMMERCIAL": "COMMERCIAL",
-	    "INTEGRAZIONE_VFX": "INTEGRAZIONE_VFX"
-	}
-
+    "clients_business_sectors": {
+        "AEROSPACE": "Aerospaziale e Difesa",
+        "AGRICULTURE": "Agricoltura e Allevamento",
+        "CREATIVE_AGENCY": "Agenzia Creativa",
+        "FOOD_AND_BEVERAGE": "Alimentare e Bevande",
+        "AUTOMOTIVE": "Automobilistico",
+        "CHEMICAL": "Chimico",
+        "RETAIL": "Commercio al Dettaglio",
+        "WHOLESALE": "Commercio all'Ingrosso",
+        "CONSULTING": "Consulenza e Servizi Professionali",
+        "CONSTRUCTION": "Costruzioni e Edilizia",
+        "ENERGY": "Energia e Risorse Naturali",
+        "PHARMACEUTICAL": "Farmaceutico",
+        "FINANCE": "Finanza e Assicurazioni",
+        "GOVERNMENT": "Governo e Settore Pubblico",
+        "REAL_ESTATE": "Immobiliare",
+        "EDUCATION": "Istruzione e Formazione",
+        "ENTERTAINMENT": "Intrattenimento e Media",
+        "MANUFACTURING": "Manifatturiero e Produzione",
+        "NON_PROFIT": "Organizzazioni Non Profit",
+        "RESEARCH_AND_DEVELOPMENT": "Ricerca e Sviluppo",
+        "HEALTHCARE": "Sanit\u00e0 e Servizi Medici",
+        "ENVIRONMENTAL_SERVICES": "Servizi Ambientali",
+        "SECURITY": "Sicurezza e Vigilanza",
+        "SPORTS": "Sport e Benessere",
+        "INFORMATION_TECHNOLOGY": "Tecnologia dell'Informazione (IT)",
+        "TELECOMMUNICATIONS": "Telecomunicazioni",
+        "TEXTILE": "Tessile e Abbigliamento",
+        "TOURISM": "Turismo e Ospitalit\u00e0",
+        "TRANSPORTATION": "Trasporti e Logistica",
+        "ADD_SECTOR": "AGGIUNGI UN SETTORE ALLA LISTA"
+    },
+    "production_types": {
+        "PRODUZIONE": "Produzione (set)",
+        "POST_PRODUZIONE": "Postproduzione",
+        "MISTA": "Mista",
+        "CONSULENZA": "Consulenza",
+		"AFFITTO_STRUM": "Affitto strumentazione",
+		"ADD_PROD_TYPE": "AGGIUNGI UNA TIPOLOGIA ALLA LISTA"
+    },
+    "production_output_types": {
+        "VIDEO_MUSICALE": "Video musicale",
+        "ADV_SOCIAL": "ADV social",
+        "COMMERCIAL": "commercial",
+        "INTEGRAZIONE_VFX": "Integrazione VFX",
+		"GIRATO": "Girato",
+		"ADD_PROD_OUT_TYPE": "AGGIUNGI UNA TIPOLOGIA DI OUTPUT ALLA LISTA"
+    }
 }

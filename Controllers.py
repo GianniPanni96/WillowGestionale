@@ -86,6 +86,16 @@ class ControllerUtils:
             except ValueError:
                 return None
 
+    @staticmethod
+    def normalize_string_for_key(s: str) -> str:
+        # Inserisce uno spazio prima di ogni lettera maiuscola se preceduta da una lettera minuscola (gestione camelCase)
+        s = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', s)
+        # Divide la stringa su spazi, underscore o trattini
+        words = re.split(r'[\s_-]+', s)
+        # Rimuove eventuali elementi vuoti e trasforma in uppercase
+        words = [word.upper() for word in words if word]
+        # Unisce le parole con "_"
+        return "_".join(words)
 
 class UserController:
 

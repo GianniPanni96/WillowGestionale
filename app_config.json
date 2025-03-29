@@ -130,7 +130,8 @@
 		"TELECOMMUNICATIONS": "Telecomunicazioni",
 		"TEXTILE": "Tessile e Abbigliamento",
 		"TOURISM": "Turismo e Ospitalità",
-		"TRANSPORTATION": "Trasporti e Logistica"
+		"TRANSPORTATION": "Trasporti e Logistica",
+		"ADD_SECTOR": "Aggiungi un settore"
 	},
 	"production_types": {
 		"PRODUZIONE": "PRODUZIONE",

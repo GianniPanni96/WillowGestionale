@@ -3,11 +3,11 @@ import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
 from datetime import datetime
-import os
+import re
 from enum import Enum
 
 from Views.View_utils import ViewUtils
-from Controllers import ValidationUtils
+from Controllers import ControllerUtils
 from Model import DBClientsColumns
 
 
@@ -164,7 +164,8 @@ class ClientsView(ctk.CTk):
                 widget.set(self.client_controller.TipologiaCliente.PRIVATO.value)  # Imposta valore predefinito
             elif label_text == DBClientsColumns.SETTORE.value:
                 widget = widget_class(self.client_window_scrollableFrame,
-                                      values=[value for key, value in self.catalogo_elenchi["clients_business_sectors"]])
+                                      values=[value for key, value in self.catalogo_elenchi["clients_business_sectors"]],
+                                      command = lambda selected_value : self.open_add_business_sector(selected_value))
                 widget.set(self.client_controller.BusinessSector.CREATIVE_AGENCY.value)  # Imposta valore predefinito
             else:
                 widget = widget_class(self.client_window_scrollableFrame)
@@ -260,3 +261,39 @@ class ClientsView(ctk.CTk):
         self.client_details_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
 
         self.client_details_window.geometry("700x700")
+
+    def open_add_business_sector(self, selected_value):
+        sector_dict = dict(self.catalogo_elenchi["clients_business_sectors"])
+        if selected_value == sector_dict.get("ADD_SECTOR"):
+            self.add_sector_window = ctk.CTkToplevel(self)
+            self.add_sector_window.title("Aggiungi un nuovo settore di business")
+
+            # Assicurati che la finestra rimanga sopra
+            self.add_sector_window.lift()  # Porta la finestra sopra quella principale
+            self.add_sector_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+
+            self.add_sector_window.geometry("400x300")
+
+            self.business_sector_window_Frame = ctk.CTkFrame(self.add_sector_window)
+            self.business_sector_window_Frame.pack(fill="both", expand=True)
+
+            ctk.CTkLabel(self.business_sector_window_Frame, text="Aggiungi un settore di business alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
+
+            self.add_sector_entry = ctk.CTkEntry(self.business_sector_window_Frame)
+            self.add_sector_entry.pack(padx=10, pady=5, fill="x", expand=True)
+
+            ctk.CTkButton(self.business_sector_window_Frame, text="Aggiungi settore", command=self.save_business_sector).pack(padx=10, pady=(15, 10))
+
+        else: return
+
+    def save_business_sector(self):
+        new_sector = self.add_sector_entry.get()
+        new_sector_key = ControllerUtils.normalize_string_for_key(new_sector)
+        try:
+            self.config_manager.update_list_field("clients_business_sectors", new_sector_key, new_sector, "update")
+        except Exception as e:
+            ViewUtils.show_error_popup(self.add_sector_window, "Errore", f"Impossibile aggiungere il nuovo settore: {str(e)}")
+            return
+
+        self.client_widgets[DBClientsColumns.SETTORE.value].set(new_sector)
+        self.add_sector_window.destroy()

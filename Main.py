@@ -394,7 +394,7 @@ class ConfigManager:
         Aggiorna, aggiunge o elimina un elemento all'interno di una sezione della configurazione che rappresenta un elenco.
 
         :param section_name: Nome della sezione (es. "clients_business_sectors", "production_types", "output_types").
-        :param key: Chiave dell'elemento da aggiornare/agginungere/eliminare.
+        :param key: Chiave dell'elemento da aggiornare/aggiungere/eliminare.
         :param value: Nuovo valore associato alla chiave. Non è necessario se operation è "delete".
         :param operation: Operazione da eseguire: "update" (aggiunge o modifica) oppure "delete" (elimina).
         :raises Exception: Se l'operazione non è riconosciuta.
@@ -409,17 +409,47 @@ class ConfigManager:
             else:
                 raise Exception(f"La sezione '{section_name}' non esiste.")
 
-        # Operazioni di update/aggiunta
+        section_dict = config[section_name]
+
+        # Operazione di aggiornamento o aggiunta
         if operation == "update":
-            config[section_name][key] = value
+            # Se la chiave esiste già, aggiorna il valore
+            if key in section_dict:
+                section_dict[key] = value
+            else:
+                # Nuovo elemento: dobbiamo inserirlo all'inizio, mantenendo l'ultimo elemento trigger immutato
+                trigger_key = "ADD_SECTOR"
+                # Convertiamo il dizionario in una lista di tuple per preservare l'ordine
+                items = list(section_dict.items())
+                trigger_item = None
+
+                # Se l'ultimo elemento esiste ed è il trigger, lo rimuoviamo temporaneamente
+                if items and items[-1][0] == trigger_key:
+                    trigger_item = items.pop(-1)
+
+                # Crea un nuovo dizionario inserendo il nuovo elemento come primo
+                new_section = {key: value}
+                # Reinserisce i restanti elementi
+                for k, v in items:
+                    new_section[k] = v
+                # Reinserisce il trigger, se presente, in fondo
+                if trigger_item:
+                    new_section[trigger_item[0]] = trigger_item[1]
+
+                # Aggiorna la sezione nella configurazione
+                config[section_name] = new_section
+
         # Operazione di eliminazione
         elif operation == "delete":
-            if key in config[section_name]:
-                del config[section_name][key]
+            if key in section_dict:
+                del section_dict[key]
             else:
                 print(f"Chiave '{key}' non trovata in '{section_name}'. Nessuna operazione eseguita.")
         else:
             raise Exception("Operazione non riconosciuta. Utilizzare 'update' o 'delete'.")
+
+        # Salva la configurazione aggiornata
+        self.save_config(config)
 
         # Salva la configurazione aggiornata
         self.save_config(config)

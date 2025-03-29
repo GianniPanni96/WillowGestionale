@@ -67,8 +67,14 @@ class InvoicesView(ctk.CTk):
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="n")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5,35), anchor="s", side="right")
-        self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per nome:", font=("Arial", 14))
+        self.search_bar_option_menu_values = {"NOME FATTURA" : "NOME FATTURA", "NOME CLIENTE" : "NOME CLIENTE", "NOME UTENTE" : "NOME UTENTE", "NOME PRODUZIONE" : "NOME PRODUZIONE"}
+        self.search_bar_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame, values=list(self.search_bar_option_menu_values.values()))
+        self.search_bar_optionMenu.pack(padx=5, anchor="s", side="right")
+        self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per ", font=("Arial", 14))
         self.search_bar_label.pack(padx=5, anchor="s", side="right")
+
+        # Aggiungi evento alla barra di ricerca
+        self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         # Ottieni il valore di default dei corner radius dai pulsanti
         default_corner_radius = ctk.ThemeManager.theme["CTkButton"]["corner_radius"]
@@ -100,12 +106,12 @@ class InvoicesView(ctk.CTk):
         self.invoices_table_frame = ctk.CTkFrame(self.tab)
         self.invoices_table_frame.pack(pady=(20, 0), padx=(10,15), fill="x", anchor="n")
 
-        self.headers = ["NOME", "CLIENTE", "UTENTE", "DATA EMISSIONE", "STATO",
+        self.headers = ["NOME", "CLIENTE", "UTENTE", "PRODUZIONE\nASSOCIATA", "DATA EMISSIONE", "STATO",
                    "RATE", ViewUtils.split_string_by_length("NETTO A PAGARE", 6), "TIPOLOGIA"]
 
         for i, header in enumerate(self.headers):
             column = ctk.CTkFrame(self.invoices_table_frame)
-            label = ctk.CTkLabel(column, text=f"{header}", font=("Arial", 14), width=210)
+            label = ctk.CTkLabel(column, text=f"{header}", font=("Arial", 14), width=190)
             column.pack(padx=(0,5), pady=5, fill="y", expand=True, side="left")
             label.pack(padx=5, pady=15, anchor="n")
 
@@ -127,14 +133,16 @@ class InvoicesView(ctk.CTk):
             invoice_client_ID = invoice[DBInvoicesColumns.ID_CLIENTE.value]
             invoice_client_name = self.client_controller.retrieve_client_map_by_id(invoice_client_ID)[DBClientsColumns.NAME.value]
             invoice_user_id = invoice[DBInvoicesColumns.ID_UTENTE.value]
-            invoice_user_name = self.user_controller.retrieve_user_map_by_id(invoice_user_id)[DBUsersColumns.FIRST_NAME.value] + self.user_controller.retrieve_user_map_by_id(invoice_user_id)[DBUsersColumns.LAST_NAME.value]
+            invoice_user_name = self.user_controller.retrieve_user_map_by_id(invoice_user_id)[DBUsersColumns.FIRST_NAME.value] + " " + self.user_controller.retrieve_user_map_by_id(invoice_user_id)[DBUsersColumns.LAST_NAME.value]
             invoice_creation_date = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
             invoice_state = invoice[DBInvoicesColumns.STATUS.value]
             invoice_rate = invoice[DBInvoicesColumns.NUMERO_RATE.value]
             invoice_tot_documento = invoice[DBInvoicesColumns.NETTO_A_PAGARE.value]
             invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
+            invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+            invoice_production_name = self.production_controller.retrieve_production_map_by_id(invoice_production_id)[DBProductionsColumns.NAME.value]
 
-            self.add_invoice_card(invoice_id, invoice_name, invoice_client_name, invoice_user_name, invoice_creation_date, invoice_state, invoice_rate, invoice_tot_documento, invoice_tipologia)
+            self.add_invoice_card(invoice_id, invoice_name, invoice_client_name, invoice_user_name, invoice_production_name, invoice_creation_date, invoice_state, invoice_rate, invoice_tot_documento, invoice_tipologia)
 
     def populate_global_infos(self):
         self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
@@ -323,7 +331,7 @@ class InvoicesView(ctk.CTk):
             )
         )
 
-    def add_invoice_card(self, invoice_id, nome, cliente, utente, data_creazione, stato, rate, tot_documento, tipologia):
+    def add_invoice_card(self, invoice_id, nome, cliente, utente, produzione, data_creazione, stato, rate, tot_documento, tipologia):
         """
           Aggiunge una singola card con i dati forniti alla scrollable frame.
 
@@ -331,7 +339,8 @@ class InvoicesView(ctk.CTk):
           :param nome: Nome della fattura
           :param cliente: nome del cliente
           :param utente: nome dell'utente
-          :param data_creazione: data di emissiione della fattura
+          :param produzione: nome della produzione associata
+          :param data_creazione: data di emissione della fattura
           :param stato: da InvoiceController.InvoiceSatus o InvoiceController.InvoiceRateizzazSatus
           :param rate: da InvoiceController.Rateizzazione
           :param tot_documento: Importo totale sul documento
@@ -341,33 +350,33 @@ class InvoicesView(ctk.CTk):
         card = ctk.CTkFrame(self.invoices_cards_frame, fg_color="dimgray")
         card.pack(pady=10, padx=14, fill="x", expand=True)  # Spaziatura tra le card
 
-        ctk.CTkButton(card, text=f"{nome}", width=200, command=lambda: self.open_invoice_detail(invoice_id)).pack(
+        ctk.CTkButton(card, text=f"{nome}", width=180, command=lambda: self.open_invoice_detail(invoice_id)).pack(
             padx=(10, 0), pady=10, fill="both", side="left")
 
 
         # Dati da visualizzare nella card
-        data = [cliente, utente, ViewUtils.invert_data_string(data_creazione), stato, rate, round(tot_documento, 2), tipologia]
-        units = ["", "", "", "", "", "€", ""]
+        data = [cliente, utente, produzione, ViewUtils.invert_data_string(data_creazione), stato, rate, round(tot_documento, 2), tipologia]
+        units = ["", "", "", "", "", "", "€", ""]
         i = 0
         # Aggiunta dei dati alla card
         for value in data:
-            if i != 4: #per tutti tranne che per le rate
-                label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=200)
-                label.pack(padx=0, pady=5, fill="both", expand=True, side="left")
+            if i != 5: #per tutti tranne che per le rate
+                label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=180)
+                label.pack(padx=(25, 0), pady=5, fill="both", expand=True, side="left")
             else:
-                rate_frame = ctk.CTkFrame(card, width=200)
-                rate_frame.pack(padx=5, pady=5, fill="both", expand=True, side="left")
-                label_1 = ctk.CTkLabel(rate_frame, text="1", font=("Arial", 14), width=60)
+                rate_frame = ctk.CTkFrame(card, width=170)
+                rate_frame.pack(padx=15, pady=5, fill="both", expand=True, side="left")
+                label_1 = ctk.CTkLabel(rate_frame, text="1", font=("Arial", 14), width=50)
                 label_1.pack(padx=0, pady=5, fill="both", expand=True, side="left")
-                label_2 = ctk.CTkLabel(rate_frame, text="2", font=("Arial", 14), width=60)
+                label_2 = ctk.CTkLabel(rate_frame, text="2", font=("Arial", 14), width=50)
                 label_2.pack(padx=0, pady=5, fill="both", expand=True, side="left")
-                label_3 = ctk.CTkLabel(rate_frame, text="3", font=("Arial", 14), width=60)
+                label_3 = ctk.CTkLabel(rate_frame, text="3", font=("Arial", 14), width=50)
                 label_3.pack(padx=0, pady=5, fill="both", expand=True, side="left")
 
             #salvo i labels dello stato per poter eseguire dei configure per cambiare il colore
-            if i == 3:
+            if i == 4:
                 self.invoice_card_labels_status[invoice_id] = label
-            elif i == 4:
+            elif i == 5:
                 self.invoice_card_rate_frames[invoice_id] = rate_frame
 
             i = i + 1
@@ -376,6 +385,40 @@ class InvoicesView(ctk.CTk):
         self.toggle_invoices_rate_color()
 
         self.invoices_card_list[nome] = card
+
+    def filter_cards(self, event):
+        """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""
+        search_text = self.search_bar.get().lower()
+        search_type = self.search_bar_optionMenu.get()
+
+        # Mappatura: ogni chiave associa una tupla (indice, classe_attesa) del widget da cui prelevare il testo
+        filter_mapping = {
+            "NOME FATTURA": (0, ctk.CTkButton),  # Bottone
+            "NOME CLIENTE": (1, ctk.CTkLabel),
+            "NOME UTENTE": (2, ctk.CTkLabel),
+            "NOME PRODUZIONE": (3, ctk.CTkLabel),
+        }
+
+        mapping = filter_mapping.get(search_type)
+        if mapping is None:
+            # Se il tipo di ricerca non è riconosciuto, mostra tutte le card e interrompi la funzione
+            for card in self.invoices_card_list.values():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
+            return
+
+        idx, expected_class = mapping
+
+        # Cicla attraverso tutte le card
+        for nome, card in self.invoices_card_list.items():
+            children = card.winfo_children()  # Lista dei widget figli
+            widget_text = ""
+            if len(children) > idx and isinstance(children[idx], expected_class):
+                widget_text = children[idx].cget("text")
+            # Confronta il testo estratto (in lowercase) con il testo di ricerca
+            if search_text in widget_text.lower():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
+            else:
+                card.pack_forget()
 
     def save_invoice_data(self):
         invoice_data = {}
@@ -404,6 +447,7 @@ class InvoicesView(ctk.CTk):
                 invoice_data[DBInvoicesColumns.NUMERO_FATTURA.value],
                 invoice_data[self.nome_cliente_string],
                 invoice_data[self.nome_utente_string],
+                invoice_data[self.nome_produzione_string],
                 invoice_data[DBInvoicesColumns.DATA_CREAZIONE.value],
                 invoice_map[DBInvoicesColumns.STATUS.value],
                 invoice_data[DBInvoicesColumns.NUMERO_RATE.value],

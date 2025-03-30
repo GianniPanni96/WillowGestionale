@@ -1817,6 +1817,34 @@ class PaymentsController:
         # Converte ogni riga in un dizionario usando la funzione _row_to_map
         return [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
 
+    def retrieve_payments_map_list_by_invoice_id(self, invoice_id, current_year=True):
+        rows = self.db_model.fetch_payments_by_invoice_id(invoice_id)
+
+        # Costruisci la lista dei nomi delle colonne in base all'enum (l'ordine è importante)
+        columns = [column.value for column in DBPaymentsColumns]
+
+        if current_year:
+            current_year_value = datetime.now().year
+            # Trova l'indice della colonna PAYMENT_DATE
+            date_index = columns.index(DBPaymentsColumns.PAYMENT_DATE.value)
+            filtered_rows = []
+            for row in rows:
+                try:
+                    date_str = row[date_index]
+                    # Prova prima con l'orario; se fallisce, usa solo la data
+                    try:
+                        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        dt = datetime.strptime(date_str, "%Y-%m-%d")
+                    if dt.year == current_year_value:
+                        filtered_rows.append(row)
+                except Exception as e:
+                    print(f"Errore durante il parsing della data '{date_str}': {e}")
+            rows = filtered_rows
+
+        # Converte ogni riga in un dizionario usando la funzione _row_to_map
+        return [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
+
     def retrieve_last_payment_insert_map(self):
         """
         Recupera l'ultimo pagamento inserito e lo restituisce come dizionario.

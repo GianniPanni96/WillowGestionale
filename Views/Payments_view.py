@@ -118,17 +118,18 @@ class PaymentsView(ctk.CTk):
         self.nome_conto_string = "NOME CONTO"
 
         self.entry_fields = {
+            self.nome_fattura_string: ctk.CTkOptionMenu,
+            DBPaymentsColumns.LINKED_RATA.value: ctk.CTkOptionMenu,
             DBPaymentsColumns.PAYMENT_NAME.value: ctk.CTkEntry,
             DBPaymentsColumns.PAYMENT_AMOUNT.value: ctk.CTkEntry,
             DBPaymentsColumns.PAYMENT_DATE.value: Calendar,
-            self.nome_fattura_string : ctk.CTkOptionMenu,
-            DBPaymentsColumns.LINKED_RATA.value: ctk.CTkOptionMenu,
             self.nome_conto_string: ctk.CTkOptionMenu,
         }
 
         self.error_fields = {
             DBPaymentsColumns.PAYMENT_NAME.value: ctk.CTkLabel,
-            DBPaymentsColumns.PAYMENT_AMOUNT.value: ctk.CTkLabel
+            DBPaymentsColumns.PAYMENT_AMOUNT.value: ctk.CTkLabel,
+            DBPaymentsColumns.LINKED_RATA.value: ctk.CTkLabel
         }
 
         self.payment_widgets = {}
@@ -158,7 +159,8 @@ class PaymentsView(ctk.CTk):
                                               self.account_controller.account_list])
             elif label_text == DBPaymentsColumns.LINKED_RATA.value:
                 widget = widget_class(self.payment_window_scrollableFrame,
-                                      values=["1", "2", "3"])
+                                      values=["1", "2", "3"],
+                                      command = lambda selected_value: self.control_linked_rata(selected_value))
             elif label_text == DBPaymentsColumns.PAYMENT_DATE.value:
                 widget = widget_class(self.payment_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
             else:
@@ -172,6 +174,8 @@ class PaymentsView(ctk.CTk):
                 error_label = ctk.CTkLabel(self.payment_window_scrollableFrame, text="")
                 error_label.pack(pady=(0, 15))
                 self.error_labels[label_text] = error_label
+
+        self.autofill_payment_amount()
 
         # Bottone per salvare
         self.save_button = ctk.CTkButton(
@@ -311,9 +315,51 @@ class PaymentsView(ctk.CTk):
         if rateizzazione == int(InvoiceController.Rateizzazione.TRE.value):
             widget.configure(values=["1", "2", "3"], state=tk.NORMAL)
 
+        self.autofill_payment_amount()
+
     def clear_class_variable(self):  #potrebbe non servire in quanto vengono inizializzate all'apertura della funzione
         self.payment_widgets.clear()
         self.payment_widgets.clear()
+
+    def autofill_payment_amount(self):
+        # prendo la fattura di riferimento del pagamento
+        VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
+        invoice_name_array = VF_invoice_name.split(" - ")
+        invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1]
+        invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
+        invoice_amount = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
+        invoice_rateiz = invoice[DBInvoicesColumns.NUMERO_RATE.value]
+
+        self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].delete(0, tk.END)
+        if int(invoice_rateiz) == int(InvoiceController.Rateizzazione.UNA.value):
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, invoice_amount)
+        elif int(invoice_rateiz) == int(InvoiceController.Rateizzazione.TRE.value):
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, round(invoice_amount/3, 2))
+
+    def control_linked_rata(self, selected_value):
+        # prendo la fattura di riferimento del pagamento
+        VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
+        invoice_name_array = VF_invoice_name.split(" - ")
+        invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1]
+        invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
+
+        rate_pagate = {
+            "1" : False,
+            "2" : False,
+            "3" : False
+        }
+
+        payments = self.payment_controller.retrieve_payments_map_list_by_invoice_id(invoice[DBInvoicesColumns.ID.value])
+        for payment in payments:
+            if int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 1:
+                rate_pagate["1"] = True
+            elif int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 2:
+                rate_pagate["2"] = True
+            elif int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 3:
+                rate_pagate["3"] = True
+
+        if rate_pagate[str(selected_value)] == True:
+
 
     def open_modify_payment(self, payment_id):
 

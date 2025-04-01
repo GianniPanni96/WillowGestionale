@@ -92,6 +92,55 @@ class ViewUtils(ctk.CTk):
             parent.destroy()
 
     @staticmethod
+    def ask_confirmation_popup(parent, message, title="CONFERMA OPERAZIONE"):
+        """
+        Crea un pop-up che chiede conferma all'utente per proseguire un'operazione.
+
+        :param parent: La finestra principale da cui viene lanciato il pop-up.
+        :param message: Il messaggio di conferma da mostrare.
+        :param title: Il titolo del pop-up.
+        :return: True se l'utente conferma, False se annulla.
+        """
+        # Dizionario per memorizzare il risultato della scelta
+        result = {"confirmed": False}
+
+        # Creazione del Toplevel e impostazioni iniziali
+        popup = ctk.CTkToplevel(parent)
+        popup.title(title)
+        popup.geometry("300x150")
+        popup.grab_set()  # Rende il pop-up modale
+        popup.lift()  # Porta il pop-up in primo piano
+
+        # Etichetta per il messaggio
+        label = ctk.CTkLabel(popup, text=message, wraplength=250, font=("Arial", 14))
+        label.pack(pady=(20, 10))
+
+        # Funzioni per la gestione dei bottoni
+        def on_confirm():
+            result["confirmed"] = True
+            popup.destroy()
+
+        def on_cancel():
+            result["confirmed"] = False
+            popup.destroy()
+
+        # Creazione dei bottoni
+        # Puoi posizionarli affiancati usando un frame, oppure direttamente con il pack
+        buttons_frame = ctk.CTkFrame(popup)
+        buttons_frame.pack(pady=(10, 20))
+
+        confirm_button = ctk.CTkButton(buttons_frame, text="Conferma", command=on_confirm)
+        confirm_button.pack(side="left", padx=10)
+
+        cancel_button = ctk.CTkButton(buttons_frame, text="Annulla", command=on_cancel)
+        cancel_button.pack(side="left", padx=10)
+
+        # Attendi la chiusura del pop-up prima di restituire il risultato
+        popup.wait_window()
+
+        return result["confirmed"]
+
+    @staticmethod
     def invert_data_string(data):
         date = data.split("-")
         return date[2] + "-" + date[1] + "-" + date[0]

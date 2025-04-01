@@ -48,7 +48,7 @@ class InvoicesView(ctk.CTk):
             self.populate_production_list_by_selected_client(self.client_controller.clients_list[0][DBClientsColumns.NAME.value])
 
         #self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
-        self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color, self.toggle_aggregate_data())
+        self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color, self.toggle_aggregate_data)
 
     def create_invoices_tab(self):
 

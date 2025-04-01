@@ -176,6 +176,7 @@ class PaymentsView(ctk.CTk):
                 self.error_labels[label_text] = error_label
 
         self.autofill_payment_amount()
+        self.control_linked_rata("1")
 
         # Bottone per salvare
         self.save_button = ctk.CTkButton(
@@ -260,8 +261,15 @@ class PaymentsView(ctk.CTk):
         invoice_id = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura_ricostruito)[DBInvoicesColumns.ID.value]
         payment_data[DBPaymentsColumns.INVOICE_ID.value] = invoice_id
 
-        # chiamata al controller per salvare i dati
-        success, message = self.payment_controller.save_payment(payment_data)
+        ctrl_linked_rata = self.control_linked_rata(payment_data[DBPaymentsColumns.LINKED_RATA.value])
+        confirmation = True
+
+        if ctrl_linked_rata:
+            confirmation = ViewUtils.ask_confirmation_popup(self.add_payment_window, "La rata selezionata presenta già un pagamento associato\nsei sicuro di voler continuare?", "CONFERMA OPERAZIONE")
+
+        if confirmation:
+            # chiamata al controller per salvare i dati
+            success, message = self.payment_controller.save_payment(payment_data)
 
         if success:
             #aggiorno il controller delle fatture
@@ -316,6 +324,8 @@ class PaymentsView(ctk.CTk):
             widget.configure(values=["1", "2", "3"], state=tk.NORMAL)
 
         self.autofill_payment_amount()
+        selected_rata = self.payment_widgets[DBPaymentsColumns.LINKED_RATA.value].get()
+        self.control_linked_rata(selected_rata)
 
     def clear_class_variable(self):  #potrebbe non servire in quanto vengono inizializzate all'apertura della funzione
         self.payment_widgets.clear()
@@ -332,11 +342,13 @@ class PaymentsView(ctk.CTk):
 
         self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].delete(0, tk.END)
         if int(invoice_rateiz) == int(InvoiceController.Rateizzazione.UNA.value):
-            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, invoice_amount)
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, f"{invoice_amount:.2f}")
         elif int(invoice_rateiz) == int(InvoiceController.Rateizzazione.TRE.value):
-            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, round(invoice_amount/3, 2))
+            amount = round(invoice_amount/3, 2)
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, f"{amount:.2f}")
 
     def control_linked_rata(self, selected_value):
+
         # prendo la fattura di riferimento del pagamento
         VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
         invoice_name_array = VF_invoice_name.split(" - ")
@@ -358,8 +370,11 @@ class PaymentsView(ctk.CTk):
             elif int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 3:
                 rate_pagate["3"] = True
 
-        if rate_pagate[str(selected_value)] == True:
-
+        if rate_pagate[str(selected_value)]:
+            self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(text=f"Esiste già un pagamento relativo alla rata {selected_value}", text_color="#e39e27")
+            return True
+        else:
+            self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(text="", text_color="#e39e27")
 
     def open_modify_payment(self, payment_id):
 

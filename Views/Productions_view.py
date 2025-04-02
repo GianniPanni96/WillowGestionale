@@ -25,6 +25,13 @@ class ProductionsView(ctk.CTk):
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
+        self.aggregate_UOM = {
+            ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value : "",
+            ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value : "",
+            ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value : "",
+            ProductionController.ProductionsAggregateData.MEDIA_ORE_PRODUZIONE.value : "h",
+            ProductionController.ProductionsAggregateData.MEDIA_PREZZO_ORARIO.value : "€/h"
+        }
         self.production_labels = {}
         self.production_widgets = {}
         self.production_card_labels_status = {}
@@ -253,7 +260,7 @@ class ProductionsView(ctk.CTk):
             "NOME CLIENTE": (1, ctk.CTkLabel),
             "TIPO PRODUZIONE": (2, ctk.CTkLabel),
             "TIPO OUTPUT": (3, ctk.CTkLabel),
-            "STATO": (4, ctk.CTkLabel),
+            "STATO": (4, ctk.CTkOptionMenu),
         }
 
         mapping = filter_mapping.get(search_type)
@@ -270,7 +277,12 @@ class ProductionsView(ctk.CTk):
             children = card.winfo_children()  # Lista dei widget figli
             widget_text = ""
             if len(children) > idx and isinstance(children[idx], expected_class):
-                widget_text = children[idx].cget("text")
+                widget = children[idx]
+                # Per CTkOptionMenu, usa il metodo get() anziché cget("text")
+                if isinstance(widget, ctk.CTkOptionMenu):
+                    widget_text = widget.get()
+                else:
+                    widget_text = widget.cget("text")
             # Confronta il testo estratto (in lowercase) con il testo di ricerca
             if search_text in widget_text.lower():
                 card.pack(pady=10, padx=10, fill="x", expand=True)
@@ -306,8 +318,13 @@ class ProductionsView(ctk.CTk):
         i = 0
         # Aggiunta dei dati alla card
         for value in data:
-            label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=180)
-            label.pack(padx=0, pady=5, fill="both", expand=True, side="left")
+            if i == 3:
+                label = ctk.CTkOptionMenu(card, values=[item.value for item in ProductionController.Stato], width=170, command=lambda selected_value: self.auto_save_production_status(production_id, selected_value))
+                label.pack(padx=15, pady=5, fill="x", expand=True, side="left")
+                label.set(produzione_stato)
+            else:
+                label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=180)
+                label.pack(padx=15, pady=5, fill="both", expand=True, side="left")
 
             # salvo i labels dello stato per poter eseguire dei configure per cambiare il colore
             if i == 4:
@@ -354,6 +371,7 @@ class ProductionsView(ctk.CTk):
 
             self.clear_class_variable()
             self.add_production_window.destroy()
+            self.update_global_infos()
         else:
             print(message)
             ViewUtils.show_error_popup(self.add_production_window, "ERRORE", message)
@@ -465,6 +483,21 @@ class ProductionsView(ctk.CTk):
         self.production_widgets[DBProductionsColumns.TIPOLOGIA_OUTPUT.value].set(new_prod_out_type)
         self.add_prod_out_type_window.destroy()
 
+    def auto_save_production_status(self, production_id, selected_value):
+        production_data = {}
+        production_data[DBProductionsColumns.STATO.value] = selected_value
+        self.production_controller.update_specific_production_data(production_id, production_data)
+
+        #aggiorno i dati aggregati, sia lita che interfaccia
+        self.update_global_infos()
+
+    def update_global_infos(self):
+        self.populate_global_infos()
+        # Per ogni chiave (identica in entrambi i dizionari) aggiorna il testo della label
+        for key, label in self.amount_aggregate_labels.items():
+            new_value = self.global_infos.get(key, "")
+            label.configure(text=str(new_value) + " " + self.aggregate_UOM[key])
+
     def clear_class_variable(self):  #potrebbe non servire in quanto vengono inizializzate all'apertura della funzione
         self.production_widgets.clear()
         self.production_labels.clear()
@@ -475,7 +508,3 @@ class ProductionsView(ctk.CTk):
         salva le modifiche apportate alla produzione tramite i widgets dell'interfaccia
         :return:
         """
-
-
-
-

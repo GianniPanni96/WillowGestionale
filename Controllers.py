@@ -2296,9 +2296,22 @@ class ProductionController:
                     return False, "L'importo del preventivo inserito non è valido."
 
             # Invoca il metodo del model per aggiornare l'utente
-            self.db_model.update_user(production_id, **production_data)
+            self.db_model.update_production(production_id, **production_data)
+            self.update_productions_lists()
+            self.update_aggregate_data()
             return True, "Produzione aggiornata con successo!"
 
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento della produzione: {str(e)}"
+
+    def update_specific_production_data(self, production_id, production_data):
+        try:
+            self.db_model.update_production(production_id, **production_data)
+            self.update_productions_lists()
+            self.update_aggregate_data()
+            return True, "Produzione aggiornata con successo!"
         except ValueError as ve:
             return False, str(ve)
         except Exception as e:

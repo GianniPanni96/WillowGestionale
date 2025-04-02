@@ -98,8 +98,10 @@ class PaymentsView(ctk.CTk):
             self.add_payment_card(payment_id, name, amount, payment_date, linked_rata, client_name, production_name, nome_conto)
 
     def populate_global_infos(self):
-        self.global_infos[f"{PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value}"] = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value]
-        self.global_infos[f"{PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value}"] = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value]
+        numero_pagamenti = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value]
+        totale_pagamenti = round(self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value], 2)
+        self.global_infos[f"{PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value}"] = numero_pagamenti
+        self.global_infos[f"{PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value}"] = f"{totale_pagamenti:.2f}"
 
     def open_add_payment_window(self):
         self.add_payment_window = ctk.CTkToplevel(self)

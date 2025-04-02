@@ -178,6 +178,12 @@ class ProductionsView(ctk.CTk):
                                       values=[item.value for item in ProductionController.Stato])
             elif label_text == DBProductionsColumns.END_DATE.value:
                 widget = widget_class(self.production_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
+            elif label_text == DBProductionsColumns.NAME.value:
+                self.name_frame = ctk.CTkFrame(self.production_window_scrollableFrame)
+                self.name_frame.pack(pady=0, padx=0, fill="x", expand=True)
+                first_part_name_label = ctk.CTkLabel(self.name_frame, text="bandur")
+                first_part_name_label.pack(side=tk.LEFT, pady=5, padx=10)
+                widget = widget_class(self.name_frame)
             else:
                 widget = widget_class(self.production_window_scrollableFrame)
 
@@ -198,7 +204,8 @@ class ProductionsView(ctk.CTk):
         )
         self.save_button.pack(pady=(35, 15))
 
-        self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{self.client_controller.clients_list[0][DBClientsColumns.NAME.value]}-")
+        self.name_frame.winfo_children()[0].configure(text=f"{self.client_controller.clients_list[0][DBClientsColumns.NAME.value]} - ")
+        #self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{self.client_controller.clients_list[0][DBClientsColumns.NAME.value]}-")
 
         # Aggiungi validazione agli eventi di perdita del focus
         self.production_widgets[DBProductionsColumns.NAME.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
@@ -328,8 +335,11 @@ class ProductionsView(ctk.CTk):
         self.production_widgets[DBProductionsColumns.TOTALE_PREVENTIVO.value].insert(0, f"{production[DBProductionsColumns.TOTALE_PREVENTIVO.value]:.2f}")
 
     def auto_compile_name_entry(self, selected_value):
-        self.production_widgets[DBProductionsColumns.NAME.value].delete(0, tk.END)
-        self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{selected_value}-")
+        #self.production_widgets[DBProductionsColumns.NAME.value].delete(0, tk.END)
+        #self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{selected_value}-")
+        self.name_frame.winfo_children()[0].configure(
+            text=f"{selected_value} - ")
+
 
     def open_add_prod_type(self, selected_value):
         prod_type_dict = dict(self.catalogo_elenchi["production_types"])

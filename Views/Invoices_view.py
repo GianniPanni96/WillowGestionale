@@ -48,7 +48,7 @@ class InvoicesView(ctk.CTk):
             self.populate_production_list_by_selected_client(self.client_controller.clients_list[0][DBClientsColumns.NAME.value])
 
         #self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
-        self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color, self.toggle_aggregate_data)
+        self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color, self.toggle_aggregate_data)
 
     def create_invoices_tab(self):
 
@@ -682,6 +682,12 @@ class InvoicesView(ctk.CTk):
 
         self.client_details_window.geometry("700x700")"""
 
+    def toggle_specific_invoice_status(self, invoice_id):
+        fattura = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+        label = self.invoice_card_labels_status[invoice_id]
+
+        label.configure(text=fattura[DBInvoicesColumns.STATUS.value])
+
     def toggle_invoices_status_color(self):
         """
         Funzione che assegna un colore al label relativo allo stato delle cards delle fatture
@@ -769,6 +775,8 @@ class InvoicesView(ctk.CTk):
                 label.configure(text_color=InvoicesView.InvoicesStatusColors.CRITICAL.value)
             elif stato == InvoiceController.InvoiceSatus.STORNATA.value:
                 label.configure(text_color=InvoicesView.InvoicesStatusColors.STORNATA.value)
+            elif stato == InvoiceController.InvoiceRateizzSatus.PAGATA.value:
+                label.configure(text_color=InvoicesView.InvoicesStatusColors.GOOD.value)
 
     def toggle_invoices_rate_color(self):
         """

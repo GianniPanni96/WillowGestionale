@@ -2241,8 +2241,12 @@ class ProductionController:
         id_cliente = cliente_map[DBClientsColumns.ID.value]
         tipologia_cliente = cliente_map[DBClientsColumns.TIPOLOGIA.value]
 
+        #aggiungo al nome della produzione il nome del cliente
+        prod_name = production_data.get(DBProductionsColumns.NAME.value)
+        prod_name = nome_cliente + " - " + prod_name
+
         production_data_prepared = {
-            DBProductionsColumns.NAME.value : production_data.get(DBProductionsColumns.NAME.value),
+            DBProductionsColumns.NAME.value : prod_name,
             DBProductionsColumns.CLIENT_ID.value: id_cliente,
             DBProductionsColumns.HOURS.value: production_data.get(DBProductionsColumns.HOURS.value),
             DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value: production_data.get(DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value),

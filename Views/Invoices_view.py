@@ -426,7 +426,7 @@ class InvoicesView(ctk.CTk):
         #riempi il dizionario con i dati dei widgets primari
         for label_text, widget in self.invoice_widgets.items():
             if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
-                invoice_data[label_text] = widget.get()
+                invoice_data[label_text] = widget.get().strip()
             elif isinstance(widget, Calendar):
                 invoice_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):

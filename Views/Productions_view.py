@@ -31,13 +31,26 @@ class ProductionsView(ctk.CTk):
         self.production_card_list = {}
 
     def create_productions_tab(self):
-        self.global_info_frame = ctk.CTkFrame(self.tab)
-        self.global_info_frame.pack(pady=(5, 10), fill="x", anchor="n")
+
+        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
+        self.search_bar = ctk.CTkEntry(self.search_bar_frame)
+        self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
+        self.search_bar_option_menu_values = {"NOME PROD.": "NOME PROD.", "NOME CLIENTE": "NOME CLIENTE",
+                                              "TIPO PRODUZIONE": "TIPO PRODUZIONE", "TIPO OUTPUT": "TIPO OUTPUT", "STATO": "STATO"}
+        self.search_bar_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.search_bar_option_menu_values.values()))
+        self.search_bar_optionMenu.pack(padx=5, anchor="s", side="right")
+        self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per ", font=("Arial", 14))
+        self.search_bar_label.pack(padx=5, anchor="s", side="right")
+
+        # Aggiungi evento alla barra di ricerca
+        self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         self.populate_global_infos()
 
         for (key, info) in self.global_infos.items():
-            card = ctk.CTkFrame(self.global_info_frame)
+            card = ctk.CTkFrame(self.search_bar_frame)
 
             if key == ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value or \
                 key == ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value or \
@@ -182,12 +195,12 @@ class ProductionsView(ctk.CTk):
                 self.name_frame = ctk.CTkFrame(self.production_window_scrollableFrame)
                 self.name_frame.pack(pady=0, padx=0, fill="x", expand=True)
                 first_part_name_label = ctk.CTkLabel(self.name_frame, text="bandur")
-                first_part_name_label.pack(side=tk.LEFT, pady=5, padx=10)
+                first_part_name_label.pack(side=tk.LEFT, pady=5, padx=(10, 0))
                 widget = widget_class(self.name_frame)
             else:
                 widget = widget_class(self.production_window_scrollableFrame)
 
-            widget.pack(pady=5, padx=10, fill="x", expand=True)
+            widget.pack(pady=5, padx=(0, 10) if label_text == DBProductionsColumns.NAME.value else 10, fill="x", expand=True)
 
             self.production_widgets[label_text] = widget
 
@@ -228,6 +241,41 @@ class ProductionsView(ctk.CTk):
             self.error_labels[DBProductionsColumns.TOTALE_PREVENTIVO.value],
             "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
         ))
+
+    def filter_cards(self, event):
+        """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""
+        search_text = self.search_bar.get().lower()
+        search_type = self.search_bar_optionMenu.get()
+
+        # Mappatura: ogni chiave associa una tupla (indice, classe_attesa) del widget da cui prelevare il testo
+        filter_mapping = {
+            "NOME PROD.": (0, ctk.CTkButton),  # Bottone
+            "NOME CLIENTE": (1, ctk.CTkLabel),
+            "TIPO PRODUZIONE": (2, ctk.CTkLabel),
+            "TIPO OUTPUT": (3, ctk.CTkLabel),
+            "STATO": (4, ctk.CTkLabel),
+        }
+
+        mapping = filter_mapping.get(search_type)
+        if mapping is None:
+            # Se il tipo di ricerca non è riconosciuto, mostra tutte le card e interrompi la funzione
+            for card in self.production_card_list.values():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
+            return
+
+        idx, expected_class = mapping
+
+        # Cicla attraverso tutte le card
+        for nome, card in self.production_card_list.items():
+            children = card.winfo_children()  # Lista dei widget figli
+            widget_text = ""
+            if len(children) > idx and isinstance(children[idx], expected_class):
+                widget_text = children[idx].cget("text")
+            # Confronta il testo estratto (in lowercase) con il testo di ricerca
+            if search_text in widget_text.lower():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
+            else:
+                card.pack_forget()
 
     def add_production_card(self, production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario):
         """
@@ -275,7 +323,7 @@ class ProductionsView(ctk.CTk):
         # riempi il dizionario con i dati dei widgets primari
         for label_text, widget in self.production_widgets.items():
             if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
-                production_data[label_text] = widget.get()
+                production_data[label_text] = widget.get().strip()
             elif isinstance(widget, Calendar):
                 production_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):
@@ -316,6 +364,10 @@ class ProductionsView(ctk.CTk):
         production = self.production_controller.retrieve_production_map_by_id(production_id, True)
         client_name = self.client_controller.retrieve_client_map_by_id(production[DBProductionsColumns.CLIENT_ID.value])[DBClientsColumns.NAME.value]
 
+        production_name = production[DBProductionsColumns.NAME.value].split(" - ")
+        production_name = production_name[1]
+
+
         self.open_add_production_window()
 
         #configuro la finestra
@@ -324,7 +376,8 @@ class ProductionsView(ctk.CTk):
         self.save_button.configure(text="Salva Modifiche", command=self.modify_production_data)
         self.production_widgets[self.nome_cliente_string].set(client_name)
         self.production_widgets[DBProductionsColumns.NAME.value].delete(0, tk.END)
-        self.production_widgets[DBProductionsColumns.NAME.value].insert(0, production[DBProductionsColumns.NAME.value])
+        self.production_widgets[DBProductionsColumns.NAME.value].insert(0, production_name)
+        self.name_frame.configure(text=f"{client_name} - ")
         self.production_widgets[DBProductionsColumns.HOURS.value].delete(0, tk.END)
         self.production_widgets[DBProductionsColumns.HOURS.value].insert(0, int(production[DBProductionsColumns.HOURS.value]))
         self.production_widgets[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value].set(production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value])
@@ -339,7 +392,6 @@ class ProductionsView(ctk.CTk):
         #self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{selected_value}-")
         self.name_frame.winfo_children()[0].configure(
             text=f"{selected_value} - ")
-
 
     def open_add_prod_type(self, selected_value):
         prod_type_dict = dict(self.catalogo_elenchi["production_types"])

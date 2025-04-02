@@ -173,5 +173,3 @@ class ViewUtils(ctk.CTk):
             return text  # Nessun punto valido per la divisione
 
         return " ".join(words[:split_index + 1]) + "\n" + " ".join(words[split_index + 1:])
-
-

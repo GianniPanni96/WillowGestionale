@@ -283,15 +283,15 @@ class MainWindow(ctk.CTk):
         """Salva i dati dell'utente tramite il controller"""
 
         user_data = {
-            DBUsersColumns.FIRST_NAME.value: self.first_name_entry.get(),
-            DBUsersColumns.LAST_NAME.value: self.last_name_entry.get(),
-            DBUsersColumns.PARTITA_IVA.value: self.partita_iva_entry.get(),
-            DBUsersColumns.CODICE_FISCALE.value: self.codice_fiscale_entry.get(),
-            DBUsersColumns.TELEFONO.value: self.telefono_entry.get(),
-            DBUsersColumns.EMAIL.value: self.email_entry.get(),
+            DBUsersColumns.FIRST_NAME.value: self.first_name_entry.get().strip(),
+            DBUsersColumns.LAST_NAME.value: self.last_name_entry.get().strip(),
+            DBUsersColumns.PARTITA_IVA.value: self.partita_iva_entry.get().strip(),
+            DBUsersColumns.CODICE_FISCALE.value: self.codice_fiscale_entry.get().strip(),
+            DBUsersColumns.TELEFONO.value: self.telefono_entry.get().strip(),
+            DBUsersColumns.EMAIL.value: self.email_entry.get().strip(),
             DBUsersColumns.PROVIDER_FATTURE.value: self.provider_FattElett_combobox.get(),
-            DBUsersColumns.USERNAME_PROVIDER.value: self.provider_username_entry.get(),
-            DBUsersColumns.PASSWORD_PROVIDER.value: self.provider_password_entry.get(),
+            DBUsersColumns.USERNAME_PROVIDER.value: self.provider_username_entry.get().strip(),
+            DBUsersColumns.PASSWORD_PROVIDER.value: self.provider_password_entry.get().strip(),
             DBUsersColumns.REGIME_FISCALE.value: self.regime_fiscale_combobox.get(),
             DBUsersColumns.PHOTO_PATH.value: self.image_path.get(),
             DBUsersColumns.CONTO_CORRENTE_ID.value: self.conto_corrente_combobox.get(),  # Da aggiornare se necessario
@@ -562,15 +562,15 @@ class MainWindow(ctk.CTk):
 
         # Recupera i dati dall'interfaccia utente
         user_data = {
-            DBUsersColumns.FIRST_NAME.value: self.first_name_entry.get(),
-            DBUsersColumns.LAST_NAME.value: self.last_name_entry.get(),
-            DBUsersColumns.PARTITA_IVA.value: self.partita_iva_entry.get(),
-            DBUsersColumns.CODICE_FISCALE.value: self.codice_fiscale_entry.get(),
-            DBUsersColumns.TELEFONO.value: self.telefono_entry.get(),
-            DBUsersColumns.EMAIL.value: self.email_entry.get(),
+            DBUsersColumns.FIRST_NAME.value: self.first_name_entry.get().strip(),
+            DBUsersColumns.LAST_NAME.value: self.last_name_entry.get().strip(),
+            DBUsersColumns.PARTITA_IVA.value: self.partita_iva_entry.get().strip(),
+            DBUsersColumns.CODICE_FISCALE.value: self.codice_fiscale_entry.get().strip(),
+            DBUsersColumns.TELEFONO.value: self.telefono_entry.get().strip(),
+            DBUsersColumns.EMAIL.value: self.email_entry.get().strip(),
             DBUsersColumns.PROVIDER_FATTURE.value: self.provider_FattElett_combobox.get(),
-            DBUsersColumns.USERNAME_PROVIDER.value: self.provider_username_entry.get(),
-            DBUsersColumns.PASSWORD_PROVIDER.value: self.provider_password_entry.get(),
+            DBUsersColumns.USERNAME_PROVIDER.value: self.provider_username_entry.get().strip(),
+            DBUsersColumns.PASSWORD_PROVIDER.value: self.provider_password_entry.get().strip(),
             DBUsersColumns.REGIME_FISCALE.value: self.regime_fiscale_combobox.get(),
             DBUsersColumns.PHOTO_PATH.value: self.image_path.get(),
             DBUsersColumns.CONTO_CORRENTE_ID.value: self.conto_corrente_combobox.get(),  # Da aggiornare se necessario
@@ -913,6 +913,7 @@ class MainWindow(ctk.CTk):
                 "Errore salvataggio configurazione",
                 f"Impossibile salvare la configurazione: {str(e)}"
             )
+
 
 
     # Funzioni per la gestione dei dati fiscali

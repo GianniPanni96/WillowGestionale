@@ -33,13 +33,26 @@ class PaymentsView(ctk.CTk):
         self.payment_card_labels_status = {}
 
     def create_payments_tab(self):
-        self.global_info_frame = ctk.CTkFrame(self.tab)
-        self.global_info_frame.pack(pady=(5, 10), fill="x", anchor="n")
+
+        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
+        self.search_bar = ctk.CTkEntry(self.search_bar_frame)
+        self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
+        self.search_bar_option_menu_values = {"NOME PAGAM.": "NOME PAGAM.", "NOME CLIENTE": "NOME CLIENTE",
+                                              "NOME PRODUZIONE": "NOME PRODUZIONE", "CONTO": "CONTO"}
+        self.search_bar_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.search_bar_option_menu_values.values()))
+        self.search_bar_optionMenu.pack(padx=5, anchor="s", side="right")
+        self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per ", font=("Arial", 14))
+        self.search_bar_label.pack(padx=5, anchor="s", side="right")
+
+        # Aggiungi evento alla barra di ricerca
+        self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         self.populate_global_infos()
 
         for (key, info) in self.global_infos.items():
-            card = ctk.CTkFrame(self.global_info_frame)
+            card = ctk.CTkFrame(self.search_bar_frame)
 
             if key == PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value:
                 global_info_unità_di_misura = ""
@@ -102,6 +115,40 @@ class PaymentsView(ctk.CTk):
         totale_pagamenti = round(self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value], 2)
         self.global_infos[f"{PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value}"] = numero_pagamenti
         self.global_infos[f"{PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value}"] = f"{totale_pagamenti:.2f}"
+
+    def filter_cards(self, event):
+        """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""
+        search_text = self.search_bar.get().lower()
+        search_type = self.search_bar_optionMenu.get()
+
+        # Mappatura: ogni chiave associa una tupla (indice, classe_attesa) del widget da cui prelevare il testo
+        filter_mapping = {
+            "NOME PAGAM.": (0, ctk.CTkButton),  # Bottone
+            "NOME CLIENTE": (1, ctk.CTkLabel),
+            "NOME PRODUZIONE": (2, ctk.CTkLabel),
+            "CONTO": (3, ctk.CTkLabel),
+        }
+
+        mapping = filter_mapping.get(search_type)
+        if mapping is None:
+            # Se il tipo di ricerca non è riconosciuto, mostra tutte le card e interrompi la funzione
+            for card in self.payment_card_list.values():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
+            return
+
+        idx, expected_class = mapping
+
+        # Cicla attraverso tutte le card
+        for nome, card in self.payment_card_list.items():
+            children = card.winfo_children()  # Lista dei widget figli
+            widget_text = ""
+            if len(children) > idx and isinstance(children[idx], expected_class):
+                widget_text = children[idx].cget("text")
+            # Confronta il testo estratto (in lowercase) con il testo di ricerca
+            if search_text in widget_text.lower():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
+            else:
+                card.pack_forget()
 
     def open_add_payment_window(self):
         self.add_payment_window = ctk.CTkToplevel(self)
@@ -235,7 +282,7 @@ class PaymentsView(ctk.CTk):
             label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=245)
             label.pack(padx=(10), pady=5, fill="both", expand=True, side="left")
 
-        self.payment_card_list[production_name] = card
+        self.payment_card_list[payment_name] = card
 
         """child_list = self.payment_card_list[production_name].winfo_children()
         child_list[1].configure(bg_color="red")
@@ -251,14 +298,14 @@ class PaymentsView(ctk.CTk):
         # riempi il dizionario con i dati dei widgets primari
         for label_text, widget in self.payment_widgets.items():
             if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
-                payment_data[label_text] = widget.get()
+                payment_data[label_text] = widget.get().strip()
             elif isinstance(widget, Calendar):
                 payment_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):
                 payment_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
 
         #sistemo il nome della fattura che è ViewFriendly:
-        nome_fattura_array = payment_data[self.nome_fattura_string].split(" - ")
+        nome_fattura_array = payment_data[self.nome_fattura_string].strip().split(" - ")
         nome_fattura_ricostruito = nome_fattura_array[0] + " - " + nome_fattura_array[1]
         invoice_id = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura_ricostruito)[DBInvoicesColumns.ID.value]
         payment_data[DBPaymentsColumns.INVOICE_ID.value] = invoice_id

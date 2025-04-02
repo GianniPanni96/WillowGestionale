@@ -219,7 +219,7 @@ class ClientsView(ctk.CTk):
         # Riempi il dizionario con i dati dai widget
         for label_text, widget in self.client_widgets.items():
             if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
-                client_data[label_text] = widget.get()  # Recupera il testo o il valore selezionato
+                client_data[label_text] = widget.get().strip()  # Recupera il testo o il valore selezionato
             elif isinstance(widget, ctk.CTkTextbox):
                 client_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
 

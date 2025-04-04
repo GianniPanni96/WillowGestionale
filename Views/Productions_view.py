@@ -264,16 +264,21 @@ class ProductionsView(ctk.CTk):
         }
 
         mapping = filter_mapping.get(search_type)
+
+        # Rimuovo tutte le card dal container per avere un layout pulito
+        for card in self.production_card_list.values():
+            card.pack_forget()
+
+        # Se il tipo di ricerca non è riconosciuto, riposiziono tutte le card nell'ordine originale
         if mapping is None:
-            # Se il tipo di ricerca non è riconosciuto, mostra tutte le card e interrompi la funzione
             for card in self.production_card_list.values():
                 card.pack(pady=10, padx=10, fill="x", expand=True)
             return
 
         idx, expected_class = mapping
 
-        # Cicla attraverso tutte le card
-        for nome, card in self.production_card_list.items():
+        # Itera sulle card nell’ordine originale
+        for key, card in self.production_card_list.items():
             children = card.winfo_children()  # Lista dei widget figli
             widget_text = ""
             if len(children) > idx and isinstance(children[idx], expected_class):
@@ -283,11 +288,9 @@ class ProductionsView(ctk.CTk):
                     widget_text = widget.get()
                 else:
                     widget_text = widget.cget("text")
-            # Confronta il testo estratto (in lowercase) con il testo di ricerca
+            # Se il testo estratto (in lowercase) contiene il testo di ricerca, riposiziona la card
             if search_text in widget_text.lower():
                 card.pack(pady=10, padx=10, fill="x", expand=True)
-            else:
-                card.pack_forget()
 
     def add_production_card(self, production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario):
         """

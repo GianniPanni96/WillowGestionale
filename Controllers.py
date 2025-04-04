@@ -748,6 +748,9 @@ class InvoiceController:
         self.invoices_list = self.retrieve_invoices_map_list(False)
         self.current_year_invoices_list = self.retrieve_invoices_map_list(current_year=True)
 
+        self.invoices_list = sorted(self.invoices_list, key=lambda d: datetime.strptime(d[DBInvoicesColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
+        self.current_year_invoices_list = sorted(self.current_year_invoices_list, key=lambda d: datetime.strptime(d[DBInvoicesColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
+
     def save_invoice(self, invoice_data):
         """
         Gestisce il salvataggio di una fattura, con validazioni di primo livello.
@@ -1667,6 +1670,9 @@ class PaymentsController:
         self.CY_payment_list = self.retrieve_payments_map_list(True)
         self.payment_list = self.retrieve_payments_map_list(False)
 
+        self.payment_list = sorted(self.payment_list, key=lambda d: datetime.strptime(d[DBPaymentsColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
+        self.CY_payment_list = sorted(self.CY_payment_list, key=lambda d: datetime.strptime(d[DBPaymentsColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
+
     def update_aggregate_data(self):
         self.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value] = self.count_payments(True)
         self.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value] = self.calculate_tot_payments(True)
@@ -2208,6 +2214,13 @@ class ProductionController:
         """
         self.CY_production_list = self.retrieve_productions_map_list(current_year=True)
         self.production_list = self.retrieve_productions_map_list(current_year=False)
+
+        self.production_list = sorted(self.production_list,
+                                   key=lambda d: datetime.strptime(d[DBProductionsColumns.UPDATED_AT.value],
+                                                                   "%Y-%m-%d %H:%M:%S"), reverse=True)
+        self.CY_production_list = sorted(self.CY_production_list,
+                                      key=lambda d: datetime.strptime(d[DBProductionsColumns.UPDATED_AT.value],
+                                                                      "%Y-%m-%d %H:%M:%S"), reverse=True)
 
     def save_production(self, production_data):
         """

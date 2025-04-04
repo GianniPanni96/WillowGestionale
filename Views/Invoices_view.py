@@ -269,6 +269,7 @@ class InvoicesView(ctk.CTk):
                 self.error_labels[label_text] = error_label
 
         self.auto_compile_invoice_name(self.invoice_widgets[self.nome_utente_string].get())
+        self.update_productions_list(self.client_controller.clients_list[0][DBClientsColumns.NAME.value])
 
         self.selected_user = self.invoice_widgets[self.nome_utente_string].get()
         users_regime_fiscale = self.get_regime_fiscale_from_view(self.selected_user)
@@ -512,7 +513,9 @@ class InvoicesView(ctk.CTk):
 
     def update_productions_list(self, selected_value=None):
         self.populate_production_list_by_selected_client(selected_value)
-        self.invoice_widgets[self.nome_produzione_string].configure(values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.production_controller.CY_production_list])
+        self.invoice_widgets[self.nome_produzione_string].configure(values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.productions_list_of_client])
+        self.invoice_widgets[self.nome_produzione_string].set(self.productions_list_of_client[0][DBProductionsColumns.NAME.value])
+
 
     def populate_invoice_list_by_selected_user(self, user_full_name):
         # Svuota la lista prima di ricaricarla

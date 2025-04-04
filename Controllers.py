@@ -72,6 +72,7 @@ class ValidationUtils:
         keys = [column.value for column in database_columns]
         return dict(zip(keys, row))
 
+
 class ControllerUtils:
     @staticmethod
     def parse_date(date_str):
@@ -96,6 +97,7 @@ class ControllerUtils:
         words = [word.upper() for word in words if word]
         # Unisce le parole con "_"
         return "_".join(words)
+
 
 class UserController:
 

@@ -26,8 +26,8 @@ class PaymentsView(ctk.CTk):
         self.global_infos = {}
         self.amount_aggregate_labels = {}
 
-        self.VF_invoice_list = {}
-        self.construct_invoices_list_view_friendly()
+        #self.VF_invoice_list = {}
+        #self.construct_invoices_list_view_friendly()
 
         self.payment_card_list = {}
         self.payment_card_labels_status = {}
@@ -202,7 +202,8 @@ class PaymentsView(ctk.CTk):
 
             # creo i widgets
             if label_text == self.nome_fattura_string:
-                reversed_invoices = list(self.VF_invoice_list.values())[::-1]
+                VF_invoice_list = self.construct_invoices_list_view_friendly()
+                reversed_invoices = list(VF_invoice_list.values())[::-1]
                 widget = widget_class(self.payment_window_scrollableFrame,
                                       values=reversed_invoices, command=lambda selected_value: self.toggle_linked_rata(selected_value))
             elif label_text == self.nome_conto_string:
@@ -357,11 +358,15 @@ class PaymentsView(ctk.CTk):
             ViewUtils.show_error_popup(self.add_payment_window, "ERRORE", message)
 
     def construct_invoices_list_view_friendly(self):
+        VF_invoice_list = {}
+
         for invoice in self.invoice_controller.current_year_invoices_list:
-            #invoicer_first_name = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])[DBUsersColumns.FIRST_NAME.value]
             invoicer_second_name = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])[DBUsersColumns.LAST_NAME.value]
             client_name = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])[DBClientsColumns.NAME.value]
-            self.VF_invoice_list[invoice[DBInvoicesColumns.ID.value]] =  invoice[DBInvoicesColumns.NUMERO_FATTURA.value] + " - " + client_name
+
+            VF_invoice_list[invoice[DBInvoicesColumns.ID.value]] =  invoice[DBInvoicesColumns.NUMERO_FATTURA.value] + " - " + client_name
+
+        return VF_invoice_list
 
     def toggle_linked_rata(self, selected_value):
         invoice_name = selected_value.split(" - ")

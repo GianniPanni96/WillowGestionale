@@ -62,6 +62,7 @@ class ClientsView(ctk.CTk):
         self.save_button.pack()
 
         for client in self.clients_list:
+            #costruisco i dati aggregati per singolo cliente
             self.add_client_card(client[f"{DBClientsColumns.ID.value}"], client[f"{DBClientsColumns.NAME.value}"], 0, 0, 0, 0, 0, 0, 0)
 
     def add_client_card(self, client_id, nome, tot_entrate, num_fatture, fattura_media, tot_crediti, pagam_orario, giorni_rit, media_rit):

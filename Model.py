@@ -301,9 +301,52 @@ class DatabaseModel:
             cursor.execute(query, (client_name,))
             return cursor.fetchone()
 
+    def fetch_clients_with_invoices(self):
+        """
+        Recupera tutti i client uniti alle rispettive fatture.
+        Utilizza un LEFT JOIN per includere tutti i client anche se non hanno fatture.
+        Ritorna una lista di tuple, in cui le colonne dei client compaiono per prime,
+        seguite dalle colonne delle fatture (che possono essere NULL se non esistono).
+        """
+        # Costruzione dinamica delle colonne per clients e invoices
+        client_columns = [f"c.{col.value}" for col in DBClientsColumns]
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = client_columns + invoice_columns
 
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM clients c
+        LEFT JOIN invoices i ON i.{DBInvoicesColumns.ID_CLIENTE.value} = c.{DBClientsColumns.ID.value}
+        """
 
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
 
+    def fetch_client_with_invoices(self, client_id):
+        """
+        Recupera lo specifico client unito alle rispettive fatture.
+        Utilizza un LEFT JOIN per includere tutti i client anche se non hanno fatture.
+        Ritorna una lista di tuple, in cui le colonne dei client compaiono per prime,
+        seguite dalle colonne delle fatture (che possono essere NULL se non esistono).
+        """
+        # Costruzione dinamica delle colonne per clients e invoices
+        client_columns = [f"c.{col.value}" for col in DBClientsColumns]
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = client_columns + invoice_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM clients c
+        LEFT JOIN invoices i ON i.{DBInvoicesColumns.ID_CLIENTE.value} = c.{DBClientsColumns.ID.value}
+        WHERE c.{DBClientsColumns.ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (client_id,))
+            return cursor.fetchall()
 
 
 
@@ -552,7 +595,7 @@ class DatabaseModel:
         :return: Una tupla contenente i dati dell'ultimo pagamento oppure None se non viene trovato.
         """
         columns = [column.value for column in DBPaymentsColumns]
-        query = f"SELECT {', '.join(columns)} FROM payments ORDER BY {DBPaymentsColumns.PAYMENT_DATE.value} DESC LIMIT 1"
+        query = f"SELECT {', '.join(columns)} FROM payments ORDER BY {DBPaymentsColumns.UPDATED_AT.value} DESC LIMIT 1"
 
         with self._connect() as conn:
             cursor = conn.cursor()

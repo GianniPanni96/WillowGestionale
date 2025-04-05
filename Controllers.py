@@ -558,12 +558,22 @@ class ClientController:
         TOURISM = "Turismo e Ospitalità"
         TRANSPORTATION = "Trasporti e Logistica"
 
+    class Aggregate_data(Enum):
+        TOT_ENTRATE = "tot_entrate"
+        NUM_FATTURE = "num_fatture"
+        MEDIA_FATTURE = "media_fatture"
+        TOT_CREDITI = "tot_crediti"
+        PAGAM_ORARIO_MEDIO = "pagam_orario_medio"
+        TOT_GIORNI_RIT = "tot_giorni_ritardo"
+        MEDIA_RITARDO = "media_ritardo"
+
 
     def __init__(self, db_model: DatabaseModel):
         """Inizializza il controller con il modello del database"""
         self.db_model = db_model
 
         self.clients_list = self.retrieve_clients_map_list()
+        #self.client_list_aggregate_data = self.construct_clients_maps_aggregate_data()
 
     def update_clients_list(self):
         self.clients_list = self.retrieve_clients_map_list()
@@ -642,6 +652,42 @@ class ClientController:
         rows = self.db_model.fetch_clients()
         return [ValidationUtils._row_to_map(row, DBClientsColumns) for row in rows]
 
+    def retrieve_client_with_invoices_map_list(self, client_id):
+        """
+        Recupera lo specifico client unito alle rispettive fatture e
+        li restituisce come lista di dizionari.
+
+        Utilizza la funzione fetch_client_with_invoices per ottenere le righe,
+        quindi combina le colonne dei client e delle invoices per convertire
+        ogni riga in un dizionario tramite _row_to_map.
+        """
+        # Recupera le righe dal database per lo specifico client
+        rows = self.db_model.fetch_client_with_invoices(client_id)
+
+        # Combina le colonne dei client e delle invoices in un'unica lista.
+        # Assumiamo che la query abbia selezionato prima le colonne dei client,
+        # poi quelle delle invoices.
+        all_columns = list(DBClientsColumns) + list(DBInvoicesColumns)
+
+        # Converte ogni riga in un dizionario
+        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
+    def construct_clients_maps_aggregate_data(self):
+        clients = self.retrieve_clients_map_list()
+
+        for client in clients:
+            client_aggregate_data = {
+                ClientController.Aggregate_data.TOT_ENTRATE.value: self.calcola_tot_entrate_cliente(client[DBClientsColumns.ID.value]),
+                ClientController.Aggregate_data.NUM_FATTURE.value: self.calcola_numero_fatture_cliente(client[DBClientsColumns.ID.value]),
+                ClientController.Aggregate_data.MEDIA_FATTURE.value: self.calcola_media_fatture_cliente(client[DBClientsColumns.ID.value]),
+                ClientController.Aggregate_data.TOT_CREDITI.value: 0.0,
+                ClientController.Aggregate_data.PAGAM_ORARIO_MEDIO.value: 0.0,
+                ClientController.Aggregate_data.TOT_GIORNI_RIT.value: 0,
+                ClientController.Aggregate_data.MEDIA_RITARDO.value: 0
+            }
+
+
+
     def delete_client_by_id(self, client_id):
         """Elimina un cliente dato il suo ID."""
         table = "clients"
@@ -675,6 +721,39 @@ class ClientController:
         clients = self.retrieve_clients_map_list()
         for client in clients:
             self.print_cliente(client)
+
+    def calcola_tot_entrate_cliente(self, client_id):
+        client_with_invoices = self.retrieve_client_with_invoices_map_list(client_id)
+        tot = 0.0
+        for row in client_with_invoices: #in questo modo sto in realtà scorrendo le fatture
+            if (row[DBInvoicesColumns.TIPO.value] != InvoiceController.Tipologia.NOTA_DI_CREDITO.value or
+                    row[DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceSatus.STORNATA.value):
+                tot = tot + float(row[DBInvoicesColumns.TOT_DOCUMENTO.value])
+
+        return tot
+
+    def calcola_numero_fatture_cliente(self, client_id):
+        client_with_invoices = self.retrieve_client_with_invoices_map_list(client_id)
+        tot = 0
+        for row in client_with_invoices:
+            if (row[DBInvoicesColumns.TIPO.value] != InvoiceController.Tipologia.NOTA_DI_CREDITO.value or
+                    row[DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceSatus.STORNATA.value):
+                tot = tot + 1
+
+        return tot
+
+    def calcola_media_fatture_cliente(self, client_id):
+        numero = self.calcola_numero_fatture_cliente(client_id)
+        tot = self.calcola_tot_entrate_cliente(client_id)
+
+        return tot/numero if numero > 0 else 0
+
+    def calcola_totale_crediti(self, client_id):
+        return
+
+    def calcola_pagam_orario_medio_cliente(self, client_id):
+        return
+
 
 
 class InvoiceController:
@@ -872,9 +951,9 @@ class InvoiceController:
                 DBInvoicesColumns.IVA.value: 0,  # controller = 0
                 DBInvoicesColumns.RIMBORSI.value: totale_rimborsi,  # view
                 DBInvoicesColumns.RIVALSA_INPS.value : invoice_data.get(DBInvoicesColumns.RIVALSA_INPS.value),
-                DBInvoicesColumns.TOT_DOCUMENTO.value: tot_lordo + totale_rimborsi,
+                DBInvoicesColumns.TOT_DOCUMENTO.value: tot_lordo + float(totale_rimborsi),
                 DBInvoicesColumns.RITENUTA.value: 0,
-                DBInvoicesColumns.NETTO_A_PAGARE.value: tot_lordo + totale_rimborsi,
+                DBInvoicesColumns.NETTO_A_PAGARE.value: tot_lordo + float(totale_rimborsi),
                 DBInvoicesColumns.STATUS.value: InvoiceController.InvoiceRateizzSatus.EMESSA.value if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == InvoiceController.Rateizzazione.TRE.value else InvoiceController.InvoiceSatus.EMESSA.value,
                 DBInvoicesColumns.METODO_PAGAMENTO.value: invoice_data.get(DBInvoicesColumns.METODO_PAGAMENTO.value),
                 DBInvoicesColumns.NUMERO_RATE.value: invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value),  # view

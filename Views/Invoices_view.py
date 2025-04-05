@@ -201,6 +201,7 @@ class InvoicesView(ctk.CTk):
         }
 
         self.error_fields = {
+            self.nome_produzione_string : ctk.CTkLabel,
             DBInvoicesColumns.NUMERO_FATTURA.value: ctk.CTkLabel,
             DBInvoicesColumns.RIMBORSI.value: ctk.CTkLabel,
             DBInvoicesColumns.SERVIZI.value: ctk.CTkLabel,
@@ -235,7 +236,8 @@ class InvoicesView(ctk.CTk):
                                       command=lambda selected_value: self.update_productions_list(selected_value))
             elif label_text == self.nome_produzione_string:
                 widget = widget_class(self.invoice_window_scrollableFrame,
-                                      values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.production_controller.CY_production_list])
+                                      values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.production_controller.CY_production_list],
+                                      command=lambda selected_value : self.prod_already_invoiced_control(selected_value))
             elif label_text == DBInvoicesColumns.DATA_CREAZIONE.value:
                 widget = widget_class(self.invoice_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
             elif label_text == DBInvoicesColumns.METODO_PAGAMENTO.value:
@@ -270,6 +272,7 @@ class InvoicesView(ctk.CTk):
 
         self.auto_compile_invoice_name(self.invoice_widgets[self.nome_utente_string].get())
         self.update_productions_list(self.client_controller.clients_list[0][DBClientsColumns.NAME.value])
+        self.prod_already_invoiced_control(self.invoice_widgets[self.nome_produzione_string].get())
 
         self.selected_user = self.invoice_widgets[self.nome_utente_string].get()
         users_regime_fiscale = self.get_regime_fiscale_from_view(self.selected_user)
@@ -514,8 +517,13 @@ class InvoicesView(ctk.CTk):
     def update_productions_list(self, selected_value=None):
         self.populate_production_list_by_selected_client(selected_value)
         self.invoice_widgets[self.nome_produzione_string].configure(values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.productions_list_of_client])
-        self.invoice_widgets[self.nome_produzione_string].set(self.productions_list_of_client[0][DBProductionsColumns.NAME.value])
-
+        if len(self.productions_list_of_client) > 0:
+            self.invoice_widgets[self.nome_produzione_string].set(self.productions_list_of_client[0][DBProductionsColumns.NAME.value])
+            self.prod_already_invoiced_control(self.invoice_widgets[self.nome_produzione_string].get())
+        else:
+            #se il cliente non ha nessuna produzione associata
+            self.invoice_widgets[self.nome_produzione_string].set(" - ")
+            self.error_labels[self.nome_produzione_string].configure(text="IL CLIENTE SELEZIONATO NON HA ANCORA NESSUNA PRODUZIONE ASSOOCIATA", text_color="#d62929")
 
     def populate_invoice_list_by_selected_user(self, user_full_name):
         # Svuota la lista prima di ricaricarla
@@ -942,6 +950,20 @@ class InvoicesView(ctk.CTk):
         else: # se è vero allora mostro i netti
             for (key,label) in self.amount_aggregate_labels.items():
                 self.amount_aggregate_labels[key].configure(text=f"{self.global_infos_netti[key]}")
+
+    def prod_already_invoiced_control(self, selected_value):
+        production = self.production_controller.retrieve_production_map_by_name(selected_value)
+        fatture_associate = self.invoice_controller.retrieve_invoice_map_list_by_production(production[DBProductionsColumns.ID.value])
+
+        if len(fatture_associate) > 0:
+            # Estrai i nomi dalle fatture associate
+            nomi_fatture = [fattura[DBInvoicesColumns.NUMERO_FATTURA.value] for fattura in fatture_associate]
+            # Unisci i nomi separandoli con una virgola (o un altro separatore)
+            nomi_str = ", ".join(nomi_fatture)
+
+            self.error_labels[self.nome_produzione_string].configure(text=f"Questa produzione ha già una o più fatture associate: \n ({nomi_str})", text_color="#e39e27")
+        else:
+            self.error_labels[self.nome_produzione_string].configure(text="")
 
     def clear_class_variable(self):  #potrebbe non servire in quanto vengono inizializzate all'apertura della funzione
         self.invoice_widgets.clear()

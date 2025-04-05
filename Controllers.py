@@ -777,6 +777,15 @@ class InvoiceController:
         if not ValidationUtils.validate_amount(tot_non_ivato):
             return False, "L'importo di tot_non_ivato non è valido"
 
+        #prendo i dati della produzione associata
+        production_name = invoice_data.get("NOME PRODUZIONE") #definito nella view (è un po' una porcata)
+        if production_name:
+            production = self.production_controller.retrieve_production_map_by_name(production_name)
+            if production:
+                production_id = production[DBProductionsColumns.ID.value]
+            else:
+                return False, "Aggiungere una produzione prima di emettere questa fattura"
+
         #prendo i dati necessari dell'utente
         nome_utente = invoice_data.get("NOME UTENTE").split(" ")
         utente_list = self.user_controller.retrieve_user_by_fullname(nome_utente[0], nome_utente[1])
@@ -817,13 +826,6 @@ class InvoiceController:
             float(totale_servizi),
             float(totale_rimborsi)
         )
-
-        #prendo i dati della produzione associata
-        production_name = invoice_data.get("NOME PRODUZIONE") #definito nella view (è un po' una porcata)
-        if production_name:
-            production_id = self.production_controller.retrieve_production_map_by_name(production_name)[DBProductionsColumns.ID.value]
-        else:
-            production_id = None
 
         invoice_data_prepared = {}
         # Preparazione dei dati per il salvataggio
@@ -999,6 +1001,30 @@ class InvoiceController:
         :return: Lista di dizionari contenenti i dati delle fatture.
         """
         rows = self.db_model.fetch_invoices_by_user_id(user_id)
+        if current_year and rows:
+            current_year_value = datetime.now().year
+            columns = [col.value for col in DBInvoicesColumns]
+            creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
+            filtered_rows = []
+            for row in rows:
+                date_str = row[creation_index]
+                try:
+                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    dt = datetime.strptime(date_str, "%Y-%m-%d")
+                if dt.year == current_year_value:
+                    filtered_rows.append(row)
+            rows = filtered_rows
+        return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
+
+    def retrieve_invoice_map_list_by_production(self, prod_id, current_year=True):
+        """
+        Recupera tutte le fatture di un certo utente e le restituisce come lista di dizionari, filtrandole per l'anno corrente se specificato.
+        :param prod_id: ID della produzione.
+        :param current_year: Se True, ritorna solo le fatture dell'anno corrente.
+        :return: Lista di dizionari contenenti i dati delle fatture.
+        """
+        rows = self.db_model.fetch_invoices_by_prod_id(prod_id)
         if current_year and rows:
             current_year_value = datetime.now().year
             columns = [col.value for col in DBInvoicesColumns]

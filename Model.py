@@ -400,6 +400,16 @@ class DatabaseModel:
             cursor.execute(query, (user_id,))
             return cursor.fetchall()
 
+    def fetch_invoices_by_prod_id(self, prod_id):
+        """Recupera una specifica fattura in modo dinamico."""
+        columns = [column.value for column in DBInvoicesColumns]
+        query = f"SELECT {', '.join(columns)} FROM invoices WHERE {DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (prod_id,))
+            return cursor.fetchall()
+
     def fetch_last_invoice_insert(self):
         """
         Recupera l'ultima fattura inserita nel database, ordinando in base alla colonna CREATED_AT.

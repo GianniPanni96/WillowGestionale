@@ -48,7 +48,7 @@ class InvoicesView(ctk.CTk):
             self.populate_production_list_by_selected_client(self.client_controller.clients_list[0][DBClientsColumns.NAME.value])
 
         #self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
-        self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color, self.toggle_aggregate_data)
+        self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color_2, self.toggle_aggregate_data)
 
     def create_invoices_tab(self):
 
@@ -935,6 +935,94 @@ class InvoicesView(ctk.CTk):
                         labels[2].configure(text_color=InvoicesView.InvoicesStatusColors.NORMAL.value)
 
         else:
+            labels[1].configure(text_color=InvoicesView.InvoicesStatusColors.NOT_EXISTING.value)
+            labels[2].configure(text_color=InvoicesView.InvoicesStatusColors.NOT_EXISTING.value)
+
+    def toggle_specific_invoice_rate_color_2(self, invoice_id):
+        """
+        Assegna un colore ai label relativi allo stato dei pagamenti delle rate di una fattura.
+        Ora, se una rata è parzialmente pagata (la somma dei pagamenti è inferiore al dovuto),
+        il colore sarà warning anziché good.
+        """
+
+        today = datetime.today().date()
+
+        # Recupera la lista di dizionari con i dati della fattura e dei pagamenti tramite left join
+        invoice_with_payments = self.invoice_controller.retrieve_invoice_with_payments_map_list(invoice_id)
+
+        # Se non abbiamo risultati, esci
+        if not invoice_with_payments:
+            return
+
+        # I dati della fattura sono presenti in ogni riga; usiamo il primo per i dati comuni
+        fattura = invoice_with_payments[0]
+
+        # Recupera le date di scadenza per le rate
+        scadenza_1 = fattura[DBInvoicesColumns.DATA_SCADENZA_1.value]
+        scadenza_2 = fattura[DBInvoicesColumns.DATA_SCADENZA_2.value]
+        scadenza_3 = fattura[DBInvoicesColumns.DATA_SCADENZA_3.value]
+
+        # Calcola l'importo dovuto per rata
+        try:
+            netto = float(fattura[DBInvoicesColumns.NETTO_A_PAGARE.value])
+            num_rate = int(fattura[DBInvoicesColumns.NUMERO_RATE.value])
+            importo_per_rata = netto / num_rate
+        except Exception as e:
+            print(f"Errore nel calcolo dell'importo per rata: {e}")
+            return
+
+        # Raggruppa e somma i pagamenti per rata
+        # Creiamo un dizionario per tenere la somma dei pagamenti per ciascuna rata
+        pagamenti_per_rata = {1: 0.0, 2: 0.0, 3: 0.0}
+        for payment in invoice_with_payments:
+            try:
+                linked_rata = int(payment[DBPaymentsColumns.LINKED_RATA.value])
+                pagamento_amount = float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
+                if linked_rata in pagamenti_per_rata:
+                    pagamenti_per_rata[linked_rata] += pagamento_amount
+            except Exception as e:
+                print(f"Errore nel processare un pagamento: {e}")
+                continue
+
+        # Recupera i label contenuti nel frame delle rate per questa fattura
+        frame = self.invoice_card_rate_frames[invoice_id]
+        labels = frame.winfo_children()  # Supponiamo: labels[0] per rata 1, labels[1] per rata 2, labels[2] per rata 3
+
+        # Funzione di utilità per impostare il colore in base alla presenza di pagamento o al ritardo
+        def configura_label(rate_idx, due_date_str, pagamento_sum):
+            # Se esiste almeno un pagamento per la rata
+            if pagamento_sum > 0:
+                if pagamento_sum >= importo_per_rata or (importo_per_rata - pagamento_sum) < 5:
+                    # Pagamento intero
+                    labels[rate_idx].configure(text_color=InvoicesView.InvoicesStatusColors.GOOD.value)
+                else:
+                    # Pagamento parziale
+                    labels[rate_idx].configure(text_color=InvoicesView.InvoicesStatusColors.WARNING.value)
+            else:
+                # Nessun pagamento: confronta con la data di scadenza
+                try:
+                    due_date = ControllerUtils.parse_date(due_date_str)
+                except Exception as e:
+                    print(f"Errore nel parsing della data {due_date_str}: {e}")
+                    labels[rate_idx].configure(text_color=InvoicesView.InvoicesStatusColors.NOT_EXISTING.value)
+                    return
+
+                if today > due_date:
+                    labels[rate_idx].configure(text_color=InvoicesView.InvoicesStatusColors.CRITICAL.value)
+                elif today == due_date:
+                    labels[rate_idx].configure(text_color=InvoicesView.InvoicesStatusColors.WARNING.value)
+                else:
+                    labels[rate_idx].configure(text_color=InvoicesView.InvoicesStatusColors.NORMAL.value)
+
+        # Imposta il colore per la rata 1
+        configura_label(0, scadenza_1, pagamenti_per_rata[1])
+
+        # Per rate 2 e 3, controlla che le date di scadenza siano presenti
+        if scadenza_2 is not None and scadenza_3 is not None:
+            configura_label(1, scadenza_2, pagamenti_per_rata[2])
+            configura_label(2, scadenza_3, pagamenti_per_rata[3])
+        else:
+            # Se non esistono scadenze per le rate 2 e 3, segnala che non sono presenti
             labels[1].configure(text_color=InvoicesView.InvoicesStatusColors.NOT_EXISTING.value)
             labels[2].configure(text_color=InvoicesView.InvoicesStatusColors.NOT_EXISTING.value)
 

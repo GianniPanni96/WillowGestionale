@@ -537,6 +537,30 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchall()
 
+    def fetch_invoice_with_payments(self, invoice_id):
+        """
+        Recupera la specifca fattura unita ai rispetttivi pagamenti.
+        Utilizza un LEFT JOIN.
+        Ritorna una lista di tuple, in cui le colonne della fattura compaiono per prime,
+        seguite dalle colonne dei pagamenti (che possono essere NULL se non esistono).
+        """
+        # Costruzione dinamica delle colonne per clients e invoices
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        payment_columns = [f"p.{col.value}" for col in DBPaymentsColumns]
+        all_columns = invoice_columns + payment_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM invoices i
+        LEFT JOIN payments p ON p.{DBPaymentsColumns.INVOICE_ID.value} = i.{DBInvoicesColumns.ID.value}
+        WHERE i.{DBInvoicesColumns.ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (invoice_id,))
+            return cursor.fetchall()
+
     def fetch_unpaid_invoices(self):
         """
         Recupera una lista di fatture a cui non è associato alcun pagamento.

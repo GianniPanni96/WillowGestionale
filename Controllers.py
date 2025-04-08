@@ -1332,6 +1332,23 @@ class InvoiceController:
         row = self.db_model.fetch_last_invoice_insert()
         return ValidationUtils._row_to_map(row, DBInvoicesColumns)
 
+    def retrieve_invoice_with_payments_map_list(self, invoice_id):
+        """
+        Recupera la specifica fattura unita ai rispettivi pagamenti e
+        li restituisce come lista di dizionari.
+
+        """
+        # Recupera le righe dal database per lo specifico client
+        rows = self.db_model.fetch_invoice_with_payments(invoice_id)
+
+        # Combina le colonne dei client e delle invoices in un'unica lista.
+        # Assumiamo che la query abbia selezionato prima le colonne dei client,
+        # poi quelle delle invoices.
+        all_columns = list(DBInvoicesColumns) + list(DBPaymentsColumns)
+
+        # Converte ogni riga in un dizionario
+        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
     def count_invoices(self, current_year=True):
         """
         Conta il numero di fatture che non siano state stornate, applicando il filtro per l'anno corrente se specificato.

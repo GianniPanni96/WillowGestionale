@@ -7,7 +7,7 @@ import re
 from enum import Enum
 
 from Views.View_utils import ViewUtils
-from Controllers import ControllerUtils
+from Controllers import ControllerUtils, ClientController
 from Model import DBClientsColumns
 
 
@@ -63,12 +63,22 @@ class ClientsView(ctk.CTk):
 
         for client in self.clients_list:
             #costruisco i dati aggregati per singolo cliente
-            self.add_client_card(client[f"{DBClientsColumns.ID.value}"], client[f"{DBClientsColumns.NAME.value}"], 0, 0, 0, 0, 0, 0, 0)
+            aggregate_data = self.client_controller.construct_client_map_aggregate_data(client[DBClientsColumns.ID.value])
+
+            self.add_client_card(client[f"{DBClientsColumns.ID.value}"], client[f"{DBClientsColumns.NAME.value}"],
+                                 round(aggregate_data[ClientController.Aggregate_data.TOT_ENTRATE.value], 2),
+                                 aggregate_data[ClientController.Aggregate_data.NUM_FATTURE.value],
+                                 round(aggregate_data[ClientController.Aggregate_data.MEDIA_FATTURE.value], 2),
+                                 aggregate_data[ClientController.Aggregate_data.TOT_CREDITI.value],
+                                 round(aggregate_data[ClientController.Aggregate_data.PAGAM_ORARIO_MEDIO.value], 2),
+                                 aggregate_data[ClientController.Aggregate_data.TOT_GIORNI_RIT.value],
+                                 round(aggregate_data[ClientController.Aggregate_data.MEDIA_RITARDO.value], 2))
 
     def add_client_card(self, client_id, nome, tot_entrate, num_fatture, fattura_media, tot_crediti, pagam_orario, giorni_rit, media_rit):
         """
         Aggiunge una singola card con i dati forniti alla scrollable frame.
 
+        :param client_id: ID del cliente
         :param nome: Nome del cliente
         :param tot_entrate: Totale entrate
         :param num_fatture: Numero di fatture
@@ -85,7 +95,7 @@ class ClientsView(ctk.CTk):
         ctk.CTkButton(card, text=f"{nome}", width=200, command=lambda:self.open_client_detail(client_id)).pack(padx=(10,0), pady=10, fill="both", side="left")
 
         # Dati da visualizzare nella card
-        data = [tot_entrate, num_fatture, fattura_media, tot_crediti, pagam_orario, giorni_rit, media_rit]
+        data = [f"{tot_entrate:.2f}", num_fatture, fattura_media, tot_crediti, f"{pagam_orario:.2f}", giorni_rit, f"{media_rit:.2f}"]
         units = ["€", "", "€", "€", "€/h", "gg", "gg"]
         i = 0
         # Aggiunta dei dati alla card

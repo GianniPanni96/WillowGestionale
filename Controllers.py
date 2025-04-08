@@ -672,21 +672,19 @@ class ClientController:
         # Converte ogni riga in un dizionario
         return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
 
-    def construct_clients_maps_aggregate_data(self):
-        clients = self.retrieve_clients_map_list()
+    def construct_client_map_aggregate_data(self, client_id):
 
-        for client in clients:
-            client_aggregate_data = {
-                ClientController.Aggregate_data.TOT_ENTRATE.value: self.calcola_tot_entrate_cliente(client[DBClientsColumns.ID.value]),
-                ClientController.Aggregate_data.NUM_FATTURE.value: self.calcola_numero_fatture_cliente(client[DBClientsColumns.ID.value]),
-                ClientController.Aggregate_data.MEDIA_FATTURE.value: self.calcola_media_fatture_cliente(client[DBClientsColumns.ID.value]),
-                ClientController.Aggregate_data.TOT_CREDITI.value: 0.0,
-                ClientController.Aggregate_data.PAGAM_ORARIO_MEDIO.value: 0.0,
-                ClientController.Aggregate_data.TOT_GIORNI_RIT.value: 0,
-                ClientController.Aggregate_data.MEDIA_RITARDO.value: 0
-            }
+        client_aggregate_data = {
+            ClientController.Aggregate_data.TOT_ENTRATE.value: self.calcola_tot_entrate_cliente(client_id),
+            ClientController.Aggregate_data.NUM_FATTURE.value: self.calcola_numero_fatture_cliente(client_id),
+            ClientController.Aggregate_data.MEDIA_FATTURE.value: self.calcola_media_fatture_cliente(client_id),
+            ClientController.Aggregate_data.TOT_CREDITI.value: self.calcola_totale_crediti_cliente(client_id),
+            ClientController.Aggregate_data.PAGAM_ORARIO_MEDIO.value: self.calcola_pagam_orario_medio_cliente(client_id),
+            ClientController.Aggregate_data.TOT_GIORNI_RIT.value: self.calcola_totale_ritardi_cliente(client_id),
+            ClientController.Aggregate_data.MEDIA_RITARDO.value: self.calcola_ritardo_medio_cliente(client_id)
+        }
 
-
+        return client_aggregate_data
 
     def delete_client_by_id(self, client_id):
         """Elimina un cliente dato il suo ID."""
@@ -728,7 +726,7 @@ class ClientController:
         for row in client_with_invoices: #in questo modo sto in realtà scorrendo le fatture
             if (row[DBInvoicesColumns.TIPO.value] != InvoiceController.Tipologia.NOTA_DI_CREDITO.value or
                     row[DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceSatus.STORNATA.value):
-                tot = tot + float(row[DBInvoicesColumns.TOT_DOCUMENTO.value])
+                tot = tot + float(row[DBInvoicesColumns.TOT_DOCUMENTO.value]) if row[DBInvoicesColumns.TOT_DOCUMENTO.value] != None else tot
 
         return tot
 
@@ -748,11 +746,190 @@ class ClientController:
 
         return tot/numero if numero > 0 else 0
 
-    def calcola_totale_crediti(self, client_id):
-        return
+    def calcola_totale_crediti_cliente(self, client_id):
+        unpaid_invoices = self.db_model.fetch_unpaid_invoices()
+        all_columns = list(DBInvoicesColumns) + list(DBPaymentsColumns)
+        unpaid_invoices_maps = [ValidationUtils._row_to_map(row, all_columns) for row in unpaid_invoices]
+        unpaid_invoices_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(unpaid_invoices_maps)
+
+        tot = 0.0
+        # ciclo sui pagamenti
+        for invoice in unpaid_invoices_maps:
+            if invoice[DBInvoicesColumns.ID_CLIENTE.value] == client_id:
+                tot = tot + float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
+
+        return tot
 
     def calcola_pagam_orario_medio_cliente(self, client_id):
-        return
+        invoices_with_prod = self.db_model.fetch_invoices_with_productions()
+        all_columns = list(DBInvoicesColumns) + list(DBProductionsColumns)
+
+        invoices_with_prod_maps = [ValidationUtils._row_to_map(row, all_columns) for row in invoices_with_prod]
+        invoices_with_prod_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(invoices_with_prod_maps)
+
+        tot_pagam = 0.0
+        tot_orario = 0.0
+        #ciclo sulle produzioni
+        for invoice in invoices_with_prod_maps:
+            if invoice[DBInvoicesColumns.ID_CLIENTE.value] == client_id:
+                tot_pagam = tot_pagam + float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]) #legito se esiste una sola produzione per fattura, altrimenti sommo più volte la stessa fattura
+                tot_orario = tot_orario + float(invoice[DBProductionsColumns.HOURS.value])
+
+        result = tot_pagam / tot_orario if tot_orario > 0 else -1
+        return result
+
+    def calcola_ritardo_medio_cliente(self, client_id):
+        """
+        Calcola il ritardo medio in giorni dei pagamenti per un dato cliente.
+
+        Per ciascun pagamento (ottenuto dalla LEFT JOIN tra invoices e payments):
+          - Si verifica che la fattura appartenga al cliente specificato.
+          - Si ottiene il numero della rata associata al pagamento (campo LINKED_RATA).
+          - Si seleziona la data di scadenza corrispondente della fattura:
+                Se LINKED_RATA == 1 -> DATA_SCADENZA_1
+                Se LINKED_RATA == 2 -> DATA_SCADENZA_2
+                Se LINKED_RATA == 3 -> DATA_SCADENZA_3
+          - Si confronta la data di pagamento con quella della rata:
+                Se il pagamento è in ritardo (maggiore della data di scadenza), si calcola il ritardo in giorni.
+
+        Ritorna il ritardo medio (in giorni). Se non ci sono pagamenti in ritardo, ritorna 0.
+        """
+        # Recupera tutte le righe dalla join invoices-payments
+        invoices_with_payments = self.db_model.fetch_invoices_with_payments()
+        # Combina le colonne di invoices e payments: prima quelle della fattura poi quelle del pagamento.
+        all_columns = list(DBInvoicesColumns) + list(DBPaymentsColumns)
+
+        # Converte ogni riga in un dizionario per un accesso più semplice
+        invoices_with_payments_maps = [
+            ValidationUtils._row_to_map(row, all_columns)
+            for row in invoices_with_payments
+        ]
+
+        # Filtraggio o pulizia ulteriore se necessario (ad es. rimuovere fatture di tipo NDC o stornate)
+        invoices_with_payments_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
+            invoices_with_payments_maps)
+
+        num_pagamenti = 0
+        giorni_ritardo_totale = 0
+        # Definisci il formato in cui le date sono memorizzate. Ad esempio: "YYYY-MM-DD"
+        date_format = "%Y-%m-%d"
+
+        for record in invoices_with_payments_maps:
+            # Controlla se la fattura appartiene al cliente specificato
+            if record[DBInvoicesColumns.ID_CLIENTE.value] == client_id:
+                # Ottieni il numero della rata associata al pagamento
+                linked_rata = record[DBPaymentsColumns.LINKED_RATA.value]
+
+                # Seleziona la data di scadenza in base al numero della rata
+                if linked_rata == 1:
+                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_1.value]
+                elif linked_rata == 2:
+                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_2.value]
+                elif linked_rata == 3:
+                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_3.value]
+                else:
+                    # Se il valore di linked_rata non è previsto, salta il record
+                    continue
+
+                # Ottieni la data del pagamento come stringa
+                payment_date_str = record[DBPaymentsColumns.PAYMENT_DATE.value]
+
+                try:
+                    payment_date = datetime.strptime(payment_date_str, date_format)
+                    due_date = datetime.strptime(due_date_str, date_format)
+                except Exception as e:
+                    # Se il parsing delle date fallisce, salta questo record
+                    print(f"Errore nel parsing delle date per il record: {e}")
+                    continue
+
+                # Se il pagamento è avvenuto dopo la data di scadenza, calcola il ritardo
+                if payment_date > due_date:
+                    ritardo = (payment_date - due_date).days
+                    giorni_ritardo_totale += ritardo
+                    num_pagamenti += 1
+
+        # Calcola e ritorna il ritardo medio (in giorni)
+        if num_pagamenti > 0:
+            return giorni_ritardo_totale / num_pagamenti
+        else:
+            return -1
+
+    def calcola_totale_ritardi_cliente(self, client_id):
+        """
+            Calcola il ritardo medio in giorni dei pagamenti per un dato cliente.
+
+            Per ciascun pagamento (ottenuto dalla LEFT JOIN tra invoices e payments):
+              - Si verifica che la fattura appartenga al cliente specificato.
+              - Si ottiene il numero della rata associata al pagamento (campo LINKED_RATA).
+              - Si seleziona la data di scadenza corrispondente della fattura:
+                    Se LINKED_RATA == 1 -> DATA_SCADENZA_1
+                    Se LINKED_RATA == 2 -> DATA_SCADENZA_2
+                    Se LINKED_RATA == 3 -> DATA_SCADENZA_3
+              - Si confronta la data di pagamento con quella della rata:
+                    Se il pagamento è in ritardo (maggiore della data di scadenza), si calcola il ritardo in giorni.
+
+            Ritorna il totale dei ritardi (in giorni). Se non ci sono pagamenti in ritardo, ritorna 0.
+        """
+
+        # Recupera tutte le righe dalla join invoices-payments
+        invoices_with_payments = self.db_model.fetch_invoices_with_payments()
+        # Combina le colonne di invoices e payments: prima quelle della fattura poi quelle del pagamento.
+        all_columns = list(DBInvoicesColumns) + list(DBPaymentsColumns)
+
+        # Converte ogni riga in un dizionario per un accesso più semplice
+        invoices_with_payments_maps = [
+            ValidationUtils._row_to_map(row, all_columns)
+            for row in invoices_with_payments
+        ]
+
+        # Filtraggio o pulizia ulteriore se necessario (ad es. rimuovere fatture di tipo NDC o stornate)
+        invoices_with_payments_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
+            invoices_with_payments_maps)
+
+        num_pagamenti = 0
+        giorni_ritardo_totale = 0
+        # Definisci il formato in cui le date sono memorizzate. Ad esempio: "YYYY-MM-DD"
+        date_format = "%Y-%m-%d"
+
+        for record in invoices_with_payments_maps:
+            # Controlla se la fattura appartiene al cliente specificato
+            if record[DBInvoicesColumns.ID_CLIENTE.value] == client_id:
+                # Ottieni il numero della rata associata al pagamento
+                linked_rata = record[DBPaymentsColumns.LINKED_RATA.value]
+
+                # Seleziona la data di scadenza in base al numero della rata
+                if linked_rata == 1:
+                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_1.value]
+                elif linked_rata == 2:
+                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_2.value]
+                elif linked_rata == 3:
+                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_3.value]
+                else:
+                    # Se il valore di linked_rata non è previsto, salta il record
+                    continue
+
+                # Ottieni la data del pagamento come stringa
+                payment_date_str = record[DBPaymentsColumns.PAYMENT_DATE.value]
+
+                try:
+                    payment_date = datetime.strptime(payment_date_str, date_format)
+                    due_date = datetime.strptime(due_date_str, date_format)
+                except Exception as e:
+                    # Se il parsing delle date fallisce, salta questo record
+                    print(f"Errore nel parsing delle date per il record: {e}")
+                    continue
+
+                # Se il pagamento è avvenuto dopo la data di scadenza, calcola il ritardo
+                if payment_date > due_date:
+                    ritardo = (payment_date - due_date).days
+                    giorni_ritardo_totale += ritardo
+                    num_pagamenti += 1
+
+        return giorni_ritardo_totale
+
+
+
+
 
 
 

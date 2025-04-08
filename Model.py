@@ -443,6 +443,16 @@ class DatabaseModel:
             cursor.execute(query, (user_id,))
             return cursor.fetchall()
 
+    def fetch_invoices_by_client_id(self, client_id):
+        """Recupera una specifica fattura in modo dinamico."""
+        columns = [column.value for column in DBInvoicesColumns]
+        query = f"SELECT {', '.join(columns)} FROM invoices WHERE {DBInvoicesColumns.ID_CLIENTE.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (client_id,))
+            return cursor.fetchall()
+
     def fetch_invoices_by_prod_id(self, prod_id):
         """Recupera una specifica fattura in modo dinamico."""
         columns = [column.value for column in DBInvoicesColumns]
@@ -496,6 +506,30 @@ class DatabaseModel:
         SELECT {', '.join(all_columns)}
         FROM invoices i
         LEFT JOIN payments p ON i.{DBInvoicesColumns.ID.value} = p.{DBPaymentsColumns.INVOICE_ID.value}
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def fetch_invoices_with_productions(self):
+        """
+        Recupera tutte le fatture unite ai dati delle produzioni associate.
+        Utilizza un LEFT JOIN
+
+        Ritorna una lista di tuple, in cui le colonne delle fatture compaiono per prime,
+        seguite dalle colonne delle produzioni.
+        """
+        # Costruzione dinamica delle colonne per invoices e payments
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        production_columns = [f"p.{col.value}" for col in DBProductionsColumns]
+        all_columns = invoice_columns + production_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM invoices i
+        LEFT JOIN productions p ON i.{DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value} = p.{DBProductionsColumns.ID.value}
         """
 
         with self._connect() as conn:

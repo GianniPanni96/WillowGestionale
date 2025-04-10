@@ -398,7 +398,7 @@ class ProductionsView(ctk.CTk):
         self.production_widgets[self.nome_cliente_string].set(client_name)
         self.production_widgets[DBProductionsColumns.NAME.value].delete(0, tk.END)
         self.production_widgets[DBProductionsColumns.NAME.value].insert(0, production_name)
-        self.name_frame.configure(text=f"{client_name} - ")
+        self.name_frame.winfo_children()[0].configure(text=f"{client_name} - ")
         self.production_widgets[DBProductionsColumns.HOURS.value].delete(0, tk.END)
         self.production_widgets[DBProductionsColumns.HOURS.value].insert(0, int(production[DBProductionsColumns.HOURS.value]))
         self.production_widgets[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value].set(production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value])

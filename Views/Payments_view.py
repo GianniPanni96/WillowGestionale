@@ -412,26 +412,68 @@ class PaymentsView(ctk.CTk):
         invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1]
         invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
 
-        rate_pagate = {
+        netto_rate_fattura = {
+            "1" : 0.0,
+            "2" : 0.0,
+            "3" : 0.0
+        }
+
+        netto_rate_pagate = {
+            "1": 0.0,
+            "2": 0.0,
+            "3": 0.0
+        }
+
+        if int(invoice[DBInvoicesColumns.NUMERO_RATE.value]) == int(InvoiceController.Rateizzazione.UNA.value):
+            netto_rate_fattura["1"] = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
+            netto_rate_fattura["2"] = 0.0
+            netto_rate_fattura["3"] = 0.0
+        elif int(invoice[DBInvoicesColumns.NUMERO_RATE.value]) == int(InvoiceController.Rateizzazione.TRE.value):
+            rata = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value]) / 3
+            netto_rate_fattura["1"] = rata
+            netto_rate_fattura["2"] = rata
+            netto_rate_fattura["3"] = rata
+
+        rate_saldate = {
             "1" : False,
             "2" : False,
             "3" : False
         }
 
+        #calcolo il totale dei pagamenti per rata
         payments = self.payment_controller.retrieve_payments_map_list_by_invoice_id(invoice[DBInvoicesColumns.ID.value])
         for payment in payments:
             if int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 1:
-                rate_pagate["1"] = True
+                netto_rate_pagate["1"] = netto_rate_pagate["1"] + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
             elif int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 2:
-                rate_pagate["2"] = True
+                netto_rate_pagate["2"] = netto_rate_pagate["2"] + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
             elif int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 3:
-                rate_pagate["3"] = True
+                netto_rate_pagate["3"] = netto_rate_pagate["3"] + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
 
-        if rate_pagate[str(selected_value)]:
-            self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(text=f"Esiste già un pagamento relativo alla rata {selected_value}", text_color="#e39e27")
+        #setto i booleani relativi all'effettivo saldo delle rate
+        """if netto_rate_pagate["1"] > netto_rate_fattura["1"] or (netto_rate_fattura["1"] - netto_rate_pagate["1"]) < 5:
+            rate_saldate["1"] = True
+        if netto_rate_pagate["2"] > netto_rate_fattura["2"] or (netto_rate_fattura["2"] - netto_rate_pagate["2"]) < 5:
+            rate_saldate["2"] = True
+        if netto_rate_pagate["3"] > netto_rate_fattura["3"] or (netto_rate_fattura["3"] - netto_rate_pagate["3"]) < 5:
+            rate_saldate["3"] = True"""
+
+        for i in ["1", "2", "3"]:
+            tot_mancante = netto_rate_fattura[i] - netto_rate_pagate[i]
+            if netto_rate_pagate[i] >= netto_rate_fattura[i] or (5 > tot_mancante > 0):
+                rate_saldate[i] = True
+
+        if rate_saldate[str(selected_value)]:
+            self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(
+                text=f"La rata {selected_value} è già interamente saldata ({round(netto_rate_pagate[str(selected_value)], 2)})", text_color="#e39e27")
             return True
         else:
-            self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(text="", text_color="#e39e27")
+            tot_mancante = (netto_rate_fattura[str(selected_value)] - netto_rate_pagate[str(selected_value)])
+            if netto_rate_pagate[str(selected_value)] > 0 and tot_mancante >= 5:
+                self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(
+                    text=f"Totale mancante da saldare della rata {selected_value}: {round(tot_mancante, 2)}€", text_color="#e39e27")
+            else:
+                self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(text="", text_color="#e39e27")
 
     def open_modify_payment(self, payment_id):
 

@@ -153,7 +153,7 @@ class InvoicesView(ctk.CTk):
             InvoiceController.InvoiceAggregatedData.CREDITI_LORDO.value]
         self.global_infos_lordi["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_LORDO.value]
-        self.global_infos_lordi["PAGAMENTO \n ORARIO"] = 0
+        #self.global_infos_lordi["PAGAMENTO \n ORARIO"] = 0
 
         self.global_infos_netti["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
@@ -163,7 +163,7 @@ class InvoicesView(ctk.CTk):
             InvoiceController.InvoiceAggregatedData.CREDITI_NETTO.value]
         self.global_infos_netti["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_NETTO.value]
-        self.global_infos_netti["PAGAMENTO \n ORARIO"] = 0
+        #self.global_infos_netti["PAGAMENTO \n ORARIO"] = 0
 
     def open_add_invoice_window(self):
         """Apre una finestra per aggiungere un nuovo cliente"""

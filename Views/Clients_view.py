@@ -69,7 +69,7 @@ class ClientsView(ctk.CTk):
                                  round(aggregate_data[ClientController.Aggregate_data.TOT_ENTRATE.value], 2),
                                  aggregate_data[ClientController.Aggregate_data.NUM_FATTURE.value],
                                  round(aggregate_data[ClientController.Aggregate_data.MEDIA_FATTURE.value], 2),
-                                 aggregate_data[ClientController.Aggregate_data.TOT_CREDITI.value],
+                                 round(aggregate_data[ClientController.Aggregate_data.TOT_CREDITI.value], 2),
                                  round(aggregate_data[ClientController.Aggregate_data.PAGAM_ORARIO_MEDIO.value], 2),
                                  aggregate_data[ClientController.Aggregate_data.TOT_GIORNI_RIT.value],
                                  round(aggregate_data[ClientController.Aggregate_data.MEDIA_RITARDO.value], 2))
@@ -95,7 +95,7 @@ class ClientsView(ctk.CTk):
         ctk.CTkButton(card, text=f"{nome}", width=200, command=lambda:self.open_client_detail(client_id)).pack(padx=(10,0), pady=10, fill="both", side="left")
 
         # Dati da visualizzare nella card
-        data = [f"{tot_entrate:.2f}", num_fatture, fattura_media, tot_crediti, f"{pagam_orario:.2f}", giorni_rit, f"{media_rit:.2f}"]
+        data = [f"{tot_entrate:.2f}", num_fatture, f"{fattura_media:.2f}", f"{tot_crediti:.2f}", f"{pagam_orario:.2f}", giorni_rit, f"{media_rit:.2f}"]
         units = ["€", "", "€", "€", "€/h", "gg", "gg"]
         i = 0
         # Aggiunta dei dati alla card

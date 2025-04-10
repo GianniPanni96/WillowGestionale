@@ -4,13 +4,13 @@ from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
 from Controllers import PaymentsController, ExpenseController, InvoiceController, UserController, ControllerUtils
 from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
-from datetime import datetime
 import re
 from enum import Enum
+from dataclasses import fields
 
 class ExpensesView(ctk.CTk):
 
-    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, update_controller, tab):
+    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, update_controller, fiscal_settings, catalogo_elenchi, tab):
         super().__init__()
 
         self.db_model = db_model
@@ -19,6 +19,8 @@ class ExpensesView(ctk.CTk):
         self.account_controller = account_controller
         self.supplier_controller = supplier_controller
         self.update_controller = update_controller
+        self.fiscal_settings = fiscal_settings
+        self.catalogo_elenchi = catalogo_elenchi
         self.tab = tab
 
         self.global_infos = {}
@@ -120,86 +122,97 @@ class ExpensesView(ctk.CTk):
         self.expense_window_scrollableFrame = ctk.CTkScrollableFrame(self.add_expense_window)
         self.expense_window_scrollableFrame.pack(fill="both", expand=True)
 
-        self.nome_utente_string = "NOME UTENTE"
+        self.nome_spesa_string = "NOME SPESA"
+        self.nome_conto_string = "CONTO"
+        self.nome_utente_string = "QUALCUNO HA ANTICIPATO?"
         self.nome_fornitore_string = "NOME FORNITORE"
+        self.aliquota_iva_string = "ALIQUOTA IVA"
 
         self.entry_fields = {
-            self.nome_fattura_string: ctk.CTkOptionMenu,
-            DBPaymentsColumns.LINKED_RATA.value: ctk.CTkOptionMenu,
-            DBPaymentsColumns.PAYMENT_NAME.value: ctk.CTkEntry,
-            DBPaymentsColumns.PAYMENT_AMOUNT.value: ctk.CTkEntry,
-            DBPaymentsColumns.PAYMENT_DATE.value: Calendar,
+            self.nome_fornitore_string: ctk.CTkOptionMenu,
+            DBExpensesColumns.CATEGORY.value: ctk.CTkOptionMenu,
+            self.nome_spesa_string : ctk.CTkEntry,
+            DBExpensesColumns.DATE.value: Calendar,
+            DBExpensesColumns.DEDUCIBILE.value: ctk.CTkOptionMenu,
+            self.aliquota_iva_string : ctk.CTkOptionMenu,
+            DBExpensesColumns.TOT_AMOUNT.value: ctk.CTkEntry,
+            self.nome_utente_string : ctk.CTkOptionMenu,
             self.nome_conto_string: ctk.CTkOptionMenu,
         }
 
         self.error_fields = {
-            DBPaymentsColumns.PAYMENT_NAME.value: ctk.CTkLabel,
-            DBPaymentsColumns.PAYMENT_AMOUNT.value: ctk.CTkLabel,
-            DBPaymentsColumns.LINKED_RATA.value: ctk.CTkLabel
+            self.nome_spesa_string: ctk.CTkLabel,
+            DBExpensesColumns.TOT_AMOUNT.value: ctk.CTkLabel,
         }
 
-        self.payment_widgets = {}
+        self.expenses_widgets = {}
         self.error_labels = {}
-        self.payment_labels = {}
+        self.expenses_labels = {}
 
         # Creo i labels e i widgets
         for i, (label_text, widget_class) in enumerate(self.entry_fields.items()):
             # Etichetta
-            label = ctk.CTkLabel(self.payment_window_scrollableFrame, text=label_text)
+            label = ctk.CTkLabel(self.expense_window_scrollableFrame, text=label_text)
             # disegno i labels
             if i == 0:
                 label.pack(pady=5)
             else:
                 label.pack(pady=(35, 0))
 
-            self.payment_labels[label_text] = label
+            self.expenses_labels[label_text] = label
 
             # creo i widgets
-            if label_text == self.nome_fattura_string:
-                VF_invoice_list = self.construct_invoices_list_view_friendly()
-                reversed_invoices = list(VF_invoice_list.values())[::-1]
-                widget = widget_class(self.payment_window_scrollableFrame,
-                                      values=reversed_invoices,
-                                      command=lambda selected_value: self.toggle_linked_rata(selected_value))
-            elif label_text == self.nome_conto_string:
-                widget = widget_class(self.payment_window_scrollableFrame,
-                                      values=[f"{item[DBAccountsColumns.NAME.value]}" for item in
-                                              self.account_controller.account_list])
-            elif label_text == DBPaymentsColumns.LINKED_RATA.value:
-                widget = widget_class(self.payment_window_scrollableFrame,
-                                      values=["1", "2", "3"],
-                                      command=lambda selected_value: self.control_linked_rata(selected_value))
+            if label_text == self.nome_fornitore_string:
+                suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
+                suppliers_name_list = [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]
+                reversed_suppliers = suppliers_name_list[::-1]
+                widget = widget_class(self.expense_window_scrollableFrame,
+                                      values=reversed_suppliers,
+                                      command=lambda selected_value: self.autofill_expense_name(selected_value))
+
+            elif label_text == self.aliquota_iva_string:
+                #ottengo una lista di aliquote
+                aliquote_list = [
+                    self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
+                    self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
+                    self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
+                    self.fiscal_settings.aliquota_iva.aliquota_iva_minima
+                ]
+
+                widget = widget_class(self.expense_window_scrollableFrame, values=[str(aliquota) for aliquota in aliquote_list])
+
+            elif label_text == DBExpensesColumns.CATEGORY.value:
+                widget = widget_class(self.expense_window_scrollableFrame,
+                                      values=[value for key, value in self.catalogo_elenchi["clients_business_sectors"]],
+                                      command = lambda selected_value : self.open_add_business_sector(selected_value))
+
             elif label_text == DBPaymentsColumns.PAYMENT_DATE.value:
-                widget = widget_class(self.payment_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
+                widget = widget_class(self.expense_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
             else:
-                widget = widget_class(self.payment_window_scrollableFrame)
+                widget = widget_class(self.expense_window_scrollableFrame)
 
             widget.pack(pady=5, padx=10, fill="x", expand=True)
 
-            self.payment_widgets[label_text] = widget
+            self.expenses_widgets[label_text] = widget
 
             if self.error_fields.get(label_text) is not None:
-                error_label = ctk.CTkLabel(self.payment_window_scrollableFrame, text="")
+                error_label = ctk.CTkLabel(self.expense_window_scrollableFrame, text="")
                 error_label.pack(pady=(0, 15))
                 self.error_labels[label_text] = error_label
 
-        self.autofill_payment_amount()
-        self.control_linked_rata("1")
 
         # Bottone per salvare
         self.save_button = ctk.CTkButton(
-            self.payment_window_scrollableFrame,
-            text="Salva Pagamento",
-            command=self.save_payment_data
+            self.expense_window_scrollableFrame,
+            text="Salva Spesa",
+            command=self.save_expense_data
         )
         self.save_button.pack(pady=(35, 15))
 
-        self.toggle_linked_rata(self.payment_widgets[self.nome_fattura_string].get())
-
         # Aggiungi validazione agli eventi di perdita del focus
-        self.payment_widgets[DBPaymentsColumns.PAYMENT_NAME.value].bind("<FocusOut>",
+        self.expenses_widgets[DBPaymentsColumns.PAYMENT_NAME.value].bind("<FocusOut>",
             lambda event: ViewUtils.validate_entry(
-                self.payment_widgets[
+                self.expenses_widgets[
                     DBPaymentsColumns.PAYMENT_NAME.value],
                 lambda val: val.strip() != "",
                 self.error_labels[
@@ -207,9 +220,9 @@ class ExpensesView(ctk.CTk):
                 "Il campo non può essere vuoto."
             ))
 
-        self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].bind("<FocusOut>",
+        self.expenses_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].bind("<FocusOut>",
             lambda event: ViewUtils.validate_entry(
-              self.payment_widgets[
+              self.expenses_widgets[
                   DBPaymentsColumns.PAYMENT_AMOUNT.value],
               lambda val: re.fullmatch(
                   r"^\d+(\.\d{2})?$",
@@ -218,6 +231,9 @@ class ExpensesView(ctk.CTk):
                   DBPaymentsColumns.PAYMENT_AMOUNT.value],
               "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
             ))
+
+    def save_expense_data(self):
+        return
 
     def filter_cards(self):
         return
@@ -230,3 +246,30 @@ class ExpensesView(ctk.CTk):
         totale_spese = round(self.expense_controller.calculate_tot_expenses(), 2)
         self.global_infos[f"{ExpenseController.ExpensesAggregateData.NUMERO_SPESE.value}"] = numero_spese
         self.global_infos[f"{ExpenseController.ExpensesAggregateData.TOT_SPESE.value}"] = f"{totale_spese:.2f}"
+
+    def autofill_expense_name(self, selected_value):
+        return
+
+    def open_add_business_sector(self, selected_value):
+        sector_dict = dict(self.catalogo_elenchi["clients_business_sectors"])
+        if selected_value == sector_dict.get("ADD_SECTOR"):
+            self.add_sector_window = ctk.CTkToplevel(self)
+            self.add_sector_window.title("Aggiungi un nuovo settore di business")
+
+            # Assicurati che la finestra rimanga sopra
+            self.add_sector_window.lift()  # Porta la finestra sopra quella principale
+            self.add_sector_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+
+            self.add_sector_window.geometry("400x300")
+
+            self.business_sector_window_Frame = ctk.CTkFrame(self.add_sector_window)
+            self.business_sector_window_Frame.pack(fill="both", expand=True)
+
+            ctk.CTkLabel(self.business_sector_window_Frame, text="Aggiungi un settore di business alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
+
+            self.add_sector_entry = ctk.CTkEntry(self.business_sector_window_Frame)
+            self.add_sector_entry.pack(padx=10, pady=5, fill="x", expand=True)
+
+            ctk.CTkButton(self.business_sector_window_Frame, text="Aggiungi settore", command=self.save_business_sector).pack(padx=10, pady=(15, 10))
+
+        else: return

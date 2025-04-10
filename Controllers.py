@@ -10,7 +10,7 @@ from Crypto.Random import get_random_bytes
 import hashlib
 
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
-from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns
+from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
 
 from Views.View_utils import ViewUtils
 
@@ -97,6 +97,9 @@ class ControllerUtils:
         words = [word.upper() for word in words if word]
         # Unisce le parole con "_"
         return "_".join(words)
+
+
+
 
 
 class UserController:
@@ -926,11 +929,6 @@ class ClientController:
                     num_pagamenti += 1
 
         return giorni_ritardo_totale
-
-
-
-
-
 
 
 class InvoiceController:
@@ -2848,8 +2846,197 @@ class ProductionController:
         self.CY_productions_aggregated_data[ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value] = self.count_closed_productions(True)
 
 
+class ExpenseController:
+
+    class ExpensesAggregateData(Enum):
+        NUMERO_SPESE = "#SPESE"
+        TOT_SPESE = "TOT. SPESE"
 
 
+    def __init__(self, db_model, user_controller, account_controller, supplier_controller):
+        self.db_model = db_model
+        self.user_controller = user_controller
+        self.account_controller = account_controller
+        self.supplier_controller = supplier_controller
+
+    def retrieve_expenses(self, current_year=True):
+        """
+        Recupera tutte le expenses, filtrandole per l'anno corrente se specificato.
+        :param current_year: Booleano. Se True, ritorna solo le expenses effettuate nell'anno corrente.
+        :return: Lista di tuple (righe) con i dati delle expenses.
+        """
+        rows = self.db_model.fetch_expenses()
+        if current_year:
+            current_year_value = datetime.now().year
+            columns = [col.value for col in DBExpensesColumns]
+            # Supponiamo che il campo della data si chiami DATE
+            date_index = columns.index(DBExpensesColumns.DATE.value)
+            filtered_rows = []
+            for row in rows:
+                date_str = row[date_index]
+                try:
+                    # Prova a leggere la data con data e orario; se fallisce, usa solo la data
+                    try:
+                        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        dt = datetime.strptime(date_str, "%Y-%m-%d")
+                    if dt.year == current_year_value:
+                        filtered_rows.append(row)
+                except Exception as e:
+                    print(f"Errore durante il parsing della data '{date_str}': {e}")
+            rows = filtered_rows
+        return rows
+
+    def retrieve_expense_by_id(self, expense_id, current_year=True):
+        """
+        Recupera una expense specifica per ID, opzionalmente filtrando per l'anno corrente.
+        :param expense_id: ID della expense.
+        :param current_year: Se True, ritorna None se la expense non è dell'anno corrente.
+        :return: Una tupla con i dati della expense oppure None.
+        """
+        row = self.db_model.fetch_expense_by_id(expense_id)
+        if row and current_year:
+            current_year_value = datetime.now().year
+            columns = [col.value for col in DBExpensesColumns]
+            date_index = columns.index(DBExpensesColumns.DATE.value)
+            date_str = row[date_index]
+            try:
+                try:
+                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    dt = datetime.strptime(date_str, "%Y-%m-%d")
+                if dt.year != current_year_value:
+                    return None
+            except Exception as e:
+                print(f"Errore durante il parsing della data '{date_str}': {e}")
+                return None
+        return row
+
+    def retrieve_expense_map_by_id(self, expense_id, current_year=True):
+        """
+        Recupera una expense specifica e la restituisce come dizionario,
+        filtrando per l'anno corrente se specificato.
+        :param expense_id: ID della expense.
+        :param current_year: Se True, ritorna None se la expense non è dell'anno corrente.
+        :return: Dizionario con i dati della expense oppure None.
+        """
+        row = self.db_model.fetch_expense_by_id(expense_id)
+        if row and current_year:
+            current_year_value = datetime.now().year
+            columns = [col.value for col in DBExpensesColumns]
+            date_index = columns.index(DBExpensesColumns.DATE.value)
+            date_str = row[date_index]
+            try:
+                try:
+                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    dt = datetime.strptime(date_str, "%Y-%m-%d")
+                if dt.year != current_year_value:
+                    return None
+            except Exception as e:
+                print(f"Errore nel parsing della data '{date_str}': {e}")
+                return None
+        return ValidationUtils._row_to_map(row, DBExpensesColumns)
+
+    def retrieve_expenses_map_list(self, current_year=True):
+        """
+        Recupera tutte le expenses e le restituisce come lista di dizionari,
+        filtrandole per l'anno corrente se specificato.
+        """
+        rows = self.db_model.fetch_expenses()
+        columns = [col.value for col in DBExpensesColumns]
+
+        if current_year:
+            current_year_value = datetime.now().year
+            date_index = columns.index(DBExpensesColumns.DATE.value)
+            filtered_rows = []
+            for row in rows:
+                try:
+                    date_str = row[date_index]
+                    try:
+                        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        dt = datetime.strptime(date_str, "%Y-%m-%d")
+                    if dt.year == current_year_value:
+                        filtered_rows.append(row)
+                except Exception as e:
+                    print(f"Errore durante il parsing della data '{date_str}': {e}")
+            rows = filtered_rows
+
+        return [ValidationUtils._row_to_map(row, DBExpensesColumns) for row in rows]
+
+    def retrieve_last_expense_insert_map(self):
+        """
+        Recupera l'ultima expense inserita e la restituisce come dizionario.
+        """
+        row = self.db_model.fetch_last_expense_insert()
+        return ValidationUtils._row_to_map(row, DBExpensesColumns)
+
+    def count_expenses(self, current_year=True):
+        """
+        Conta il numero di expenses, applicando il filtro per l'anno corrente se specificato.
+
+        :param current_year: Booleano. Se True, conta solo le expenses dell'anno corrente.
+        :return: Numero di expenses (int).
+        """
+        expenses = self.retrieve_expenses_map_list(current_year=current_year)
+        return len(expenses)
+
+    def calculate_tot_expenses(self, current_year=True):
+        """
+        Calcola il totale degli importi delle expenses, filtrandole per l'anno corrente se specificato.
+
+        :param current_year: Booleano. Se True, somma solo le expenses dell'anno corrente.
+        :return: Totale degli importi (float).
+        """
+        tot = 0.0
+        # Recupera la lista delle expenses come lista di dizionari
+        expense_list = self.retrieve_expenses_map_list(current_year=current_year)
+        for expense in expense_list:
+            tot += float(expense[DBExpensesColumns.TOT_AMOUNT.value])
+        return tot
+
+
+class SupplierController:
+    def __init__(self, db_model):
+        self.db_model = db_model
+
+    def retrieve_suppliers(self):
+        """Recupera tutti i suppliers."""
+        return self.db_model.fetch_suppliers()
+
+    def retrieve_supplier_by_id(self, supplier_id):
+        """Recupera un supplier specifico per ID."""
+        return self.db_model.fetch_supplier_by_id(supplier_id)
+
+    def retrieve_supplier_by_name(self, supplier_name):
+        """Recupera un supplier specifico per nome."""
+        return self.db_model.fetch_supplier_by_name(supplier_name)
+
+    def retrieve_supplier_map_by_name(self, supplier_name):
+        """Recupera un supplier specifico e lo restituisce come dizionario."""
+        row = self.retrieve_supplier_by_name(supplier_name)
+        return ValidationUtils._row_to_map(row, DBSuppliersColumns)
+
+    def retrieve_supplier_map_by_id(self, supplier_id):
+        """Recupera un supplier specifico e lo restituisce come dizionario."""
+        row = self.db_model.fetch_supplier_by_id(supplier_id)
+        return ValidationUtils._row_to_map(row, DBSuppliersColumns)
+
+    def retrieve_suppliers_map_list(self):
+        """Recupera tutti i suppliers e li restituisce come lista di dizionari."""
+        rows = self.db_model.fetch_suppliers()
+        return [ValidationUtils._row_to_map(row, DBSuppliersColumns) for row in rows]
+
+    def delete_supplier_by_id(self, supplier_id):
+        """Elimina un supplier dato il suo ID."""
+        table = "suppliers"
+        try:
+            self.db_model.delete_row(table, DBSuppliersColumns.ID.value, supplier_id)
+            print(f"Supplier {supplier_id} rimosso con successo")
+            return True, f"Supplier {supplier_id} rimosso con successo"
+        except Exception as e:
+            return False, f"Errore durante l'eliminazione del supplier: {str(e)}"
 
 
 

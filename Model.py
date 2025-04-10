@@ -127,6 +127,33 @@ class DBAccountsColumns(Enum):
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 
+class DBExpensesColumns(Enum):
+    ID = "ID"
+    NAME = "NOME"
+    USER_ID = "ID_UTENTE"
+    SUPPLIER_ID = "ID_FORNITORE"
+    CATEGORY = "CATEGORIA"
+    NET_AMOUNT = "NETTO"
+    IVA_AMOUNT = "IVA"
+    TOT_AMOUNT = "LORDO"
+    DATE = "DATA_EMISSIONE"
+    DEDUCIBILE = "DEDUCIBILE"
+    ACCOUNT_ID = "ID_CONTO"
+    created_at = "created_at"
+    updated_at = "updated_at"
+
+class DBSuppliersColumns(Enum):
+    ID = "ID"
+    NAME = "NOME"
+    PARTITA_IVA = "PARTITA_IVA"
+    SEDE = "SEDE"
+    CONTATTO = "CONTATTO_REFERENTE"
+    CATEGORIA = "CATEGORIA"
+    NOTE = "note"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
+
 
 
 class DatabaseModel:
@@ -349,29 +376,6 @@ class DatabaseModel:
             return cursor.fetchall()
 
 
-
-
-
-
-    # Funzioni per le spese (expenses)
-    def fetch_expenses(self):
-        """ Recupera tutte le spese """
-        query = "SELECT * FROM expenses"
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute(query)
-            return cursor.fetchall()
-
-    def add_expense(self, voce, type, amount, data, anticipata, deducibile, ivabile):
-        """ Aggiungi una nuova spesa """
-        query = (
-            "INSERT INTO expenses (voce, type, amount, data, anticipata, deducibile, ivabile) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)"
-        )
-        with self._connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, (voce, type, amount, data, anticipata, deducibile, ivabile))
-            conn.commit()
 
 
 
@@ -711,6 +715,134 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchall()
 
+
+
+
+
+
+
+
+
+    def fetch_expenses(self):
+        """Recupera tutte le spese (expenses)."""
+        query = "SELECT * FROM expenses"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_expense(self, **kwargs):
+        """
+        Aggiunge una nuova expense.
+        I campi da inserire devono essere passati come keyword arguments.
+        """
+        # Estrae le colonne valide dall'enum DBExpensesColumns
+        valid_columns = {column.value for column in DBExpensesColumns}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        # Costruisce dinamicamente la query SQL
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO expenses ({columns}) VALUES ({placeholders})"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def fetch_expense_by_id(self, expense_id):
+        """
+        Recupera una expense specifica dato il suo id.
+        """
+        columns = [column.value for column in DBExpensesColumns]
+        query = f"SELECT {', '.join(columns)} FROM expenses WHERE {DBExpensesColumns.ID.value} = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (expense_id,))
+            return cursor.fetchone()
+
+    def fetch_expenses_by_account_id(self, account_id):
+        """
+        Recupera le expenses associate a un account specifico.
+        (Puoi cambiare il criterio di ricerca in base alle tue esigenze.)
+        """
+        columns = [column.value for column in DBExpensesColumns]
+        query = f"SELECT {', '.join(columns)} FROM expenses WHERE {DBExpensesColumns.ACCOUNT_ID.value} = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (account_id,))
+            return cursor.fetchall()
+
+    def fetch_last_expense_insert(self):
+        """
+        Recupera l'ultima expense inserita, ordinando in base alla colonna updated_at.
+        Ritorna una tupla con i dati dell'ultima expense oppure None se non viene trovata.
+        """
+        columns = [column.value for column in DBExpensesColumns]
+        query = f"SELECT {', '.join(columns)} FROM expenses ORDER BY {DBExpensesColumns.updated_at.value} DESC LIMIT 1"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+
+
+
+
+
+    def fetch_suppliers(self):
+        """Recupera tutti i suppliers."""
+        query = "SELECT * FROM suppliers"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_supplier(self, **kwargs):
+        """
+        Aggiunge un nuovo supplier utilizzando campi dinamici basati sull'Enum.
+
+        I campi da inserire devono essere passati come keyword arguments.
+        """
+        # Estrae le colonne valide dall'enum DBSuppliersColumns
+        columns = [column.value for column in DBSuppliersColumns if column.value in kwargs]
+        if not columns:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+        placeholders = ", ".join(["?"] * len(columns))
+        query = f"INSERT INTO suppliers ({', '.join(columns)}) VALUES ({placeholders})"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(kwargs[column] for column in columns))
+            conn.commit()
+
+    def fetch_supplier_by_id(self, supplier_id):
+        """
+        Recupera uno specifico supplier in modo dinamico.
+        :param supplier_id: ID del supplier.
+        :return: Una tupla con i dati del supplier oppure None.
+        """
+        columns = [column.value for column in DBSuppliersColumns]
+        query = f"SELECT {', '.join(columns)} FROM suppliers WHERE {DBSuppliersColumns.ID.value} = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (supplier_id,))
+            return cursor.fetchone()
+
+    def fetch_supplier_by_name(self, supplier_name):
+        """
+        Recupera uno specifico supplier per nome.
+        :param supplier_name: Nome del supplier.
+        :return: Una tupla con i dati del supplier oppure None.
+        """
+        query = f"SELECT * FROM suppliers WHERE {DBSuppliersColumns.NAME.value} = ?"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (supplier_name,))
+            return cursor.fetchone()
 
 
 

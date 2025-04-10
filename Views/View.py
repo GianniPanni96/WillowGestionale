@@ -9,7 +9,7 @@ from Views.View_utils import ViewUtils
 
 
 from Controllers import ValidationUtils, UserController, AccountController, ClientController, InvoiceController, \
-    PaymentsController, ProductionController, UpdatesController
+    PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController
 from Model import DatabaseModel, db_path, DBUsersColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
@@ -17,6 +17,8 @@ from Views.Clients_view import ClientsView
 from Views.Invoices_view import InvoicesView
 from Views.Payments_view import PaymentsView
 from Views.Productions_view import ProductionsView
+from Views.Expenses_view import ExpensesView
+from Views.Suppliers_view import SuppliersView
 
 
 class MainWindow(ctk.CTk):
@@ -28,9 +30,11 @@ class MainWindow(ctk.CTk):
         self.user_controller = UserController(self.db_model, fiscal_settings)  # Crea il controller per gli utenti
         self.account_controller = AccountController(self.db_model, self.user_controller)
         self.client_controller = ClientController(self.db_model)
+        self.supplier_controller = SupplierController(self.db_model)
         self.payment_controller = PaymentsController(self.db_model, self.account_controller)
         self.production_controller = ProductionController(self.db_model, self.client_controller)
         self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, fiscal_settings)
+        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.supplier_controller)
         self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
 
         self.catalogo_elenchi = catalogo_elenchi
@@ -89,6 +93,7 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Pagamenti")
         self.tabview.add("Produzioni")
         self.tabview.add("Spese")
+        self.tabview.add("Fornitori")
         self.tabview.add("Iva")
         self.tabview.add("Tasse")
         self.tabview.add("Report")
@@ -114,6 +119,10 @@ class MainWindow(ctk.CTk):
         self.payment_tab.create_payments_tab()
         self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Produzioni"))
         self.production_tab.create_productions_tab()
+        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller, self.account_controller, self.supplier_controller, self.update_controller, self.tabview.tab("Spese"))
+        self.expense_tab.create_expenses_tab()
+        self.supplier_tab = SuppliersView(self.db_model, self.update_controller, self.tabview.tab("Fornitori"))
+        #self.supplier_tabcreate_suppliers_tab()
 
     def user_tab(self):
         """Crea la UI per la gestione degli utenti"""
@@ -967,14 +976,39 @@ class MainWindow(ctk.CTk):
         container_iva.pack(fill="both", expand=True, padx=20, pady=10)
 
         # --- Sezione IVA ---
-        aliquota_iva_data = fiscal_settings.get("aliquota_iva", {})
+        iva_data = fiscal_settings.get("iva", {})  # Ora la sezione si chiama "iva"
         section_iva = ctk.CTkFrame(container_iva)
         section_iva.pack(fill="x", pady=(5, 70), padx=10)
-        self.iva_labels["title"] = ctk.CTkLabel(section_iva, text="Aliquota IVA", font=("Arial", 18, "bold"))
+
+        # Titolo della sezione IVA
+        self.iva_labels["title"] = ctk.CTkLabel(section_iva, text="Aliquote IVA", font=("Arial", 18, "bold"))
         self.iva_labels["title"].pack(anchor="w", padx=10)
-        self.iva_entries["aliquota_iva"] = ctk.CTkEntry(section_iva)
-        self.iva_entries["aliquota_iva"].insert(0, str(aliquota_iva_data.get("value", "")))
-        self.iva_entries["aliquota_iva"].pack(anchor="w", fill="x", pady=5, padx=10)
+
+        # Lista delle chiavi in ordine desiderato
+        iva_keys = [
+            "aliquota_iva_ordinaria",
+            "aliquota_iva_ridotta_1",
+            "aliquota_iva_ridotta_2",
+            "aliquota_iva_minima"
+        ]
+
+        # Per ogni aliquota IVA si crea una label e un entry
+        for key in iva_keys:
+            # Crea una label per il titolo dell'aliquota con un testo leggibile
+            label_text = key.replace("_", " ").capitalize()
+            label = ctk.CTkLabel(section_iva, text=label_text, font=("Arial", 14))
+            label.pack(anchor="w", padx=10, pady=(15, 5) if key == "aliquota_iva_ordinaria" else 5)
+
+            # Crea l'entry e inserisce il valore della chiave (se esistente)
+            entry = ctk.CTkEntry(section_iva)
+            entry.insert(0, str(iva_data.get(key, {}).get("value", "")))
+            entry.pack(anchor="w", fill="x", padx=10, pady=(5, 2))
+            self.iva_entries[key] = entry
+
+            # Aggiungi una label per la descrizione corrispondente
+            description = iva_data.get(key, {}).get("description", "")
+            desc_label = ctk.CTkLabel(section_iva, text=description, font=("Arial", 12, "italic"), text_color="gray")
+            desc_label.pack(anchor="w", padx=10, pady=(0, 15))
 
         # --- Sezione Forfettaria ---
         piva_forf_data = fiscal_settings.get("partita_iva_forfettaria", {})
@@ -1235,56 +1269,72 @@ class MainWindow(ctk.CTk):
 
     def save_fiscal_settings(self):
         """
-            Raccoglie tutti i valori presenti nelle entry delle tre tab (IVA, Forfettaria e Ordinaria)
-            e li organizza in un dizionario strutturato in modo da poterlo passare al ConfigManager.
+        Raccoglie tutti i valori presenti nelle entry delle tre tab (IVA, Forfettaria e Ordinaria)
+        e li organizza in un dizionario strutturato in modo da poterlo passare al ConfigManager.
 
-            La struttura restituita sarà simile a:
-            {
-              "aliquota_iva": {"value": ...},
-              "partita_iva_forfettaria": {
-                    "aliquota_irpef_min": {"value": ...},
-                    "aliquota_irpef_max": {"value": ...},
-                    "anni_agevolazione": {"value": ...},
-                    "aliquota_inps": {"value": ...},
-                    "imponibile": {"value": ...}
-              },
-              "partita_iva_ordinaria": {
-                    // Scaglioni dinamici IRPEF:
-                    "aliquota_irpef_1": {"value": ..., "reddito_min": ..., "reddito_max": ..., "description": ...},
-                    "aliquota_irpef_2": {"value": ..., "reddito_min": ..., "reddito_max": ..., "description": ...},
-                    // Altri parametri:
-                    "aliquota_inps": {"value": ...},
-                    "aliquota_cassa_inps": {"value": ...},
-                    "aliquota_ritenuta": {"value": ...},
-                    // Imponibili:
-                    "imponibile_iva": {"value": ...},
-                    "imponibile_ritenuta_acconto": {"value": ...},
-                    "imponibile_cassa_inps": {"value": ...},
-                    "imponibile_inps": {"value": ...},
-                    "imponibile_irpef": {"value": ...}
-              }
-            }
-            """
+        La struttura restituita sarà simile a:
+        {
+          "iva": {
+               "aliquota_iva_ordinaria": {"value": ..., "description": ...},
+               "aliquota_iva_ridotta_1": {"value": ..., "description": ...},
+               "aliquota_iva_ridotta_2": {"value": ..., "description": ...},
+               "aliquota_iva_minima": {"value": ..., "description": ...}
+          },
+          "partita_iva_forfettaria": {
+                "aliquota_irpef_min": {"value": ...},
+                "aliquota_irpef_max": {"value": ...},
+                "anni_agevolazione": {"value": ...},
+                "aliquota_inps": {"value": ...},
+                "aliquota_rivalsa_inps": {"value": ...},
+                "imponibile": {"value": ...}
+          },
+          "partita_iva_ordinaria": {
+                // Scaglioni dinamici IRPEF:
+                "aliquota_irpef_1": {"value": ..., "reddito_min": ..., "reddito_max": ..., "description": ...},
+                "aliquota_irpef_2": {"value": ..., "reddito_min": ..., "reddito_max": ..., "description": ...},
+                // Altri parametri:
+                "aliquota_inps": {"value": ...},
+                "aliquota_cassa_inps": {"value": ...},
+                "aliquota_ritenuta": {"value": ...},
+                // Imponibili:
+                "imponibile_iva": {"value": ...},
+                "imponibile_ritenuta_acconto": {"value": ...},
+                "imponibile_cassa_inps": {"value": ...},
+                "imponibile_inps": {"value": ...},
+                "imponibile_irpef": {"value": ...}
+          }
+        }
+        """
         fiscal_data = {}
 
-        # IVA
-        if "aliquota_iva" in self.iva_entries:
-            fiscal_data["aliquota_iva"] = {
-                "value": self.iva_entries["aliquota_iva"].get()
-            }
-        else:
-            fiscal_data["aliquota_iva"] = {"value": ""}
+        # --- Sezione IVA ---
+        iva_data = {}
+        iva_keys = [
+            "aliquota_iva_ordinaria",
+            "aliquota_iva_ridotta_1",
+            "aliquota_iva_ridotta_2",
+            "aliquota_iva_minima"
+        ]
+        for key in iva_keys:
+            if key in self.iva_entries:
+                value = self.iva_entries[key].get()
+                iva_data[key] = {"value": value}
+            else:
+                iva_data[key] = {"value": ""}
+        fiscal_data["iva"] = iva_data
 
-        # Partita IVA Forfettaria
+
+        # --- Sezione Partita IVA Forfettaria ---
         forf_data = {}
-        for key in ["aliquota_irpef_min", "aliquota_irpef_max", "anni_agevolazione", "aliquota_inps", "aliquota_rivalsa_inps", "imponibile"]:
+        for key in ["aliquota_irpef_min", "aliquota_irpef_max", "anni_agevolazione", "aliquota_inps",
+                    "aliquota_rivalsa_inps", "imponibile"]:
             if key in self.forfettaria_entries:
                 forf_data[key] = {"value": self.forfettaria_entries[key].get()}
             else:
                 forf_data[key] = {"value": ""}
         fiscal_data["partita_iva_forfettaria"] = forf_data
 
-        # Partita IVA Ordinaria
+        # --- Sezione Partita IVA Ordinaria ---
         ord_data = {}
         # Scaglioni IRPEF (dinamici)
         for key, widgets in self.ordinaria_irpef_entries.items():
@@ -1306,5 +1356,5 @@ class MainWindow(ctk.CTk):
             self.config_manager.update_fiscal_settings(fiscal_data)
             ViewUtils.show_confirm_popup(self.fiscal_settings_window, "INFO", "Dati fiscali aggiornati con successo")
         except Exception as e:
-            ViewUtils.show_error_popup(self.fiscal_settings_window, "ERRORE", f"Impossibile aggiornare i dati fiscali: {str(e)}")
-
+            ViewUtils.show_error_popup(self.fiscal_settings_window, "ERRORE",
+                                       f"Impossibile aggiornare i dati fiscali: {str(e)}")

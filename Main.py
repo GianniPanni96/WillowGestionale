@@ -95,9 +95,23 @@ class ConfigManager:
                     }
                 },
                 "fiscal_settings": {
-                    "aliquota_iva": {
-                        "value": 0.22,
-                        "description": "Aliquota IVA standard applicata alle fatture (22%)."
+                    "iva": {
+                        "aliquota_iva_ordinaria": {
+                            "value": 0.22,
+                            "description": "Aliquota IVA standard"
+                        },
+                        "aliquota_iva_ridotta_1": {
+                            "value": 0.1,
+                            "description": "Aliquota IVA ridotta per turismo, costruzioni edilizie e servizi alimentari"
+                        },
+                        "aliquota_iva_ridotta_2": {
+                            "value": 0.5,
+                            "description": "Aliquota IVA ridotta per servizi sociali, sanitari, ed educativi delle cooperative"
+                        },
+                        "aliquota_iva_minima": {
+                            "value": 0.4,
+                            "description": "Aliquota IVA ridotta per beni di prima necessità"
+                        },
                     },
                     "partita_iva_forfettaria": {
                         "aliquota_irpef_min": {
@@ -262,25 +276,41 @@ class ConfigManager:
         Inoltre, se nella configurazione corrente esiste uno scaglione IRPEF che non è presente nel dizionario
         passato (cioè è stato eliminato dall'interfaccia), esso viene rimosso.
 
+        Per la sezione "iva", se viene passato un nuovo valore per ciascuna chiave
+        (ad esempio "aliquota_iva_ordinaria", "aliquota_iva_ridotta_1", ecc.),
+        il valore viene aggiornato mantenendo la struttura (value, description).
+
         Il dizionario in ingresso deve avere una struttura simile a:
 
         {
-          "aliquota_iva": {"value": ...},
+          "iva": {
+                "aliquota_iva_ordinaria": {
+                    "value": "0.22",
+                    "description": "Aliquota IVA standard"
+                },
+                "aliquota_iva_ridotta_1": {
+                    "value": "0.10",
+                    "description": "Aliquota IVA ridotta per turismo, costruzioni edilizie e servizi alimentari"
+                },
+                "aliquota_iva_ridotta_2": {
+                    "value": "0.5",
+                    "description": "Aliquota IVA ridotta per servizi sociali, sanitari, ed educativi delle cooperative"
+                },
+                "aliquota_iva_minima": {
+                    "value": "0.4",
+                    "description": "Aliquota IVA ridotta per beni di prima necessità"
+                }
+          },
           "partita_iva_forfettaria": {
-                "aliquota_irpef_min": {"value": ...},
-                "aliquota_irpef_max": {"value": ...},
-                "anni_agevolazione": {"value": ...},
-                "aliquota_inps": {"value": ...},
-                "imponibile": {"value": ...}
+              ...
           },
           "partita_iva_ordinaria": {
                 "aliquota_irpef_1": {"value": ..., "reddito_min": ..., "reddito_max": ..., "description": ...},
                 "aliquota_irpef_2": {"value": ..., "reddito_min": ..., "reddito_max": ..., "description": ...},
-                // Altri parametri fissi:
+                ...,
                 "aliquota_inps": {"value": ...},
                 "aliquota_cassa_inps": {"value": ...},
                 "aliquota_ritenuta": {"value": ...},
-                // Imponibili:
                 "imponibile_iva": {"value": ...},
                 "imponibile_ritenuta_acconto": {"value": ...},
                 "imponibile_cassa_inps": {"value": ...},
@@ -289,13 +319,9 @@ class ConfigManager:
           }
         }
 
-        In particolare, per la sezione non ordinaria (ad es. "aliquota_iva") se la chiave è "value"
-        allora si aggiorna direttamente (senza incapsularlo in un ulteriore dizionario), così da mantenere la struttura originale:
-
-        "aliquota_iva": {
-             "value": <nuovo_valore>,
-             "description": <descrizione_esistente>
-        }
+        In particolare, per la sezione non ordinaria se la chiave è "value"
+        allora si aggiorna direttamente (senza incapsularlo in un ulteriore dizionario),
+        così da mantenere la struttura originale.
 
         Solleva un'eccezione in caso di errore.
         """
@@ -307,48 +333,102 @@ class ConfigManager:
             if "fiscal_settings" not in current_config:
                 current_config["fiscal_settings"] = {}
 
-            # Per ogni sotto-sezione (es. "aliquota_iva", "partita_iva_forfettaria", "partita_iva_ordinaria")
+            # Aggiorna ogni sotto-sezione
             for section_key, new_section in new_fiscal_data.items():
                 if section_key not in current_config["fiscal_settings"]:
                     current_config["fiscal_settings"][section_key] = {}
-                for key, new_val in new_section.items():
-                    # Se il valore passato non è un dizionario, lo incapsuliamo
-                    if not isinstance(new_val, dict):
-                        new_val = {"value": new_val}
 
-                    # Special handling per gli scaglioni IRPEF nella sezione "partita_iva_ordinaria"
-                    if section_key == "partita_iva_ordinaria" and re.match(r'^aliquota_irpef_\d+$', key):
-                        if key in current_config["fiscal_settings"][section_key] and isinstance(
-                                current_config["fiscal_settings"][section_key][key], dict):
-                            current_config["fiscal_settings"][section_key][key]["value"] = new_val.get("value",
-                                                                                                       current_config[
-                                                                                                           "fiscal_settings"][
-                                                                                                           section_key][
-                                                                                                           key].get(
-                                                                                                           "value", ""))
-                            current_config["fiscal_settings"][section_key][key]["reddito_min"] = new_val.get(
-                                "reddito_min",
-                                current_config["fiscal_settings"][section_key][key].get("reddito_min", ""))
-                            current_config["fiscal_settings"][section_key][key]["reddito_max"] = new_val.get(
-                                "reddito_max",
-                                current_config["fiscal_settings"][section_key][key].get("reddito_max", ""))
-                            current_config["fiscal_settings"][section_key][key]["description"] = new_val.get(
-                                "description",
-                                current_config["fiscal_settings"][section_key][key].get("description", ""))
+                # Sezione "partita_iva_ordinaria" (gestione speciale per gli scaglioni IRPEF)
+                if section_key == "partita_iva_ordinaria":
+                    for key, new_val in new_section.items():
+                        if not isinstance(new_val, dict):
+                            new_val = {"value": new_val}
+                        if re.match(r'^aliquota_irpef_\d+$', key):
+                            if key in current_config["fiscal_settings"][section_key] and isinstance(
+                                    current_config["fiscal_settings"][section_key][key], dict):
+                                current_config["fiscal_settings"][section_key][key]["value"] = new_val.get("value",
+                                                                                                           current_config[
+                                                                                                               "fiscal_settings"][
+                                                                                                               section_key][
+                                                                                                               key].get(
+                                                                                                               "value",
+                                                                                                               ""))
+                                current_config["fiscal_settings"][section_key][key]["reddito_min"] = new_val.get(
+                                    "reddito_min",
+                                    current_config["fiscal_settings"][section_key][key].get("reddito_min", ""))
+                                current_config["fiscal_settings"][section_key][key]["reddito_max"] = new_val.get(
+                                    "reddito_max",
+                                    current_config["fiscal_settings"][section_key][key].get("reddito_max", ""))
+                                current_config["fiscal_settings"][section_key][key]["description"] = new_val.get(
+                                    "description",
+                                    current_config["fiscal_settings"][section_key][key].get("description", ""))
+                            else:
+                                current_config["fiscal_settings"][section_key][key] = {
+                                    "value": new_val.get("value", ""),
+                                    "reddito_min": new_val.get("reddito_min", ""),
+                                    "reddito_max": new_val.get("reddito_max", ""),
+                                    "description": new_val.get("description", "")
+                                }
+                        else:
+                            if key in current_config["fiscal_settings"][section_key]:
+                                if isinstance(current_config["fiscal_settings"][section_key][key], dict):
+                                    current_config["fiscal_settings"][section_key][key]["value"] = new_val.get("value",
+                                                                                                               current_config[
+                                                                                                                   "fiscal_settings"][
+                                                                                                                   section_key][
+                                                                                                                   key].get(
+                                                                                                                   "value",
+                                                                                                                   ""))
+                                else:
+                                    current_config["fiscal_settings"][section_key][key] = new_val.get("value", new_val)
+                            else:
+                                current_config["fiscal_settings"][section_key][key] = {
+                                    "value": new_val.get("value", new_val),
+                                    "description": ""
+                                }
+                    # Rimuove eventuali scaglioni IRPEF non presenti nella nuova sezione
+                    current_irpef_keys = [k for k in current_config["fiscal_settings"][section_key].keys() if
+                                          re.match(r'^aliquota_irpef_\d+$', k)]
+                    new_irpef_keys = set([k for k in new_section.keys() if re.match(r'^aliquota_irpef_\d+$', k)])
+                    for k in current_irpef_keys:
+                        if k not in new_irpef_keys:
+                            del current_config["fiscal_settings"][section_key][k]
+
+                # Sezione "iva"
+                elif section_key == "iva":
+                    for key, new_val in new_section.items():
+                        if not isinstance(new_val, dict):
+                            new_val = {"value": new_val}
+                        if key in current_config["fiscal_settings"][section_key]:
+                            if isinstance(current_config["fiscal_settings"][section_key][key], dict):
+                                current_config["fiscal_settings"][section_key][key]["value"] = new_val.get("value",
+                                                                                                           current_config[
+                                                                                                               "fiscal_settings"][
+                                                                                                               section_key][
+                                                                                                               key].get(
+                                                                                                               "value",
+                                                                                                               ""))
+                                current_config["fiscal_settings"][section_key][key]["description"] = new_val.get(
+                                    "description",
+                                    current_config["fiscal_settings"][section_key][key].get("description", ""))
+                            else:
+                                current_config["fiscal_settings"][section_key][key] = {
+                                    "value": new_val.get("value", new_val),
+                                    "description": new_val.get("description", "")
+                                }
                         else:
                             current_config["fiscal_settings"][section_key][key] = {
-                                "value": new_val.get("value", ""),
-                                "reddito_min": new_val.get("reddito_min", ""),
-                                "reddito_max": new_val.get("reddito_max", ""),
+                                "value": new_val.get("value", new_val),
                                 "description": new_val.get("description", "")
                             }
-                    else:
-                        # Per le altre sotto-sezioni: se la chiave è "value" e la sezione non è "partita_iva_ordinaria",
-                        # aggiorniamo direttamente, in modo da non incapsulare il nuovo valore in un dizionario.
-                        if key == "value" and section_key != "partita_iva_ordinaria":
-                            # Se esiste già, aggiorniamo il valore mantenendo la descrizione esistente, se presente.
+
+                # Per le altre sotto-sezioni (es. "partita_iva_forfettaria", ecc.)
+                else:
+                    for key, new_val in new_section.items():
+                        if not isinstance(new_val, dict):
+                            new_val = {"value": new_val}
+                        if key == "value":
                             if key in current_config["fiscal_settings"][section_key]:
-                                # Se il valore esistente è un dizionario, aggiorniamo il campo "value"
                                 if isinstance(current_config["fiscal_settings"][section_key][key], dict):
                                     current_config["fiscal_settings"][section_key][key]["value"] = new_val.get("value",
                                                                                                                new_val)
@@ -357,7 +437,6 @@ class ConfigManager:
                             else:
                                 current_config["fiscal_settings"][section_key][key] = new_val.get("value", new_val)
                         else:
-                            # Per gli altri campi: aggiorna soltanto "value" all'interno del dizionario
                             if key in current_config["fiscal_settings"][section_key]:
                                 if isinstance(current_config["fiscal_settings"][section_key][key], dict):
                                     current_config["fiscal_settings"][section_key][key]["value"] = new_val.get("value",
@@ -369,20 +448,14 @@ class ConfigManager:
                                                                                                                    ""))
                                 else:
                                     current_config["fiscal_settings"][section_key][key] = {
-                                        "value": new_val.get("value", new_val), "description": ""}
+                                        "value": new_val.get("value", new_val),
+                                        "description": ""
+                                    }
                             else:
                                 current_config["fiscal_settings"][section_key][key] = {
-                                    "value": new_val.get("value", new_val), "description": ""}
-
-                # Se la sezione è "partita_iva_ordinaria", rimuoviamo eventuali scaglioni IRPEF
-                # presenti nel file corrente ma non nel dizionario new_section (cioè cancellati dall'interfaccia)
-                if section_key == "partita_iva_ordinaria":
-                    current_irpef_keys = [k for k in current_config["fiscal_settings"][section_key].keys() if
-                                          re.match(r'^aliquota_irpef_\d+$', k)]
-                    new_irpef_keys = set([k for k in new_section.keys() if re.match(r'^aliquota_irpef_\d+$', k)])
-                    for k in current_irpef_keys:
-                        if k not in new_irpef_keys:
-                            del current_config["fiscal_settings"][section_key][k]
+                                    "value": new_val.get("value", new_val),
+                                    "description": ""
+                                }
 
             self.save_config(current_config)
 
@@ -549,8 +622,33 @@ class PartitaIVAOrdinaria:
         )
 
 @dataclass
+class AliquotaIva:
+    aliquota_iva_ordinaria: float = 0.0
+    desc_iva_ordinaria: str = ""
+    aliquota_iva_ridotta_1: float = 0.0
+    desc_iva_ridotta_1: str = ""
+    aliquota_iva_ridotta_2: float = 0.0
+    desc_iva_ridotta_2: str = ""
+    aliquota_iva_minima: float = 0.0
+    desc_iva_minima: str = ""
+
+    @staticmethod
+    def from_dict(data: dict) -> 'AliquotaIva':
+        return AliquotaIva(
+            aliquota_iva_ordinaria = float(data.get("aliquota_iva_ordinaria", {}).get("value", 0.0)),
+            desc_iva_ordinaria      = data.get("aliquota_iva_ordinaria", {}).get("description", ""),
+            aliquota_iva_ridotta_1  = float(data.get("aliquota_iva_ridotta_1", {}).get("value", 0.0)),
+            desc_iva_ridotta_1      = data.get("aliquota_iva_ridotta_1", {}).get("description", ""),
+            aliquota_iva_ridotta_2  = float(data.get("aliquota_iva_ridotta_2", {}).get("value", 0.0)),
+            desc_iva_ridotta_2      = data.get("aliquota_iva_ridotta_2", {}).get("description", ""),
+            aliquota_iva_minima     = float(data.get("aliquota_iva_minima", {}).get("value", 0.0)),
+            desc_iva_minima         = data.get("aliquota_iva_minima", {}).get("description", "")
+        )
+
+
+@dataclass
 class FiscalSettings:
-    aliquota_iva: float
+    aliquota_iva: AliquotaIva
     partita_iva_forfettaria: PartitaIVAForfettaria
     partita_iva_ordinaria: PartitaIVAOrdinaria
 
@@ -558,7 +656,9 @@ class FiscalSettings:
     def from_dict(data: dict):
         fiscal_data = data or {}
         return FiscalSettings(
-            aliquota_iva=fiscal_data.get("aliquota_iva", {}).get("value", 0.0),
+            aliquota_iva=AliquotaIva.from_dict(
+                fiscal_data.get("iva", {})
+            ),
             partita_iva_forfettaria=PartitaIVAForfettaria.from_dict(
                 fiscal_data.get("partita_iva_forfettaria", {})
             ),

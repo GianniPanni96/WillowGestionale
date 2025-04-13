@@ -149,7 +149,7 @@ class DBSuppliersColumns(Enum):
     SEDE = "SEDE"
     CONTATTO = "CONTATTO_REFERENTE"
     CATEGORIA = "CATEGORIA"
-    NOTE = "note"
+    NOTE = "NOTE"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 

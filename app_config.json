@@ -18,9 +18,23 @@
         }
     },
     "fiscal_settings": {
-        "aliquota_iva": {
-            "value": "0.22",
-            "description": "Aliquota IVA standard applicata alle fatture."
+                "iva": {
+            "aliquota_iva_ordinaria": {
+                "value": "0.21",
+                "description": "Aliquota IVA standard"
+            },
+            "aliquota_iva_ridotta_1": {
+                "value": "0.10",
+                "description": "Aliquota IVA ridotta per turismo, costruzioni edilizie e servizi alimentari"
+            },
+            "aliquota_iva_ridotta_2": {
+                "value": "0.5",
+                "description": "Aliquota IVA ridotta per servizi sociali, sanitari, ed educativi delle cooperative"
+            },
+            "aliquota_iva_minima": {
+                "value": "0.4",
+                "description": "Aliquota IVA ridotta per beni di prima necessit\u00e0"
+            }
         },
         "partita_iva_forfettaria": {
             "aliquota_irpef_min": {
@@ -148,5 +162,20 @@
         "INTEGRAZIONE_VFX": "Integrazione VFX",
 		"GIRATO": "Girato",
 		"ADD_PROD_OUT_TYPE": "AGGIUNGI UNA TIPOLOGIA DI OUTPUT ALLA LISTA"
+    },
+	"expenses_category": {
+        "STUDIO_RENTAL": "Affitto Ufficio",
+        "TECHNICAL_INSTRUMENTATION_PROD": "Strumentazione tecnica produzione",
+        "TECHNICAL_INSTRUMENTATION_POSTPROD": "Strumentazione tecnica postproduzione",
+		"SUBSCRIPTION": "Abbonamento",
+        "ELECTRICITY_BILL": "Bolletta Luce",
+        "GAS_BILL": "Bolletta Gas",
+		"INTERNET_BILL": "Abbonamento Internet",
+        "WASTE_BILL": "TARI",
+        "CONSUMABLE_FOR_STUDIO": "Consumabili per lo studio",
+        "INSURANCE": "Assicurazionee",
+        "PRODUCTION_EXPENSE": "Spesa di produzione",
+        "USER_SALARY": "Salario",
+        "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
     }
 }

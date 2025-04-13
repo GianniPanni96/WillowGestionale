@@ -702,10 +702,16 @@ if __name__ == "__main__":
         for key, value in config.get("production_output_types", {}).items()
     ]
 
+    expenses_category = [
+        (key, value)
+        for key, value in config.get("expenses_category", {}).items()
+    ]
+
     catalogo_elenchi = {
         "clients_business_sectors": clients_business_sectors,
         "production_types": productions_types,
         "production_output_types": productions_outputs_types,
+        "expenses_category": expenses_category
     }
 
     # Inizializza il gestore del backup con i parametri dalla configurazione

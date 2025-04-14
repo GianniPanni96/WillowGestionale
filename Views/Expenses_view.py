@@ -27,6 +27,10 @@ class ExpensesView(ctk.CTk):
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
+        self.aggregate_UOM = {
+            ExpenseController.ExpensesAggregateData.NUMERO_SPESE.value: "",
+            ExpenseController.ExpensesAggregateData.TOT_SPESE.value: "€"
+        }
 
         self.expenses_card_list = {}
         self.expense_card_labels_status = {}
@@ -102,10 +106,13 @@ class ExpensesView(ctk.CTk):
                 category = expense[DBExpensesColumns.CATEGORY.value]
                 deducibile = expense[DBExpensesColumns.DEDUCIBILE.value]
                 user_id = expense[DBExpensesColumns.USER_ID.value]
-                user = self.user_controller.retrieve_user_map_by_id(user_id)
-                user_first = user[DBUsersColumns.FIRST_NAME.value]
-                user_second = user[DBUsersColumns.LAST_NAME.value]
-                user_name = user_first + " " + user_second
+                if user_id:
+                    user = self.user_controller.retrieve_user_map_by_id(user_id)
+                    user_first = user[DBUsersColumns.FIRST_NAME.value]
+                    user_second = user[DBUsersColumns.LAST_NAME.value]
+                    user_name = user_first + " " + user_second
+                else:
+                    user_name = " ---- "
                 account = self.account_controller.retrieve_account_map_by_id(expense[DBExpensesColumns.ACCOUNT_ID.value])
                 account_name = account[DBAccountsColumns.NAME.value]
 
@@ -158,9 +165,9 @@ class ExpensesView(ctk.CTk):
             # Etichetta
             label = ctk.CTkLabel(self.expense_window_scrollableFrame, text=label_text)
             # disegno i labels
-            if i == 0:
+            if i == 0 and label_text != self.nome_fattura_string:
                 label.pack(pady=5)
-            else:
+            elif i != 0 and label_text != self.nome_fattura_string:
                 label.pack(pady=(35, 0))
 
             self.expenses_labels[label_text] = label
@@ -229,7 +236,8 @@ class ExpensesView(ctk.CTk):
             else:
                 widget = widget_class(self.expense_window_scrollableFrame)
 
-            widget.pack(pady=5, padx=10, fill="x", expand=True)
+            if label_text != self.nome_fattura_string:
+                widget.pack(pady=5, padx=10, fill="x", expand=True)
 
             self.expenses_widgets[label_text] = widget
 
@@ -275,7 +283,61 @@ class ExpensesView(ctk.CTk):
             ))
 
     def save_expense_data(self):
-        return
+        expense_data = {}
+
+        # riempi il dizionario con i dati dei widgets primari
+        for label_text, widget in self.expenses_widgets.items():
+            if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
+                expense_data[label_text] = widget.get().strip()
+            elif isinstance(widget, Calendar):
+                expense_data[label_text] = widget.get_date()
+            elif isinstance(widget, ctk.CTkTextbox):
+                expense_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+
+        #filtro i dati
+        category_dict = dict(self.catalogo_elenchi["expenses_category"])
+        if str(self.expenses_widgets[DBExpensesColumns.CATEGORY.value].get()) != str(category_dict.get("PRODUCTION_EXPENSE")):
+            expense_data.pop(self.nome_fattura_string)
+
+        # chiamata al controller per salvare i dati
+        success, message = self.expense_controller.save_expense(expense_data)
+
+        if success:
+            # prendo l'ID della fattura appena creata
+            expense_map = self.expense_controller.retrieve_last_expense_insert_map()
+            print(f"Spesa {expense_data[DBExpensesColumns.NAME.value]} salvata con successo")
+
+            supplier_name = self.supplier_controller.retrieve_supplier_map_by_id(expense_map[DBExpensesColumns.SUPPLIER_ID.value])[
+                DBSuppliersColumns.NAME.value]
+
+            user= self.user_controller.retrieve_user_map_by_id(expense_map[DBExpensesColumns.ACCOUNT_ID.value])
+            user_first = user[DBUsersColumns.FIRST_NAME.value]
+            user_last = user[DBUsersColumns.LAST_NAME.value]
+            user_full = user_first + " " + user_last
+
+            account_name = self.account_controller.retrieve_account_map_by_id(expense_map[DBExpensesColumns.ACCOUNT_ID.value])[
+                DBAccountsColumns.NAME.value]
+
+
+            self.add_expense_card(
+                expense_map[DBExpensesColumns.ID.value],
+                expense_map[DBExpensesColumns.NAME.value],
+                supplier_name,
+                expense_map[DBExpensesColumns.NET_AMOUNT.value],
+                expense_map[DBExpensesColumns.TOT_AMOUNT.value],
+                expense_map[DBExpensesColumns.CATEGORY.value],
+                expense_map[DBExpensesColumns.DATE.value],
+                expense_map[DBExpensesColumns.DEDUCIBILE.value],
+                user_full,
+                account_name
+            )
+
+            self.clear_class_variable()
+            self.add_expense_window.destroy()
+            self.update_global_infos()
+        else:
+            print(message)
+            ViewUtils.show_error_popup(self.add_expense_window, "ERRORE", message)
 
     def filter_cards(self):
         return
@@ -289,6 +351,12 @@ class ExpensesView(ctk.CTk):
         self.global_infos[f"{ExpenseController.ExpensesAggregateData.NUMERO_SPESE.value}"] = numero_spese
         self.global_infos[f"{ExpenseController.ExpensesAggregateData.TOT_SPESE.value}"] = f"{totale_spese:.2f}"
 
+    def update_global_infos(self):
+        self.populate_global_infos()
+        for key, label in self.amount_aggregate_labels.items():
+            new_value = self.global_infos.get(key, "")
+            label.configure(text=str(new_value) + " " + self.aggregate_UOM[key])
+
     def autofill_expense_name(self, selected_value):
         self.name_frame.winfo_children()[0].configure(
             text=f"{selected_value} - ")
@@ -297,8 +365,7 @@ class ExpensesView(ctk.CTk):
         sector_dict = dict(self.catalogo_elenchi["expenses_category"])
         if selected_value == sector_dict.get("ADD_CATEGORY"):
             self.open_add_expenses_category()
-        elif selected_value == sector_dict.get("PRODUCTION_EXPENSE"):
-            self.toggle_linked_invoice_selection()
+        self.toggle_linked_invoice_selection(selected_value, sector_dict)
 
     def open_add_expenses_category(self):
         self.add_category_window = ctk.CTkToplevel(self)
@@ -320,8 +387,21 @@ class ExpensesView(ctk.CTk):
 
         ctk.CTkButton(self.expenses_category_window_Frame, text="Aggiungi settore", command=self.save_expenses_category).pack(padx=10, pady=(15, 10))
 
-    def toggle_linked_invoice_selection(self):
-        return
+    def toggle_linked_invoice_selection(self, selected_value, dictionary):
+        if selected_value == dictionary.get("PRODUCTION_EXPENSE"):
+            self.save_button.pack_forget()
+            self.expenses_widgets[self.nome_conto_string].pack_forget()
+            self.expenses_labels[self.nome_conto_string].pack_forget()
+
+            self.expenses_labels[self.nome_fattura_string].pack(pady=(35, 0))
+            self.expenses_widgets[self.nome_fattura_string].pack(pady=5, padx=10, fill="x", expand=True)
+            self.expenses_labels[self.nome_conto_string].pack(pady=(35, 0))
+            self.expenses_widgets[self.nome_conto_string].pack(pady=5, padx=10, fill="x", expand=True)
+            self.save_button.pack(pady=(50, 15))
+
+        else:
+            self.expenses_labels[self.nome_fattura_string].pack_forget()
+            self.expenses_widgets[self.nome_fattura_string].pack_forget()
 
     def save_expenses_category(self):
         new_category = self.add_category_entry.get()
@@ -335,3 +415,7 @@ class ExpensesView(ctk.CTk):
 
         self.expenses_widgets[DBExpensesColumns.CATEGORY.value].set(new_category)
         self.add_category_window.destroy()
+
+    def clear_class_variable(self):
+        self.expenses_widgets.clear()
+        self.expenses_labels.clear()

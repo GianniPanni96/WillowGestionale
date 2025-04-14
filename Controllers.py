@@ -2369,7 +2369,7 @@ class AccountController:
                 return None
         return ValidationUtils._row_to_map(row, DBAccountsColumns)
 
-    def retrieve_account_map_by_name(self, account_name, current_year=True):
+    def retrieve_account_map_by_name(self, account_name, current_year=False):
         """
         Recupera un account specifico per nome, opzionalmente filtrando per l'anno corrente.
 
@@ -2853,13 +2853,14 @@ class ExpenseController:
         TOT_SPESE = "TOT. SPESE"
 
 
-    def __init__(self, db_model, user_controller, account_controller, supplier_controller):
+    def __init__(self, db_model, user_controller, account_controller, invoice_controller, supplier_controller):
         self.db_model = db_model
         self.user_controller = user_controller
         self.account_controller = account_controller
+        self.invoice_controller = invoice_controller
         self.supplier_controller = supplier_controller
 
-    def save_payment(self, expense_data):
+    def save_expense(self, expense_data):
         """
         Gestisce il salvataggio di una spesa, con validazioni di primo livello.
         :param expense_data: Dizionario contenente i dati della spesa
@@ -2870,36 +2871,71 @@ class ExpenseController:
         self.required_fields = {DBExpensesColumns.NAME.value, DBExpensesColumns.TOT_AMOUNT.value}
 
         # Validazione dei campi obbligatori
-        missing_fields = [field for field in self.required_fields if not payment_data.get(field)]
+        missing_fields = [field for field in self.required_fields if not expense_data.get(field)]
         if missing_fields:
             return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
 
         # Validazione importi
-        tot_pagamento = payment_data.get(DBPaymentsColumns.PAYMENT_AMOUNT.value)
-        if not ValidationUtils.validate_amount(tot_pagamento):
-            return False, "L'importo del preventivo non è valido"
+        spesa_lorda = expense_data.get(DBExpensesColumns.TOT_AMOUNT.value)
+        if not ValidationUtils.validate_amount(spesa_lorda):
+            return False, "L'importo lordo non è valido"
 
-        # prendo i dati necessari del conto
-        nome_conto = payment_data.get("NOME CONTO")
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto, True)
-        id_conto = conto[DBAccountsColumns.ID.value]
+        #prendo ID Utente
+        user_id = None
+        user_name = expense_data.get("QUALCUNO HA ANTICIPATO?")
+        if len(user_name.split(" ")) >= 2: #se è un nome di un utente vero allora è Nome Cognome
+            user_first = user_name.split(" ")[0]
+            user_last = user_name.split(" ")[1]
+            user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
+            user_id = user[DBUsersColumns.ID.value]
 
-        payment_data_prepared = {
-            DBPaymentsColumns.PAYMENT_NAME.value: payment_data.get(DBPaymentsColumns.PAYMENT_NAME.value),
-            DBPaymentsColumns.PAYMENT_AMOUNT.value: payment_data.get(DBPaymentsColumns.PAYMENT_AMOUNT.value),
-            DBPaymentsColumns.INVOICE_ID.value: payment_data.get(DBPaymentsColumns.INVOICE_ID.value),
-            DBPaymentsColumns.PAYMENT_DATE.value: payment_data.get(DBPaymentsColumns.PAYMENT_DATE.value),
-            DBPaymentsColumns.LINKED_RATA.value: payment_data.get(DBPaymentsColumns.LINKED_RATA.value),
-            DBPaymentsColumns.CONTO_ID.value: id_conto,
+        #prendo ID fattura associata:
+        invoice_id = None
+        #la view si occupa di non mandare tra i dati la fattura associata se la categoria non è "SPESA DI PRODUZIONE"
+        invoice_name = expense_data.get("FATTURA ASSOCIATA")
+        if invoice_name:
+            invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name, True)
+            invoice_id = invoice[DBInvoicesColumns.ID.value]
+
+        #calcolo importo netto
+        aliquota_iva = float(expense_data.get("ALIQUOTA IVA"))
+        spesa_netta = float(spesa_lorda)/( 1 + aliquota_iva)
+        iva = spesa_netta * aliquota_iva
+
+        #prendo ID supplier
+        supplier_id = None
+        supplier_name = expense_data.get("NOME FORNITORE")
+        if supplier_name:
+            supplier = self.supplier_controller.retrieve_supplier_map_by_name(supplier_name)
+            supplier_id = supplier[DBSuppliersColumns.ID.value]
+
+        #prendo ID conto
+        conto_id = None
+        conto_name = expense_data.get("CONTO")
+        if conto_name:
+            conto = self.account_controller.retrieve_account_map_by_name(conto_name, False)
+            conto_id = conto[DBAccountsColumns.ID.value]
+
+
+        expense_data_prepared = {
+            DBExpensesColumns.NAME.value: expense_data.get(DBExpensesColumns.NAME.value),
+            DBExpensesColumns.USER_ID.value: user_id,
+            DBExpensesColumns.SUPPLIER_ID.value: supplier_id,
+            DBExpensesColumns.CATEGORY.value: expense_data.get(DBExpensesColumns.CATEGORY.value),
+            DBExpensesColumns.NET_AMOUNT.value: spesa_netta,
+            DBExpensesColumns.IVA_AMOUNT.value: iva,
+            DBExpensesColumns.TOT_AMOUNT.value: float(spesa_lorda),
+            DBExpensesColumns.DATE.value: expense_data.get(DBExpensesColumns.DATE.value),
+            DBExpensesColumns.DEDUCIBILE.value: expense_data.get(DBExpensesColumns.DEDUCIBILE.value),
+            DBExpensesColumns.ACCOUNT_ID.value: conto_id,
+            DBExpensesColumns.LINKED_INVOICE_ID.value: invoice_id
+
         }
 
         try:
-            self.db_model.add_payment(**payment_data_prepared)
-            self.update_payments_lists()
+            self.db_model.add_expense(**expense_data_prepared)
             self.update_aggregate_data()
-            # for callback in self.on_adding_payment_callbacks:
-            #    callback(payment_data.get(DBPaymentsColumns.INVOICE_ID.value))
-            return True, "Produzione salvata con successo!"
+            return True, "Spesa salvata con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
 
@@ -3039,6 +3075,9 @@ class ExpenseController:
         for expense in expense_list:
             tot += float(expense[DBExpensesColumns.TOT_AMOUNT.value])
         return tot
+
+    def update_aggregate_data(self):
+        return
 
 
 class SupplierController:

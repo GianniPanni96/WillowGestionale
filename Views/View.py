@@ -34,7 +34,7 @@ class MainWindow(ctk.CTk):
         self.payment_controller = PaymentsController(self.db_model, self.account_controller)
         self.production_controller = ProductionController(self.db_model, self.client_controller)
         self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, fiscal_settings)
-        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.supplier_controller)
+        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller)
         self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
 
         self.catalogo_elenchi = catalogo_elenchi

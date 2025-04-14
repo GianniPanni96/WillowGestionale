@@ -28,11 +28,11 @@
                 "description": "Aliquota IVA ridotta per turismo, costruzioni edilizie e servizi alimentari"
             },
             "aliquota_iva_ridotta_2": {
-                "value": "0.5",
+                "value": "0.05",
                 "description": "Aliquota IVA ridotta per servizi sociali, sanitari, ed educativi delle cooperative"
             },
             "aliquota_iva_minima": {
-                "value": "0.4",
+                "value": "0.04",
                 "description": "Aliquota IVA ridotta per beni di prima necessit\u00e0"
             }
         },

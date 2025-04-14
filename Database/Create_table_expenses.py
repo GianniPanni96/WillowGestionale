@@ -1,4 +1,4 @@
-from Model import db_path, DBExpensesColumns, DBAccountsColumns, DBSuppliersColumns, DBUsersColumns
+from Model import db_path, DBExpensesColumns, DBAccountsColumns, DBSuppliersColumns, DBUsersColumns, DBInvoicesColumns
 import sqlite3
 
 
@@ -15,11 +15,13 @@ columns = [
     f"{DBExpensesColumns.DATE.value} TIMESTAMP NOT NULL",
     f"{DBExpensesColumns.DEDUCIBILE.value} TEXT NOT NULL",
     f"{DBExpensesColumns.ACCOUNT_ID.value} INTEGER NOT NULL",
+    f"{DBExpensesColumns.LINKED_INVOICE_ID.value} INTEGER",
     f"{DBExpensesColumns.created_at.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"{DBExpensesColumns.updated_at.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"FOREIGN KEY ({DBExpensesColumns.USER_ID.value}) REFERENCES users({DBUsersColumns.ID.value})"
     f"FOREIGN KEY ({DBExpensesColumns.SUPPLIER_ID.value}) REFERENCES suppliers({DBSuppliersColumns.ID.value})"
     f"FOREIGN KEY ({DBExpensesColumns.ACCOUNT_ID.value}) REFERENCES accounts({DBAccountsColumns.ID.value})"
+    f"FOREIGN KEY ({DBExpensesColumns.LINKED_INVOICE_ID.value}) REFERENCES invoices({DBInvoicesColumns.ID.value})"
 
 ]
 

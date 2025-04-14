@@ -10,7 +10,7 @@ from dataclasses import fields
 
 class ExpensesView(ctk.CTk):
 
-    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, update_controller, fiscal_settings, catalogo_elenchi, config_manager, tab):
+    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, fiscal_settings, catalogo_elenchi, config_manager, tab):
         super().__init__()
 
         self.db_model = db_model
@@ -18,6 +18,7 @@ class ExpensesView(ctk.CTk):
         self.user_controller = user_controller
         self.account_controller = account_controller
         self.supplier_controller = supplier_controller
+        self.invoice_controller = invoice_controller
         self.update_controller = update_controller
         self.fiscal_settings = fiscal_settings
         self.catalogo_elenchi = catalogo_elenchi
@@ -128,6 +129,7 @@ class ExpensesView(ctk.CTk):
         self.nome_utente_string = "QUALCUNO HA ANTICIPATO?"
         self.nome_fornitore_string = "NOME FORNITORE"
         self.aliquota_iva_string = "ALIQUOTA IVA"
+        self.nome_fattura_string = "FATTURA ASSOCIATA"
 
         self.entry_fields = {
             self.nome_fornitore_string: ctk.CTkOptionMenu,
@@ -138,6 +140,7 @@ class ExpensesView(ctk.CTk):
             self.aliquota_iva_string : ctk.CTkOptionMenu,
             DBExpensesColumns.TOT_AMOUNT.value: ctk.CTkEntry,
             self.nome_utente_string : ctk.CTkOptionMenu,
+            self.nome_fattura_string : ctk.CTkOptionMenu,
             self.nome_conto_string: ctk.CTkOptionMenu,
         }
 
@@ -185,7 +188,7 @@ class ExpensesView(ctk.CTk):
             elif label_text == DBExpensesColumns.CATEGORY.value:
                 widget = widget_class(self.expense_window_scrollableFrame,
                                       values=[value for key, value in self.catalogo_elenchi["expenses_category"]],
-                                      command = lambda selected_value : self.open_add_expenses_category(selected_value))
+                                      command = lambda selected_value : self.expense_category_optionMenu_behaviour(selected_value))
 
             elif label_text == DBExpensesColumns.NAME.value:
                 self.name_frame = ctk.CTkFrame(self.expense_window_scrollableFrame)
@@ -208,6 +211,14 @@ class ExpensesView(ctk.CTk):
                                       values=[" ----- "] + [user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users])
 
                 widget.set(" ----- ")
+
+            elif label_text == self.nome_fattura_string:
+                #recupero le fatture
+                invoices = self.invoice_controller.retrieve_invoices_map_list()
+                widget = widget_class(self.expense_window_scrollableFrame,
+                                      values=["Fattura non ancora emessa"] + [invoice[DBInvoicesColumns.NUMERO_FATTURA.value] for invoice in invoices])
+
+                widget.set("Fattura non ancora emessa")
 
             elif label_text == self.nome_conto_string:
                 # recupero i conti
@@ -282,29 +293,35 @@ class ExpensesView(ctk.CTk):
         self.name_frame.winfo_children()[0].configure(
             text=f"{selected_value} - ")
 
-    def open_add_expenses_category(self, selected_value):
+    def expense_category_optionMenu_behaviour(self, selected_value):
         sector_dict = dict(self.catalogo_elenchi["expenses_category"])
         if selected_value == sector_dict.get("ADD_CATEGORY"):
-            self.add_category_window = ctk.CTkToplevel(self)
-            self.add_category_window.title("Aggiungi una nuova categoria di spesa")
+            self.open_add_expenses_category()
+        elif selected_value == sector_dict.get("PRODUCTION_EXPENSE"):
+            self.toggle_linked_invoice_selection()
 
-            # Assicurati che la finestra rimanga sopra
-            self.add_category_window.lift()  # Porta la finestra sopra quella principale
-            self.add_category_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+    def open_add_expenses_category(self):
+        self.add_category_window = ctk.CTkToplevel(self)
+        self.add_category_window.title("Aggiungi una nuova categoria di spesa")
 
-            self.add_category_window.geometry("400x300")
+        # Assicurati che la finestra rimanga sopra
+        self.add_category_window.lift()  # Porta la finestra sopra quella principale
+        self.add_category_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
 
-            self.expenses_category_window_Frame = ctk.CTkFrame(self.add_category_window)
-            self.expenses_category_window_Frame.pack(fill="both", expand=True)
+        self.add_category_window.geometry("400x300")
 
-            ctk.CTkLabel(self.expenses_category_window_Frame, text="Aggiungi una categoria di spesa alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
+        self.expenses_category_window_Frame = ctk.CTkFrame(self.add_category_window)
+        self.expenses_category_window_Frame.pack(fill="both", expand=True)
 
-            self.add_category_entry = ctk.CTkEntry(self.expenses_category_window_Frame)
-            self.add_category_entry.pack(padx=10, pady=5, fill="x", expand=True)
+        ctk.CTkLabel(self.expenses_category_window_Frame, text="Aggiungi una categoria di spesa alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
 
-            ctk.CTkButton(self.expenses_category_window_Frame, text="Aggiungi settore", command=self.save_expenses_category).pack(padx=10, pady=(15, 10))
+        self.add_category_entry = ctk.CTkEntry(self.expenses_category_window_Frame)
+        self.add_category_entry.pack(padx=10, pady=5, fill="x", expand=True)
 
-        else: return
+        ctk.CTkButton(self.expenses_category_window_Frame, text="Aggiungi settore", command=self.save_expenses_category).pack(padx=10, pady=(15, 10))
+
+    def toggle_linked_invoice_selection(self):
+        return
 
     def save_expenses_category(self):
         new_category = self.add_category_entry.get()

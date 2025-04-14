@@ -2859,6 +2859,50 @@ class ExpenseController:
         self.account_controller = account_controller
         self.supplier_controller = supplier_controller
 
+    def save_payment(self, expense_data):
+        """
+        Gestisce il salvataggio di una spesa, con validazioni di primo livello.
+        :param expense_data: Dizionario contenente i dati della spesa
+        :return: Tuple (success, message), dove success è True/False
+        """
+
+        # Campi obbligatori (solo quelli modellati tramite entry)
+        self.required_fields = {DBExpensesColumns.NAME.value, DBExpensesColumns.TOT_AMOUNT.value}
+
+        # Validazione dei campi obbligatori
+        missing_fields = [field for field in self.required_fields if not payment_data.get(field)]
+        if missing_fields:
+            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+        # Validazione importi
+        tot_pagamento = payment_data.get(DBPaymentsColumns.PAYMENT_AMOUNT.value)
+        if not ValidationUtils.validate_amount(tot_pagamento):
+            return False, "L'importo del preventivo non è valido"
+
+        # prendo i dati necessari del conto
+        nome_conto = payment_data.get("NOME CONTO")
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto, True)
+        id_conto = conto[DBAccountsColumns.ID.value]
+
+        payment_data_prepared = {
+            DBPaymentsColumns.PAYMENT_NAME.value: payment_data.get(DBPaymentsColumns.PAYMENT_NAME.value),
+            DBPaymentsColumns.PAYMENT_AMOUNT.value: payment_data.get(DBPaymentsColumns.PAYMENT_AMOUNT.value),
+            DBPaymentsColumns.INVOICE_ID.value: payment_data.get(DBPaymentsColumns.INVOICE_ID.value),
+            DBPaymentsColumns.PAYMENT_DATE.value: payment_data.get(DBPaymentsColumns.PAYMENT_DATE.value),
+            DBPaymentsColumns.LINKED_RATA.value: payment_data.get(DBPaymentsColumns.LINKED_RATA.value),
+            DBPaymentsColumns.CONTO_ID.value: id_conto,
+        }
+
+        try:
+            self.db_model.add_payment(**payment_data_prepared)
+            self.update_payments_lists()
+            self.update_aggregate_data()
+            # for callback in self.on_adding_payment_callbacks:
+            #    callback(payment_data.get(DBPaymentsColumns.INVOICE_ID.value))
+            return True, "Produzione salvata con successo!"
+        except Exception as e:
+            return False, f"Errore durante il salvataggio: {str(e)}"
+
     def retrieve_expenses(self, current_year=True):
         """
         Recupera tutte le expenses, filtrandole per l'anno corrente se specificato.

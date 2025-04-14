@@ -139,6 +139,7 @@ class DBExpensesColumns(Enum):
     DATE = "DATA_PAGAMENTO"
     DEDUCIBILE = "DEDUCIBILE"
     ACCOUNT_ID = "ID_CONTO"
+    LINKED_INVOICE_ID = "ID_FATTURA_COLLEGATA"
     created_at = "created_at"
     updated_at = "updated_at"
 

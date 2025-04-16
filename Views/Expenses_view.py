@@ -339,11 +339,63 @@ class ExpensesView(ctk.CTk):
             print(message)
             ViewUtils.show_error_popup(self.add_expense_window, "ERRORE", message)
 
-    def filter_cards(self):
-        return
+    def filter_cards(self, event):
+        """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""
+        search_text = self.search_bar.get().lower()
+        search_type = self.search_bar_optionMenu.get()
+
+        # Mappatura: ogni chiave associa una tupla (indice, classe_attesa) del widget da cui prelevare il testo
+        filter_mapping = {
+            "NOME SPESA": (0, ctk.CTkButton),  # Bottone
+            "NOME FORNITORE": (1, ctk.CTkLabel),
+            "NOME UTENTE": (2, ctk.CTkLabel),
+            "CATEGORIA": (3, ctk.CTkLabel),
+            "CONTO": (4, ctk.CTkLabel)
+        }
+
+        mapping = filter_mapping.get(search_type)
+
+        # Prima rimuovo tutte le card dal container per avere un layout pulito
+        for card in self.expenses_card_list.values():
+            card.pack_forget()
+
+        # Se il tipo di ricerca non è riconosciuto, riposiziona tutte le card nell'ordine originale
+        if mapping is None:
+            for card in self.expenses_card_list.values():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
+            return
+
+        idx, expected_class = mapping
+
+        # Itera sulle card nell’ordine originale (grazie al dizionario ordinato)
+        for key, card in self.expenses_card_list.items():
+            children = card.winfo_children()  # Lista dei widget figli
+            widget_text = ""
+            if len(children) > idx and isinstance(children[idx], expected_class):
+                widget_text = children[idx].cget("text")
+            # Se il testo (in lowercase) contiene il testo di ricerca, riposiziona la card
+            if search_text in widget_text.lower():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
 
     def add_expense_card(self, expense_id, name, supplier_name, net_amount, amount, category, date, deducibile, user_name, account_name):
-        return
+        card = ctk.CTkFrame(self.cards_frame, fg_color="dimgray")
+        card.pack(pady=10, padx=8, fill="x", expand=True)  # Spaziatura tra le card
+
+        ctk.CTkButton(card, text=f"{name}", width=180,
+                      command=lambda: self.open_modify_expense(expense_id)).pack(
+            padx=(10), pady=10, fill="both", side="left")
+
+        # Dati da visualizzare nella card
+        data = [supplier_name, round(net_amount, 2), round(amount, 2), ViewUtils.split_string_by_length(category, 8),  ViewUtils.invert_data_string(date), deducibile,
+                user_name, account_name]
+        units = ["", "€", "€", "", "", "", "", ""]
+        i = 0
+        # Aggiunta dei dati alla card
+        for value in data:
+            label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=180)
+            label.pack(padx=(10), pady=5, fill="both", expand=True, side="left")
+
+        self.expenses_card_list[name] = card
 
     def populate_global_infos(self):
         numero_spese = self.expense_controller.count_expenses(True)
@@ -419,3 +471,6 @@ class ExpensesView(ctk.CTk):
     def clear_class_variable(self):
         self.expenses_widgets.clear()
         self.expenses_labels.clear()
+
+    def open_modify_expense(self, expense_id):
+        return

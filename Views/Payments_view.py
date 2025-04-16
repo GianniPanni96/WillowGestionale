@@ -288,11 +288,6 @@ class PaymentsView(ctk.CTk):
 
         self.payment_card_list[payment_name] = card
 
-        """child_list = self.payment_card_list[production_name].winfo_children()
-        child_list[1].configure(bg_color="red")
-        child_list[3].configure(bg_color="red")
-        child_list[5].configure(bg_color="red")"""
-
     def auto_compile_name_entry(self, selected_value):
         return
 

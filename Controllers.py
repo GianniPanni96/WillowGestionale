@@ -1339,13 +1339,57 @@ class InvoiceController:
         # Recupera le righe dal database per lo specifico client
         rows = self.db_model.fetch_invoice_with_payments(invoice_id)
 
-        # Combina le colonne dei client e delle invoices in un'unica lista.
-        # Assumiamo che la query abbia selezionato prima le colonne dei client,
-        # poi quelle delle invoices.
         all_columns = list(DBInvoicesColumns) + list(DBPaymentsColumns)
 
         # Converte ogni riga in un dizionario
         return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
+    def retrieve_invoice_with_expenses_map_list(self, invoice_id):
+        """
+        Recupera la specifica fattura unita alle rispettive spese di produzione e
+        li restituisce come lista di dizionari.
+
+        """
+        # Recupera le righe dal database per lo specifico client
+        rows = self.db_model.fetch_invoice_with_expenses(invoice_id)
+
+        all_columns = list(DBInvoicesColumns) + list(DBExpensesColumns)
+
+        # Converte ogni riga in un dizionario
+        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
+    def check_linked_tot_expenses(self, invoice_id):
+        """
+        Controlla il totale delle spese associate a una fattura e verifica
+        se copre l’importo dei rimborsi con una tolleranza di 5.
+        Ritorna una tupla (check, linked_expenses_tot) dove:
+          - check: True se esistono spese e linked_expenses_tot >= rimborsi
+                   oppure |linked_expenses_tot - rimborsi| < 5; altrimenti False
+          - linked_expenses_tot: somma degli importi delle spese associate
+        """
+        # Recupera tutte le spese collegate alla fattura
+        expenses = self.retrieve_invoice_with_expenses_map_list(invoice_id)
+        # Somma tutti gli importi
+        total = 0.0
+        for exp in expenses:
+            try:
+                total += float(exp[DBExpensesColumns.TOT_AMOUNT.value])
+            except (KeyError, ValueError, TypeError):
+                continue
+
+        # Se non ci sono spese, esci subito
+        if not expenses:
+            return False, total
+
+        # Ottieni l’importo dei rimborsi (prendo il primo record)
+        try:
+            rimborsi = float(expenses[0][DBInvoicesColumns.RIMBORSI.value])
+        except (KeyError, ValueError, TypeError):
+            rimborsi = 0.0
+
+        # Verifica copertura con tolleranza ±5
+        check = (total >= rimborsi) or (abs(total - rimborsi) < 5)
+        return check, total
 
     def count_invoices(self, current_year=True):
         """

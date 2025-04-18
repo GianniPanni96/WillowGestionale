@@ -566,6 +566,30 @@ class DatabaseModel:
             cursor.execute(query, (invoice_id,))
             return cursor.fetchall()
 
+    def fetch_invoice_with_expenses(self, invoice_id):
+        """
+        Recupera la specifca fattura unita alle rispettive spese di produzione.
+        Utilizza un LEFT JOIN.
+        Ritorna una lista di tuple, in cui le colonne della fattura compaiono per prime,
+        seguite dalle colonne delle spese (che possono essere NULL se non esistono).
+        """
+        # Costruzione dinamica delle colonne per expenses e invoices
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        expense_columns = [f"e.{col.value}" for col in DBExpensesColumns]
+        all_columns = invoice_columns + expense_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM invoices i
+        LEFT JOIN expenses e ON e.{DBExpensesColumns.LINKED_INVOICE_ID.value} = i.{DBInvoicesColumns.ID.value}
+        WHERE i.{DBInvoicesColumns.ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (invoice_id,))
+            return cursor.fetchall()
+
     def fetch_unpaid_invoices(self):
         """
         Recupera una lista di fatture a cui non è associato alcun pagamento.

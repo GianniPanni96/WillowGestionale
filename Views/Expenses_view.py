@@ -223,7 +223,8 @@ class ExpensesView(ctk.CTk):
                 #recupero le fatture
                 invoices = self.invoice_controller.retrieve_invoices_map_list()
                 widget = widget_class(self.expense_window_scrollableFrame,
-                                      values=["Fattura non ancora emessa"] + [invoice[DBInvoicesColumns.NUMERO_FATTURA.value] for invoice in invoices])
+                                      values=["Fattura non ancora emessa"] + [invoice[DBInvoicesColumns.NUMERO_FATTURA.value] for invoice in invoices],
+                                      command = lambda selected_value : self.linked_invoice_optionMenu_behaviour(selected_value))
 
                 widget.set("Fattura non ancora emessa")
 
@@ -246,6 +247,7 @@ class ExpensesView(ctk.CTk):
                 error_label.pack(pady=(0, 15))
                 self.error_labels[label_text] = error_label
 
+        self.linked_invoice_warning_label = ctk.CTkLabel(self.expense_window_scrollableFrame, text="")
 
         # Bottone per salvare
         self.save_button = ctk.CTkButton(
@@ -386,7 +388,7 @@ class ExpensesView(ctk.CTk):
             padx=(10), pady=10, fill="both", side="left")
 
         # Dati da visualizzare nella card
-        data = [supplier_name, round(net_amount, 2), round(amount, 2), ViewUtils.split_string_by_length(category, 8),  ViewUtils.invert_data_string(date), deducibile,
+        data = [supplier_name, round(net_amount, 2), round(amount, 2), ViewUtils.split_string_by_length(category, 15),  ViewUtils.invert_data_string(date), deducibile,
                 user_name, account_name]
         units = ["", "€", "€", "", "", "", "", ""]
         i = 0
@@ -444,9 +446,18 @@ class ExpensesView(ctk.CTk):
             self.save_button.pack_forget()
             self.expenses_widgets[self.nome_conto_string].pack_forget()
             self.expenses_labels[self.nome_conto_string].pack_forget()
+            self.expenses_widgets[self.nome_utente_string].pack_forget()
+            self.expenses_labels[self.nome_utente_string].pack_forget()
+            self.expenses_widgets[DBExpensesColumns.TOT_AMOUNT.value].pack_forget()
+            self.expenses_labels[DBExpensesColumns.TOT_AMOUNT.value].pack_forget()
 
             self.expenses_labels[self.nome_fattura_string].pack(pady=(35, 0))
             self.expenses_widgets[self.nome_fattura_string].pack(pady=5, padx=10, fill="x", expand=True)
+            self.linked_invoice_warning_label.pack(pady=(0, 15))
+            self.expenses_labels[DBExpensesColumns.TOT_AMOUNT.value].pack(pady=(35, 0))
+            self.expenses_widgets[DBExpensesColumns.TOT_AMOUNT.value].pack(pady=5, padx=10, fill="x", expand=True)
+            self.expenses_labels[self.nome_utente_string].pack(pady=(35, 0))
+            self.expenses_widgets[self.nome_utente_string].pack(pady=5, padx=10, fill="x", expand=True)
             self.expenses_labels[self.nome_conto_string].pack(pady=(35, 0))
             self.expenses_widgets[self.nome_conto_string].pack(pady=5, padx=10, fill="x", expand=True)
             self.save_button.pack(pady=(50, 15))
@@ -454,6 +465,33 @@ class ExpensesView(ctk.CTk):
         else:
             self.expenses_labels[self.nome_fattura_string].pack_forget()
             self.expenses_widgets[self.nome_fattura_string].pack_forget()
+            self.linked_invoice_warning_label.pack_forget()
+
+    def linked_invoice_optionMenu_behaviour(self, selected_value):
+        invoice = self.invoice_controller.retrieve_invoice_map_by_name(selected_value)
+        if invoice:
+            invoice_id = invoice[DBInvoicesColumns.ID.value]
+            rimborso = invoice[DBInvoicesColumns.RIMBORSI.value]
+
+            self.autofill_tot_amount(rimborso)
+            self.invoice_production_expense_amount_check(invoice_id)
+        else:
+            self.expenses_widgets[DBExpensesColumns.TOT_AMOUNT.value].delete(0, tk.END)
+            self.linked_invoice_warning_label.configure(text="")
+
+    def autofill_tot_amount(self, amount):
+        self.expenses_widgets[DBExpensesColumns.TOT_AMOUNT.value].delete(0, tk.END)
+        self.expenses_widgets[DBExpensesColumns.TOT_AMOUNT.value].insert(0, f"{amount:.2f}")
+
+    def invoice_production_expense_amount_check(self, invoice_id):
+        check, linked_expenses_tot = self.invoice_controller.check_linked_tot_expenses(invoice_id)
+        if check:
+            if linked_expenses_tot > 0:
+                self.linked_invoice_warning_label.configure(text="Per questa fattura risultano già emesse spese di produzione pari al totale dei rimborsi", text_color="#e39e27")
+            else:
+                self.linked_invoice_warning_label.configure(text="Questa fattura presenta totale rimborsi pari a 0€", text_color="#e39e27")
+        else:
+            self.linked_invoice_warning_label.configure(text="")
 
     def save_expenses_category(self):
         new_category = self.add_category_entry.get()

@@ -143,6 +143,8 @@ class InvoicesView(ctk.CTk):
             invoice_production_name = self.production_controller.retrieve_production_map_by_id(invoice_production_id)[DBProductionsColumns.NAME.value]
 
             self.add_invoice_card(invoice_id, invoice_name, invoice_client_name, invoice_user_name, invoice_production_name, invoice_creation_date, invoice_state, invoice_rate, invoice_tot_documento, invoice_tipologia)
+            self.toggle_specific_invoice_rate_color_2(invoice_id)
+            self.toggle_specific_invoice_status_color(invoice_id)
 
     def populate_global_infos(self):
         self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
@@ -385,8 +387,7 @@ class InvoicesView(ctk.CTk):
 
             i = i + 1
 
-        self.toggle_invoices_status_color()
-        self.toggle_invoices_rate_color()
+        #self.toggle_invoices_status_color()
 
         self.invoices_card_list[nome] = card
 
@@ -792,80 +793,6 @@ class InvoicesView(ctk.CTk):
                 label.configure(text_color=InvoicesView.InvoicesStatusColors.STORNATA.value)
             elif stato == InvoiceController.InvoiceRateizzSatus.PAGATA.value:
                 label.configure(text_color=InvoicesView.InvoicesStatusColors.GOOD.value)
-
-    def toggle_invoices_rate_color(self):
-        """
-        Funzione che assegna un colore ai labels relativi allo stato dei pagamenti delle rate
-
-        """
-        today = datetime.today().date()
-
-        for (key, frame) in self.invoice_card_rate_frames.items():
-            #cerco la fattura associata
-            for invoice in self.invoice_controller.current_year_invoices_list:
-                if invoice[DBInvoicesColumns.ID.value] == key:
-                    fattura = invoice
-                    break
-            invoice_id = fattura[DBInvoicesColumns.ID.value]
-
-            #cerco i pagamenti associati a questa fattura
-            pagamenti = []
-            for payment in self.payment_controller.CY_payment_list:
-                if payment[DBPaymentsColumns.INVOICE_ID.value] == invoice_id:
-                    pagamenti.append(payment)
-
-            pagamento_1 = None
-            pagamento_2 = None
-            pagamento_3 = None
-
-            for p in pagamenti:
-                if p and int(p[DBPaymentsColumns.LINKED_RATA.value]) == 1:
-                    pagamento_1 = p[DBPaymentsColumns.LINKED_RATA.value]
-                if p and int(p[DBPaymentsColumns.LINKED_RATA.value]) == 2:
-                    pagamento_2 = p[DBPaymentsColumns.LINKED_RATA.value]
-                if p and int(p[DBPaymentsColumns.LINKED_RATA.value]) == 3:
-                    pagamento_3 = p[DBPaymentsColumns.LINKED_RATA.value]
-
-            scadenza_1 = fattura[DBInvoicesColumns.DATA_SCADENZA_1.value]
-            scadenza_2 = fattura[DBInvoicesColumns.DATA_SCADENZA_2.value]
-            scadenza_3 = fattura[DBInvoicesColumns.DATA_SCADENZA_3.value]
-
-            labels = frame.winfo_children()
-
-            if pagamento_1 != None:
-                labels[0].configure(text_color=InvoicesView.InvoicesStatusColors.GOOD.value)
-            else:
-                if today > ControllerUtils.parse_date(scadenza_1):
-                    labels[0].configure(text_color=InvoicesView.InvoicesStatusColors.CRITICAL.value)
-                elif today == ControllerUtils.parse_date(scadenza_1):
-                    labels[0].configure(text_color=InvoicesView.InvoicesStatusColors.WARNING.value)
-                else:
-                    labels[0].configure(text_color=InvoicesView.InvoicesStatusColors.NORMAL.value)
-
-            if scadenza_2 != None and scadenza_3 != None:
-                    if pagamento_2 != None:
-                        labels[1].configure(text_color=InvoicesView.InvoicesStatusColors.GOOD.value)
-                    else:
-                        if today > ControllerUtils.parse_date(scadenza_2):
-                            labels[1].configure(text_color=InvoicesView.InvoicesStatusColors.CRITICAL.value)
-                        elif today == ControllerUtils.parse_date(scadenza_2):
-                            labels[1].configure(text_color=InvoicesView.InvoicesStatusColors.WARNING.value)
-                        else:
-                            labels[1].configure(text_color=InvoicesView.InvoicesStatusColors.NORMAL.value)
-
-                    if pagamento_3 != None:
-                        labels[2].configure(text_color=InvoicesView.InvoicesStatusColors.GOOD.value)
-                    else:
-                        if today > ControllerUtils.parse_date(scadenza_3):
-                            labels[2].configure(text_color=InvoicesView.InvoicesStatusColors.CRITICAL.value)
-                        elif today == ControllerUtils.parse_date(scadenza_3):
-                            labels[2].configure(text_color=InvoicesView.InvoicesStatusColors.WARNING.value)
-                        else:
-                            labels[2].configure(text_color=InvoicesView.InvoicesStatusColors.NORMAL.value)
-
-            else:
-                labels[1].configure(text_color=InvoicesView.InvoicesStatusColors.NOT_EXISTING.value)
-                labels[2].configure(text_color=InvoicesView.InvoicesStatusColors.NOT_EXISTING.value)
 
     # callback da registrare nel controller
     def toggle_specific_invoice_rate_color(self, invoice_id):

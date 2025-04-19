@@ -750,18 +750,8 @@ class ClientController:
         return tot/numero if numero > 0 else 0
 
     def calcola_totale_crediti_cliente(self, client_id):
-        unpaid_invoices = self.db_model.fetch_unpaid_invoices()
-        all_columns = list(DBInvoicesColumns) + list(DBPaymentsColumns)
-        unpaid_invoices_maps = [ValidationUtils._row_to_map(row, all_columns) for row in unpaid_invoices]
-        unpaid_invoices_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(unpaid_invoices_maps)
-
-        tot = 0.0
-        # ciclo sui pagamenti
-        for invoice in unpaid_invoices_maps:
-            if invoice[DBInvoicesColumns.ID_CLIENTE.value] == client_id:
-                tot = tot + float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
-
-        return tot
+        outstanding = self.db_model.fetch_outstanding_by_client(client_id)
+        return sum(outstanding.values())
 
     def calcola_pagam_orario_medio_cliente(self, client_id):
         invoices_with_prod = self.db_model.fetch_invoices_with_productions()

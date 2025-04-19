@@ -376,9 +376,39 @@ class DatabaseModel:
             cursor.execute(query, (client_id,))
             return cursor.fetchall()
 
+    def fetch_outstanding_by_client(self, client_id):
+        """
+        Ritorna un dizionario { invoice_id: remaining_due } per tutte le fatture
+        del cliente specificato. Il restante da pagare è calcolato come
+          netto_a_pagare - SUM(payment_amount)
+        (con SUM=0 se non ci sono pagamenti).
+        """
+        # Nomi di colonna presi dagli enum
+        inv_id_col = DBInvoicesColumns.ID.value
+        netto_col = DBInvoicesColumns.NETTO_A_PAGARE.value
+        pay_amt_col = DBPaymentsColumns.PAYMENT_AMOUNT.value
+        pay_fk_col = DBPaymentsColumns.INVOICE_ID.value
+        client_fk_col = DBInvoicesColumns.ID_CLIENTE.value
 
+        query = f"""
+        SELECT
+          i.{inv_id_col}   AS invoice_id,
+          i.{netto_col} - COALESCE(SUM(p.{pay_amt_col}), 0) AS remaining
+        FROM invoices i
+        LEFT JOIN payments p
+          ON p.{pay_fk_col} = i.{inv_id_col}
+        WHERE i.{client_fk_col} = ?
+        GROUP BY i.{inv_id_col}, i.{netto_col}
+        """
 
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (client_id,))
+            rows = cur.fetchall()
 
+        # Costruisci il dizionario
+        # Ogni row è (invoice_id, remaining)
+        return {row[0]: float(row[1]) for row in rows}
 
 
 

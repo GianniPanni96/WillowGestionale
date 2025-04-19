@@ -400,7 +400,6 @@ class PaymentsView(ctk.CTk):
             self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, f"{amount:.2f}")
 
     def control_linked_rata(self, selected_value):
-
         # prendo la fattura di riferimento del pagamento
         VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
         invoice_name_array = VF_invoice_name.split(" - ")
@@ -445,14 +444,6 @@ class PaymentsView(ctk.CTk):
             elif int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 3:
                 netto_rate_pagate["3"] = netto_rate_pagate["3"] + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
 
-        #setto i booleani relativi all'effettivo saldo delle rate
-        """if netto_rate_pagate["1"] > netto_rate_fattura["1"] or (netto_rate_fattura["1"] - netto_rate_pagate["1"]) < 5:
-            rate_saldate["1"] = True
-        if netto_rate_pagate["2"] > netto_rate_fattura["2"] or (netto_rate_fattura["2"] - netto_rate_pagate["2"]) < 5:
-            rate_saldate["2"] = True
-        if netto_rate_pagate["3"] > netto_rate_fattura["3"] or (netto_rate_fattura["3"] - netto_rate_pagate["3"]) < 5:
-            rate_saldate["3"] = True"""
-
         for i in ["1", "2", "3"]:
             tot_mancante = netto_rate_fattura[i] - netto_rate_pagate[i]
             if netto_rate_pagate[i] >= netto_rate_fattura[i] or (5 > tot_mancante > 0):
@@ -460,15 +451,24 @@ class PaymentsView(ctk.CTk):
 
         if rate_saldate[str(selected_value)]:
             self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(
-                text=f"La rata {selected_value} è già interamente saldata ({round(netto_rate_pagate[str(selected_value)], 2)})", text_color="#e39e27")
+                text=f"La rata {selected_value} è già interamente saldata ({round(netto_rate_pagate[str(selected_value)], 2)}€)", text_color="#e39e27")
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].delete(0, tk.END)
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, "0.00")
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].configure(border_color="#e39e27")
             return True
         else:
             tot_mancante = (netto_rate_fattura[str(selected_value)] - netto_rate_pagate[str(selected_value)])
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].configure(border_color="gray")
             if netto_rate_pagate[str(selected_value)] > 0 and tot_mancante >= 5:
                 self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(
                     text=f"Totale mancante da saldare della rata {selected_value}: {round(tot_mancante, 2)}€", text_color="#e39e27")
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].delete(0, tk.END)
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, round(tot_mancante, 2))
             else:
                 self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(text="", text_color="#e39e27")
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].configure(border_color="gray")
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].delete(0, tk.END)
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, round(tot_mancante, 2))
 
     def open_modify_payment(self, payment_id):
 

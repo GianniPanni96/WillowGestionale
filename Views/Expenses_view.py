@@ -40,8 +40,8 @@ class ExpensesView(ctk.CTk):
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
-        self.search_bar_option_menu_values = {"NOME SPESA": "NOME SPESA", "NOME FORNITORE" : "NOME FORNITORE", "NOME UTENTE": "NOME UTENTE",
-                                              "CATEGORIA": "CATEGORIA", "CONTO": "CONTO"}
+        self.search_bar_option_menu_values = {"NOME SPESA": "NOME SPESA", "NOME FORNITORE" : "NOME FORNITORE", "CATEGORIA": "CATEGORIA",
+                                              "NOME UTENTE": "NOME UTENTE", "CONTO": "CONTO"}
         self.search_bar_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.search_bar_option_menu_values.values()))
         self.search_bar_optionMenu.pack(padx=5, anchor="s", side="right")
@@ -350,9 +350,9 @@ class ExpensesView(ctk.CTk):
         filter_mapping = {
             "NOME SPESA": (0, ctk.CTkButton),  # Bottone
             "NOME FORNITORE": (1, ctk.CTkLabel),
-            "NOME UTENTE": (2, ctk.CTkLabel),
-            "CATEGORIA": (3, ctk.CTkLabel),
-            "CONTO": (4, ctk.CTkLabel)
+            "CATEGORIA": (4, ctk.CTkLabel),
+            "NOME UTENTE": (7, ctk.CTkLabel),
+            "CONTO": (8, ctk.CTkLabel)
         }
 
         mapping = filter_mapping.get(search_type)

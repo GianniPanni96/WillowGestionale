@@ -3115,8 +3115,51 @@ class ExpenseController:
 
 
 class SupplierController:
+
+    class Aggregate_data(Enum):
+        TOT_SPESE = "tot_spese"
+        NUM_SPESE = "num_spese"
+        MEDIA_SPESE = "media_spese"
+
     def __init__(self, db_model):
         self.db_model = db_model
+
+    def save_supplier(self, supplier_data):
+        """
+        Gestisce il salvataggio di un fornitore, con validazioni di primo livello.
+        :param supplier_data: Dizionario contenente i dati del supplier
+        :return: Tuple (success, message), dove success è True/False
+        """
+        # Campi obbligatori
+        required_fields = {DBSuppliersColumns.NAME.value}
+
+        # Validazione dei campi obbligatori
+        missing_fields = [field for field in required_fields if not supplier_data.get(field)]
+        if missing_fields:
+            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+        # Validazione Partita IVA
+        partita_iva = supplier_data.get(DBSuppliersColumns.PARTITA_IVA.value)
+        if partita_iva and not ValidationUtils.validate_partita_iva(partita_iva):
+            return False, "La partita IVA non è valida. Deve contenere esattamente 11 cifre."
+
+
+        # Preparazione dei dati per il salvataggio
+        supplier_data_filtered = {
+            column.value: supplier_data.get(column.value)
+            for column in DBSuppliersColumns
+            if column.value in supplier_data
+        }
+
+        # Rimuove i campi None
+        supplier_data_filtered = {key: value for key, value in supplier_data_filtered.items() if value is not None}
+
+        # Salvataggio nel DB
+        try:
+            self.db_model.add_supplier(**supplier_data_filtered)
+            return True, "Fornitore salvato con successo!"
+        except Exception as e:
+            return False, f"Errore durante il salvataggio del fornitore: {str(e)}"
 
     def retrieve_suppliers(self):
         """Recupera tutti i suppliers."""
@@ -3145,6 +3188,29 @@ class SupplierController:
         rows = self.db_model.fetch_suppliers()
         return [ValidationUtils._row_to_map(row, DBSuppliersColumns) for row in rows]
 
+    def retrieve_last_supplier_insert_map(self):
+        """
+        Recupera l'ultimo supplier inserito e lo restituisce come dizionario.
+        """
+        row = self.db_model.fetch_last_supplier_insert()
+        return ValidationUtils._row_to_map(row, DBSuppliersColumns)
+
+    def retrieve_supplier_with_expenses_map_list(self, supplier_id):
+        """ Recupera lo specifico supplier unito alle rispettive spese e
+           li restituisce come lista di dizionari.
+
+           Utilizza la funzione fetch_supplier_with_expenses per ottenere le righe,
+           quindi combina le colonne dei supplier e delle spese per convertire
+           ogni riga in un dizionario tramite _row_to_map.
+           """
+        # Recupera le righe dal database per lo specifico client
+        rows = self.db_model.fetch_supplier_with_expenses(supplier_id)
+
+        all_columns = list(DBSuppliersColumns) + list(DBExpensesColumns)
+
+        # Converte ogni riga in un dizionario
+        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
     def delete_supplier_by_id(self, supplier_id):
         """Elimina un supplier dato il suo ID."""
         table = "suppliers"
@@ -3155,5 +3221,34 @@ class SupplierController:
         except Exception as e:
             return False, f"Errore durante l'eliminazione del supplier: {str(e)}"
 
+    def construct_supplier_map_aggregate_data(self, supplier_id):
+        supplier_aggregate_data = {
+            SupplierController.Aggregate_data.TOT_SPESE.value: self.calcola_tot_spese_supplier(supplier_id),
+            SupplierController.Aggregate_data.NUM_SPESE.value: self.calcola_numero_spese_supplier(supplier_id),
+            SupplierController.Aggregate_data.MEDIA_SPESE.value: self.calcola_media_spese_supplier(supplier_id)
+        }
 
+        return supplier_aggregate_data
+
+    def calcola_tot_spese_supplier(self, supplier_id):
+        supplier_with_expenses = self.retrieve_supplier_with_expenses_map_list(supplier_id)
+        tot = 0.0
+        for row in supplier_with_expenses: #in questo modo sto in realtà scorrendo le fatture
+            tot = tot + float(row[DBExpensesColumns.TOT_AMOUNT.value]) if row[DBExpensesColumns.TOT_AMOUNT.value] is not None else tot
+
+        return tot
+
+    def calcola_numero_spese_supplier(self, supplier_id):
+        supplier_with_expenses = self.retrieve_supplier_with_expenses_map_list(supplier_id)
+        tot = 0
+        for row in supplier_with_expenses:
+            tot = tot + 1
+
+        return tot
+
+    def calcola_media_spese_supplier(self, supplier_id):
+        numero = self.calcola_numero_spese_supplier(supplier_id)
+        tot = self.calcola_tot_spese_supplier(supplier_id)
+
+        return tot/numero if numero > 0 else 0
 

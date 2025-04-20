@@ -899,6 +899,44 @@ class DatabaseModel:
             cursor.execute(query, (supplier_name,))
             return cursor.fetchone()
 
+    def fetch_supplier_with_expenses(self, supplier_id):
+        """
+        Recupera lo specifico supplier unito alle rispettive spese.
+        Utilizza un LEFT JOIN per includere tutti i client anche se non hanno spese.
+        Ritorna una lista di tuple, in cui le colonne dei supplier compaiono per prime,
+        seguite dalle colonne delle spese (che possono essere NULL se non esistono).
+        """
+        # Costruzione dinamica delle colonne per clients e invoices
+        supplier_columns = [f"s.{col.value}" for col in DBSuppliersColumns]
+        expense_columns = [f"e.{col.value}" for col in DBExpensesColumns]
+        all_columns = supplier_columns + expense_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM suppliers s
+        LEFT JOIN expenses e ON e.{DBExpensesColumns.SUPPLIER_ID.value} = s.{DBSuppliersColumns.ID.value}
+        WHERE s.{DBSuppliersColumns.ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (supplier_id,))
+            return cursor.fetchall()
+
+    def fetch_last_supplier_insert(self):
+        """
+        Recupera l'ultimo supplier inserito nel database, ordinando in base alla colonna CREATED_AT.
+        :return: Un dizionario contenente i dati dell'ultimo supplier oppure None se non viene trovata.
+        """
+        columns = [column.value for column in DBSuppliersColumns]
+        query = f"SELECT {', '.join(columns)} FROM suppliers ORDER BY {DBSuppliersColumns.CREATED_AT.value} DESC LIMIT 1"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+
 
 
 

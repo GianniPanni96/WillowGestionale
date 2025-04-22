@@ -18,9 +18,9 @@
         }
     },
     "fiscal_settings": {
-                "iva": {
+        "iva": {
             "aliquota_iva_ordinaria": {
-                "value": "0.21",
+                "value": "0.22",
                 "description": "Aliquota IVA standard"
             },
             "aliquota_iva_ridotta_1": {
@@ -177,5 +177,114 @@
         "PRODUCTION_EXPENSE": "Spesa di produzione",
         "USER_SALARY": "Salario",
         "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
-    }
+    },
+	"recurring_expenses": {
+	    "office_rental": {
+			"description": "AFFITTO STUDIO",
+			"amount": {
+			  "value": "1600",
+			  "description": "IMPORTO_LORDO"
+			},
+			"supplier": {
+			  "value": "",
+			  "description": "FORNITORE"
+			},
+			"deductible": {
+			  "value": "Sì",
+			  "description": "DEDUCIBILE"
+			},
+			"category": {
+			  "value": "Affitto Ufficio",
+			  "description": "CATEGORIA"
+			},
+			"iva": {
+			  "value": "0.22",
+			  "description": "ALIQUOTA IVA"
+			},
+			"account": {
+			  "value": "",
+			  "description": "CONTO"
+			},
+			"frequency": {
+			  "value": "mensile",
+			  "description": "CADENZA"
+			},
+			"status": {
+			  "value": "Attiva",
+			  "description": "STATO"
+			}
+	    },
+		
+		"internet_bill": {
+			"description": "INTERNET",
+			"amount": {
+			  "value": "28",
+			  "description": "IMPORTO_LORDO"
+			},
+			"supplier": {
+			  "value": "",
+			  "description": "FORNITORE"
+			},
+			"deductible": {
+			  "value": "Sì",
+			  "description": "DEDUCIBILE"
+			},
+			"category": {
+			  "value": "Abbonamento Internet",
+			  "description": "CATEGORIA"
+			},
+			"iva": {
+			  "value": "0.22",
+			  "description": "ALIQUOTA IVA"
+			},
+			"account": {
+			  "value": "",
+			  "description": "CONTO"
+			},
+			"frequency": {
+			  "value": "mensile",
+			  "description": "CADENZA"
+			},
+			"status": {
+			  "value": "Attiva",
+			  "description": "STATO"
+			}
+	    },
+		
+		"art_list": {
+			"description": "ARTLIST",
+			"amount": {
+			  "value": "250",
+			  "description": "IMPORTO_LORDO"
+			},
+			"supplier": {
+			  "value": "",
+			  "description": "FORNITORE"
+			},
+			"deductible": {
+			  "value": "Sì",
+			  "description": "DEDUCIBILE"
+			},
+			"category": {
+			  "value": "Abbonamento",
+			  "description": "CATEGORIA"
+			},
+			"iva": {
+			  "value": "0.22",
+			  "description": "ALIQUOTA IVA"
+			},
+			"account": {
+			  "value": "",
+			  "description": "CONTO"
+			},
+			"frequency": {
+			  "value": "annuale",
+			  "description": "CADENZA"
+			},
+			"status": {
+			  "value": "Attiva",
+			  "description": "STATO"
+			}
+	    }
+	}
 }

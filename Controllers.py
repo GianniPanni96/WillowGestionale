@@ -2886,6 +2886,19 @@ class ExpenseController:
         NUMERO_SPESE = "#SPESE"
         TOT_SPESE = "TOT. SPESE"
 
+    class RecurringExpensesFrequencies(Enum):
+        SETTIMANALE = "SETTIMANALE"
+        MENSILE = "MENSILE"
+        TRIMESTRALE = "TRIMESTRALE"
+        QUADRIMESTRALE = "QUADRIMESTRALE"
+        SEMESTRALE = "SEMESTRALE"
+        ANNUALE = "ANNUALE"
+
+    class RecurringExpensesStatus(Enum):
+        ATTIVA = "Attiva"
+        SOSPESA = "Sospesa"
+
+
 
     def __init__(self, db_model, user_controller, account_controller, invoice_controller, supplier_controller):
         self.db_model = db_model

@@ -10,7 +10,7 @@ from Views.View_utils import ViewUtils
 
 from Controllers import ValidationUtils, UserController, AccountController, ClientController, InvoiceController, \
     PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController
-from Model import DatabaseModel, db_path, DBUsersColumns
+from Model import DatabaseModel, db_path, DBUsersColumns, DBSuppliersColumns, DBAccountsColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 from Views.Clients_view import ClientsView
@@ -22,7 +22,7 @@ from Views.Suppliers_view import SuppliersView
 
 
 class MainWindow(ctk.CTk):
-    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi):
+    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings):
         super().__init__()
 
         # inizializzatori oggetti controllers e model
@@ -37,7 +37,9 @@ class MainWindow(ctk.CTk):
         self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller)
         self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
 
+        self.fiscal_settings = fiscal_settings
         self.catalogo_elenchi = catalogo_elenchi
+        self.recurring_expenses_settings = recurring_expenses_settings
 
         # ConfigManager per la gestione della configurazione
         self.config_manager = config_manager
@@ -66,7 +68,7 @@ class MainWindow(ctk.CTk):
         #self.geometry(f"{self.winfo_screenwidth()}x{self.winfo_screenheight()}+0+0")
         #self.attributes("-fullscreen", True)
         # Massimizza dopo che tutto è stato inizializzato
-        self.after(2000, lambda: self.state("zoomed"))
+        self.after(3000, lambda: self.state("zoomed"))
 
         # Toolbar simulata con pulsanti
         self.toolbar_frame = ctk.CTkFrame(self)
@@ -79,6 +81,10 @@ class MainWindow(ctk.CTk):
         # Menu "File" personalizzato
         self.fiscal_settings_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Dati Fiscali", command=self.open_fiscal_settings_window)
         self.fiscal_settings_menu_button.pack(side="left", padx=15, pady=15)
+
+        # Menu "File" personalizzato
+        self.recurring_expenses_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Spese Ricorrenti", command=self.open_recurring_expenses_window)
+        self.recurring_expenses_menu_button.pack(side="left", padx=15, pady=15)
 
         # Creazione di un popup menu simulato
         self.file_menu_frame = None
@@ -1100,7 +1106,7 @@ class MainWindow(ctk.CTk):
             # Bottone per cancellare l'ultimo scaglione
             if idx_scaglione == len(aliquote_keys):
                 self.delete_scaglione_button = ctk.CTkButton(title_frame, text="Cancella",
-                                            command=lambda key_scaglione=key_scaglione: self.delete_scaglione_irpef(key_scaglione))
+                                            command=lambda key=key_scaglione: self.delete_scaglione_irpef(key))
 
                 self.delete_scaglione_button.pack(side=ctk.RIGHT, anchor="e", padx=10, pady=5)
 
@@ -1359,3 +1365,176 @@ class MainWindow(ctk.CTk):
         except Exception as e:
             ViewUtils.show_error_popup(self.fiscal_settings_window, "ERRORE",
                                        f"Impossibile aggiornare i dati fiscali: {str(e)}")
+
+
+    #funzioni per la gestione delle spese ricorrenti
+    def open_recurring_expenses_window(self):
+        """Apre una finestra per gestire le spese ricorrenti."""
+        # Crea la finestra di dialogo
+        self.recurring_expenses_window = ctk.CTkToplevel(self)
+        self.recurring_expenses_window.title("Gestione Spese Ricorrenti")
+        self.recurring_expenses_window.geometry("1000x800+0+0")
+        self.recurring_expenses_window.lift()
+        self.recurring_expenses_window.grab_set()
+
+        # Configurazione font
+        label_font = ctk.CTkFont("Arial", size=16)  # Font più grande per i labels
+        entry_font = ctk.CTkFont("Arial", size=14)
+        button_font = ctk.CTkFont("Arial", size=16, weight="bold")
+
+        # Dizionario per memorizzare i widget
+        self.expense_widgets = {}
+
+        # Titolo principale
+        title = ctk.CTkLabel(
+            self.recurring_expenses_window,
+            text="Gestione Spese Ricorrenti",
+            font=button_font
+        )
+        title.pack(pady=20)
+
+        # Crea le tabs per ogni spesa
+        tabview = ctk.CTkTabview(self.recurring_expenses_window)
+        tabview.pack(padx=20, pady=20, fill="both", expand=True)
+
+        # Aggiungi una tab per ogni spesa esistente
+        for expense_key, expense in self.recurring_expenses_settings.items():
+            tab_name = expense.description
+            tabview.add(tab_name)
+            tab = tabview.tab(tab_name)
+            tabview._segmented_button.configure(font=button_font)
+
+            # Crea il container scrollabile
+            container = ctk.CTkScrollableFrame(tab)
+            container.pack(fill="both", expand=True, padx=20, pady=10)
+
+            # Memorizza i widget in un dizionario annidato
+            self.expense_widgets[expense_key] = {}
+
+            suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
+
+            aliquote_list = [
+                self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
+                self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
+                self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
+                self.fiscal_settings.aliquota_iva.aliquota_iva_minima
+            ]
+
+            accounts = self.account_controller.retrieve_accounts_map_list()
+
+            # Campi modificabili
+            fields = [
+                ('amount', 'Importo:', 'entry', float),
+                ('supplier', 'Fornitore:', 'dropdown', [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]),
+                ('category', 'Categoria:', 'dropdown', [value for key, value in self.catalogo_elenchi["expenses_category"]]),
+                ('iva', 'IVA:', 'dropdown', [str(aliquota) for aliquota in aliquote_list]),
+                ('account', 'Conto:', 'dropdown', [account[DBAccountsColumns.NAME.value] for account in accounts]),
+                ('frequency', 'Frequenza:', 'dropdown', [freq.value for freq in ExpenseController.RecurringExpensesFrequencies])
+            ]
+
+            for field, label_text, field_type, options in fields:
+                frame = ctk.CTkFrame(container)
+                frame.pack(fill="x", pady=15)
+
+                lbl = ctk.CTkLabel(frame, text=label_text, width=120, font=label_font)
+                lbl.pack(side="left", padx=5)
+
+                if field_type == 'entry':
+                    widget = ctk.CTkEntry(frame, font=entry_font)
+                    widget.insert(0, str(getattr(expense, field)))
+                elif field_type == 'dropdown':
+                    widget = ctk.CTkOptionMenu(
+                        master=frame,
+                        values=options,
+                        font=entry_font,
+                        dropdown_font=entry_font
+                    )
+                    current_value = str(getattr(expense, field))
+                    widget.set(current_value if current_value in options else options[0])
+
+                widget.pack(fill="x", expand=True, padx=5)
+                self.expense_widgets[expense_key][field] = widget
+
+            # Campi booleani con radio button
+            for field, label_text in [('deductible', 'Deduzione:')]:
+                frame = ctk.CTkFrame(container)
+                frame.pack(fill="x", pady=15)
+
+                lbl = ctk.CTkLabel(frame, text=label_text, width=120, font=label_font)
+                lbl.pack(side="left", padx=5)
+
+                radio_frame = ctk.CTkFrame(frame)
+                radio_frame.pack(side="left", fill="x", expand=True)
+
+                var = ctk.StringVar(value="Sì" if getattr(expense,field) else "No")
+
+                for option in ["Sì", "No"]:
+                    rb = ctk.CTkRadioButton(
+                        radio_frame,
+                        text=option,
+                        variable=var,
+                        value=option,
+                        font=entry_font
+                    )
+                    rb.pack(side="left", padx=10)
+
+                self.expense_widgets[expense_key][field] = var
+
+
+            for field, label_text in [('status', 'Stato:')]:
+                frame = ctk.CTkFrame(container)
+                frame.pack(fill="x", pady=15)
+
+                lbl = ctk.CTkLabel(frame, text=label_text, width=120, font=label_font)
+                lbl.pack(side="left", padx=5)
+
+                radio_frame = ctk.CTkFrame(frame)
+                radio_frame.pack(side="left", fill="x", expand=True)
+
+                var = ctk.StringVar(value=ExpenseController.RecurringExpensesStatus.ATTIVA.value if getattr(expense, field) else ExpenseController.RecurringExpensesStatus.SOSPESA.value)
+
+                for option in [stati.value for stati in ExpenseController.RecurringExpensesStatus]:
+                    rb = ctk.CTkRadioButton(
+                        radio_frame,
+                        text=option,
+                        variable=var,
+                        value=option,
+                        font=entry_font
+                    )
+                    rb.pack(side="left", padx=10)
+
+                self.expense_widgets[expense_key][field] = var
+
+        # Bottone di salvataggio unico
+        save_button = ctk.CTkButton(
+            self.recurring_expenses_window,
+            text="Salva Tutte le Modifiche",
+            command=self.save_recurring_expenses,
+            font=button_font
+        )
+        save_button.pack(pady=20)
+
+
+    def save_recurring_expenses(self):
+        """Salva tutte le modifiche alle spese ricorrenti."""
+        updated_expenses = {}
+
+        for expense_key, widgets in self.expense_widgets.items():
+            expense_data = {
+                "description": {"value": self.recurring_expenses_settings[expense_key].description},
+                "amount": {"value": widgets["amount"].get()},
+                "supplier": {"value": widgets["supplier"].get()},
+                "deductible": {"value": widgets["deductible"].get()},
+                "category": {"value": widgets["category"].get()},
+                "iva": {"value": widgets["iva"].get()},
+                "account": {"value": widgets["account"].get()},
+                "frequency": {"value": widgets["frequency"].get()},
+                "status": {"value": widgets["status"].get()}
+            }
+            updated_expenses[expense_key] = expense_data
+
+        try:
+            self.config_manager.update_config_section("recurring_expenses", updated_expenses)
+            ViewUtils.show_confirm_popup(self.recurring_expenses_window, title="Successo", message="Modifiche salvate correttamente!")
+        except Exception as e:
+            ViewUtils.show_error_popup(self.recurring_expenses_window, title="Errore", message=f"Salvataggio fallito: {str(e)}")

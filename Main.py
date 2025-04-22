@@ -4,6 +4,7 @@ from Views.View import MainWindow
 import os, re, json
 from typing import List
 from dataclasses import dataclass, field
+from Controllers import ExpenseController
 
 
 
@@ -645,7 +646,6 @@ class AliquotaIva:
             desc_iva_minima         = data.get("aliquota_iva_minima", {}).get("description", "")
         )
 
-
 @dataclass
 class FiscalSettings:
     aliquota_iva: AliquotaIva
@@ -667,6 +667,48 @@ class FiscalSettings:
             )
         )
 
+@dataclass
+class RecurringExpense:
+    description: str
+    amount: float
+    descr_amount : ""
+    supplier: str
+    descr_supplier : ""
+    deductible: bool
+    descr_deductible : ""
+    category: str
+    descr_category : ""
+    iva: float
+    descr_iva : ""
+    account: str
+    descr_account : ""
+    frequency: str
+    descr_frequency : ""
+    status: bool
+    descr_status : ""
+
+    @staticmethod
+    def from_dict(data: dict):
+        return RecurringExpense(
+            description=data.get("description", ""),
+            amount=float(data.get("amount", {}).get("value", 0)),
+            descr_amount=data.get("amount", {}).get("description", ""),
+            supplier=data.get("supplier", {}).get("value", ""),
+            descr_supplier=data.get("supplier", {}).get("description", ""),
+            deductible=data.get("deductible", {}).get("value", "No") == "Sì",
+            descr_deductible=data.get("deductible", {}).get("description", ""),
+            category=data.get("category", {}).get("value", ""),
+            descr_category=data.get("category", {}).get("description", ""),
+            iva=float(data.get("iva", {}).get("value", 0)),
+            descr_iva=data.get("iva", {}).get("description", ""),
+            account=data.get("account", {}).get("value", ""),
+            descr_account=data.get("account", {}).get("description", ""),
+            frequency=data.get("frequency", {}).get("value", ""),
+            descr_frequency=data.get("frequency", {}).get("description", ""),
+            status=data.get("status", {}).get("value", ExpenseController.RecurringExpensesStatus.SOSPESA.value) == ExpenseController.RecurringExpensesStatus.ATTIVA.value,
+            descr_status=data.get("status", {}).get("description", ""),
+        )
+
 
 # Avvia l'applicazione
 if __name__ == "__main__":
@@ -686,6 +728,12 @@ if __name__ == "__main__":
     fiscal_config = config.get("fiscal_settings", {})
     # Crea un'istanza di FiscalSettings
     fiscal_settings = FiscalSettings.from_dict(fiscal_config)
+
+    recurring_expenses_config = config.get("recurring_expenses", {})
+    recurring_expenses_settings = {
+        expense_key: RecurringExpense.from_dict(expense_data)
+        for expense_key, expense_data in recurring_expenses_config.items()
+    }
 
     #creo il dizionario degli elenchi
     # Trasforma le sezioni in liste di tuple (chiave, valore)
@@ -730,7 +778,7 @@ if __name__ == "__main__":
         backup_thread.start()
 
         # Avvia il frontend
-        app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi)
+        app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings)
         app.mainloop()
 
     except KeyboardInterrupt:

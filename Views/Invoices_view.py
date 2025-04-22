@@ -920,7 +920,7 @@ class InvoicesView(ctk.CTk):
                 if linked_rata in pagamenti_per_rata:
                     pagamenti_per_rata[linked_rata] += pagamento_amount
             except Exception as e:
-                print(f"Errore nel processare un pagamento: {e}")
+                #print(f"Errore nel processare un pagamento: {e}")
                 continue
 
         # Recupera i label contenuti nel frame delle rate per questa fattura

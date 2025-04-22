@@ -90,10 +90,18 @@ class ProductionsView(ctk.CTk):
                               ]
 
         for i, header in enumerate(self.table_headers):
+            # crea il container
             column = ctk.CTkFrame(self.productions_table_frame)
-            label = ctk.CTkLabel(column, text=f"{header}", font=("Arial", 14), width=188)
-            column.pack(padx=(0, 5), pady=5, fill="both", expand=True, side="left")
-            label.pack(padx=5, pady=15, anchor="n")
+            column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
+
+            # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
+            self.productions_table_frame.grid_columnconfigure(i, weight=1, uniform="col")
+
+            # la label riempie il suo container
+            label = ctk.CTkLabel(column,
+                                 text=header,
+                                 font=("Arial", 14))
+            label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
         self.productions_cards_frame = ctk.CTkScrollableFrame(self.tab)
@@ -294,47 +302,60 @@ class ProductionsView(ctk.CTk):
 
     def add_production_card(self, production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario):
         """
-          Aggiunge una singola card con i dati forniti alla scrollable frame.
-
-          :param production_id: ID della produzione associato dal database
-          :param production_name: Nome della produzione
-          :param client_name: nome del cliente
-          :param tipologia_produzione:
-          :param tipologia_output:
-          :param produzione_stato: da ProductionController.Sato
-          :param data_di_consegna: Data prevista per la chiusura della produzione
-          :param totale_preventivo:
-          :param durata_produzione: Numero di ore spese per consegnare il prodotto finito
-          :param prezzo_orario: totale_preventivo/durata_produzione
-
-          """
+        Aggiunge una singola card con i dati forniti alla scrollable frame,
+        disponendo i widget in colonne di ugual larghezza.
+        """
         # Creazione della card
         card = ctk.CTkFrame(self.productions_cards_frame, fg_color="dimgray")
-        card.pack(pady=10, padx=8, fill="x", expand=True)  # Spaziatura tra le card
+        card.pack(pady=10, padx=8, fill="x", expand=True)
 
-        ctk.CTkButton(card, text=f"{production_name}", width=180, command=lambda: self.open_modify_production(production_id)).pack(
-            padx=(10, 0), pady=10, fill="both", side="left")
-
-        # Dati da visualizzare nella card
-        data = [client_name, tipologia_produzione, tipologia_output, produzione_stato, ViewUtils.invert_data_string(data_di_consegna), totale_preventivo, durata_produzione, round(prezzo_orario, 2)]
+        # Dati da visualizzare: escludiamo production_name perché sarà un Button in colonna 0
+        data = [
+            client_name,
+            tipologia_produzione,
+            tipologia_output,
+            produzione_stato,
+            ViewUtils.invert_data_string(data_di_consegna),
+            round(totale_preventivo, 2),
+            durata_produzione,
+            round(prezzo_orario, 2),
+        ]
         units = ["", "", "", "", "", "€", "h", "€/h"]
-        i = 0
-        # Aggiunta dei dati alla card
-        for value in data:
-            if i == 3:
-                label = ctk.CTkOptionMenu(card, values=[item.value for item in ProductionController.Stato], width=170, command=lambda selected_value: self.auto_save_production_status(production_id, selected_value))
-                label.pack(padx=15, pady=5, fill="x", expand=True, side="left")
-                label.set(produzione_stato)
+
+        n_cols = 1 + len(data)  # 1 bottone + 8 campi
+
+        # Configuro il grid della card: 1 riga, n_cols colonne uniformi
+        for c in range(n_cols):
+            card.grid_columnconfigure(c, weight=1, uniform="prodcol")
+        card.grid_rowconfigure(0, weight=1)
+
+        # 0) Bottone con il nome della produzione
+        btn = ctk.CTkButton(
+            card,
+            text=production_name,
+            command=lambda pid=production_id: self.open_modify_production(pid)
+        )
+        btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
+
+        # 1..8) Le altre colonne
+        for idx, val in enumerate(data, start=1):
+            if idx == 4:
+                # Colonna "stato": OptionMenu con selezione automatica al cambiamento
+                opt = ctk.CTkOptionMenu(
+                    card,
+                    values=[s.value for s in ProductionController.Stato],
+                    command=lambda sel, pid=production_id: self.auto_save_production_status(pid, sel)
+                )
+                opt.set(produzione_stato)
+                opt.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
+                # salvo l'OptionMenu per poterne cambiare aspetto in seguito
+                self.production_card_labels_status[production_id] = opt
             else:
-                label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=180)
-                label.pack(padx=15, pady=5, fill="both", expand=True, side="left")
+                text = f"{val} {units[idx - 1]}"
+                lbl = ctk.CTkLabel(card, text=text, font=("Arial", 14))
+                lbl.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
 
-            # salvo i labels dello stato per poter eseguire dei configure per cambiare il colore
-            if i == 4:
-                self.production_card_labels_status[production_id] = label
-
-            i = i + 1
-
+        # Mantieni il riferimento alla card
         self.production_card_list[production_name] = card
 
     def save_production_data(self):

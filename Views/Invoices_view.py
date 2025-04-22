@@ -110,10 +110,18 @@ class InvoicesView(ctk.CTk):
                    "RATE", ViewUtils.split_string_by_length("NETTO A PAGARE", 6), "TIPOLOGIA"]
 
         for i, header in enumerate(self.headers):
+            # crea il container
             column = ctk.CTkFrame(self.invoices_table_frame)
-            label = ctk.CTkLabel(column, text=f"{header}", font=("Arial", 14), width=190)
-            column.pack(padx=(0,5), pady=5, fill="y", expand=True, side="left")
-            label.pack(padx=5, pady=15, anchor="n")
+            column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
+
+            # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
+            self.invoices_table_frame.grid_columnconfigure(i, weight=1, uniform="col")
+
+            # la label riempie il suo container
+            label = ctk.CTkLabel(column,
+                                 text=header,
+                                 font=("Arial", 14))
+            label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
         self.invoices_cards_frame = ctk.CTkScrollableFrame(self.tab)
@@ -339,56 +347,60 @@ class InvoicesView(ctk.CTk):
 
     def add_invoice_card(self, invoice_id, nome, cliente, utente, produzione, data_creazione, stato, rate, tot_documento, tipologia):
         """
-          Aggiunge una singola card con i dati forniti alla scrollable frame.
-
-          :param invoice_id: ID della fattura associato dal database
-          :param nome: Nome della fattura
-          :param cliente: nome del cliente
-          :param utente: nome dell'utente
-          :param produzione: nome della produzione associata
-          :param data_creazione: data di emissione della fattura
-          :param stato: da InvoiceController.InvoiceSatus o InvoiceController.InvoiceRateizzazSatus
-          :param rate: da InvoiceController.Rateizzazione
-          :param tot_documento: Importo totale sul documento
-          :param tipologia: da InvoiceController.Tipologia
-          """
+        Aggiunge una singola card con i dati forniti alla scrollable frame,
+        disponendo i widget in N colonne di uguale larghezza.
+        """
         # Creazione della card
         card = ctk.CTkFrame(self.invoices_cards_frame, fg_color="dimgray")
-        card.pack(pady=10, padx=14, fill="x", expand=True)  # Spaziatura tra le card
+        card.pack(pady=10, padx=5, fill="x", expand=True)
 
-        ctk.CTkButton(card, text=f"{nome}", width=180, command=lambda: self.open_invoice_detail(invoice_id)).pack(
-            padx=(10, 0), pady=10, fill="both", side="left")
+        # Dati da visualizzare: prima il bottone 'nome', poi le 8 colonne
+        data = [nome, cliente, utente,
+                produzione,
+                ViewUtils.invert_data_string(data_creazione),
+                stato, rate, round(tot_documento, 2), tipologia]
+        # Il primo elemento (nome) sarà un Button, gli altri Label o un piccolo Frame
+        n_cols = len(data)
 
+        # Configuro il grid della card: una sola riga, n_cols colonne
+        for col in range(n_cols):
+            card.grid_columnconfigure(col, weight=1, uniform="cardcol")
+        card.grid_rowconfigure(0, weight=1)
 
-        # Dati da visualizzare nella card
-        data = [cliente, utente, produzione, ViewUtils.invert_data_string(data_creazione), stato, rate, round(tot_documento, 2), tipologia]
-        units = ["", "", "", "", "", "", "€", ""]
-        i = 0
-        # Aggiunta dei dati alla card
-        for value in data:
-            if i != 5: #per tutti tranne che per le rate
-                label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=180)
-                label.pack(padx=(25, 0), pady=5, fill="both", expand=True, side="left")
+        # 0) Bottone "nome"
+        btn = ctk.CTkButton(card,
+                            text=nome,
+                            command=lambda: self.open_invoice_detail(invoice_id))
+        btn.grid(row=0, column=0, sticky="nsew", padx=(10,5), pady=10)
+
+        # 1) CLIENTE, 2) UTENTE, 3) PRODUZIONE, 4) DATA, 5) STATO, 6) RATE, 7) NETTO, 8) TIPOLOGIA
+        # parte da colonna 1
+        for idx, val in enumerate(data[1:], start=1):
+            if idx != 6:
+                # normale label
+                text = f"{val}" if idx != 7 else f"{val}€"  # idx 7 = tot_documento -> aggiungo €
+                lbl = ctk.CTkLabel(card, text=text, font=("Arial", 14))
+                lbl.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
+                # Salvo il label di stato
+                if idx == 5:
+                    self.invoice_card_labels_status[invoice_id] = lbl
+
             else:
-                rate_frame = ctk.CTkFrame(card, width=170)
-                rate_frame.pack(padx=15, pady=5, fill="both", expand=True, side="left")
-                label_1 = ctk.CTkLabel(rate_frame, text="1", font=("Arial", 14), width=50)
-                label_1.pack(padx=0, pady=5, fill="both", expand=True, side="left")
-                label_2 = ctk.CTkLabel(rate_frame, text="2", font=("Arial", 14), width=50)
-                label_2.pack(padx=0, pady=5, fill="both", expand=True, side="left")
-                label_3 = ctk.CTkLabel(rate_frame, text="3", font=("Arial", 14), width=50)
-                label_3.pack(padx=0, pady=5, fill="both", expand=True, side="left")
+                # colonna "rate": crea un frame interno con 3 label che si ridimensionano uguali
+                rate_frame = ctk.CTkFrame(card)
+                rate_frame.grid(row=0, column=idx, sticky="nsew", padx=(10, 5), pady=10, ipadx=10)
+                # configura 3 colonne uniformi dentro rate_frame
+                for c in range(3):
+                    rate_frame.grid_columnconfigure(c, weight=1, uniform="ratecol")
+                rate_frame.grid_rowconfigure(0, weight=1)
 
-            #salvo i labels dello stato per poter eseguire dei configure per cambiare il colore
-            if i == 4:
-                self.invoice_card_labels_status[invoice_id] = label
-            elif i == 5:
+                for c, txt in enumerate(["1", "2", "3"]):
+                    rlbl = ctk.CTkLabel(rate_frame, text=txt, font=("Arial", 14))
+                    rlbl.grid(row=0, column=c, sticky="nsew", padx=2)
+
                 self.invoice_card_rate_frames[invoice_id] = rate_frame
 
-            i = i + 1
-
-        #self.toggle_invoices_status_color()
-
+        # Inserisci nella mappa per il filtraggio
         self.invoices_card_list[nome] = card
 
     def filter_cards(self, event):

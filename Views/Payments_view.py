@@ -75,10 +75,18 @@ class PaymentsView(ctk.CTk):
         self.table_headers = ["NOME", "CLIENTE", "PRODUZIONE", "TOTALE", "DATA", "RATA", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
+            # crea il container
             column = ctk.CTkFrame(self.payments_table_frame)
-            label = ctk.CTkLabel(column, text=f"{header}", font=("Arial", 14), width=250)
-            column.pack(padx=(0, 5), pady=5, fill="y", expand=True, side="left")
-            label.pack(padx=5, pady=15, anchor="n")
+            column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
+
+            # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
+            self.payments_table_frame.grid_columnconfigure(i, weight=1, uniform="col")
+
+            # la label riempie il suo container
+            label = ctk.CTkLabel(column,
+                                 text=header,
+                                 font=("Arial", 14))
+            label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
         self.payments_cards_frame = ctk.CTkScrollableFrame(self.tab)
@@ -273,19 +281,31 @@ class PaymentsView(ctk.CTk):
         card = ctk.CTkFrame(self.payments_cards_frame, fg_color="dimgray")
         card.pack(pady=10, padx=8, fill="x", expand=True)  # Spaziatura tra le card
 
-        ctk.CTkButton(card, text=f"{payment_name}", width=245,
-                      command=lambda: self.open_modify_payment(payment_id)).pack(
-            padx=(10), pady=10, fill="both", side="left")
-
         # Dati da visualizzare nella card
-        data = [client_name, production_name, round(amount, 2), ViewUtils.invert_data_string(payment_date), linked_rata, nome_conto]
-        units = ["", "", "€", "", "", ""]
-        i = 0
-        # Aggiunta dei dati alla card
-        for value in data:
-            label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=245)
-            label.pack(padx=(10), pady=5, fill="both", expand=True, side="left")
+        data = [payment_name, client_name, production_name, round(amount, 2), ViewUtils.invert_data_string(payment_date), linked_rata, nome_conto]
+        units = ["", "", "", "€", "", "", ""]
+        n_cols = len(data)  # 8 colonne totali
 
+        # Configura il grid della card: 1 riga, n_cols colonne uguali
+        for c in range(n_cols):
+            card.grid_columnconfigure(c, weight=1, uniform="clientcol")
+        card.grid_rowconfigure(0, weight=1)
+
+        # 0) Bottone "nome"
+        btn = ctk.CTkButton(
+            card,
+            text=payment_name,
+            command=lambda pid=payment_id: self.open_modify_payment(pid)
+        )
+        btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
+
+        # 1..7) Le altre colonne
+        for idx, val in enumerate(data[1:], start=1):
+            text = f"{val} {units[idx]}"
+            lbl = ctk.CTkLabel(card, text=text, font=("Arial", 14))
+            lbl.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
+
+        # Salva la card per eventuale successivo accesso
         self.payment_card_list[payment_name] = card
 
     def auto_compile_name_entry(self, selected_value):

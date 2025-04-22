@@ -71,16 +71,24 @@ class ExpensesView(ctk.CTk):
             # salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.payments_table_frame = ctk.CTkFrame(self.tab)
-        self.payments_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
+        self.expenses_table_frame = ctk.CTkFrame(self.tab)
+        self.expenses_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "FORNITORE", "NETTO", "LORDO", "CATEGORIA", "DATA", "DEDUCIBILE", "UTENTE\nASSOCIATO", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
-            column = ctk.CTkFrame(self.payments_table_frame)
-            label = ctk.CTkLabel(column, text=f"{header}", font=("Arial", 14), width=190)
-            column.pack(padx=(0, 5), pady=5, fill="y", expand=True, side="left")
-            label.pack(padx=5, pady=15, anchor="n")
+            # crea il container
+            column = ctk.CTkFrame(self.expenses_table_frame)
+            column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
+
+            # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
+            self.expenses_table_frame.grid_columnconfigure(i, weight=1, uniform="col")
+
+            # la label riempie il suo container
+            label = ctk.CTkLabel(column,
+                                 text=header,
+                                 font=("Arial", 14))
+            label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
         self.cards_frame = ctk.CTkScrollableFrame(self.tab)
@@ -383,20 +391,32 @@ class ExpensesView(ctk.CTk):
         card = ctk.CTkFrame(self.cards_frame, fg_color="dimgray")
         card.pack(pady=10, padx=8, fill="x", expand=True)  # Spaziatura tra le card
 
-        ctk.CTkButton(card, text=f"{name}", width=180,
-                      command=lambda: self.open_modify_expense(expense_id)).pack(
-            padx=(10), pady=10, fill="both", side="left")
-
         # Dati da visualizzare nella card
-        data = [supplier_name, round(net_amount, 2), round(amount, 2), ViewUtils.split_string_by_length(category, 15),  ViewUtils.invert_data_string(date), deducibile,
+        data = [name, supplier_name, round(net_amount, 2), round(amount, 2), ViewUtils.split_string_by_length(category, 15),  ViewUtils.invert_data_string(date), deducibile,
                 user_name, account_name]
-        units = ["", "€", "€", "", "", "", "", ""]
-        i = 0
-        # Aggiunta dei dati alla card
-        for value in data:
-            label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=180)
-            label.pack(padx=(10), pady=5, fill="both", expand=True, side="left")
+        units = ["", "", "€", "€", "", "", "", "", ""]
+        n_cols = len(data)  # 8 colonne totali
 
+        # Configura il grid della card: 1 riga, n_cols colonne uguali
+        for c in range(n_cols):
+            card.grid_columnconfigure(c, weight=1, uniform="clientcol")
+        card.grid_rowconfigure(0, weight=1)
+
+        # 0) Bottone "nome"
+        btn = ctk.CTkButton(
+            card,
+            text=name,
+            command=lambda eid=expense_id: self.open_modify_expense(eid)
+        )
+        btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
+
+        # 1..7) Le altre colonne
+        for idx, val in enumerate(data[1:], start=1):
+            text = f"{val} {units[idx]}"
+            lbl = ctk.CTkLabel(card, text=text, font=("Arial", 14))
+            lbl.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
+
+        # Salva la card per eventuale successivo accesso
         self.expenses_card_list[name] = card
 
     def populate_global_infos(self):

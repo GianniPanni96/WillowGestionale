@@ -40,16 +40,24 @@ class SuppliersView(ctk.CTk):
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
 
-        self.clients_table_frame = ctk.CTkFrame(self.tab)
-        self.clients_table_frame.pack(pady=(20, 0), padx=(10,15), fill="x", anchor="n")
+        self.suppliers_table_frame = ctk.CTkFrame(self.tab)
+        self.suppliers_table_frame.pack(pady=(20, 0), padx=(10,15), fill="x", anchor="n")
 
         self.headers = ["NOME", "PARTITA IVA", "TOT. SPESE", "# SPESE", "SPESA MEDIA", "NOTE", "CONTATTO"]
 
         for i, header in enumerate(self.headers):
-            column = ctk.CTkFrame(self.clients_table_frame)
-            label = ctk.CTkLabel(column, text=f"{header}", font=("Arial", 14), width=248)
-            column.pack(padx=(0,5), pady=5, fill="y", expand=True, side="left")
-            label.pack(padx=5, pady=15, anchor="n")
+            # crea il container
+            column = ctk.CTkFrame(self.suppliers_table_frame)
+            column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
+
+            # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
+            self.suppliers_table_frame.grid_columnconfigure(i, weight=1, uniform="col")
+
+            # la label riempie il suo container
+            label = ctk.CTkLabel(column,
+                                 text=header,
+                                 font=("Arial", 14))
+            label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
         self.suppliers_cards_frame = ctk.CTkScrollableFrame(self.tab)
@@ -162,18 +170,31 @@ class SuppliersView(ctk.CTk):
         card = ctk.CTkFrame(self.suppliers_cards_frame, fg_color="dimgray")
         card.pack(pady=10, padx=10, fill="x", expand=True)  # Spaziatura tra le card
 
-        ctk.CTkButton(card, text=f"{supplier_name}", width=238, command=lambda: self.open_supplier_detail(supplier_id)).pack(
-            padx=(10, 0), pady=10, fill="both", side="left")
-
         # Dati da visualizzare nella card
-        data = [partita_iva, f"{tot_spese:.2f}", num_spese, f"{spesa_media:.2f}", note, contatto]
-        units = ["", "€", "", "€", "", ""]
-        i = 0
-        # Aggiunta dei dati alla card
-        for value in data:
-            label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=238)
-            label.pack(padx=0, pady=5, fill="both", expand=True, side="left")
-            i = i + 1
+        data = [supplier_name, partita_iva, f"{tot_spese:.2f}", num_spese, f"{spesa_media:.2f}", note, contatto]
+        units = ["","", "€", "", "€", "", ""]
+        n_cols = len(data)  # 8 colonne totali
+
+        # Configura il grid della card: 1 riga, n_cols colonne uguali
+        for c in range(n_cols):
+            card.grid_columnconfigure(c, weight=1, uniform="clientcol")
+        card.grid_rowconfigure(0, weight=1)
+
+        # 0) Bottone "nome"
+        btn = ctk.CTkButton(
+            card,
+            text=supplier_name,
+            command=lambda sid=supplier_id: self.open_supplier_detail(sid)
+        )
+        btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
+
+        # 1..7) Le altre colonne
+        for idx, val in enumerate(data[1:], start=1):
+            text = f"{val} {units[idx]}"
+            lbl = ctk.CTkLabel(card, text=text, font=("Arial", 14))
+            lbl.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
+
+        # Salva la card per eventuale successivo accesso
         self.suppliers_card_list[supplier_name] = card
 
     def save_supplier_data(self):

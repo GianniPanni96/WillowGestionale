@@ -9,7 +9,7 @@ from Views.View_utils import ViewUtils
 
 
 from Controllers import ValidationUtils, UserController, AccountController, ClientController, InvoiceController, \
-    PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController
+    PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils
 from Model import DatabaseModel, db_path, DBUsersColumns, DBSuppliersColumns, DBAccountsColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
@@ -1380,31 +1380,32 @@ class MainWindow(ctk.CTk):
         self.recurring_expenses_window.grab_set()
 
         # Configurazione font
-        label_font = ctk.CTkFont("Arial", size=16)  # Font più grande per i labels
-        entry_font = ctk.CTkFont("Arial", size=14)
-        button_font = ctk.CTkFont("Arial", size=16, weight="bold")
+        self.label_font = ctk.CTkFont("Arial", size=16)  # Font più grande per i labels
+        self.entry_font = ctk.CTkFont("Arial", size=14)
+        self.button_font = ctk.CTkFont("Arial", size=16, weight="bold")
 
         # Dizionario per memorizzare i widget
         self.expense_widgets = {}
 
-        # Titolo principale
-        title = ctk.CTkLabel(
+        # Bottone di salvataggio unico
+        add_expense_button = ctk.CTkButton(
             self.recurring_expenses_window,
-            text="Gestione Spese Ricorrenti",
-            font=button_font
+            text="Aggiungi una spesa ricorrente",
+            command=self.add_recurring_expenses,
+            font=self.button_font
         )
-        title.pack(pady=20)
+        add_expense_button.pack(pady=20)
 
         # Crea le tabs per ogni spesa
-        tabview = ctk.CTkTabview(self.recurring_expenses_window)
-        tabview.pack(padx=20, pady=20, fill="both", expand=True)
+        self.expenses_tabview = ctk.CTkTabview(self.recurring_expenses_window)
+        self.expenses_tabview.pack(padx=20, pady=20, fill="both", expand=True)
 
         # Aggiungi una tab per ogni spesa esistente
         for expense_key, expense in self.recurring_expenses_settings.items():
             tab_name = expense.description
-            tabview.add(tab_name)
-            tab = tabview.tab(tab_name)
-            tabview._segmented_button.configure(font=button_font)
+            self.expenses_tabview.add(tab_name)
+            tab = self.expenses_tabview.tab(tab_name)
+            self.expenses_tabview._segmented_button.configure(font=self.button_font)
 
             # Crea il container scrollabile
             container = ctk.CTkScrollableFrame(tab)
@@ -1438,21 +1439,34 @@ class MainWindow(ctk.CTk):
                 frame = ctk.CTkFrame(container)
                 frame.pack(fill="x", pady=15)
 
-                lbl = ctk.CTkLabel(frame, text=label_text, width=120, font=label_font)
+                lbl = ctk.CTkLabel(frame, text=label_text, width=120, font=self.label_font)
                 lbl.pack(side="left", padx=5)
 
                 if field_type == 'entry':
-                    widget = ctk.CTkEntry(frame, font=entry_font)
+                    widget = ctk.CTkEntry(frame, font=self.entry_font)
                     widget.insert(0, str(getattr(expense, field)))
                 elif field_type == 'dropdown':
-                    widget = ctk.CTkOptionMenu(
-                        master=frame,
-                        values=options,
-                        font=entry_font,
-                        dropdown_font=entry_font
-                    )
-                    current_value = str(getattr(expense, field))
-                    widget.set(current_value if current_value in options else options[0])
+                    # per la categoria, aggiungo l'opzione ADD e il command
+                    if field == 'category':
+                        widget = ctk.CTkOptionMenu(
+                            master=frame,
+                            values=options,
+                            font=self.entry_font,
+                            dropdown_font=self.entry_font,
+                            command=lambda sel, ek=expense_key: self.open_add_expense_category(ek, sel)
+                        )
+                        # imposto valore corrente
+                        current = getattr(expense, field)
+                        widget.set(current if current in options else options[0])
+                    else:
+                        widget = ctk.CTkOptionMenu(
+                            master=frame,
+                            values=options,
+                            font=self.entry_font,
+                            dropdown_font=self.entry_font
+                        )
+                        current = getattr(expense, field)
+                        widget.set(current if current in options else options[0])
 
                 widget.pack(fill="x", expand=True, padx=5)
                 self.expense_widgets[expense_key][field] = widget
@@ -1462,7 +1476,7 @@ class MainWindow(ctk.CTk):
                 frame = ctk.CTkFrame(container)
                 frame.pack(fill="x", pady=15)
 
-                lbl = ctk.CTkLabel(frame, text=label_text, width=120, font=label_font)
+                lbl = ctk.CTkLabel(frame, text=label_text, width=120, font=self.label_font)
                 lbl.pack(side="left", padx=5)
 
                 radio_frame = ctk.CTkFrame(frame)
@@ -1476,7 +1490,7 @@ class MainWindow(ctk.CTk):
                         text=option,
                         variable=var,
                         value=option,
-                        font=entry_font
+                        font=self.entry_font
                     )
                     rb.pack(side="left", padx=10)
 
@@ -1487,7 +1501,7 @@ class MainWindow(ctk.CTk):
                 frame = ctk.CTkFrame(container)
                 frame.pack(fill="x", pady=15)
 
-                lbl = ctk.CTkLabel(frame, text=label_text, width=120, font=label_font)
+                lbl = ctk.CTkLabel(frame, text=label_text, width=120, font=self.label_font)
                 lbl.pack(side="left", padx=5)
 
                 radio_frame = ctk.CTkFrame(frame)
@@ -1501,7 +1515,7 @@ class MainWindow(ctk.CTk):
                         text=option,
                         variable=var,
                         value=option,
-                        font=entry_font
+                        font=self.entry_font
                     )
                     rb.pack(side="left", padx=10)
 
@@ -1512,31 +1526,191 @@ class MainWindow(ctk.CTk):
             self.recurring_expenses_window,
             text="Salva Tutte le Modifiche",
             command=self.save_recurring_expenses,
-            font=button_font
+            font=self.button_font
         )
         save_button.pack(pady=20)
 
-
     def save_recurring_expenses(self):
-        """Salva tutte le modifiche alle spese ricorrenti."""
-        updated_expenses = {}
+        """Salva tutte le modifiche, comprese le nuove spese ricorrenti."""
+        new_data = {}
 
         for expense_key, widgets in self.expense_widgets.items():
-            expense_data = {
-                "description": {"value": self.recurring_expenses_settings[expense_key].description},
-                "amount": {"value": widgets["amount"].get()},
-                "supplier": {"value": widgets["supplier"].get()},
-                "deductible": {"value": widgets["deductible"].get()},
-                "category": {"value": widgets["category"].get()},
-                "iva": {"value": widgets["iva"].get()},
-                "account": {"value": widgets["account"].get()},
-                "frequency": {"value": widgets["frequency"].get()},
-                "status": {"value": widgets["status"].get()}
-            }
-            updated_expenses[expense_key] = expense_data
+            # Se è la tab “Nuova Spesa”, creo un nuovo key
+            if expense_key == "Nuova Spesa":
+                raw_name = widgets["name"].get().strip()
+                if not raw_name:
+                    continue  # nulla da salvare se non c'è nome
+
+                # description scalare in uppercase
+                description = raw_name.upper()
+
+                # chiave normalizzata per il JSON
+                new_key = raw_name.lower().replace(" ", "_")
+
+                # campi basati sui widget della nuova tab
+                fields = {
+                    "description": description,
+                    "amount": widgets["amount"].get(),
+                    "supplier": widgets["supplier"].get(),
+                    "deductible": widgets["deductible"].get(),
+                    "category": widgets["category"].get(),
+                    "iva": widgets["iva"].get(),
+                    "account": widgets["account"].get(),
+                    "frequency": widgets["frequency"].get(),
+                    "status": widgets["status"].get(),
+                }
+                new_data[new_key] = fields
+
+            else:
+                # Spesa già esistente: mantengo la chiave e la description
+                desc = self.recurring_expenses_settings[expense_key].description
+                fields = {
+                    "description": desc,
+                    "amount": widgets["amount"].get(),
+                    "supplier": widgets["supplier"].get(),
+                    "deductible": widgets["deductible"].get(),
+                    "category": widgets["category"].get(),
+                    "iva": widgets["iva"].get(),
+                    "account": widgets["account"].get(),
+                    "frequency": widgets["frequency"].get(),
+                    "status": widgets["status"].get(),
+                }
+                new_data[expense_key] = fields
 
         try:
-            self.config_manager.update_config_section("recurring_expenses", updated_expenses)
-            ViewUtils.show_confirm_popup(self.recurring_expenses_window, title="Successo", message="Modifiche salvate correttamente!")
+            # usa la funzione ad hoc che gestisce description scalar e value dict
+            self.config_manager.update_recurring_expenses(new_data)
+            ViewUtils.show_confirm_popup(
+                self.recurring_expenses_window,
+                title="Successo",
+                message="Modifiche salvate correttamente!"
+            )
         except Exception as e:
-            ViewUtils.show_error_popup(self.recurring_expenses_window, title="Errore", message=f"Salvataggio fallito: {str(e)}")
+            ViewUtils.show_error_popup(
+                self.recurring_expenses_window,
+                title="Errore",
+                message=f"Salvataggio fallito: {str(e)}"
+            )
+
+    def open_add_expense_category(self, expense_key, selected_value):
+        sector_dict = dict(self.catalogo_elenchi["expenses_category"])
+        if selected_value == sector_dict.get("ADD_CATEGORY"):
+            self.current_expense_for_category = expense_key
+            self.add_category_window = ctk.CTkToplevel(self)
+            self.add_category_window.title("Aggiungi una nuova categoria di spesa")
+
+            # Assicurati che la finestra rimanga sopra
+            self.add_category_window.lift()  # Porta la finestra sopra quella principale
+            self.add_category_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+
+            self.add_category_window.geometry("400x300")
+
+            self.expense_category_window_Frame = ctk.CTkFrame(self.add_category_window)
+            self.expense_category_window_Frame.pack(fill="both", expand=True)
+
+            ctk.CTkLabel(self.expense_category_window_Frame, text="Aggiungi una caategoria di spesa alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
+
+            self.add_category_entry = ctk.CTkEntry(self.expense_category_window_Frame)
+            self.add_category_entry.pack(padx=10, pady=5, fill="x", expand=True)
+
+            ctk.CTkButton(self.expense_category_window_Frame, text="Aggiungi una categoria", command=self.save_expense_category).pack(padx=10, pady=(15, 10))
+
+        else: return
+
+    def save_expense_category(self):
+        new_category = self.add_category_entry.get()
+        new_category_key = ControllerUtils.normalize_string_for_key(new_category)
+        try:
+            self.config_manager.update_list_field("expenses_category", new_category_key, new_category, "update")
+        except Exception as e:
+            ViewUtils.show_error_popup(self.add_category_window, "Errore", f"Impossibile aggiungere il nuovo settore: {str(e)}")
+            return
+
+        widget = self.expense_widgets[self.current_expense_for_category]["category"]
+        widget.configure(values=widget._values + [new_category])  # aggiorno la lista delle opzioni
+        widget.set(new_category)
+        self.add_category_window.destroy()
+
+    def add_recurring_expenses(self):
+        tab_name = "Nuova Spesa"
+        self.expenses_tabview.add(tab_name)
+        tab = self.expenses_tabview.tab(tab_name)
+
+        # Container scrollabile
+        container = ctk.CTkScrollableFrame(tab)
+        container.pack(fill="both", expand=True, padx=20, pady=10)
+
+        # Creiamo un expense_key unico per questa nuova spesa
+        expense_key = tab_name
+        self.expense_widgets[expense_key] = {}
+
+        # Prepara i valori per dropdown
+        suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
+        suppliers_opts = [s[DBSuppliersColumns.NAME.value] for s in suppliers_map_list]
+
+        aliquote_list = [
+            self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_minima
+        ]
+        iva_opts = [str(a) for a in aliquote_list]
+
+        accounts = self.account_controller.retrieve_accounts_map_list()
+        account_opts = [a[DBAccountsColumns.NAME.value] for a in accounts]
+
+        category_opts = [v for _, v in self.catalogo_elenchi["expenses_category"]]
+        freq_opts = [f.value for f in ExpenseController.RecurringExpensesFrequencies]
+
+        # Definizione dei campi, con type e options
+        fields = [
+            ('name', 'Nome Spesa:', 'entry', None),
+            ('amount', 'Importo:', 'entry', None),
+            ('supplier', 'Fornitore:', 'dropdown', suppliers_opts),
+            ('category', 'Categoria:', 'dropdown', category_opts),
+            ('iva', 'IVA:', 'dropdown', iva_opts),
+            ('account', 'Conto:', 'dropdown', account_opts),
+            ('frequency', 'Frequenza:', 'dropdown', freq_opts),
+            ('deductible', 'Deducibile:', 'radio', ["Sì", "No"]),
+            ('status', 'Stato:', 'radio', [st.value for st in ExpenseController.RecurringExpensesStatus]),
+        ]
+
+        for field, label_text, field_type, options in fields:
+            frame = ctk.CTkFrame(container)
+            frame.pack(fill="x", pady=10)
+
+            lbl = ctk.CTkLabel(frame, text=label_text, width=140, font=self.label_font)
+            lbl.pack(side="left", padx=5)
+
+            # Entry
+            if field_type == 'entry':
+                widget = ctk.CTkEntry(frame, font=self.entry_font)
+                # vuoto di default
+            # Dropdown
+            elif field_type == 'dropdown':
+                widget = ctk.CTkOptionMenu(
+                    master=frame,
+                    values=options,
+                    font=self.entry_font,
+                    dropdown_font=self.entry_font
+                )
+                widget.set(options[0] if options else "")
+            # Radio
+            else:  # 'radio'
+                var = ctk.StringVar(value=options[0] if options else "")
+                radio_frame = ctk.CTkFrame(frame)
+                radio_frame.pack(side="left", fill="x", expand=True)
+                for opt in options:
+                    rb = ctk.CTkRadioButton(
+                        radio_frame, text=opt,
+                        variable=var, value=opt,
+                        font=self.entry_font
+                    )
+                    rb.pack(side="left", padx=10)
+                widget = var
+
+            # Pack widget (entry or dropdown)
+            if field_type in ('entry', 'dropdown'):
+                widget.pack(fill="x", expand=True, padx=5)
+
+            self.expense_widgets[expense_key][field] = widget

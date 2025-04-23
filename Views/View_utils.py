@@ -38,7 +38,6 @@ class ViewUtils(ctk.CTk):
             entry_widget.configure(border_color="red")  # Sfondo rosso per errore
             error_label.configure(text_color="#e8e5dc", text=error_message)  # Mostra il messaggio di errore
 
-
     @staticmethod
     def show_error_popup(parent, title="Errore", message="Si è verificato un errore"):
         """

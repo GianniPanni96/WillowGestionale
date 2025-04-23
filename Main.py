@@ -528,6 +528,42 @@ class ConfigManager:
         # Salva la configurazione aggiornata
         self.save_config(config)
 
+    def update_recurring_expenses(self, new_recurring_data: dict):
+        """
+        Aggiorna la sezione "recurring_expenses":
+          - se 'description' è in fields, lo salva come scalar
+          - per gli altri campi, aggiorna/crea dict {"value":…, "description": ""}
+        new_recurring_data deve essere:
+        {
+          "office_rental": {
+             "description": "Affitto mensile",
+             "amount": "1700",
+             "supplier": "XYZ SRL",
+             …
+          },
+          …
+        }
+        """
+        cfg = self.load_config()
+        rec = cfg.setdefault("recurring_expenses", {})
+
+        for expense_key, fields in new_recurring_data.items():
+            node = rec.setdefault(expense_key, {})
+
+            # Se c'è una descrizione scalar, la salvo prima
+            if "description" in fields:
+                node["description"] = fields.pop("description")
+
+            # Ora gestisco tutti gli altri campi come prima
+            for field_name, new_val in fields.items():
+                existing = node.get(field_name)
+                if isinstance(existing, dict):
+                    existing["value"] = new_val
+                else:
+                    node[field_name] = {"value": new_val, "description": ""}
+
+        self.save_config(cfg)
+
 
 @dataclass
 class PartitaIVAForfettaria:

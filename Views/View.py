@@ -24,6 +24,11 @@ from Views.Suppliers_view import SuppliersView
 class MainWindow(ctk.CTk):
     def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings):
         super().__init__()
+        self._after_ids = set()
+
+        # Override di after per tracciare gli ID
+        self._orig_after = self.after
+        self.after = self._track_after
 
         # inizializzatori oggetti controllers e model
         self.db_model = DatabaseModel(db_path)  # Istanzia il modello
@@ -123,6 +128,24 @@ class MainWindow(ctk.CTk):
         self.expense_tab.create_expenses_tab()
         self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller, self.config_manager, catalogo_elenchi, self.tabview.tab("Fornitori"))
         self.supplier_tab.create_suppliers_tab()
+
+    def _track_after(self, ms, callback=None, *args):
+        after_id = self._orig_after(ms, callback, *args)
+        self._after_ids.add(after_id)
+        return after_id
+
+    def _cancel_all_after(self):
+        for aid in self._after_ids:
+            try:
+                self.after_cancel(aid)
+            except Exception:
+                pass
+        self._after_ids.clear()
+
+    def close(self):
+        # annullo i timer interni
+        self._cancel_all_after()
+        self.destroy()
 
     def user_tab(self):
         """Crea la UI per la gestione degli utenti"""

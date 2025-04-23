@@ -5,7 +5,7 @@
             "description": "Percorso dove verranno salvati i backup del database gestionale."
         },
         "interval_minutes": {
-            "value": 15,
+            "value": 1,
             "description": "Intervallo in minuti tra l'esecuzione dei backup."
         },
         "max_backups": {
@@ -182,11 +182,11 @@
         "office_rental": {
             "description": "AFFITTO STUDIO",
             "amount": {
-                "value": "1600",
+                "value": "1600.0",
                 "description": "IMPORTO_LORDO"
             },
             "supplier": {
-                "value": "",
+                "value": "MAURIZIO",
                 "description": "FORNITORE"
             },
             "deductible": {
@@ -202,11 +202,11 @@
                 "description": "ALIQUOTA IVA"
             },
             "account": {
-                "value": "",
+                "value": "WeBank",
                 "description": "CONTO"
             },
             "frequency": {
-                "value": "mensile",
+                "value": "MENSILE",
                 "description": "CADENZA"
             },
             "status": {
@@ -217,11 +217,11 @@
         "internet_bill": {
             "description": "INTERNET",
             "amount": {
-                "value": "28",
+                "value": "28.0",
                 "description": "IMPORTO_LORDO"
             },
             "supplier": {
-                "value": "",
+                "value": "Tiscali",
                 "description": "FORNITORE"
             },
             "deductible": {
@@ -237,11 +237,11 @@
                 "description": "ALIQUOTA IVA"
             },
             "account": {
-                "value": "",
+                "value": "WeBank",
                 "description": "CONTO"
             },
             "frequency": {
-                "value": "mensile",
+                "value": "SETTIMANALE",
                 "description": "CADENZA"
             },
             "status": {
@@ -252,11 +252,11 @@
         "art_list": {
             "description": "ARTLIST",
             "amount": {
-                "value": "250",
+                "value": "250.0",
                 "description": "IMPORTO_LORDO"
             },
             "supplier": {
-                "value": "",
+                "value": "Tiscali",
                 "description": "FORNITORE"
             },
             "deductible": {
@@ -272,11 +272,11 @@
                 "description": "ALIQUOTA IVA"
             },
             "account": {
-                "value": "",
+                "value": "WeBank",
                 "description": "CONTO"
             },
             "frequency": {
-                "value": "annuale",
+                "value": "SETTIMANALE",
                 "description": "CADENZA"
             },
             "status": {

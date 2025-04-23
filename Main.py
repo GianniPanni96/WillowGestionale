@@ -748,6 +748,20 @@ class RecurringExpense:
 
 # Avvia l'applicazione
 if __name__ == "__main__":
+
+    # Nome della variabile d'ambiente
+    PATH_ENV_VAR = "GESTIONALE_DB_PATH"
+
+    # Ottieni il percorso del database dalla variabile d'ambiente
+    path = os.environ.get(PATH_ENV_VAR)
+
+    if not path:
+        raise EnvironmentError(f"La variabile d'ambiente {PATH_ENV_VAR} non è stata configurata.")
+
+    db_path = os.path.join(path, "gestionale.db")
+    backup_path = os.path.join(path, "backups")
+
+
     # Inizializza il gestore delle configurazioni
     config_manager = ConfigManager()
     config = config_manager.load_config()  # Carica la configurazione
@@ -757,7 +771,7 @@ if __name__ == "__main__":
     backup_settings = config.get("backup_settings", {})
     interval_minutes = backup_settings.get("interval_minutes", {}).get("value", 15)
     max_backups = backup_settings.get("max_backups", {}).get("value", 35)
-    backup_base_path = backup_settings.get("backup_base_path", {}).get("value")
+    #backup_base_path = backup_settings.get("backup_base_path", {}).get("value")
     delta_days = backup_settings.get("delta_days", {}).get("value", 7)
 
     # Estrai le impostazioni fiscali dalla configurazione
@@ -802,12 +816,12 @@ if __name__ == "__main__":
     scheduler = BackupScheduler(
         interval_minutes=interval_minutes,
         max_backups=max_backups,
-        backup_base_path=backup_base_path,
+        backup_base_path=backup_path,
         delta_days=delta_days
     )
 
     try:
-        print("Avvio dell'applicazione e scheduler dei backup...")
+        print("Avvio dell'applicazione e scheduler dei backup...\n")
 
         # Avvia il backup in un thread separato
         backup_thread = threading.Thread(target=scheduler.start, daemon=True)

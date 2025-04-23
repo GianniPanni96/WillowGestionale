@@ -31,7 +31,7 @@ class InvoicesView(ctk.CTk):
         self.fiscal_settings = fiscal_settings
 
         #aggiorno lo stato delle fatture in funzione della data di oggi e dei pagamenti effettuati
-        self.invoice_controller.update_stato_fatture()
+        #self.invoice_controller.update_stato_fatture()
 
         self.invoices_card_list = {}
         self.invoice_card_labels_status = {}

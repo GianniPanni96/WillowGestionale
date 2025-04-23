@@ -39,3 +39,7 @@ coverage.xml
 # Configurazioni locali
 *.env
 .env.*
+
+#  database e backups
+backups/
+*.db

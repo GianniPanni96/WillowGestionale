@@ -128,6 +128,14 @@ class UserController:
             DBUsersColumns.PROVIDER_FATTURE.value
         }
 
+        # Aggiorna le aliquote fiscali in base al controllo sull'anno di apertura della partita iva
+        print("Aggiornamento aliquote fiscali degli utenti in funzione della data di oggi e dei fiscal settings...")
+        success, message = self.update_tax_rates()
+        print(message)
+        if not success:
+            print(message)
+        print("\n")
+
         self.secret_key = hashlib.sha256("Neomisia".encode()).digest()
 
         self.users_list = self.retrieve_users_map_list()
@@ -425,31 +433,48 @@ class UserController:
     def update_tax_rates(self):
         """
         Aggiorna l'aliquota fiscale per tutte le partite IVA forfettarie nel database.
+        Stampa per ogni utente il risultato:
+          - se non cambia: “User id #X: nessun cambiamento (aliquota = Y)”
+          - se cambia: “User id #X: aliquota aggiornata da Y a Z”
+        Ritorna (True, msg) o (False, errore).
         """
-        try:
-            # Recupera tutti gli utenti
-            users = self.retrieve_users_map_list()
-            updated_count = 0
+        users = self.retrieve_users_map_list()
+        total = len(users)
+        updated_count = 0
 
-            for user in users:
+        for user in users:
+            try:
                 user_id = user[DBUsersColumns.ID.value]
-                regime_fiscale = user[DBUsersColumns.REGIME_FISCALE.value]  # Indice della colonna 'regime_fiscale'
-                anno_apertura_piva = user[DBUsersColumns.ANNO_APERTURA_PIVA.value]  # Indice della colonna 'anno_apertura_piva'
-                current_aliquota_tax = user[DBUsersColumns.ALIQUOTA_TAX.value]  # Indice della colonna 'aliquota_tax'
-                new_aliquota_tax = current_aliquota_tax
+                regime = user[DBUsersColumns.REGIME_FISCALE.value]
+                anno = user[DBUsersColumns.ANNO_APERTURA_PIVA.value]
 
-                if regime_fiscale == UserController.RegimeFiscale.FORFETTARIO.value:
-                    # Calcola la nuova aliquota fiscale usando il metodo centralizzato
-                    new_aliquota_tax = self.calcola_aliquota_tax_forfettaria(anno_apertura_piva)
+                # 1) parse sicuro dell'aliquota corrente
+                raw_current = user.get(DBUsersColumns.ALIQUOTA_TAX.value) or "0"
+                current = float(raw_current)
 
-                # Aggiorna solo se la nuova aliquota è valida e diversa da quella attuale
-                if new_aliquota_tax is not None and new_aliquota_tax != current_aliquota_tax:
-                    self.db_model.update_user_tax_rate(user_id, new_aliquota_tax)
+                # 2) calcolo della nuova (solo per forfettario)
+                new = current
+                if regime == UserController.RegimeFiscale.FORFETTARIO.value:
+                    new = self.calcola_aliquota_tax_forfettaria(anno)
+                    # se calcola None, mantengo current
+                    if new is None:
+                        new = current
+
+                # 3) confronto e update
+                if str(new) != str(current):
+                    self.db_model.update_user_tax_rate(user_id, new)
                     updated_count += 1
+                    print(f"User id #{user_id}: aliquota aggiornata da {float(current):.2f} a {float(new):.2f}")
+                else:
+                    print(f"User id #{user_id}: nessun cambiamento (aliquota = {float(current):.2f})")
 
-            return True, f"Aliquote fiscali aggiornate con successo per {updated_count} utenti."
-        except Exception as e:
-            return False, f"Errore durante l'aggiornamento delle aliquote: {str(e)}"
+
+            except Exception as e:
+                # qualsiasi altro errore
+                print(f"User id #{user_id}: errore in aggiornamento: {e}")
+
+        summary = f"Aggiornamento completato: {updated_count} su {total} utenti aggiornati."
+        return True, summary
 
     def encrypt_string(self, plain_text: str) -> str:
         """
@@ -980,7 +1005,9 @@ class InvoiceController:
         #updates alle liste locali
         self.update_invoices_list()
 
+        print("Aggiornamento dello stato delle fatture in funzione della data di oggi...")
         self.update_stato_fatture()
+        print("\n")
 
         #i dati aggregati sono variabili di classe, aggiornati ogni volta che viene fatto un save di una nuova fattura
         self.invoices_aggregated_data = {}
@@ -2889,6 +2916,7 @@ class ExpenseController:
     class RecurringExpensesFrequencies(Enum):
         SETTIMANALE = "SETTIMANALE"
         MENSILE = "MENSILE"
+        BIMESTRALE = "BIMESTRALE"
         TRIMESTRALE = "TRIMESTRALE"
         QUADRIMESTRALE = "QUADRIMESTRALE"
         SEMESTRALE = "SEMESTRALE"

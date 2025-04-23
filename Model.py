@@ -14,7 +14,7 @@ if not db_path:
     raise EnvironmentError(f"La variabile d'ambiente {DB_PATH_ENV_VAR} non è stata configurata.")
 
 db_path = os.path.join(db_path, "gestionale.db")
-print(db_path)
+
 
 
 class DBUsersColumns(Enum):

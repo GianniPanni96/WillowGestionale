@@ -44,9 +44,6 @@ class MainWindow(ctk.CTk):
         # ConfigManager per la gestione della configurazione
         self.config_manager = config_manager
 
-        #solo per debug
-        #self.user_controller.print_utenti()
-
         #tool variables
         self.no_data_string = "no data"
         self.current_year = datetime.now().year
@@ -109,12 +106,6 @@ class MainWindow(ctk.CTk):
 
         self.custom_font = ctk.CTkFont("Arial", 20)
         self.tabview._segmented_button.configure(font=self.custom_font)
-
-        # Aggiorna le aliquote fiscali in base al controllo sull'anno di apertura della partita iva
-        success, message = self.user_controller.update_tax_rates()
-        print(message)
-        if not success:
-            print(message)
 
         # Aggiungi widget alla tab "Utenti"
         self.user_tab()
@@ -363,7 +354,6 @@ class MainWindow(ctk.CTk):
 
         #prima retrivo i dati dell'utente
         user = self.user_controller.retrieve_user_map_by_id(user_id)
-        #print(f"{user[DBUsersColumns.FIRST_NAME.value]}")
 
         self.modify_user_window = ctk.CTkToplevel(self)
         self.modify_user_window.title(f"Modifica i dati dell'utente: {user[DBUsersColumns.FIRST_NAME.value]} {user[DBUsersColumns.LAST_NAME.value]}")
@@ -660,7 +650,6 @@ class MainWindow(ctk.CTk):
         self.delete_button = ctk.CTkButton(user_card, text="Elimina", command=lambda: self.open_confirm_popup(user_id, ViewUtils.InterfaceOperations.ELIMINAZIONE_UTENTE.value))
         self.delete_button.pack(pady=10)
 
-        print(f"numero di user cards: {self.number_of_users_cards}")
         self.number_of_users_cards += 1
 
     def update_user_card(self, user_id, first_name, last_name, partita_iva, image_path, email):

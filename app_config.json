@@ -152,25 +152,25 @@
         "POST_PRODUZIONE": "Postproduzione",
         "MISTA": "Mista",
         "CONSULENZA": "Consulenza",
-		"AFFITTO_STRUM": "Affitto strumentazione",
-		"ADD_PROD_TYPE": "AGGIUNGI UNA TIPOLOGIA ALLA LISTA"
+        "AFFITTO_STRUM": "Affitto strumentazione",
+        "ADD_PROD_TYPE": "AGGIUNGI UNA TIPOLOGIA ALLA LISTA"
     },
     "production_output_types": {
         "VIDEO_MUSICALE": "Video musicale",
         "ADV_SOCIAL": "ADV social",
         "COMMERCIAL": "commercial",
         "INTEGRAZIONE_VFX": "Integrazione VFX",
-		"GIRATO": "Girato",
-		"ADD_PROD_OUT_TYPE": "AGGIUNGI UNA TIPOLOGIA DI OUTPUT ALLA LISTA"
+        "GIRATO": "Girato",
+        "ADD_PROD_OUT_TYPE": "AGGIUNGI UNA TIPOLOGIA DI OUTPUT ALLA LISTA"
     },
-	"expenses_category": {
+    "expenses_category": {
         "STUDIO_RENTAL": "Affitto Ufficio",
         "TECHNICAL_INSTRUMENTATION_PROD": "Strumentazione tecnica produzione",
         "TECHNICAL_INSTRUMENTATION_POSTPROD": "Strumentazione tecnica postproduzione",
-		"SUBSCRIPTION": "Abbonamento",
+        "SUBSCRIPTION": "Abbonamento",
         "ELECTRICITY_BILL": "Bolletta Luce",
         "GAS_BILL": "Bolletta Gas",
-		"INTERNET_BILL": "Abbonamento Internet",
+        "INTERNET_BILL": "Abbonamento Internet",
         "WASTE_BILL": "TARI",
         "CONSUMABLE_FOR_STUDIO": "Consumabili per lo studio",
         "INSURANCE": "Assicurazionee",
@@ -178,113 +178,111 @@
         "USER_SALARY": "Salario",
         "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
     },
-	"recurring_expenses": {
-	    "office_rental": {
-			"description": "AFFITTO STUDIO",
-			"amount": {
-			  "value": "1600",
-			  "description": "IMPORTO_LORDO"
-			},
-			"supplier": {
-			  "value": "",
-			  "description": "FORNITORE"
-			},
-			"deductible": {
-			  "value": "Sì",
-			  "description": "DEDUCIBILE"
-			},
-			"category": {
-			  "value": "Affitto Ufficio",
-			  "description": "CATEGORIA"
-			},
-			"iva": {
-			  "value": "0.22",
-			  "description": "ALIQUOTA IVA"
-			},
-			"account": {
-			  "value": "",
-			  "description": "CONTO"
-			},
-			"frequency": {
-			  "value": "mensile",
-			  "description": "CADENZA"
-			},
-			"status": {
-			  "value": "Attiva",
-			  "description": "STATO"
-			}
-	    },
-		
-		"internet_bill": {
-			"description": "INTERNET",
-			"amount": {
-			  "value": "28",
-			  "description": "IMPORTO_LORDO"
-			},
-			"supplier": {
-			  "value": "",
-			  "description": "FORNITORE"
-			},
-			"deductible": {
-			  "value": "Sì",
-			  "description": "DEDUCIBILE"
-			},
-			"category": {
-			  "value": "Abbonamento Internet",
-			  "description": "CATEGORIA"
-			},
-			"iva": {
-			  "value": "0.22",
-			  "description": "ALIQUOTA IVA"
-			},
-			"account": {
-			  "value": "",
-			  "description": "CONTO"
-			},
-			"frequency": {
-			  "value": "mensile",
-			  "description": "CADENZA"
-			},
-			"status": {
-			  "value": "Attiva",
-			  "description": "STATO"
-			}
-	    },
-		
-		"art_list": {
-			"description": "ARTLIST",
-			"amount": {
-			  "value": "250",
-			  "description": "IMPORTO_LORDO"
-			},
-			"supplier": {
-			  "value": "",
-			  "description": "FORNITORE"
-			},
-			"deductible": {
-			  "value": "Sì",
-			  "description": "DEDUCIBILE"
-			},
-			"category": {
-			  "value": "Abbonamento",
-			  "description": "CATEGORIA"
-			},
-			"iva": {
-			  "value": "0.22",
-			  "description": "ALIQUOTA IVA"
-			},
-			"account": {
-			  "value": "",
-			  "description": "CONTO"
-			},
-			"frequency": {
-			  "value": "annuale",
-			  "description": "CADENZA"
-			},
-			"status": {
-			  "value": "Attiva",
-			  "description": "STATO"
-			}
-	    }
-	}
+    "recurring_expenses": {
+        "office_rental": {
+            "description": "AFFITTO STUDIO",
+            "amount": {
+                "value": "1600",
+                "description": "IMPORTO_LORDO"
+            },
+            "supplier": {
+                "value": "",
+                "description": "FORNITORE"
+            },
+            "deductible": {
+                "value": "S\u00ec",
+                "description": "DEDUCIBILE"
+            },
+            "category": {
+                "value": "Affitto Ufficio",
+                "description": "CATEGORIA"
+            },
+            "iva": {
+                "value": "0.22",
+                "description": "ALIQUOTA IVA"
+            },
+            "account": {
+                "value": "",
+                "description": "CONTO"
+            },
+            "frequency": {
+                "value": "mensile",
+                "description": "CADENZA"
+            },
+            "status": {
+                "value": "Attiva",
+                "description": "STATO"
+            }
+        },
+        "internet_bill": {
+            "description": "INTERNET",
+            "amount": {
+                "value": "28",
+                "description": "IMPORTO_LORDO"
+            },
+            "supplier": {
+                "value": "",
+                "description": "FORNITORE"
+            },
+            "deductible": {
+                "value": "S\u00ec",
+                "description": "DEDUCIBILE"
+            },
+            "category": {
+                "value": "Abbonamento Internet",
+                "description": "CATEGORIA"
+            },
+            "iva": {
+                "value": "0.22",
+                "description": "ALIQUOTA IVA"
+            },
+            "account": {
+                "value": "",
+                "description": "CONTO"
+            },
+            "frequency": {
+                "value": "mensile",
+                "description": "CADENZA"
+            },
+            "status": {
+                "value": "Attiva",
+                "description": "STATO"
+            }
+        },
+        "art_list": {
+            "description": "ARTLIST",
+            "amount": {
+                "value": "250",
+                "description": "IMPORTO_LORDO"
+            },
+            "supplier": {
+                "value": "",
+                "description": "FORNITORE"
+            },
+            "deductible": {
+                "value": "S\u00ec",
+                "description": "DEDUCIBILE"
+            },
+            "category": {
+                "value": "Abbonamento",
+                "description": "CATEGORIA"
+            },
+            "iva": {
+                "value": "0.22",
+                "description": "ALIQUOTA IVA"
+            },
+            "account": {
+                "value": "",
+                "description": "CONTO"
+            },
+            "frequency": {
+                "value": "annuale",
+                "description": "CADENZA"
+            },
+            "status": {
+                "value": "Attiva",
+                "description": "STATO"
+            }
+        }
+    }
 }

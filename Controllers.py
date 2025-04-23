@@ -189,7 +189,7 @@ class UserController:
 
         # Aggiungo valori derivati ordinaria
         elif user_data[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value:
-            user_data[DBUsersColumns.ALIQUOTA_TAX.value] = self.fiscal_settings.partita_iva_ordinaria.scaglioni_irpef[0].value #di default setto lo scaglione più basso perchè non esiste ancora un ID dell'utente su cui effettuare il calcolo dello scaglione in base al suo reddito
+            user_data[DBUsersColumns.ALIQUOTA_TAX.value] = -1
             user_data[DBUsersColumns.ALIQUOTA_INPS.value] = self.fiscal_settings.partita_iva_ordinaria.aliquota_inps
             user_data[DBUsersColumns.ALIQUOTA_IVA.value] = self.fiscal_settings.aliquota_iva
             user_data[DBUsersColumns.ALIQUOTA_CASSA_INPS.value] = self.fiscal_settings.partita_iva_ordinaria.aliquota_cassa_inps
@@ -1062,7 +1062,7 @@ class InvoiceController:
         utente_list = self.user_controller.retrieve_user_by_fullname(nome_utente[0], nome_utente[1])
         utente_map = self.user_controller.retrieve_user_map_by_id(utente_list[0])
         id_utente = utente_map[DBUsersColumns.ID.value]
-        aliquota_tax = utente_map[DBUsersColumns.ALIQUOTA_TAX.value]
+        #aliquota_tax = utente_map[DBUsersColumns.ALIQUOTA_TAX.value]
         aliquota_cassa_inps = utente_map[DBUsersColumns.ALIQUOTA_CASSA_INPS.value]
         aliquota_ritenuta_acconto = utente_map[DBUsersColumns.ALIQUOTA_RITENUTA_ACCONTO.value]
         aliquota_iva = utente_map[DBUsersColumns.ALIQUOTA_IVA.value]
@@ -1154,9 +1154,6 @@ class InvoiceController:
                 DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value: production_id
 
             }
-
-        # Rimuove i campi None
-        #invoice_data_filtered = {key: value for key, value in invoice_data_prepared.items() if value is not None}
 
         # Salvataggio nel DB
         try:

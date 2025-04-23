@@ -100,10 +100,12 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Produzioni")
         self.tabview.add("Spese")
         self.tabview.add("Fornitori")
+        self.tabview.add("Conti")
         self.tabview.add("Iva")
         self.tabview.add("Salario")
         self.tabview.add("Tasse")
         self.tabview.add("Report")
+
 
         self.custom_font = ctk.CTkFont("Arial", 20)
         self.tabview._segmented_button.configure(font=self.custom_font)

@@ -2463,7 +2463,7 @@ class AccountController:
 
         if current_year:
             current_year_value = datetime.now().year
-            date_index = columns.index(DBAccountsColumns.ULTIMO_MOV.value)
+            date_index = columns.index(DBAccountsColumns.UPDATED_AT.value)
             filtered_rows = []
             for row in rows:
                 try:

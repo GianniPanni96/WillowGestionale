@@ -123,7 +123,6 @@ class DBAccountsColumns(Enum):
     ID = "ID"
     NAME = "NAME"
     BALANCE = "BALANCE"
-    ULTIMO_MOV = "ULTIMO_MOV"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 

@@ -6,7 +6,6 @@ columns = [
     f"{DBAccountsColumns.ID.value} INTEGER PRIMARY KEY AUTOINCREMENT",
     f"{DBAccountsColumns.NAME.value} TEXT NOT NULL",
     f"{DBAccountsColumns.BALANCE.value} REAL NOT NULL",
-    f"{DBAccountsColumns.ULTIMO_MOV.value} DATE",  # Oppure TIMESTAMP, a seconda delle tue esigenze
     f"{DBAccountsColumns.CREATED_AT.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"{DBAccountsColumns.UPDATED_AT.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
 ]

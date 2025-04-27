@@ -176,6 +176,7 @@
         "INSURANCE": "Assicurazionee",
         "PRODUCTION_EXPENSE": "Spesa di produzione",
         "USER_SALARY": "Salario",
+		"TRIMESTRAL_IVA": "Iva trimestrale",
         "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
     },
     "recurring_expenses": {

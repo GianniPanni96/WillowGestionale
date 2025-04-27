@@ -100,23 +100,24 @@ class PaymentsView(ctk.CTk):
         self.save_button.pack()
 
         for payment in self.payment_controller.CY_payment_list:
-            payment_id = payment[DBPaymentsColumns.ID.value]
-            name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
-            amount = payment[DBPaymentsColumns.PAYMENT_AMOUNT.value]
-            payment_date = payment[DBPaymentsColumns.PAYMENT_DATE.value]
-            linked_rata = payment[DBPaymentsColumns.LINKED_RATA.value]
-            invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
-            invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
-            cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-            client = self.client_controller.retrieve_client_map_by_id(cliente_id)
-            client_name = client[DBClientsColumns.NAME.value]
-            production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-            production = self.production_controller.retrieve_production_map_by_id(production_id)
-            production_name = production[DBProductionsColumns.NAME.value]
-            conto = self.account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
-            nome_conto = conto[DBAccountsColumns.NAME.value]
+            if payment:
+                payment_id = payment[DBPaymentsColumns.ID.value]
+                name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
+                amount = payment[DBPaymentsColumns.PAYMENT_AMOUNT.value]
+                payment_date = payment[DBPaymentsColumns.PAYMENT_DATE.value]
+                linked_rata = payment[DBPaymentsColumns.LINKED_RATA.value]
+                invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
+                invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+                cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
+                client = self.client_controller.retrieve_client_map_by_id(cliente_id)
+                client_name = client[DBClientsColumns.NAME.value]
+                production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+                production = self.production_controller.retrieve_production_map_by_id(production_id)
+                production_name = production[DBProductionsColumns.NAME.value]
+                conto = self.account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
+                nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
 
-            self.add_payment_card(payment_id, name, amount, payment_date, linked_rata, client_name, production_name, nome_conto)
+                self.add_payment_card(payment_id, name, amount, payment_date, linked_rata, client_name, production_name, nome_conto)
 
     def populate_global_infos(self):
         numero_pagamenti = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value]

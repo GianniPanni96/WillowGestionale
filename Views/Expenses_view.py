@@ -122,7 +122,7 @@ class ExpensesView(ctk.CTk):
                 else:
                     user_name = " ---- "
                 account = self.account_controller.retrieve_account_map_by_id(expense[DBExpensesColumns.ACCOUNT_ID.value])
-                account_name = account[DBAccountsColumns.NAME.value]
+                account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
 
                 self.add_expense_card(expense_id, name, supplier_name, net_amount, amount, category, date, deducibile, user_name, account_name)
 

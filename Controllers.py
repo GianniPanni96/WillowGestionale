@@ -2002,6 +2002,7 @@ class InvoiceController:
                     DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceRateizzSatus.STORNATA.value]
 
 
+
 class PaymentsController:
 
     class PaymentsAggregateData(Enum):
@@ -2508,6 +2509,17 @@ class AccountController:
         accounts = self.db_model.fetch_accounts()
         # Supponiamo che la colonna 'name' sia al secondo posto nella tabella
         return [account[1] for account in accounts]
+
+    def calcola_saldo_attuale_conto(self, account_id):
+        account = self.retrieve_account_by_id(account_id)
+        if account:
+            saldo = float(account[DBAccountsColumns.INIT_BALANCE.value])
+
+
+
+            return saldo
+        else:
+            return None
 
     @staticmethod
     def get_accounts_mapping(db_model):

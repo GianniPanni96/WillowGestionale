@@ -122,7 +122,7 @@ class DBProductionsColumns(Enum):
 class DBAccountsColumns(Enum):
     ID = "ID"
     NAME = "NAME"
-    BALANCE = "BALANCE"
+    INIT_BALANCE = "INIT_BALANCE"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 

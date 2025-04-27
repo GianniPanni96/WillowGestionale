@@ -1,4 +1,6 @@
-customtkinter
-pillow
-tkcalendar
-pycryptodome
+customtkinter~=5.2.2
+pillow~=11.1.0
+tkcalendar~=1.6.1
+pycryptodome~=3.22.0
+python-dateutil~=2.9.0.post0
+requests~=2.32.3

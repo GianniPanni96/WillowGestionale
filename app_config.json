@@ -5,7 +5,7 @@
             "description": "Percorso dove verranno salvati i backup del database gestionale."
         },
         "interval_minutes": {
-            "value": 1,
+            "value": 15,
             "description": "Intervallo in minuti tra l'esecuzione dei backup."
         },
         "max_backups": {
@@ -280,7 +280,7 @@
                 "description": "CADENZA"
             },
             "status": {
-                "value": "Attiva",
+                "value": "Sospesa",
                 "description": "STATO"
             }
         }

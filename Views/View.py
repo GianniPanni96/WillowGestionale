@@ -29,6 +29,13 @@ class MainWindow(ctk.CTk):
         self._orig_after = self.after
         self.after = self._track_after
 
+        # ConfigManager per la gestione della configurazione
+        self.config_manager = config_manager
+
+        self.fiscal_settings = fiscal_settings
+        self.catalogo_elenchi = catalogo_elenchi
+        self.recurring_expenses_settings = recurring_expenses_settings
+
         # inizializzatori oggetti controllers e model
         self.db_model = DatabaseModel(db_path)  # Istanzia il modello
         self.user_controller = UserController(self.db_model, fiscal_settings)  # Crea il controller per gli utenti
@@ -38,16 +45,8 @@ class MainWindow(ctk.CTk):
         self.payment_controller = PaymentsController(self.db_model, self.account_controller)
         self.production_controller = ProductionController(self.db_model, self.client_controller)
         self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, fiscal_settings)
-        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller)
+        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller, self.recurring_expenses_settings)
         self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
-
-        # ConfigManager per la gestione della configurazione
-        self.config_manager = config_manager
-
-        self.fiscal_settings = fiscal_settings
-        self.catalogo_elenchi = catalogo_elenchi
-        self.recurring_expenses_settings = recurring_expenses_settings
-
 
         self.title("Gestionale Willow")
 

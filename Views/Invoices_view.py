@@ -44,8 +44,8 @@ class InvoicesView(ctk.CTk):
 
         self.invoices_list_of_user = self.invoice_controller.retrieve_invoices_map_list_by_user(1, True) #inizializzo la lista delle fatture con le sole fatture dell'utente con ID 1
         self.productions_list_of_client = {}
-        if len(self.client_controller.clients_list) > 0:
-            self.populate_production_list_by_selected_client(self.client_controller.clients_list[0][DBClientsColumns.NAME.value])
+        if len(self.client_controller.retrieve_clients_map_list()) > 0:
+            self.populate_production_list_by_selected_client(self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
 
         #self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
         self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color_2, self.toggle_aggregate_data)
@@ -135,7 +135,7 @@ class InvoicesView(ctk.CTk):
         self.save_button.pack()
 
         #aggiungo una tab per ogni fattura presente nel database
-        for invoice in self.invoice_controller.current_year_invoices_list:
+        for invoice in self.invoice_controller.retrieve_invoices_map_list(True):
             invoice_id = invoice[DBInvoicesColumns.ID.value]
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
             invoice_client_ID = invoice[DBInvoicesColumns.ID_CLIENTE.value]
@@ -242,11 +242,11 @@ class InvoicesView(ctk.CTk):
                                       command=lambda selected_value: self.update_entries_on_regime_fiscale(selected_value))
             elif label_text == self.nome_cliente_string:
                 widget = widget_class(self.invoice_window_scrollableFrame,
-                                      values=[f"{item[DBClientsColumns.NAME.value]}" for item in self.client_controller.clients_list],
+                                      values=[f"{item[DBClientsColumns.NAME.value]}" for item in self.client_controller.retrieve_clients_map_list()],
                                       command=lambda selected_value: self.update_productions_list(selected_value))
             elif label_text == self.nome_produzione_string:
                 widget = widget_class(self.invoice_window_scrollableFrame,
-                                      values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.production_controller.CY_production_list],
+                                      values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.production_controller.retrieve_productions_map_list(True)],
                                       command=lambda selected_value : self.prod_already_invoiced_control(selected_value))
             elif label_text == DBInvoicesColumns.DATA_CREAZIONE.value:
                 widget = widget_class(self.invoice_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
@@ -281,7 +281,7 @@ class InvoicesView(ctk.CTk):
                 self.error_labels[label_text] = error_label
 
         self.auto_compile_invoice_name(self.invoice_widgets[self.nome_utente_string].get())
-        self.update_productions_list(self.client_controller.clients_list[0][DBClientsColumns.NAME.value])
+        self.update_productions_list(self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
         self.prod_already_invoiced_control(self.invoice_widgets[self.nome_produzione_string].get())
 
         self.selected_user = self.invoice_widgets[self.nome_utente_string].get()
@@ -723,7 +723,7 @@ class InvoicesView(ctk.CTk):
         """
         for (key, label) in self.invoice_card_labels_status.items():
             #cerco la fattura associata
-            for invoice in self.invoice_controller.current_year_invoices_list:
+            for invoice in self.invoice_controller.retrieve_invoices_map_list(True):
                 if invoice[DBInvoicesColumns.ID.value] == key:
                     fattura = invoice
                     break
@@ -818,7 +818,7 @@ class InvoicesView(ctk.CTk):
 
         # cerco i pagamenti associati a questa fattura
         pagamenti = []
-        for payment in self.payment_controller.CY_payment_list:
+        for payment in self.payment_controller.retrieve_payments_map_list(current_year=True):
             if int(payment[DBPaymentsColumns.INVOICE_ID.value]) == int(invoice_id):
                 pagamenti.append(payment)
 

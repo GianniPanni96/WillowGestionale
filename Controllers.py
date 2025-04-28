@@ -601,11 +601,10 @@ class ClientController:
         """Inizializza il controller con il modello del database"""
         self.db_model = db_model
 
-        self.clients_list = self.retrieve_clients_map_list()
-        #self.client_list_aggregate_data = self.construct_clients_maps_aggregate_data()
+        #self.clients_list = self.retrieve_clients_map_list()
 
-    def update_clients_list(self):
-        self.clients_list = self.retrieve_clients_map_list()
+    """def update_clients_list(self):
+        self.clients_list = self.retrieve_clients_map_list()"""
 
     def save_client(self, client_data):
         """
@@ -649,7 +648,7 @@ class ClientController:
         # Salvataggio nel DB
         try:
             self.db_model.add_client(**client_data_filtered)
-            self.update_clients_list()
+            #self.update_clients_list()
             return True, "Cliente salvato con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio del cliente: {str(e)}"
@@ -1000,11 +999,11 @@ class InvoiceController:
         self.payment_controller = payment_controller
 
 
-        self.invoices_list = {}
-        self.current_year_invoices_list = {}
+        #self.invoices_list = {}
+        #self.current_year_invoices_list = {}
 
         #updates alle liste locali
-        self.update_invoices_list()
+        #self.update_invoices_list()
 
         print("Aggiornamento dello stato delle fatture in funzione della data di oggi...")
         self.update_stato_fatture()
@@ -1018,13 +1017,13 @@ class InvoiceController:
 
         self.on_updating_invoice_controller_callbacks = []
 
-    def update_invoices_list(self):
+    """def update_invoices_list(self):
         self.invoices_list = self.retrieve_invoices_map_list(False)
         self.current_year_invoices_list = self.retrieve_invoices_map_list(current_year=True)
 
         self.invoices_list = sorted(self.invoices_list, key=lambda d: datetime.strptime(d[DBInvoicesColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
         self.current_year_invoices_list = sorted(self.current_year_invoices_list, key=lambda d: datetime.strptime(d[DBInvoicesColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
-
+    """
     def save_invoice(self, invoice_data):
         """
         Gestisce il salvataggio di una fattura, con validazioni di primo livello.
@@ -1162,7 +1161,7 @@ class InvoiceController:
             self.update_stato_fatture() #aggiorno lo stato in funzione della data di oggi e dei pagamenti associati alla fattura
             if id_linked_invoice:
                 self.db_model.modify_invoice_datum(id_linked_invoice, DBInvoicesColumns.STATUS.value, InvoiceController.InvoiceSatus.STORNATA.value)
-            self.update_invoices_list()
+            #self.update_invoices_list()
             self.update_aggregated_data()
             return True, "Fattura salvata con successo!"
         except Exception as e:
@@ -1416,17 +1415,17 @@ class InvoiceController:
 
         if current_year:
             #filtra le fatture che sono note di credito
-            invoices = self.clear_invoices_list_from_NDC_and_stornate(self.current_year_invoices_list)
+            invoices = self.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True))
         else:
-            invoices = self.clear_invoices_list_from_NDC_and_stornate(self.invoices_list)
+            invoices = self.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False))
 
         return len(invoices)
 
     def calculate_TOT_DOCUMENTO_invoiced(self, current_year=True):
         if current_year:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.current_year_invoices_list)
+            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True))
         else:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.invoices_list)
+            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False))
 
         tot = 0.00
         for invoice in invoices_list:
@@ -1437,9 +1436,9 @@ class InvoiceController:
 
     def calculate_IVA_invoiced(self, current_year=True):
         if current_year:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.current_year_invoices_list)
+            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True))
         else:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.invoices_list)
+            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False))
 
         IVA = 0.00
         for invoice in invoices_list:
@@ -1450,9 +1449,9 @@ class InvoiceController:
 
     def calculate_RITENUTA_ACCONTO_invoiced(self, current_year=True):
         if current_year:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.current_year_invoices_list)
+            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True))
         else:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.invoices_list)
+            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False))
 
         ritenuta = 0.00
         for invoice in invoices_list:
@@ -1689,14 +1688,14 @@ class InvoiceController:
     def calculate_MEDIA_FATTURA_LORDO_invoiced(self, current_year=True):
         if current_year:
             fatt_lordo = self.calculate_FATT_LORDO_invoiced(True)
-            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.current_year_invoices_list))
+            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True)))
             if numero_fatt > 0:
                 media = fatt_lordo/numero_fatt
             else:
                 media = -1
         else:
             fatt_lordo = self.calculate_FATT_LORDO_invoiced(False)
-            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.invoices_list))
+            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False)))
             if numero_fatt > 0:
                 media = fatt_lordo/numero_fatt
             else:
@@ -1707,14 +1706,14 @@ class InvoiceController:
     def calculate_MEDIA_FATTURA_NETTO_invoiced(self, current_year=True):
         if current_year:
             fatt_netto = self.calculate_FATT_NETTO_invoiced(True)
-            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.current_year_invoices_list))
+            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True)))
             if numero_fatt > 0:
                 media = fatt_netto/numero_fatt
             else:
                 media = -1
         else:
             fatt_netto = self.calculate_FATT_LORDO_invoiced(False)
-            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.invoices_list))
+            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False)))
             if numero_fatt > 0:
                 media = fatt_netto/numero_fatt
             else:
@@ -2002,7 +2001,6 @@ class InvoiceController:
                     DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceRateizzSatus.STORNATA.value]
 
 
-
 class PaymentsController:
 
     class PaymentsAggregateData(Enum):
@@ -2013,25 +2011,25 @@ class PaymentsController:
         self.db_model = db_model
         self.account_controller = account_controller
 
-        self.CY_payment_list = {}
-        self.payment_list = {}
+        #self.CY_payment_list = {}
+        #self.payment_list = {}
 
         # i dati aggregati sono variabili di classe, aggiornati ogni volta che viene fatto un save di una nuova fattura
         self.payments_aggregated_data = {}
         self.CY_payments_aggregated_data = {}
 
-        self.update_payments_lists()
+        #self.update_payments_lists()
         self.update_aggregate_data()
 
         self.on_adding_payment_callbacks = []
 
-    def update_payments_lists(self):
+    """def update_payments_lists(self):
         self.CY_payment_list = self.retrieve_payments_map_list(True)
         self.payment_list = self.retrieve_payments_map_list(False)
 
         self.payment_list = sorted(self.payment_list, key=lambda d: datetime.strptime(d[DBPaymentsColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
         self.CY_payment_list = sorted(self.CY_payment_list, key=lambda d: datetime.strptime(d[DBPaymentsColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
-
+    """
     def update_aggregate_data(self):
         self.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value] = self.count_payments(True)
         self.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value] = self.calculate_tot_payments(True)
@@ -2234,7 +2232,7 @@ class PaymentsController:
 
     def calculate_tot_payments(self, current_year=True):
         tot = 0.0
-        payment_list = self.CY_payment_list if current_year else self.payment_list
+        payment_list = self.retrieve_payments_map_list(current_year)
         for payment in payment_list:
             tot = tot + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
 
@@ -2290,7 +2288,7 @@ class UpdatesController:
 
     def update_invoices(self, invoice_id):
         #richiedo di updatare le liste in back
-        self.invoice_controller.update_invoices_list()
+        #self.invoice_controller.update_invoices_list()
         self.invoice_controller.update_aggregated_data()
         self.invoice_controller.update_stato_fatture()
 
@@ -2316,23 +2314,20 @@ class AccountController:
         self.db_model = db_model
         self.user_controller = user_controller
 
-        self.CY_account_list = {}
-        self.account_list = {}
+        #self.CY_account_list = {}
+        #self.account_list = {}
 
         # i dati aggregati sono variabili di classe, aggiornati ogni volta che viene fatto un save di una nuova fattura
         self.accounts_aggregated_data = {}
         self.CY_accounts_aggregated_data = {}
 
         self.update_aggregate_data()
-        self.update_accounts_lists()
+        #self.update_accounts_lists()
 
-    def update_accounts_lists(self):
-        """
-        Aggiorna le liste degli account, creando una mappa degli account per l'anno corrente e una per tutti.
-        """
+    """def update_accounts_lists(self):
         # Utilizza le funzioni che restituiscono una lista di dizionari, indicizzandoli per ID
         self.account_list = self.retrieve_accounts_map_list(current_year=False)
-        self.CY_account_list = self.retrieve_accounts_map_list(current_year=True)
+        self.CY_account_list = self.retrieve_accounts_map_list(current_year=True)"""
 
     def update_aggregate_data(self):
         """
@@ -2351,13 +2346,13 @@ class AccountController:
         }
 
         # Recupera tutte le mappe e aggiorna i totali
-        for account in self.account_list.values():
+        for account in self.retrieve_accounts_map_list(current_year = False):
             self.accounts_aggregated_data[AccountController.AccountsAggregateData.NUM_ACCOUNTS.value] += 1
-            self.accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.BALANCE.value])
+            self.accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.INIT_BALANCE.value])
 
-        for account in self.CY_account_list.values():
+        for account in self.retrieve_accounts_map_list(current_year = True):
             self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.NUM_ACCOUNTS.value] += 1
-            self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.BALANCE.value])
+            self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.INIT_BALANCE.value])
 
     def retrieve_accounts(self, current_year=False):
         """
@@ -2567,21 +2562,16 @@ class ProductionController:
         self.db_model = db_model
         self.client_controller = client_controller
 
-        self.CY_production_list = {}
-        self.production_list = {}
+        #self.CY_production_list = {}
+        #self.production_list = {}
 
-        self.update_productions_lists()
+        #self.update_productions_lists()
 
         # i dati aggregati sono variabili di classe, aggiornati ogni volta che viene fatto un save di una nuova fattura
         self.productions_aggregated_data = {}
         self.CY_productions_aggregated_data = {}
 
-    def update_productions_lists(self):
-        """
-        Aggiorna le liste delle productions:
-          - CY_production_list: productions dell'anno corrente.
-          - production_list: tutte le productions.
-        """
+    """def update_productions_lists(self):
         self.CY_production_list = self.retrieve_productions_map_list(current_year=True)
         self.production_list = self.retrieve_productions_map_list(current_year=False)
 
@@ -2590,7 +2580,7 @@ class ProductionController:
                                                                    "%Y-%m-%d %H:%M:%S"), reverse=True)
         self.CY_production_list = sorted(self.CY_production_list,
                                       key=lambda d: datetime.strptime(d[DBProductionsColumns.UPDATED_AT.value],
-                                                                      "%Y-%m-%d %H:%M:%S"), reverse=True)
+                                                                      "%Y-%m-%d %H:%M:%S"), reverse=True)"""
 
     def save_production(self, production_data):
         """

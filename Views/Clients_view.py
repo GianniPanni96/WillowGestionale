@@ -21,7 +21,6 @@ class ClientsView(ctk.CTk):
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
 
-        self.clients_list = self.client_controller.retrieve_clients_map_list()
         self.clients_card_list = {}
 
 
@@ -69,7 +68,7 @@ class ClientsView(ctk.CTk):
         self.save_button = ctk.CTkButton(self.add_client_frame, text="Aggiungi Cliente", command=self.open_add_client_window)
         self.save_button.pack()
 
-        for client in self.clients_list:
+        for client in self.client_controller.retrieve_clients_map_list():
             #costruisco i dati aggregati per singolo cliente
             aggregate_data = self.client_controller.construct_client_map_aggregate_data(client[DBClientsColumns.ID.value])
 

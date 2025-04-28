@@ -99,7 +99,7 @@ class PaymentsView(ctk.CTk):
                                          command=self.open_add_payment_window)
         self.save_button.pack()
 
-        for payment in self.payment_controller.CY_payment_list:
+        for payment in self.payment_controller.retrieve_payments_map_list(current_year=True):
             if payment:
                 payment_id = payment[DBPaymentsColumns.ID.value]
                 name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
@@ -218,7 +218,7 @@ class PaymentsView(ctk.CTk):
             elif label_text == self.nome_conto_string:
                 widget = widget_class(self.payment_window_scrollableFrame,
                                       values=[f"{item[DBAccountsColumns.NAME.value]}" for item in
-                                              self.account_controller.account_list])
+                                              self.account_controller.retrieve_accounts_map_list(False)])
             elif label_text == DBPaymentsColumns.LINKED_RATA.value:
                 widget = widget_class(self.payment_window_scrollableFrame,
                                       values=["1", "2", "3"],
@@ -376,7 +376,7 @@ class PaymentsView(ctk.CTk):
     def construct_invoices_list_view_friendly(self):
         VF_invoice_list = {}
 
-        for invoice in self.invoice_controller.current_year_invoices_list:
+        for invoice in self.invoice_controller.retrieve_invoices_map_list(True):
             invoicer_second_name = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])[DBUsersColumns.LAST_NAME.value]
             client_name = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])[DBClientsColumns.NAME.value]
 

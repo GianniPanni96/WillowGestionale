@@ -114,7 +114,7 @@ class ProductionsView(ctk.CTk):
                                          command=self.open_add_production_window)
         self.save_button.pack()
 
-        for production in self.production_controller.CY_production_list:
+        for production in self.production_controller.retrieve_productions_map_list(True):
             production_id = production[DBProductionsColumns.ID.value]
             production_name = production[DBProductionsColumns.NAME.value]
             client_id = production[DBProductionsColumns.CLIENT_ID.value]
@@ -191,7 +191,7 @@ class ProductionsView(ctk.CTk):
             #creo i widgets
             if label_text == self.nome_cliente_string:
                 widget = widget_class(self.production_window_scrollableFrame,
-                                      values=[f"{item[DBClientsColumns.NAME.value]}" for item in self.client_controller.clients_list],
+                                      values=[f"{item[DBClientsColumns.NAME.value]}" for item in self.client_controller.retrieve_clients_map_list()],
                                       command=lambda selected_value: self.auto_compile_name_entry(selected_value))
             elif label_text == DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value:
                 widget = widget_class(self.production_window_scrollableFrame,
@@ -232,7 +232,7 @@ class ProductionsView(ctk.CTk):
         )
         self.save_button.pack(pady=(35, 15))
 
-        self.name_frame.winfo_children()[0].configure(text=f"{self.client_controller.clients_list[0][DBClientsColumns.NAME.value]} - ")
+        self.name_frame.winfo_children()[0].configure(text=f"{self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value]} - ")
         #self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{self.client_controller.clients_list[0][DBClientsColumns.NAME.value]}-")
 
         # Aggiungi validazione agli eventi di perdita del focus

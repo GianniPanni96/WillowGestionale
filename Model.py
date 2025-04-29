@@ -74,6 +74,7 @@ class DBInvoicesColumns(Enum):
     DATA_SCADENZA_3 = "expiration_date_3"
     ID_UTENTE = "invoicer_id" #controller(view)
     ID_CLIENTE = "client_id" #controller(view)
+    ID_CONTO = "ID_CONTO"
     NOTE = "note" #view
     SERVIZI = "importo_servizi" #view (comprensivo di rivalsa)
     CASSA_INPS = "cassa_inps" #controller -> servizi*coeff redditività*aliquota INPS
@@ -769,6 +770,30 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchall()
 
+    def sum_payments_by_account(self, account_id: int) -> float:
+        """
+        Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
+
+        :param account_id: l'ID del conto (DBAccountsColumns.ID)
+        :return: somma (float), 0.0 se non ci sono pagamenti
+        """
+        # Nome colonna importo e colonna conto
+        amt_col = DBPaymentsColumns.PAYMENT_AMOUNT.value
+        conto_col = DBPaymentsColumns.CONTO_ID.value
+
+        query = f"""
+        SELECT SUM({amt_col})
+        FROM payments
+        WHERE {conto_col} = ?
+        """
+
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (account_id,))
+            result = cur.fetchone()[0]
+            return result if result is not None else 0.0
+
+
 
 
 
@@ -841,6 +866,29 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query)
             return cursor.fetchone()
+
+    def sum_expenses_by_account(self, account_id: int) -> float:
+        """
+        Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
+
+        :param account_id: l'ID del conto (DBAccountsColumns.ID)
+        :return: somma (float), 0.0 se non ci sono pagamenti
+        """
+        # Nome colonna importo e colonna conto
+        amt_col = DBExpensesColumns.TOT_AMOUNT.value
+        conto_col = DBExpensesColumns.ACCOUNT_ID.value
+
+        query = f"""
+        SELECT SUM({amt_col})
+        FROM expenses
+        WHERE {conto_col} = ?
+        """
+
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (account_id,))
+            result = cur.fetchone()[0]
+            return result if result is not None else 0.0
 
 
 

@@ -218,7 +218,7 @@ class PaymentsView(ctk.CTk):
             elif label_text == self.nome_conto_string:
                 widget = widget_class(self.payment_window_scrollableFrame,
                                       values=[f"{item[DBAccountsColumns.NAME.value]}" for item in
-                                              self.account_controller.retrieve_accounts_map_list(False)])
+                                              self.account_controller.retrieve_accounts_map_list()])
             elif label_text == DBPaymentsColumns.LINKED_RATA.value:
                 widget = widget_class(self.payment_window_scrollableFrame,
                                       values=["1", "2", "3"],

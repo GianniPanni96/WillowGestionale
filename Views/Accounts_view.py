@@ -10,7 +10,7 @@ from enum import Enum
 
 class AccountsView(ctk.CTk):
 
-    def __init__(self, db_model, account_controller, update_controller,  config_manager, catalogo_elenchi, tab):
+    def __init__(self, db_model, account_controller, update_controller,  config_manager, catalogo_elenchi, analyzer, tab):
         super().__init__()
 
         self.db_model = db_model
@@ -18,6 +18,7 @@ class AccountsView(ctk.CTk):
         self.update_controller = update_controller
         self.config_manager = config_manager
         self.catalogo_elenchi = catalogo_elenchi
+        self.analyzer = analyzer
         self.tab = tab
 
         self.global_infos = {}
@@ -50,7 +51,7 @@ class AccountsView(ctk.CTk):
         for account in self.account_controller.retrieve_accounts_map_list():
             id =  account[DBAccountsColumns.ID.value]
             name = account[DBAccountsColumns.NAME.value]
-            balance = account[DBAccountsColumns.INIT_BALANCE.value]
+            balance = self.analyzer.calculate_account_balance_by_account_id(id)
 
             self.add_account_card(id, name, balance)
 

@@ -1,5 +1,4 @@
 import re
-import os
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from enum import Enum
@@ -139,10 +138,7 @@ class UserController:
 
         self.secret_key = hashlib.sha256("Neomisia".encode()).digest()
 
-        self.users_list = self.retrieve_users_map_list()
-
-    def update_users_list(self):
-        self.users_list = self.retrieve_users_map_list()
+        #self.users_list = self.retrieve_users_map_list()
 
     def save_user(self, user_data):
         """
@@ -242,7 +238,7 @@ class UserController:
         # Salvataggio nel DB
         try:
             self.db_model.add_user(**user_data_filtered)
-            self.update_users_list()
+            #self.update_users_list()
             return True, "Utente salvato con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
@@ -602,9 +598,6 @@ class ClientController:
         self.db_model = db_model
 
         #self.clients_list = self.retrieve_clients_map_list()
-
-    """def update_clients_list(self):
-        self.clients_list = self.retrieve_clients_map_list()"""
 
     def save_client(self, client_data):
         """
@@ -989,7 +982,7 @@ class InvoiceController:
         MEDIA_PAGAM_ORARIO_LORDO = "MEDIA_PAGAM_ORARIO_LORDO"
         MEDIA_PAGAM_ORARIO_NETTO = "MDIA_PAGAM_ORARIO_NETTO"
 
-    def __init__(self, db_model: DatabaseModel, user_controller, client_controller, production_controller, payment_controller, fiscal_settings):
+    def __init__(self, db_model: DatabaseModel, user_controller, client_controller, production_controller, payment_controller, account_controller, fiscal_settings):
         """Inizializza il controller con il modello del database"""
         self.db_model = db_model
         self.fiscal_settings = fiscal_settings
@@ -997,6 +990,7 @@ class InvoiceController:
         self.client_controller = client_controller
         self.production_controller = production_controller
         self.payment_controller = payment_controller
+        self.account_controller = account_controller
 
 
         #self.invoices_list = {}
@@ -1017,13 +1011,6 @@ class InvoiceController:
 
         self.on_updating_invoice_controller_callbacks = []
 
-    """def update_invoices_list(self):
-        self.invoices_list = self.retrieve_invoices_map_list(False)
-        self.current_year_invoices_list = self.retrieve_invoices_map_list(current_year=True)
-
-        self.invoices_list = sorted(self.invoices_list, key=lambda d: datetime.strptime(d[DBInvoicesColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
-        self.current_year_invoices_list = sorted(self.current_year_invoices_list, key=lambda d: datetime.strptime(d[DBInvoicesColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
-    """
     def save_invoice(self, invoice_data):
         """
         Gestisce il salvataggio di una fattura, con validazioni di primo livello.
@@ -1078,6 +1065,12 @@ class InvoiceController:
         id_cliente = cliente_map[DBClientsColumns.ID.value]
         tipologia_cliente = cliente_map[DBClientsColumns.TIPOLOGIA.value]
 
+        #prendo i dati necessari al conto
+        nome_conto = invoice_data.get("CONTO")
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        if conto:
+            conto_id = conto[DBAccountsColumns.ID.value]
+
         totale_servizi = invoice_data.get(DBInvoicesColumns.SERVIZI.value)
         totale_rimborsi = invoice_data.get(DBInvoicesColumns.RIMBORSI.value)
 
@@ -1109,6 +1102,7 @@ class InvoiceController:
                 DBInvoicesColumns.DATA_SCADENZA_3.value : self.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[2] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == InvoiceController.Rateizzazione.TRE.value else None,
                 DBInvoicesColumns.ID_UTENTE.value : id_utente,  # controller(view)
                 DBInvoicesColumns.ID_CLIENTE.value : id_cliente,  # controller(view)
+                DBInvoicesColumns.ID_CONTO.value : conto_id,
                 DBInvoicesColumns.NOTE.value : invoice_data.get(DBInvoicesColumns.NOTE.value),  # view
                 DBInvoicesColumns.SERVIZI.value : totale_servizi,  # view (comprensivo di rivalsa)
                 DBInvoicesColumns.CASSA_INPS.value : importi_derivati_ordinaria[DBInvoicesColumns.CASSA_INPS.value],  # controller -> servizi*coeff redditività*aliquota INPS
@@ -1136,6 +1130,7 @@ class InvoiceController:
                 DBInvoicesColumns.DATA_SCADENZA_3.value: self.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[2] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == InvoiceController.Rateizzazione.TRE.value else None,
                 DBInvoicesColumns.ID_UTENTE.value: id_utente,  # controller(view)
                 DBInvoicesColumns.ID_CLIENTE.value: id_cliente,  # controller(view)
+                DBInvoicesColumns.ID_CONTO.value: conto_id,
                 DBInvoicesColumns.NOTE.value: invoice_data.get(DBInvoicesColumns.NOTE.value),  # view
                 DBInvoicesColumns.SERVIZI.value: totale_servizi,  # view (comprensivo di rivalsa)
                 DBInvoicesColumns.CASSA_INPS.value: 0,
@@ -2023,13 +2018,6 @@ class PaymentsController:
 
         self.on_adding_payment_callbacks = []
 
-    """def update_payments_lists(self):
-        self.CY_payment_list = self.retrieve_payments_map_list(True)
-        self.payment_list = self.retrieve_payments_map_list(False)
-
-        self.payment_list = sorted(self.payment_list, key=lambda d: datetime.strptime(d[DBPaymentsColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
-        self.CY_payment_list = sorted(self.CY_payment_list, key=lambda d: datetime.strptime(d[DBPaymentsColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S"), reverse=True)
-    """
     def update_aggregate_data(self):
         self.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value] = self.count_payments(True)
         self.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value] = self.calculate_tot_payments(True)
@@ -2059,7 +2047,7 @@ class PaymentsController:
 
         # prendo i dati necessari del conto
         nome_conto = payment_data.get("NOME CONTO")
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto, True)
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
         id_conto = conto[DBAccountsColumns.ID.value]
 
 
@@ -2074,7 +2062,6 @@ class PaymentsController:
 
         try:
             self.db_model.add_payment(**payment_data_prepared)
-            self.update_payments_lists()
             self.update_aggregate_data()
             #for callback in self.on_adding_payment_callbacks:
             #    callback(payment_data.get(DBPaymentsColumns.INVOICE_ID.value))
@@ -2275,6 +2262,10 @@ class PaymentsController:
     def register_on_adding_payment_callbacks(self, *callbacks):
         self.on_adding_payment_callbacks = list(callbacks)
 
+    def sum_payments_for_account(self, account_id):
+        return self.db_model.sum_payments_by_account(account_id)
+
+
 
 class UpdatesController:
 
@@ -2324,11 +2315,6 @@ class AccountController:
         self.update_aggregate_data()
         #self.update_accounts_lists()
 
-    """def update_accounts_lists(self):
-        # Utilizza le funzioni che restituiscono una lista di dizionari, indicizzandoli per ID
-        self.account_list = self.retrieve_accounts_map_list(current_year=False)
-        self.CY_account_list = self.retrieve_accounts_map_list(current_year=True)"""
-
     def update_aggregate_data(self):
         """
         Inizializza (o resetta) i dati aggregati per gli account.
@@ -2346,40 +2332,26 @@ class AccountController:
         }
 
         # Recupera tutte le mappe e aggiorna i totali
-        for account in self.retrieve_accounts_map_list(current_year = False):
+        for account in self.retrieve_accounts_map_list():
             self.accounts_aggregated_data[AccountController.AccountsAggregateData.NUM_ACCOUNTS.value] += 1
             self.accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.INIT_BALANCE.value])
 
-        for account in self.retrieve_accounts_map_list(current_year = True):
+        for account in self.retrieve_accounts_map_list():
             self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.NUM_ACCOUNTS.value] += 1
             self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.INIT_BALANCE.value])
 
-    def retrieve_accounts(self, current_year=False):
+    def retrieve_accounts(self):
         """
         Recupera tutte le tuple degli account dalla tabella, filtrandoli per l'anno corrente se specificato.
-        La data di riferimento è il campo ULTIMO_MOV.
+        La data di riferimento è il campo CREATED_AT.
 
-        :param current_year: Booleano. Se True, ritorna solo gli account con ULTIMO_MOV dell'anno corrente.
+        :param current_year: Booleano. Se True, ritorna solo gli account con CREATED_AT dell'anno corrente.
         :return: Lista di tuple.
         """
         rows = self.db_model.fetch_accounts()
-        if current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBAccountsColumns]
-            date_index = columns.index(DBAccountsColumns.ULTIMO_MOV.value)
-            filtered_rows = []
-            for row in rows:
-                date_str = row[date_index]
-                try:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                if dt.year == current_year_value:
-                    filtered_rows.append(row)
-            rows = filtered_rows
         return rows
 
-    def retrieve_account_by_id(self, account_id, current_year=False):
+    def retrieve_account_by_id(self, account_id):
         """
         Recupera una tupla dell'account specifico per ID, opzionalmente filtrando per l'anno corrente.
 
@@ -2388,20 +2360,9 @@ class AccountController:
         :return: Tupla con i dati dell'account oppure None.
         """
         row = self.db_model.fetch_account_by_id(account_id)
-        if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBAccountsColumns]
-            date_index = columns.index(DBAccountsColumns.ULTIMO_MOV.value)
-            date_str = row[date_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt.year != current_year_value:
-                return None
         return row
 
-    def retrieve_account_map_by_id(self, account_id, current_year=False):
+    def retrieve_account_map_by_id(self, account_id):
         """
         Recupera un account specifico per ID e lo restituisce come dizionario,
         opzionalmente filtrando per l'anno corrente.
@@ -2411,20 +2372,9 @@ class AccountController:
         :return: Dizionario con i dati dell'account oppure None.
         """
         row = self.db_model.fetch_account_by_id(account_id)
-        if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBAccountsColumns]
-            date_index = columns.index(DBAccountsColumns.ULTIMO_MOV.value)
-            date_str = row[date_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt.year != current_year_value:
-                return None
         return ValidationUtils._row_to_map(row, DBAccountsColumns)
 
-    def retrieve_account_map_by_name(self, account_name, current_year=False):
+    def retrieve_account_map_by_name(self, account_name):
         """
         Recupera un account specifico per nome, opzionalmente filtrando per l'anno corrente.
 
@@ -2433,21 +2383,9 @@ class AccountController:
         :return: Una tupla con i dati dell'account oppure None.
         """
         row = self.db_model.fetch_account_by_name(account_name)
-        if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBAccountsColumns]
-            # Utilizziamo il campo ULTIMO_MOV per il controllo dell'anno corrente
-            date_index = columns.index(DBAccountsColumns.ULTIMO_MOV.value)
-            date_str = row[date_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt.year != current_year_value:
-                return None
         return ValidationUtils._row_to_map(row, DBAccountsColumns)
 
-    def retrieve_accounts_map_list(self, current_year=False):
+    def retrieve_accounts_map_list(self):
         """
         Recupera tutti gli account e li restituisce come lista di dizionari,
         filtrandoli per l'anno corrente se specificato.
@@ -2456,25 +2394,6 @@ class AccountController:
         :return: Lista di dizionari con i dati degli account.
         """
         rows = self.db_model.fetch_accounts()
-        columns = [column.value for column in DBAccountsColumns]
-
-        if current_year:
-            current_year_value = datetime.now().year
-            date_index = columns.index(DBAccountsColumns.UPDATED_AT.value)
-            filtered_rows = []
-            for row in rows:
-                try:
-                    date_str = row[date_index]
-                    try:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d")
-                    if dt.year == current_year_value:
-                        filtered_rows.append(row)
-                except Exception as e:
-                    print(f"Errore durante il parsing della data '{date_str}': {e}")
-            rows = filtered_rows
-
         return [ValidationUtils._row_to_map(row, DBAccountsColumns) for row in rows]
 
     def retrieve_last_account_insert_map(self):
@@ -2486,14 +2405,14 @@ class AccountController:
         row = self.db_model.fetch_last_account_insert()
         return ValidationUtils._row_to_map(row, DBAccountsColumns)
 
-    def count_accounts(self, current_year=False):
+    def count_accounts(self):
         """
         Conta il numero di account, applicando il filtro per l'anno corrente se specificato.
 
         :param current_year: Booleano. Se True, conta solo gli account dell'anno corrente.
         :return: Numero di account (int)
         """
-        accounts = self.retrieve_accounts_map_list(current_year=current_year)
+        accounts = self.retrieve_accounts_map_list()
         return len(accounts)
 
     def get_accounts_names(self):
@@ -2571,17 +2490,6 @@ class ProductionController:
         self.productions_aggregated_data = {}
         self.CY_productions_aggregated_data = {}
 
-    """def update_productions_lists(self):
-        self.CY_production_list = self.retrieve_productions_map_list(current_year=True)
-        self.production_list = self.retrieve_productions_map_list(current_year=False)
-
-        self.production_list = sorted(self.production_list,
-                                   key=lambda d: datetime.strptime(d[DBProductionsColumns.UPDATED_AT.value],
-                                                                   "%Y-%m-%d %H:%M:%S"), reverse=True)
-        self.CY_production_list = sorted(self.CY_production_list,
-                                      key=lambda d: datetime.strptime(d[DBProductionsColumns.UPDATED_AT.value],
-                                                                      "%Y-%m-%d %H:%M:%S"), reverse=True)"""
-
     def save_production(self, production_data):
         """
         Gestisce il salvataggio di una produzione, con validazioni di primo livello.
@@ -2631,7 +2539,6 @@ class ProductionController:
 
         try:
             self.db_model.add_production(**production_data_prepared)
-            self.update_productions_lists()
             self.update_aggregate_data()
             return True, "Produzione salvata con successo!"
         except Exception as e:
@@ -2989,7 +2896,7 @@ class ExpenseController:
         conto_id = None
         conto_name = expense_data.get("CONTO")
         if conto_name:
-            conto = self.account_controller.retrieve_account_map_by_name(conto_name, False)
+            conto = self.account_controller.retrieve_account_map_by_name(conto_name)
             conto_id = conto[DBAccountsColumns.ID.value]
 
 
@@ -3261,6 +3168,9 @@ class ExpenseController:
             except Exception as e:
                 print(f"Errore creando spesa '{nominal}': {e}")
 
+    def sum_expenses_for_account(self, account_id):
+        return self.db_model.sum_expenses_by_account(account_id)
+
 
 class SupplierController:
 
@@ -3399,4 +3309,39 @@ class SupplierController:
         tot = self.calcola_tot_spese_supplier(supplier_id)
 
         return tot/numero if numero > 0 else 0
+
+class Analyzer:
+    def __init__(self,
+                 user_controller,
+                 client_controller,
+                 account_controller,
+                 supplier_controller,
+                 production_controller,
+                 payment_controller,
+                 expenses_controller,
+                 fiscal_settings,
+                 recurring_expenses_settings
+                 ):
+        self.user_controller = user_controller
+        self.client_controller = client_controller
+        self.account_controller = account_controller
+        self.supplier_controller = supplier_controller
+        self.production_controller = production_controller
+        self.payment_controller = payment_controller
+        self.expenses_controller = expenses_controller
+        self.fiscal_settings = fiscal_settings
+        self.recurring_expenses_settings = recurring_expenses_settings
+
+    def calculate_account_balance_by_account_id(self, account_id):
+        account = self.account_controller.retrieve_account_map_by_id(account_id)
+        balance = 0.0
+        if account:
+            init_balance = float(account[DBAccountsColumns.INIT_BALANCE.value])
+
+            tot_entrate = self.payment_controller.sum_payments_for_account(account_id)
+            tot_uscite = self.expenses_controller.sum_expenses_for_account(account_id)
+
+            balance = init_balance + float(tot_entrate) - float(tot_uscite)
+
+        return balance
 

@@ -3,7 +3,7 @@ import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
 from Controllers import ValidationUtils, InvoiceController, UserController, ControllerUtils
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns
+from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns
 from datetime import datetime
 import re
 from enum import Enum
@@ -18,7 +18,7 @@ class InvoicesView(ctk.CTk):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, tab, fiscal_settings):
+    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, tab, fiscal_settings):
         super().__init__()
 
         self.db_model = db_model
@@ -27,6 +27,7 @@ class InvoicesView(ctk.CTk):
         self.client_controller = client_controller
         self.production_controller = production_controller
         self.payment_controller = payment_controller
+        self.account_controller = account_controller
         self.tab = tab
         self.fiscal_settings = fiscal_settings
 
@@ -148,7 +149,8 @@ class InvoicesView(ctk.CTk):
             invoice_tot_documento = invoice[DBInvoicesColumns.NETTO_A_PAGARE.value]
             invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
             invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-            invoice_production_name = self.production_controller.retrieve_production_map_by_id(invoice_production_id)[DBProductionsColumns.NAME.value]
+            production = self.production_controller.retrieve_production_map_by_id(invoice_production_id)
+            invoice_production_name = production[DBProductionsColumns.NAME.value] if production else "Produzione non trovata"
 
             self.add_invoice_card(invoice_id, invoice_name, invoice_client_name, invoice_user_name, invoice_production_name, invoice_creation_date, invoice_state, invoice_rate, invoice_tot_documento, invoice_tipologia)
             self.toggle_specific_invoice_rate_color_2(invoice_id)
@@ -193,6 +195,7 @@ class InvoicesView(ctk.CTk):
         self.nome_utente_string = "NOME UTENTE"
         self.nome_cliente_string = "NOME CLIENTE"
         self.nome_produzione_string = "NOME PRODUZIONE"
+        self.nome_conto_string = "CONTO"
 
         self.entry_fields = {
             self.nome_utente_string: ctk.CTkOptionMenu,
@@ -207,6 +210,7 @@ class InvoicesView(ctk.CTk):
             DBInvoicesColumns.NUMERO_RATE.value: ctk.CTkOptionMenu,
             DBInvoicesColumns.TIPO.value: ctk.CTkOptionMenu,
             DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value: ctk.CTkOptionMenu,
+            self.nome_conto_string: ctk.CTkOptionMenu,
             DBInvoicesColumns.NOTE.value: ctk.CTkTextbox
         }
 
@@ -238,7 +242,7 @@ class InvoicesView(ctk.CTk):
             #widget
             if label_text == self.nome_utente_string:
                 widget = widget_class(self.invoice_window_scrollableFrame,
-                                      values=[f"{item[DBUsersColumns.FIRST_NAME.value]} {item[DBUsersColumns.LAST_NAME.value]}" for item in self.user_controller.users_list],
+                                      values=[f"{item[DBUsersColumns.FIRST_NAME.value]} {item[DBUsersColumns.LAST_NAME.value]}" for item in self.user_controller.retrieve_users_map_list()],
                                       command=lambda selected_value: self.update_entries_on_regime_fiscale(selected_value))
             elif label_text == self.nome_cliente_string:
                 widget = widget_class(self.invoice_window_scrollableFrame,
@@ -266,6 +270,10 @@ class InvoicesView(ctk.CTk):
                                       values=[f"{item[DBInvoicesColumns.NUMERO_FATTURA.value]}" for item in
                                               self.invoices_list_of_user],
                                       command = lambda selected_value: self.auto_set_importi_for_nota_di_credito(selected_value))
+            elif label_text ==self.nome_conto_string:
+                widget = widget_class(self.invoice_window_scrollableFrame,
+                                      values=[f"{item[DBAccountsColumns.NAME.value]}" for item in
+                                              self.account_controller.retrieve_accounts_map_list()])
             else:
                 widget = widget_class(self.invoice_window_scrollableFrame)
 

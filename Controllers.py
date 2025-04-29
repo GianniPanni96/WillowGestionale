@@ -2266,7 +2266,6 @@ class PaymentsController:
         return self.db_model.sum_payments_by_account(account_id)
 
 
-
 class UpdatesController:
 
     def __init__(self, user_controller, client_controller, invoice_controller, payments_controller, account_controller, production_controller):
@@ -2277,9 +2276,10 @@ class UpdatesController:
         self.account_controller = account_controller
         self.production_controller = production_controller
 
+        self.on_adding_payment_view_cllbks = []
+
     def update_invoices(self, invoice_id):
         #richiedo di updatare le liste in back
-        #self.invoice_controller.update_invoices_list()
         self.invoice_controller.update_aggregated_data()
         self.invoice_controller.update_stato_fatture()
 
@@ -2289,6 +2289,23 @@ class UpdatesController:
                 callback(invoice_id)
             except TypeError as e:
                 callback()
+
+    def register_on_adding_payment_view_cllbks(self, *callbacks):
+        """
+        Register within UpdateController some view callbacks to be called when a new payment is added to the DB.
+        IMPORTANT: the callbacks have to be arguments free
+        :param callbacks: the functions of views that update the widgets linked somehow with payment's data
+
+        """
+        self.on_adding_payment_view_cllbks = list(callbacks)
+
+    def on_adding_payment(self):
+        for callback in self.on_adding_payment_view_cllbks:
+            try:
+                callback()
+            except TypeError as e:
+                print("ERRORE: on_adding_payment_view_cllbks contiene una callback non idonea in quanto vuole un argomento")
+
 
 
 class AccountController:
@@ -3309,6 +3326,7 @@ class SupplierController:
         tot = self.calcola_tot_spese_supplier(supplier_id)
 
         return tot/numero if numero > 0 else 0
+
 
 class Analyzer:
     def __init__(self,

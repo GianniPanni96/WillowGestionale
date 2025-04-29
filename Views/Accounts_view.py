@@ -23,11 +23,11 @@ class AccountsView(ctk.CTk):
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
-
-        self.accounts_card_list = {}
-        self.account_card_labels_status = {}
+        self.balance_labels = {}
         self.number_of_account_cards = 0
         self.account_cards = {}
+
+        self.update_controller.register_on_adding_payment_view_cllbks(self.update_accounts_balances)
 
     def create_accounts_tab(self):
         """Crea la UI per la gestione dei conti bancari"""
@@ -76,6 +76,8 @@ class AccountsView(ctk.CTk):
         user_info_balance = ctk.CTkLabel(detail_info_frame, text=f"Saldo: {balance}")
         user_info_balance.pack(anchor="w", padx=10, pady=10)
 
+        self.balance_labels[id] = user_info_balance
+
         self.modify_button = ctk.CTkButton(account_card, text="Modifica",
                                            command=lambda: self.open_modify_account_window(id))
         self.modify_button.pack(side="left", pady=10, padx=28)
@@ -121,3 +123,8 @@ class AccountsView(ctk.CTk):
         else:
             print(f"impossibile eliminare il conto: {message}")
             ViewUtils.show_error_popup("ERRORE", message)
+
+    def update_accounts_balances(self):
+        for account_id, label in self.balance_labels.items():
+            new_balance = self.analyzer.calculate_account_balance_by_account_id(account_id)
+            label.configure(text=f"Saldo: {new_balance}")

@@ -10,7 +10,7 @@ from dataclasses import fields
 
 class ExpensesView(ctk.CTk):
 
-    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, fiscal_settings, catalogo_elenchi, config_manager, tab):
+    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab):
         super().__init__()
 
         self.db_model = db_model
@@ -20,6 +20,7 @@ class ExpensesView(ctk.CTk):
         self.supplier_controller = supplier_controller
         self.invoice_controller = invoice_controller
         self.update_controller = update_controller
+        self.analyzer = analyzer
         self.fiscal_settings = fiscal_settings
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
@@ -313,7 +314,9 @@ class ExpensesView(ctk.CTk):
         success, message = self.expense_controller.save_expense(expense_data)
 
         if success:
-            # prendo l'ID della fattura appena creata
+            self.update_controller.on_adding_expense()
+
+            # prendo l'ID della sesa appena creata
             expense_map = self.expense_controller.retrieve_last_expense_insert_map()
             print(f"Spesa {expense_data[DBExpensesColumns.NAME.value]} salvata con successo")
 

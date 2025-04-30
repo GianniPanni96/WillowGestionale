@@ -111,7 +111,7 @@ class MainWindow(ctk.CTk):
         self.payment_tab.create_payments_tab()
         self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Produzioni"))
         self.production_tab.create_productions_tab()
-        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller, self.account_controller, self.supplier_controller, self.invoice_controller, self.update_controller, fiscal_settings, catalogo_elenchi, self.config_manager, self.tabview.tab("Spese"))
+        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller, self.account_controller, self.supplier_controller, self.invoice_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, self.config_manager, self.tabview.tab("Spese"))
         self.expense_tab.create_expenses_tab()
         self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller, self.config_manager, catalogo_elenchi, self.tabview.tab("Fornitori"))
         self.supplier_tab.create_suppliers_tab()

@@ -28,6 +28,7 @@ class AccountsView(ctk.CTk):
         self.account_cards = {}
 
         self.update_controller.register_on_adding_payment_view_cllbks(self.update_accounts_balances)
+        self.update_controller.register_on_adding_expense_view_cllbks(self.update_accounts_balances)
 
     def create_accounts_tab(self):
         """Crea la UI per la gestione dei conti bancari"""

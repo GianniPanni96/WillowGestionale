@@ -10,7 +10,7 @@ from Crypto.Random import get_random_bytes
 import hashlib
 
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
-from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
+from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns, DBTransfersColumns
 
 from Views.View_utils import ViewUtils
 
@@ -2456,6 +2456,150 @@ class AccountController:
                 accounts}  # Supponendo che account[0] sia l'ID e account[1] il nome
 
 
+class TransfersController:
+    def __init__(self, db_model, account_controller):
+        """
+        Inizializza il controller con il model.
+        :param db_model: Istanza di db_model per accedere ai dati.
+        """
+        self.db_model = db_model
+        self.account_controller = account_controller
+
+    def save_transfer(self, transfer_data):
+        """
+        Gestisce il salvataggio di un bonifico, con validazioni di primo livello.
+        :param transfer_data: Dizionario contenente i dati del bonifico
+        :return: Tuple (success, message), dove success è True/False
+        """
+
+        # Campi obbligatori (solo quelli modellati tramite entry)
+        self.required_fields = {DBTransfersColumns.DESCRIPTION.value, DBTransfersColumns.AMOUNT.value}
+
+        # Validazione dei campi obbligatori
+        missing_fields = [field for field in self.required_fields if not transfer_data.get(field)]
+        if missing_fields:
+            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+        # Validazione importi
+        spesa_lorda = transfer_data.get(DBTransfersColumns.AMOUNT.value)
+        if not ValidationUtils.validate_amount(spesa_lorda):
+            return False, "L'importo inserito non è valido"
+
+        #prendo ID Conto Ricevente
+        receiver_account_id = None
+        receiver_account_name = transfer_data.get("CONTO RICEVENTE")
+        receiver_account = self.account_controller.retrieve_account_map_by_name(receiver_account_name)
+        receiver_account_id = receiver_account[DBTransfersColumns.ID.value] if receiver_account else None
+
+        transfer_data_prepared = {
+            DBTransfersColumns.DESCRIPTION.value: transfer_data.get(DBTransfersColumns.DESCRIPTION.value),
+            DBTransfersColumns.AMOUNT.value: transfer_data.get(DBTransfersColumns.AMOUNT.value),
+            DBTransfersColumns.SENDER_ACCOUNT_ID.value: transfer_data.get(DBTransfersColumns.SENDER_ACCOUNT_ID.value),
+            DBTransfersColumns.RECEIVER_ACCOUNT_ID.value: receiver_account_id
+        }
+
+        try:
+            self.db_model.add_transfer(**transfer_data_prepared)
+            return True, "Bonifico salvato con successo!"
+        except Exception as e:
+            return False, f"Errore durante il salvataggio: {str(e)}"
+
+    def retrieve_transfers(self):
+        """
+        Recupera tutte le tuple dei trasferimenti dalla tabella.
+        :return: Lista di tuple.
+        """
+        rows = self.db_model.fetch_all_transfers()
+        return rows
+
+    def retrieve_transfer_by_id(self, transfer_id):
+        """
+        Recupera una tupla del trasferimento specifico per ID.
+        :param transfer_id: ID del trasferimento.
+        :return: Tupla con i dati del trasferimento oppure None.
+        """
+        row = self.db_model.fetch_transfer_by_id(transfer_id)
+        return row
+
+    def retrieve_transfer_map_by_id(self, transfer_id):
+        """
+        Recupera un trasferimento specifico per ID e lo restituisce come dizionario.
+        :param transfer_id: ID del trasferimento.
+        :return: Dizionario con i dati del trasferimento oppure None.
+        """
+        row = self.db_model.fetch_transfer_by_id(transfer_id)
+        return ValidationUtils._row_to_map(row, DBTransfersColumns)
+
+    def retrieve_transfers_map_list(self):
+        """
+        Recupera tutti i trasferimenti come lista di dizionari.
+        :return: Lista di dizionari con i dati dei trasferimenti.
+        """
+        rows = self.db_model.fetch_all_transfers()
+        return [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
+
+    def retrieve_last_transfer_insert_map(self):
+        """
+        Recupera l'ultimo trasferimento inserito come dizionario.
+        :return: Dizionario con i dati dell'ultimo trasferimento oppure None.
+        """
+        row = self.db_model.fetch_last_transfer_insert()
+        return ValidationUtils._row_to_map(row, DBTransfersColumns)
+
+    def retrieve_sent_transfers_map_by_account(self, account_id):
+        """
+        Recupera l'ultimo trasferimento inserito come dizionario.
+        :return: Dizionario con i dati dell'ultimo trasferimento oppure None.
+        """
+        row = self.db_model.fetch_sent_transfers_by_account(account_id)
+        return ValidationUtils._row_to_map(row, DBTransfersColumns)
+
+    def retrieve_received_transfers_map_by_account(self, account_id):
+        """
+        Recupera l'ultimo trasferimento inserito come dizionario.
+        :return: Dizionario con i dati dell'ultimo trasferimento oppure None.
+        """
+        row = self.db_model.fetch_received_transfers_by_account(account_id)
+        return ValidationUtils._row_to_map(row, DBTransfersColumns)
+
+
+    def retrieve_received_transfers_map(self, account_id):
+        """
+        Recupera i trasferimenti ricevuti da un conto come lista di dizionari.
+        :param account_id: ID del conto ricevente
+        :return: Lista di dizionari
+        """
+        rows = self.db_model.fetch_received_transfers_by_account(account_id)
+        return [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
+
+    def retrieve_sent_transfers_map(self, account_id):
+        """
+        Recupera i trasferimenti inviati da un conto come lista di dizionari.
+        :param account_id: ID del conto mittente
+        :return: Lista di dizionari
+        """
+        rows = self.db_model.fetch_sended_transfers_by_account(account_id)
+        return [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
+
+    def calculate_tot_amount_sent_transfers_by_account(self, account_id):
+        sent_transfers = self.retrieve_sent_transfers_map_by_account(account_id)
+        amount = 0.0
+
+        for transfer in sent_transfers:
+            amount = amount + float(transfer[DBTransfersColumns.AMOUNT.value])
+
+        return amount
+
+    def calculate_tot_amount_received_transfers_by_account(self, account_id):
+        received_transfers = self.retrieve_received_transfers_map_by_account(account_id)
+        amount = 0.0
+
+        for transfer in received_transfers:
+            amount = amount + float(transfer[DBTransfersColumns.AMOUNT.value])
+
+        return amount
+
+
 class ProductionController:
 
     class ProductionsAggregateData(Enum):
@@ -3330,6 +3474,7 @@ class UpdatesController:
 
         self.on_adding_payment_view_cllbks = []
         self.on_adding_expense_view_cllbks = []
+        self.on_adding_transfer_view_cllbks = []
 
     def update_invoices(self, invoice_id):
         #richiedo di updatare le liste in back
@@ -3361,6 +3506,15 @@ class UpdatesController:
         """
         self.on_adding_expense_view_cllbks = list(callbacks)
 
+    def register_on_adding_transfer_view_cllbks(self, *callbacks):
+        """
+        Register within UpdateController some view callbacks to be called when a new transfer is added to the DB.
+        IMPORTANT: the callbacks have to be arguments free
+        :param callbacks: the functions of views that update the widgets linked somehow with expense's data
+
+        """
+        self.on_adding_transfer_view_cllbks = list(callbacks)
+
     def on_adding_payment(self):
         for callback in self.on_adding_payment_view_cllbks:
             try:
@@ -3375,12 +3529,20 @@ class UpdatesController:
             except TypeError as e:
                 print("ERRORE: on_adding_expense_view_cllbks contiene una callback non idonea in quanto vuole un argomento")
 
+    def on_adding_transfer(self):
+        for callback in self.on_adding_transfer_view_cllbks:
+            try:
+                callback()
+            except TypeError as e:
+                print(f"ERRORE: {str(e)}")
+
 
 class Analyzer:
     def __init__(self,
                  user_controller,
                  client_controller,
                  account_controller,
+                 transfer_controller,
                  supplier_controller,
                  production_controller,
                  payment_controller,
@@ -3391,6 +3553,7 @@ class Analyzer:
         self.user_controller = user_controller
         self.client_controller = client_controller
         self.account_controller = account_controller
+        self.transfer_controller = transfer_controller
         self.supplier_controller = supplier_controller
         self.production_controller = production_controller
         self.payment_controller = payment_controller
@@ -3404,8 +3567,8 @@ class Analyzer:
         if account:
             init_balance = float(account[DBAccountsColumns.INIT_BALANCE.value])
 
-            tot_entrate = self.payment_controller.sum_payments_for_account(account_id)
-            tot_uscite = self.expenses_controller.sum_expenses_for_account(account_id)
+            tot_entrate = self.payment_controller.sum_payments_for_account(account_id) + self.transfer_controller.calculate_tot_amount_received_transfers_by_account(account_id)
+            tot_uscite = self.expenses_controller.sum_expenses_for_account(account_id) + self.transfer_controller.calculate_tot_amount_sent_transfers_by_account(account_id)
 
             balance = init_balance + float(tot_entrate) - float(tot_uscite)
 

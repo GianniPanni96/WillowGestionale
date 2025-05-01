@@ -5,7 +5,8 @@ from Views.View_utils import ViewUtils
 
 
 from Controllers import UserController, AccountController, ClientController, InvoiceController, \
-    PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, Analyzer
+    PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
+    Analyzer, TransfersController
 from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns
 
 
@@ -40,6 +41,7 @@ class MainWindow(ctk.CTk):
         self.db_model = DatabaseModel(db_path)  # Istanzia il modello
         self.user_controller = UserController(self.db_model, fiscal_settings)  # Crea il controller per gli utenti
         self.account_controller = AccountController(self.db_model, self.user_controller)
+        self.transfer_controller = TransfersController(self.db_model, self.account_controller)
         self.client_controller = ClientController(self.db_model)
         self.supplier_controller = SupplierController(self.db_model)
         self.payment_controller = PaymentsController(self.db_model, self.account_controller)
@@ -50,6 +52,7 @@ class MainWindow(ctk.CTk):
         self.analyzer = Analyzer(self.user_controller,
                  self.client_controller,
                  self.account_controller,
+                 self.transfer_controller,
                  self.supplier_controller,
                  self.production_controller,
                  self.payment_controller,
@@ -115,7 +118,7 @@ class MainWindow(ctk.CTk):
         self.expense_tab.create_expenses_tab()
         self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller, self.config_manager, catalogo_elenchi, self.tabview.tab("Fornitori"))
         self.supplier_tab.create_suppliers_tab()
-        self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller, self.config_manager, self.catalogo_elenchi, self.analyzer, self.tabview.tab("Conti"))
+        self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller, self.transfer_controller, self.config_manager, self.catalogo_elenchi, self.analyzer, self.tabview.tab("Conti"))
         self.account_tab.create_accounts_tab()
 
         self.update_idletasks()

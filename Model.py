@@ -127,6 +127,16 @@ class DBAccountsColumns(Enum):
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 
+class DBTransfersColumns(Enum):
+    ID = "ID"
+    DESCRIPTION = "CAUSALE"
+    AMOUNT = "IMPORTO"
+    SENDER_ACCOUNT_ID = "ID_CONTO_MITTENTE"
+    RECEIVER_ACCOUNT_ID = "ID_CONTO_RICEVENTE"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
+
 class DBExpensesColumns(Enum):
     ID = "ID"
     NAME = "NOME"
@@ -1181,6 +1191,142 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query)
             return cursor.fetchone()
+
+
+
+
+
+
+
+
+    def fetch_all_transfers(self):
+        """Recupera tutti i bonifici"""
+        columns = [column.value for column in DBTransfersColumns]
+        query = f"SELECT {', '.join(columns)} FROM transfers"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_transfer(self, **kwargs):
+        """
+        Aggiungi un nuovo bonifico.
+        I campi da aggiungere devono essere passati come keyword arguments.
+        """
+        # Estrazione colonne valide dall'enum
+        valid_columns = {column.value for column in DBTransfersColumns if column != DBTransfersColumns.ID}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        # Costruzione query dinamica
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO transfers ({columns}) VALUES ({placeholders})"
+
+        # Esecuzione
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def fetch_transfer_by_id(self, transfer_id):
+        """
+        Recupera un bonifico specifico per ID
+        """
+        columns = [column.value for column in DBTransfersColumns]
+        query = f"SELECT {', '.join(columns)} FROM transfers WHERE {DBTransfersColumns.ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (transfer_id,))
+            return cursor.fetchone()
+
+    def fetch_last_transfer_insert(self):
+        """
+        Recupera l'ultimo bonifico inserito
+        """
+        columns = [column.value for column in DBTransfersColumns]
+        query = f"""
+        SELECT {', '.join(columns)} 
+        FROM transfers 
+        ORDER BY {DBTransfersColumns.CREATED_AT.value} DESC 
+        LIMIT 1
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+    def fetch_transfers_by_account(self, account_id):
+        """
+        Recupera tutti i bonifici associati a un conto (mittente o ricevente)
+        """
+        columns = [column.value for column in DBTransfersColumns]
+        query = f"""
+        SELECT {', '.join(columns)} 
+        FROM transfers 
+        WHERE {DBTransfersColumns.SENDER_ACCOUNT_ID.value} = ? 
+        OR {DBTransfersColumns.RECEIVER_ACCOUNT_ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (account_id, account_id))
+            return cursor.fetchall()
+
+    def fetch_received_transfers_by_account(self, account_id):
+        """
+        Recupera tutti i bonifici ricevuti da un conto specifico.
+
+        Args:
+            account_id (int): ID del conto ricevente
+
+        Returns:
+            list: Lista di tuple con i dati dei bonifici ricevuti
+        """
+        columns = [column.value for column in DBTransfersColumns]
+        query = f"""
+        SELECT {', '.join(columns)} 
+        FROM transfers 
+        WHERE {DBTransfersColumns.RECEIVER_ACCOUNT_ID.value} = ?
+        ORDER BY {DBTransfersColumns.CREATED_AT.value} DESC
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (account_id,))
+            return cursor.fetchall()
+
+    def fetch_sent_transfers_by_account(self, account_id):
+        """
+        Recupera tutti i bonifici inviati da un conto specifico.
+
+        Args:
+            account_id (int): ID del conto mittente
+
+        Returns:
+            list: Lista di tuple con i dati dei bonifici inviati
+        """
+        columns = [column.value for column in DBTransfersColumns]
+        query = f"""
+        SELECT {', '.join(columns)} 
+        FROM transfers 
+        WHERE {DBTransfersColumns.SENDER_ACCOUNT_ID.value} = ?
+        ORDER BY {DBTransfersColumns.CREATED_AT.value} DESC
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (account_id,))
+            return cursor.fetchall()
+
+
+
+
+
 
     @staticmethod
     def backup_gestionale_db(n, backup_base_path, delta_days):

@@ -3,23 +3,26 @@ import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
 from Controllers import PaymentsController, InvoiceController, UserController, ControllerUtils, SupplierController
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBSuppliersColumns
+from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBTransfersColumns
 from datetime import datetime
 import re
 from enum import Enum
 
 class AccountsView(ctk.CTk):
 
-    def __init__(self, db_model, account_controller, update_controller,  config_manager, catalogo_elenchi, analyzer, tab):
+    def __init__(self, db_model, account_controller, update_controller, transfer_controller, config_manager, catalogo_elenchi, analyzer, tab):
         super().__init__()
 
         self.db_model = db_model
         self.account_controller = account_controller
         self.update_controller = update_controller
         self.config_manager = config_manager
+        self.transfer_controller = transfer_controller
         self.catalogo_elenchi = catalogo_elenchi
         self.analyzer = analyzer
         self.tab = tab
+
+        self.transfers_view = TransfersView(self.db_model, self.account_controller, self.update_controller, self.transfer_controller, self.config_manager, self.catalogo_elenchi, self.analyzer)
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -32,6 +35,7 @@ class AccountsView(ctk.CTk):
 
         self.update_controller.register_on_adding_payment_view_cllbks(self.update_accounts_balances)
         self.update_controller.register_on_adding_expense_view_cllbks(self.update_accounts_balances)
+        self.update_controller.register_on_adding_transfer_view_cllbks(self.update_accounts_balances)
 
     def create_accounts_tab(self):
         """Crea la UI per la gestione dei conti bancari"""
@@ -156,7 +160,7 @@ class AccountsView(ctk.CTk):
         self.modify_button = ctk.CTkButton(buttons_frame, text="Modifica", command=lambda: self.open_modify_account_window(id))
         self.modify_button.pack(pady=10, padx=10)
 
-        self.bonifico_button = ctk.CTkButton(buttons_frame, text="Esegui Bonifico", command=lambda: self.esegui_bonifico)
+        self.bonifico_button = ctk.CTkButton(buttons_frame, text="Esegui Bonifico", command=lambda: self.transfers_view.open_add_transfer_window(id))
         self.bonifico_button.pack(pady=10)
 
         self.delete_button = ctk.CTkButton(buttons_frame, text="Disattiva", command=lambda: self.open_confirm_popup(id, ViewUtils.InterfaceOperations.ELIMINAZIONE_UTENTE.value))
@@ -205,9 +209,6 @@ class AccountsView(ctk.CTk):
             new_balance = self.analyzer.calculate_account_balance_by_account_id(account_id)
             label.configure(text=f"{new_balance:.2f} €")
 
-    def esegui_bonifico(self):
-        return
-
     def save_account_data(self):
         account_data = {}
 
@@ -247,4 +248,141 @@ class AccountsView(ctk.CTk):
 
     def update_global_infos(self):
         return
+
+
+
+
+class TransfersView(ctk.CTk):
+
+    def __init__(self, db_model, account_controller, update_controller, transfer_controller, config_manager, catalogo_elenchi, analyzer):
+        super().__init__()
+
+        self.db_model = db_model
+        self.account_controller = account_controller
+        self.update_controller = update_controller
+        self.transfer_controller = transfer_controller
+        self.config_manager = config_manager
+        self.catalogo_elenchi = catalogo_elenchi
+        self.analyzer = analyzer
+
+        self.transfer_widgets = {}
+        self.transfer_labels = {}
+
+    def open_add_transfer_window(self, sender_account_id):
+        """
+        funzione per spostare finanze da un conto a un altro
+
+        """
+
+        self.bonifico_window = ctk.CTkToplevel(self)
+        self.bonifico_window.title("Esegui Bonifico")
+
+        # Assicurati che la finestra rimanga sopra
+        self.bonifico_window.lift()  # Porta la finestra sopra quella principale
+        self.bonifico_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+
+        self.bonifico_window.geometry("550x500")
+
+        self.bonifico_window_scrollableFrame = ctk.CTkScrollableFrame(self.bonifico_window)
+        self.bonifico_window_scrollableFrame.pack(fill="both", expand=True)
+
+        self.nome_receiver_account_string = "CONTO RICEVENTE"
+
+        self.entry_fields = {
+            DBTransfersColumns.DESCRIPTION.value: ctk.CTkEntry,
+            DBTransfersColumns.AMOUNT.value: ctk.CTkEntry,
+            self.nome_receiver_account_string: ctk.CTkOptionMenu,
+        }
+
+        self.error_fields = {
+            DBTransfersColumns.DESCRIPTION.value: ctk.CTkLabel,
+            DBTransfersColumns.AMOUNT.value: ctk.CTkLabel,
+        }
+
+        self.error_labels = {}
+
+        for i, (label_text, widget_class) in enumerate(self.entry_fields.items()):
+            # Etichetta
+            label = ctk.CTkLabel(self.bonifico_window_scrollableFrame, text=label_text)
+            # disegno i labels
+            if i == 0:
+                label.pack(pady=5)
+            else:
+                label.pack(pady=(35, 0))
+
+            self.transfer_labels[label_text] = label
+
+            # creo i widgets
+            if label_text == self.nome_receiver_account_string:
+                accounts_map_list = self.account_controller.retrieve_accounts_map_list()
+                accounts_name_list = [account[DBAccountsColumns.NAME.value] for account in accounts_map_list if account[DBAccountsColumns.ID.value] != sender_account_id]
+                widget = widget_class(self.bonifico_window_scrollableFrame,
+                                      values=accounts_name_list)
+            else:
+                widget = widget_class(self.bonifico_window_scrollableFrame)
+
+            widget.pack(pady=5, padx=(0, 10), fill="x", expand=True)
+
+            self.transfer_widgets[label_text] = widget
+
+            if self.error_fields.get(label_text) is not None:
+                error_label = ctk.CTkLabel(self.bonifico_window_scrollableFrame, text="")
+                error_label.pack(pady=(0, 15))
+                self.error_labels[label_text] = error_label
+
+        # Bottone per salvare
+        self.save_button = ctk.CTkButton(
+            self.bonifico_window_scrollableFrame,
+            text="Esegui Bonifico",
+            command=lambda: self.save_transfer_data(sender_account_id)
+        )
+        self.save_button.pack(pady=(85, 15))
+
+        # Aggiungi validazione agli eventi di perdita del focus
+        self.transfer_widgets[DBTransfersColumns.DESCRIPTION.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
+            self.transfer_widgets[DBTransfersColumns.DESCRIPTION.value],
+            lambda val: val.strip() != "",
+            self.error_labels[DBTransfersColumns.DESCRIPTION.value],
+            "Il campo non può essere vuoto."
+        ))
+
+        self.transfer_widgets[DBTransfersColumns.AMOUNT.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
+            self.transfer_widgets[DBTransfersColumns.AMOUNT.value],
+            lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val.strip()) is not None,
+            self.error_labels[DBTransfersColumns.AMOUNT.value],
+            "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
+        ))
+
+    def save_transfer_data(self, sender_account_id):
+        transfer_data = {}
+
+        # riempi il dizionario con i dati dei widgets primari
+        for label_text, widget in self.transfer_widgets.items():
+            if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
+                transfer_data[label_text] = widget.get().strip()
+            elif isinstance(widget, Calendar):
+                transfer_data[label_text] = widget.get_date()
+            elif isinstance(widget, ctk.CTkTextbox):
+                transfer_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+
+        transfer_data[DBTransfersColumns.SENDER_ACCOUNT_ID.value] = sender_account_id
+
+        # chiamata al controller per salvare i dati
+        success, message = self.transfer_controller.save_transfer(transfer_data)
+
+        if success:
+            self.update_controller.on_adding_transfer()
+
+            self.clear_class_variable()
+            self.bonifico_window.destroy()
+        else:
+            print(message)
+            ViewUtils.show_error_popup(self.bonifico_window, "ERRORE", message)
+
+    def clear_class_variable(self):
+        self.transfer_widgets.clear()
+        self.transfer_labels.clear()
+
+
+
 

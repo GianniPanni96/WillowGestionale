@@ -37,21 +37,22 @@ class UsersView(ctk.CTk):
 
     def create_user_tab(self):
         """Crea la UI per la gestione degli utenti"""
-        self.user_description = ctk.CTkLabel(self.tab, text="Gestisci gli utenti del sistema", font=("Arial", 14))
-        self.user_description.pack(pady=(70,45))
+        self.user_description = ctk.CTkLabel(self.tab, text="Gestisci gli utenti", font=("Arial", 14))
+        self.user_description.pack(pady=(50, 25))
+
+        # Area per le cards degli utenti (simulata qui per ora)
+        self.user_card_area = ctk.CTkFrame(self.tab)
+        self.user_card_area.pack(fill= "y", expand=True, pady=20)
+
+
+        self.user_card_area1 = ctk.CTkFrame(self.tab)
+        self.user_card_area1.pack(fill= "y", expand=True, pady=20)
+
 
         # Bottone per aggiungere un nuovo utente
         self.add_user_button = ctk.CTkButton(self.tab, text="Aggiungi Nuovo Utente", font=("Arial", 15, "bold"),  command=self.open_add_user_window)
         self.add_user_button.configure(width=200, height=50)
-        self.add_user_button.pack(pady=20)
-
-        # Area per le cards degli utenti (simulata qui per ora)
-        self.user_card_area = ctk.CTkFrame(self.tab)
-        self.user_card_area.pack(pady=20)
-
-
-        self.user_card_area1 = ctk.CTkFrame(self.tab)
-        self.user_card_area1.pack(pady=20)
+        self.add_user_button.pack(anchor="s", pady=20)
 
 
         #aggiungo una card per ogni utente
@@ -83,8 +84,8 @@ class UsersView(ctk.CTk):
             command=self.choose_image
         )
         self.image_button.pack(pady=(5, 20))
-        self.image_preview = ctk.CTkLabel(self.user_window_scrollableFrame, text="Anteprima Immagine", width=150, height=150, corner_radius=8, fg_color="lightgrey")
-        self.image_preview.pack(pady=(5, 15))
+        self.image_name = ctk.CTkLabel(self.user_window_scrollableFrame, text="ancora nessuna immagine selezionata")
+        self.image_name.pack(pady=(5, 15))
 
         # Etichette e Entry
         self.first_name_label = ctk.CTkLabel(self.user_window_scrollableFrame, text="Nome:")
@@ -289,9 +290,8 @@ class UsersView(ctk.CTk):
             command=self.choose_image
         )
         self.image_button.pack(pady=(5, 20))
-        self.image_preview = ctk.CTkLabel(self.modify_window_scrollableFrame, text="", width=150,
-                                          height=150, corner_radius=8, fg_color="lightgrey")
-        self.image_preview.pack(pady=(5, 15))
+        self.image_name = ctk.CTkLabel(self.modify_window_scrollableFrame, text="ancora nessuna immagine selezionata")
+        self.image_name.pack(pady=(5, 15))
 
         # Etichette e Entry
         self.first_name_label = ctk.CTkLabel(self.modify_window_scrollableFrame, text="Nome:")
@@ -408,10 +408,21 @@ class UsersView(ctk.CTk):
         # Imposta l'immagine di profilo
         photo_path = user[DBUsersColumns.PHOTO_PATH.value]
         if photo_path and os.path.exists(photo_path):
-            photo = Image.open(photo_path)
-            image = ctk.CTkImage(dark_image=photo, size=(150, 150))
-            self.image_preview.configure(image=image)
             self.image_path.set(photo_path)  # Memorizza il percorso dell'immagine
+            self.image_name.configure(text=f"{os.path.basename(photo_path)}")
+
+            """try:
+                # Carica e ridimensiona l'immagine per l'anteprima
+                img = Image.open(path)
+                img.thumbnail((150, 150))  # Ridimensiona mantenendo le proporzioni
+                self.image_preview_photo = ImageTk.PhotoImage(
+                    img)  # Mantieni un riferimento per evitare garbage collection
+                self.image_preview.configure(image=self.image_preview_photo, text="")  # Mostra l'immagine
+            except Exception as e:
+                self.image_preview.configure(text="Errore nel caricamento dell'immagine")
+                print(f"Errore nel caricamento dell'immagine: {e}")"""
+        else:
+            self.image_name.configure(text=f"percorso all'immagine non valido")
 
 
 
@@ -610,7 +621,9 @@ class UsersView(ctk.CTk):
         path = filedialog.askopenfilename(title="Seleziona un'immagine", filetypes=filetypes)
         if path:
             self.image_path.set(path)  # Memorizza il percorso dell'immagine
-            try:
+            self.image_name.configure(text=f"{os.path.basename(path)}")
+
+            """try:
                 # Carica e ridimensiona l'immagine per l'anteprima
                 img = Image.open(path)
                 img.thumbnail((150, 150))  # Ridimensiona mantenendo le proporzioni
@@ -619,7 +632,13 @@ class UsersView(ctk.CTk):
                 self.image_preview.configure(image=self.image_preview_photo, text="")  # Mostra l'immagine
             except Exception as e:
                 self.image_preview.configure(text="Errore nel caricamento dell'immagine")
-                print(f"Errore nel caricamento dell'immagine: {e}")
+                print(f"Errore nel caricamento dell'immagine: {e}")"""
+        else:
+            self.image_name.configure(text=f"percorso all'immagine non valido")
+
+        # Assicurati che la finestra rimanga sopra
+        self.add_user_window.lift()  # Porta la finestra sopra quella principale
+        self.add_user_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
 
     def delete_user(self, user_id):
         success, message = self.user_controller.delete_user_by_ID(user_id)

@@ -172,9 +172,8 @@ class ProductionsView(ctk.CTk):
             DBProductionsColumns.TOTALE_PREVENTIVO.value: ctk.CTkLabel
         }
 
-        self.invoice_widgets = {}
         self.error_labels = {}
-        self.invoice_labels = {}
+
 
         #Creo i labels e i widgets
         for i, (label_text, widget_class) in enumerate(self.entry_fields.items()):

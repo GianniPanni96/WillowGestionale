@@ -2290,6 +2290,38 @@ class AccountController:
         self.update_aggregate_data()
         #self.update_accounts_lists()
 
+    def save_account(self, account_data):
+        """
+        Gestisce il salvataggio di un conto corrente, con validazioni di primo livello.
+        :param account_data: Dizionario contenente i dati del conto
+        :return: Tuple (success, message), dove success è True/False
+        """
+
+        # Campi obbligatori (solo quelli modellati tramite entry)
+        self.required_fields = {DBAccountsColumns.NAME.value, DBAccountsColumns.INIT_BALANCE.value}
+
+        # Validazione dei campi obbligatori
+        missing_fields = [field for field in self.required_fields if not account_data.get(field)]
+        if missing_fields:
+            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+        # Validazione importi
+        init_balance = account_data.get(DBAccountsColumns.INIT_BALANCE.value)
+        if not ValidationUtils.validate_amount(init_balance):
+            return False, "L'importo INIT_BALANCE non è valido"
+
+        account_data_prepared = {
+            DBAccountsColumns.NAME.value : account_data.get(DBAccountsColumns.NAME.value),
+            DBAccountsColumns.INIT_BALANCE.value: float(init_balance)
+        }
+
+        try:
+            self.db_model.add_account(**account_data_prepared)
+            self.update_aggregate_data()
+            return True, "Produzione salvata con successo!"
+        except Exception as e:
+            return False, f"Errore durante il salvataggio: {str(e)}"
+
     def update_aggregate_data(self):
         """
         Inizializza (o resetta) i dati aggregati per gli account.

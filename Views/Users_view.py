@@ -35,22 +35,39 @@ class UsersView(ctk.CTk):
         else:
             self.accounts_list = list(self.accounts_mapping.keys())
 
+        # Container principale
+        self.main_container = ctk.CTkFrame(self.tab)
+        self.detail_container = ctk.CTkFrame(self.tab)
+
+        # Vista dettaglio
+        self.user_detail_view = UserDetailView(
+            parent=self.tab,
+            back_callback=self.show_main_view,
+            user_controller=user_controller,
+            db_model=db_model
+        )
+
+        # Inizializza la vista principale
+        self.create_user_tab()
+        self.show_main_view()
+
     def create_user_tab(self):
-        """Crea la UI per la gestione degli utenti"""
-        self.user_description = ctk.CTkLabel(self.tab, text="Gestisci gli utenti", font=("Arial", 14))
+        """Crea la UI principale nella main_container"""
+
+        self.user_description = ctk.CTkLabel(self.main_container, text="Gestisci gli utenti", font=("Arial", 14))
         self.user_description.pack(pady=(50, 25))
 
         # Area per le cards degli utenti (simulata qui per ora)
-        self.user_card_area = ctk.CTkFrame(self.tab)
+        self.user_card_area = ctk.CTkFrame(self.main_container)
         self.user_card_area.pack(fill= "y", expand=True, pady=20)
 
 
-        self.user_card_area1 = ctk.CTkFrame(self.tab)
+        self.user_card_area1 = ctk.CTkFrame(self.main_container)
         self.user_card_area1.pack(fill= "y", expand=True, pady=20)
 
 
         # Bottone per aggiungere un nuovo utente
-        self.add_user_button = ctk.CTkButton(self.tab, text="Aggiungi Nuovo Utente", font=("Arial", 15, "bold"),  command=self.open_add_user_window)
+        self.add_user_button = ctk.CTkButton(self.main_container, text="Aggiungi Nuovo Utente", font=("Arial", 15, "bold"),  command=self.open_add_user_window)
         self.add_user_button.configure(width=200, height=50)
         self.add_user_button.pack(anchor="s", pady=20)
 
@@ -58,6 +75,18 @@ class UsersView(ctk.CTk):
         #aggiungo una card per ogni utente
         for user in self.users_list:
             self.add_user_card(user[f"{DBUsersColumns.ID.value}"], user[f"{DBUsersColumns.FIRST_NAME.value}"], user[f"{DBUsersColumns.LAST_NAME.value}"], user[f"{DBUsersColumns.PARTITA_IVA.value}"], user[DBUsersColumns.PHOTO_PATH.value], user[f"{DBUsersColumns.EMAIL.value}"])
+
+    def show_main_view(self):
+        """Torna alla vista principale"""
+        self.user_detail_view.pack_forget()
+        self.main_container.pack(fill='both', expand=True)
+
+    def open_user_detail_tab(self, user_id):
+        """Mostra la vista dettaglio utente"""
+        self.main_container.pack_forget()
+        self.detail_container.pack_forget()  # Non serve più
+        self.user_detail_view.pack(fill='both', expand=True)  # Mostra direttamente la vista dettaglio
+        self.user_detail_view.load_user_data(user_id)
 
     def open_add_user_window(self):
         """Apre una finestra per aggiungere un nuovo utente"""
@@ -567,8 +596,8 @@ class UsersView(ctk.CTk):
         self.modify_button = ctk.CTkButton(user_card, text="Modifica", command=lambda: self.open_modify_user_window(user_id))
         self.modify_button.pack(side="left",  pady=10, padx=28)
 
-        self.delete_button = ctk.CTkButton(user_card, text="Elimina", command=lambda: self.open_confirm_popup(user_id, ViewUtils.InterfaceOperations.ELIMINAZIONE_UTENTE.value))
-        self.delete_button.pack(pady=10)
+        self.detail_button = ctk.CTkButton(user_card, text="Dettaglio", command=lambda uid=user_id: self.open_user_detail_tab(uid))
+        self.detail_button.pack(pady=10)
 
         self.number_of_users_cards += 1
 
@@ -702,3 +731,40 @@ class UsersView(ctk.CTk):
             self.provider_login_password_frame.forget()
             self.provider_password_label.pack_forget()
             self.save_button.pack(pady=(45, 10))
+
+
+
+
+
+
+
+class UserDetailView(ctk.CTkFrame):
+    def __init__(self, parent, back_callback, user_controller, db_model):
+        super().__init__(parent)
+        self.user_controller = user_controller
+        self.db_model = db_model
+        self.back_callback = back_callback
+        self.configure(width=600, height=400)
+
+        # Widgets
+        self.back_button = ctk.CTkButton(
+            self,
+            text="Indietro",
+            command=self.go_back
+        )
+        self.back_button.pack(anchor="w", pady=10, padx=10)
+
+        # Aggiungi qui gli altri widget per i dettagli
+        self.user_info_label = ctk.CTkLabel(self, text="")
+        self.user_info_label.pack(pady=20)
+
+    def load_user_data(self, user_id):
+        """Carica i dati dell'utente"""
+        # Esempio: recupera i dati dal controller
+        user_data = self.user_controller.retrieve_user_map_by_id(user_id)
+        self.user_info_label.configure(text=f"Dettaglio utente {user_id}\n{user_data}")
+
+    def go_back(self):
+        """Torna alla vista principale"""
+        self.pack_forget()
+        self.back_callback()

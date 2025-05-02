@@ -105,7 +105,7 @@ class MainWindow(ctk.CTk):
 
         #Aggiungi widget alla tab clienti tramite la classe ClientsView
         self.user_tab = UsersView(self.db_model, self.user_controller, self.tabview.tab("Utenti"))
-        self.user_tab.create_user_tab()
+        #self.user_tab.create_user_tab()
         self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Clienti"))
         self.client_tab.create_client_tab()
         self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, self.tabview.tab("Fatture"), fiscal_settings)
@@ -722,6 +722,8 @@ class MainWindow(ctk.CTk):
         except Exception as e:
             ViewUtils.show_error_popup(self.fiscal_settings_window, "ERRORE",
                                        f"Impossibile aggiornare i dati fiscali: {str(e)}")
+
+
 
 
     #funzioni per la gestione delle spese ricorrenti

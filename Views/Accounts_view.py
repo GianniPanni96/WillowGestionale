@@ -338,6 +338,10 @@ class TransfersView(ctk.CTk):
         )
         self.save_button.pack(pady=(85, 15))
 
+        if len(accounts_name_list) == 0:
+            self.transfer_widgets[self.nome_receiver_account_string].set("Nessun altro conto esistente nel sistema")
+            self.save_button.configure(state=ctk.DISABLED)
+
         # Aggiungi validazione agli eventi di perdita del focus
         self.transfer_widgets[DBTransfersColumns.DESCRIPTION.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
             self.transfer_widgets[DBTransfersColumns.DESCRIPTION.value],

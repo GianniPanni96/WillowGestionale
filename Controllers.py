@@ -2548,19 +2548,21 @@ class TransfersController:
 
     def retrieve_sent_transfers_map_by_account(self, account_id):
         """
-        Recupera l'ultimo trasferimento inserito come dizionario.
-        :return: Dizionario con i dati dell'ultimo trasferimento oppure None.
+        Recupera i trasferimenti inviati da un conto come lista di dizionari
         """
-        row = self.db_model.fetch_sent_transfers_by_account(account_id)
-        return ValidationUtils._row_to_map(row, DBTransfersColumns)
+        transfers = self.db_model.fetch_sent_transfers_by_account(account_id)
+        if not transfers:
+            return []
+        return [ValidationUtils._row_to_map(transfer, DBTransfersColumns) for transfer in transfers]
 
     def retrieve_received_transfers_map_by_account(self, account_id):
         """
-        Recupera l'ultimo trasferimento inserito come dizionario.
-        :return: Dizionario con i dati dell'ultimo trasferimento oppure None.
+        Recupera i trasferimenti ricevuti da un conto come lista di dizionari
         """
-        row = self.db_model.fetch_received_transfers_by_account(account_id)
-        return ValidationUtils._row_to_map(row, DBTransfersColumns)
+        transfers = self.db_model.fetch_received_transfers_by_account(account_id)
+        if not transfers:
+            return []
+        return [ValidationUtils._row_to_map(transfer, DBTransfersColumns) for transfer in transfers]
 
 
     def retrieve_received_transfers_map(self, account_id):

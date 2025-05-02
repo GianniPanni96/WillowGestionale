@@ -45,6 +45,7 @@ class UsersView(ctk.CTk):
             parent=self.tab,
             back_callback=self.show_main_view,
             user_controller=user_controller,
+            account_controller=account_controller,
             db_model=db_model
         )
 
@@ -85,9 +86,8 @@ class UsersView(ctk.CTk):
     def open_user_detail_tab(self, user_id):
         """Mostra la vista dettaglio utente"""
         self.main_container.pack_forget()
-        self.detail_container.pack_forget()  # Non serve più
-        self.user_detail_view.pack(fill='both', expand=True)  # Mostra direttamente la vista dettaglio
-        self.user_detail_view.load_user_data(user_id)
+        self.user_detail_view.pack(fill='both', expand=True)
+        self.user_detail_view.create_detail_tab(user_id)  # Ricrea i contenuti ogni volta
 
     def open_add_user_window(self):
         """Apre una finestra per aggiungere un nuovo utente"""
@@ -739,34 +739,244 @@ class UsersView(ctk.CTk):
 
 
 
-
 class UserDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, user_controller, db_model):
+    def __init__(self, parent, back_callback, user_controller, account_controller, db_model):
         super().__init__(parent)
         self.user_controller = user_controller
+        self.account_controller = account_controller
         self.db_model = db_model
         self.back_callback = back_callback
-        self.configure(width=600, height=400)
+        self.current_user_id = None
 
-        # Widgets
+        # Widgets persistenti (vanno creati una volta sola)
+        self.head_frame = ctk.CTkFrame(self)
         self.back_button = ctk.CTkButton(
-            self,
+            self.head_frame,
             text="Indietro",
-            command=self.go_back
+            command=self._cleanup_and_go_back
         )
-        self.back_button.pack(anchor="w", pady=10, padx=10)
+        self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
 
-        # Aggiungi qui gli altri widget per i dettagli
-        self.user_info_label = ctk.CTkLabel(self, text="")
-        self.user_info_label.pack(pady=20)
+        # Container per i contenuti dinamici
+        self.content_frame = ctk.CTkScrollableFrame(self)
 
-    def load_user_data(self, user_id):
-        """Carica i dati dell'utente"""
-        # Esempio: recupera i dati dal controller
-        user_data = self.user_controller.retrieve_user_map_by_id(user_id)
-        self.user_info_label.configure(text=f"Dettaglio utente {user_id}\n{user_data}")
+        self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_edit(self.content_frame))
 
-    def go_back(self):
-        """Torna alla vista principale"""
+        # Layout iniziale
+        self._setup_base_layout()
+
+    def _setup_base_layout(self):
+        """Inizializza la struttura base del layout"""
+        self.head_frame.pack(fill="x", pady=5, padx=5)
+        self.back_button.pack(anchor="w", side="left", pady=10, padx=10)
+        self.title_label.pack(anchor="c", side="left", fill="x", expand=True, pady=10)
+        self.switch_modify.pack(anchor="e", side="left", pady=10, padx=10)
+        self.content_frame.pack(fill="both", expand=True, pady=20, padx=20)
+
+    def create_detail_tab(self, user_id):
+        """Ricrea la vista dettaglio per un utente specifico"""
+        self.current_user_id = user_id
+
+        # 1. Pulizia dei widget precedenti
+        self._clear_content()
+
+        # 2. Caricamento dati
+        user = self.user_controller.retrieve_user_map_by_id(user_id)
+
+        # 3. Aggiornamento elementi persistenti
+        self.title_label.configure(
+            text=f"{user[DBUsersColumns.FIRST_NAME.value]} {user[DBUsersColumns.LAST_NAME.value]}")
+
+        # 4. Creazione contenuti dinamici
+        self._create_user_info_section(user)
+        self.toggle_edit(self.content_frame)
+        self._create_transaction_history()
+        self._create_action_buttons()
+
+    def _clear_content(self):
+        """Distrugge tutti i widget dinamici"""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+    def _create_user_info_section(self, user_data):
+        """Visualizza i dati utente in modalità sola lettura con Label+Entry/OptionMenu"""
+        # Frame principale
+        info_frame = ctk.CTkFrame(self.content_frame)
+        info_frame.pack(fill="both", expand=True, pady=10, padx=5)
+        info_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        info_frame.grid_columnconfigure(1, weight=1, uniform="col")
+        info_frame.grid_columnconfigure(2, weight=1, uniform="col")
+
+        # Helper per riga: crea Label + Entry o OptionMenu
+        def add_row(parent, text, widget, row):
+            lbl = ctk.CTkLabel(parent, text=text + ":")
+            lbl.grid(row=row, column=0, sticky="w", padx=5, pady=2)
+            widget.grid(row=row, column=1, sticky="ew", padx=5, pady=2)
+            return row + 1
+
+        row = 0
+        col = 0
+
+        # Dati anagrafici
+        personal = ctk.CTkFrame(info_frame)
+        personal.grid(row=row, column=col, sticky="nsew", pady=5, padx=5)
+        personal.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(personal, text="Dati Anagrafici", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        sub = 1
+        # Nome
+        fn = ctk.CTkEntry(personal)
+        fn.insert(0, user_data[DBUsersColumns.FIRST_NAME.value])
+        sub = add_row(personal, "Nome", fn, sub)
+        # Cognome
+        ln = ctk.CTkEntry(personal)
+        ln.insert(0, user_data[DBUsersColumns.LAST_NAME.value])
+        sub = add_row(personal, "Cognome", ln, sub)
+        # Email
+        em = ctk.CTkEntry(personal)
+        em.insert(0, user_data.get(DBUsersColumns.EMAIL.value, ""))
+        sub = add_row(personal, "Email", em, sub)
+        # Telefono
+        tl = ctk.CTkEntry(personal)
+        tl.insert(0, user_data.get(DBUsersColumns.TELEFONO.value, ""))
+        sub = add_row(personal, "Telefono", tl, sub)
+        col += 1
+
+        # Dati fiscali
+        fiscal = ctk.CTkFrame(info_frame)
+        fiscal.grid(row=row, column=col, sticky="nsew", pady=5, padx=(0,5))
+        fiscal.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(fiscal, text="Dati Fiscali", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        sub = 1
+        # Partita IVA
+        piva = ctk.CTkEntry(fiscal)
+        piva.insert(0, user_data.get(DBUsersColumns.PARTITA_IVA.value, ""))
+        sub = add_row(fiscal, "Partita IVA", piva, sub)
+        # Codice Fiscale
+        cf = ctk.CTkEntry(fiscal)
+        cf.insert(0, user_data.get(DBUsersColumns.CODICE_FISCALE.value, ""))
+        sub = add_row(fiscal, "Codice Fiscale", cf, sub)
+        # Regime Fiscale (OptionMenu)
+        regimes = [item.value for item in self.user_controller.RegimeFiscale]
+        rf = ctk.CTkOptionMenu(fiscal, values=regimes)
+        rf.set(user_data.get(DBUsersColumns.REGIME_FISCALE.value, regimes[0] if regimes else ""))
+        sub = add_row(fiscal, "Regime Fiscale", rf, sub)
+        # Anno Apertura P.IVA
+        years = [str(y) for y in range(2000, datetime.now().year+1)]
+        ap = ctk.CTkOptionMenu(fiscal, values=years)
+        ap.set(str(user_data.get(DBUsersColumns.ANNO_APERTURA_PIVA.value, years[-1] if years else "")))
+        sub = add_row(fiscal, "Anno Apertura P.IVA", ap, sub)
+        col += 1
+
+        # Provider Fatturazione Elettronica
+        prov = ctk.CTkFrame(info_frame)
+        prov.grid(row=row, column=col, sticky="nsew", pady=5, padx=(0,5))
+        prov.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(prov, text="Fatturazione Elettronica", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        sub = 1
+        # Provider
+        providers = [item.value for item in FatturazioneElettronicaProvider]
+        prom = ctk.CTkOptionMenu(prov, values=providers)
+        prom.set(user_data.get(DBUsersColumns.PROVIDER_FATTURE.value, providers[0] if providers else ""))
+        sub = add_row(prov, "Provider", prom, sub)
+        # Username
+        pu = ctk.CTkEntry(prov, show="*")
+        pu.insert(0, user_data.get(DBUsersColumns.USERNAME_PROVIDER.value, ""))
+        sub = add_row(prov, "Username", pu, sub)
+        # Password
+        pp = ctk.CTkEntry(prov, show="*")
+        pp.insert(0, user_data.get(DBUsersColumns.PASSWORD_PROVIDER.value, ""))
+        sub = add_row(prov, "Password", pp, sub)
+        row += 1
+        col = 0
+
+        # Conto Corrente
+        account = ctk.CTkFrame(info_frame)
+        account.grid(row=row, column=col, sticky="nsew", pady=(0, 5), padx=5)
+        account.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(account, text="Conto Corrente", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        sub = 1
+        acc_list = [account[DBAccountsColumns.NAME.value] for account in self.account_controller.retrieve_accounts_map_list()]
+        ac = ctk.CTkOptionMenu(account, values=acc_list)
+        ac.set(user_data.get(DBUsersColumns.CONTO_CORRENTE_ID.value, acc_list[0] if acc_list else ""))
+        sub = add_row(account, "Conto Associato", ac, sub)
+        col += 1
+
+        # Immagine Profilo (solo preview path)
+        photo = ctk.CTkFrame(info_frame)
+        photo.grid(row=row, column=col, sticky="nsew", pady=(0, 5), padx=(0,5))
+        photo.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(photo, text="Immagine Profilo", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
+        ppv = ctk.CTkEntry(photo)
+        ppv.insert(0, user_data.get(DBUsersColumns.PHOTO_PATH.value, ""))
+        ppv.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=2)
+
+    def toggle_edit(self, parent):
+        """
+        Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
+        """
+        # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
+        state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
+
+        # Cambia anche lo stato del pulsante Salva
+        #self.save_button.configure(state=state)
+        #self.show_provider_username_button.configure(state=state)
+        #self.show_provider_password_button.configure(state=state)
+
+        for w in parent.winfo_children():
+            # se è un Entry
+            if isinstance(w, ctk.CTkEntry):
+                w.configure(state=state)
+            # se è un OptionMenu
+            elif isinstance(w, ctk.CTkOptionMenu):
+                w.configure(state=state)
+            # se è un Frame/container, scendi ricorsivamente
+            elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
+                self.toggle_edit(w)
+
+
+
+    def _create_transaction_history(self):
+        """Crea la sezione storico transazioni"""
+        section_frame = ctk.CTkFrame(self.content_frame)
+        section_frame.pack(fill="both", expand=True, pady=10)
+
+        ctk.CTkLabel(section_frame, text="Ultime transazioni", font=("Arial", 14)).pack(anchor="w")
+
+        # Esempio tabella transazioni
+        scroll_frame = ctk.CTkScrollableFrame(section_frame, height=200)
+        scroll_frame.pack(fill="both", expand=True)
+
+        # Aggiungi qui la logica per popolare le transazioni
+
+    def _create_action_buttons(self):
+        """Crea la sezione pulsanti azioni"""
+        button_frame = ctk.CTkFrame(self.content_frame)
+        button_frame.pack(fill="x", pady=20)
+
+        ctk.CTkButton(
+            button_frame,
+            text="Modifica profilo",
+            command=self._edit_profile
+        ).pack(side="left", padx=5)
+
+        ctk.CTkButton(
+            button_frame,
+            text="Elimina utente",
+            fg_color="#FF4444",
+            hover_color="#CC0000",
+            command=self._delete_user
+        ).pack(side="left", padx=5)
+
+    def _cleanup_and_go_back(self):
+        """Pulizia completa prima di tornare indietro"""
+        self._clear_content()
         self.pack_forget()
         self.back_callback()
+
+    def _edit_profile(self):
+        """Gestisce la modifica del profilo"""
+        print(f"Modifica utente {self.current_user_id}")
+
+    def _delete_user(self):
+        """Gestisce l'eliminazione dell'utente"""
+        print(f"Elimina utente {self.current_user_id}")

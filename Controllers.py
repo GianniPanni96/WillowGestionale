@@ -128,14 +128,6 @@ class UserController:
             DBUsersColumns.PROVIDER_FATTURE.value
         }
 
-        # Aggiorna le aliquote fiscali in base al controllo sull'anno di apertura della partita iva
-        print("Aggiornamento aliquote fiscali degli utenti in funzione della data di oggi e dei fiscal settings...")
-        success, message = self.update_tax_rates()
-        print(message)
-        if not success:
-            print(message)
-        print("\n")
-
         self.secret_key = hashlib.sha256("Neomisia".encode()).digest()
 
         #self.users_list = self.retrieve_users_map_list()
@@ -168,35 +160,6 @@ class UserController:
         # Mapping conto corrente
         selected_account_name = user_data.get("conto_corrente")
         conto_corrente_id = AccountController.get_accounts_mapping(self.db_model).get(selected_account_name)
-
-        # Aggiungo valori derivati forfettaria
-        if user_data[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.FORFETTARIO.value:
-            user_data[DBUsersColumns.ALIQUOTA_TAX.value] = self.calcola_aliquota_tax_forfettaria(
-                anno_apertura_piva=user_data[DBUsersColumns.ANNO_APERTURA_PIVA.value]
-            )
-            user_data[DBUsersColumns.ALIQUOTA_INPS.value] = self.fiscal_settings.partita_iva_forfettaria.aliquota_inps
-            user_data[DBUsersColumns.ALIQUOTA_IVA.value] = -1
-            user_data[DBUsersColumns.ALIQUOTA_CASSA_INPS.value] = -1
-            user_data[DBUsersColumns.ALIQUOTA_RITENUTA_ACCONTO.value] = -1
-            user_data[DBUsersColumns.IMPONIBILE_IVA.value] = -1
-            user_data[DBUsersColumns.IMPONIBILE_TAX.value] = self.fiscal_settings.partita_iva_forfettaria.imponibile
-            user_data[DBUsersColumns.IMPONIBILE_CASSA_INPS.value] = -1
-            user_data[DBUsersColumns.IMPONIBILE_INPS.value] = self.fiscal_settings.partita_iva_forfettaria.imponibile
-            user_data[DBUsersColumns.ALIQUOTA_RIVALSA_INPS.value] = self.fiscal_settings.partita_iva_forfettaria.aliquota_rivalsa_inps
-
-        # Aggiungo valori derivati ordinaria
-        elif user_data[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value:
-            user_data[DBUsersColumns.ALIQUOTA_TAX.value] = -1
-            user_data[DBUsersColumns.ALIQUOTA_INPS.value] = self.fiscal_settings.partita_iva_ordinaria.aliquota_inps
-            user_data[DBUsersColumns.ALIQUOTA_IVA.value] = self.fiscal_settings.aliquota_iva
-            user_data[DBUsersColumns.ALIQUOTA_CASSA_INPS.value] = self.fiscal_settings.partita_iva_ordinaria.aliquota_cassa_inps
-            user_data[DBUsersColumns.ALIQUOTA_RITENUTA_ACCONTO.value] = self.fiscal_settings.partita_iva_ordinaria.aliquota_ritenuta
-            user_data[DBUsersColumns.IMPONIBILE_IVA.value] = self.fiscal_settings.partita_iva_ordinaria.imponibile_iva
-            user_data[DBUsersColumns.IMPONIBILE_TAX.value] = self.fiscal_settings.partita_iva_ordinaria.imponibile_irpef
-            user_data[DBUsersColumns.IMPONIBILE_CASSA_INPS.value] = self.fiscal_settings.partita_iva_ordinaria.imponibile_cassa_inps
-            user_data[DBUsersColumns.IMPONIBILE_INPS.value] = self.fiscal_settings.partita_iva_ordinaria.imponibile_inps
-            user_data[DBUsersColumns.ALIQUOTA_RIVALSA_INPS.value] = -1
-
 
         # Cifra i dati di accesso se il provider è selezionato
         if user_data.get(DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
@@ -755,8 +718,9 @@ class ClientController:
         client_with_invoices = self.retrieve_client_with_invoices_map_list(client_id)
         tot = 0
         for row in client_with_invoices:
-            if (row[DBInvoicesColumns.TIPO.value] != InvoiceController.Tipologia.NOTA_DI_CREDITO.value or
-                    row[DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceSatus.STORNATA.value):
+            valid_row = row[DBInvoicesColumns.ID_CLIENTE.value] is not None
+            if (row[DBInvoicesColumns.TIPO.value] != InvoiceController.Tipologia.NOTA_DI_CREDITO.value and valid_row or
+                    row[DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceSatus.STORNATA.value and valid_row):
                 tot = tot + 1
 
         return tot
@@ -1046,17 +1010,10 @@ class InvoiceController:
 
         #prendo i dati necessari dell'utente
         nome_utente = invoice_data.get("NOME UTENTE").split(" ")
-        utente_list = self.user_controller.retrieve_user_by_fullname(nome_utente[0], nome_utente[1])
-        utente_map = self.user_controller.retrieve_user_map_by_id(utente_list[0])
-        id_utente = utente_map[DBUsersColumns.ID.value]
-        #aliquota_tax = utente_map[DBUsersColumns.ALIQUOTA_TAX.value]
-        aliquota_cassa_inps = utente_map[DBUsersColumns.ALIQUOTA_CASSA_INPS.value]
-        aliquota_ritenuta_acconto = utente_map[DBUsersColumns.ALIQUOTA_RITENUTA_ACCONTO.value]
-        aliquota_iva = utente_map[DBUsersColumns.ALIQUOTA_IVA.value]
-        regime_fiscale = utente_map[DBUsersColumns.REGIME_FISCALE.value]
-        imponibile_tax = utente_map[DBUsersColumns.IMPONIBILE_TAX.value]
-        imponibile_cassa_inps = utente_map[DBUsersColumns.IMPONIBILE_CASSA_INPS.value]
-        imponibile_iva = utente_map[DBUsersColumns.IMPONIBILE_IVA.value]
+        utente = self.user_controller.retrieve_user_map_by_fullname(nome_utente[0], nome_utente[1])
+        id_utente = utente[DBUsersColumns.ID.value]
+        regime_fiscale = utente[DBUsersColumns.REGIME_FISCALE.value]
+
 
         #prendo i dati necessari del cliente
         nome_cliente = invoice_data.get("NOME CLIENTE")
@@ -1079,21 +1036,35 @@ class InvoiceController:
         if invoice_data.get(DBInvoicesColumns.TIPO.value) == InvoiceController.Tipologia.NOTA_DI_CREDITO.value and invoice_data.get(DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value):
             id_linked_invoice = invoice_data.get(DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value)
 
-        importi_derivati_ordinaria = self.calcola_derivati_fattura_ordinaria(
-            float(aliquota_cassa_inps),
-            float(aliquota_ritenuta_acconto),
-            float(aliquota_iva),
-            float(imponibile_tax),
-            float(imponibile_cassa_inps),
-            float(imponibile_iva),
-            tipologia_cliente,
-            float(totale_servizi),
-            float(totale_rimborsi)
-        )
 
         invoice_data_prepared = {}
+
+
         # Preparazione dei dati per il salvataggio
         if regime_fiscale == UserController.RegimeFiscale.ORDINARIO.value:
+
+            #prendo le aliquote e gli imponibili per il calcolo degli importi derivati della fattura
+            aliquota_cassa_inps = self.fiscal_settings.partita_iva_ordinaria.aliquota_cassa_inps
+            aliquota_ritenuta_acconto = self.fiscal_settings.partita_iva_ordinaria.aliquota_ritenuta
+            aliquota_iva = self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria
+            imponibile_tax = self.fiscal_settings.partita_iva_ordinaria.imponibile_irpef
+            imponibile_cassa_inps = self.fiscal_settings.partita_iva_ordinaria.imponibile_cassa_inps
+            imponibile_iva = self.fiscal_settings.partita_iva_ordinaria.imponibile_iva
+
+            #calcolo importi derivati
+            importi_derivati_ordinaria = self.calcola_derivati_fattura_ordinaria(
+                float(aliquota_cassa_inps),
+                float(aliquota_ritenuta_acconto),
+                float(aliquota_iva),
+                float(imponibile_tax),
+                float(imponibile_cassa_inps),
+                float(imponibile_iva),
+                tipologia_cliente,
+                float(totale_servizi),
+                float(totale_rimborsi)
+            )
+
+            #riempio i dati da passare al model
             invoice_data_prepared = {
                 DBInvoicesColumns.NUMERO_FATTURA.value : invoice_data.get(DBInvoicesColumns.NUMERO_FATTURA.value),  # view
                 DBInvoicesColumns.DATA_CREAZIONE.value : invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value),  # view
@@ -1138,9 +1109,9 @@ class InvoiceController:
                 DBInvoicesColumns.IVA.value: 0,  # controller = 0
                 DBInvoicesColumns.RIMBORSI.value: totale_rimborsi,  # view
                 DBInvoicesColumns.RIVALSA_INPS.value : invoice_data.get(DBInvoicesColumns.RIVALSA_INPS.value),
-                DBInvoicesColumns.TOT_DOCUMENTO.value: tot_lordo + float(totale_rimborsi),
+                DBInvoicesColumns.TOT_DOCUMENTO.value: tot_lordo,
                 DBInvoicesColumns.RITENUTA.value: 0,
-                DBInvoicesColumns.NETTO_A_PAGARE.value: tot_lordo + float(totale_rimborsi),
+                DBInvoicesColumns.NETTO_A_PAGARE.value: tot_lordo,
                 DBInvoicesColumns.STATUS.value: InvoiceController.InvoiceRateizzSatus.EMESSA.value if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == InvoiceController.Rateizzazione.TRE.value else InvoiceController.InvoiceSatus.EMESSA.value,
                 DBInvoicesColumns.METODO_PAGAMENTO.value: invoice_data.get(DBInvoicesColumns.METODO_PAGAMENTO.value),
                 DBInvoicesColumns.NUMERO_RATE.value: invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value),  # view
@@ -2730,7 +2701,6 @@ class ProductionController:
 
             # Invoca il metodo del model per aggiornare l'utente
             self.db_model.update_production(production_id, **production_data)
-            self.update_productions_lists()
             self.update_aggregate_data()
             return True, "Produzione aggiornata con successo!"
 
@@ -2742,7 +2712,6 @@ class ProductionController:
     def update_specific_production_data(self, production_id, production_data):
         try:
             self.db_model.update_production(production_id, **production_data)
-            self.update_productions_lists()
             self.update_aggregate_data()
             return True, "Produzione aggiornata con successo!"
         except ValueError as ve:

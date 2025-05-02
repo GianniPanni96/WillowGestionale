@@ -7,15 +7,16 @@ import os
 from Views.View_utils import ViewUtils
 
 from Controllers import AccountController, ValidationUtils
-from Model import DBUsersColumns
+from Model import DBUsersColumns, DBAccountsColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 class UsersView(ctk.CTk):
-    def __init__(self, db_model, user_controller, tab):
+    def __init__(self, db_model, user_controller, account_controller, tab):
         super().__init__()
 
         self.db_model = db_model
         self.user_controller = user_controller
+        self.account_controller = account_controller
         self.tab = tab
 
         #tool variables
@@ -157,7 +158,8 @@ class UsersView(ctk.CTk):
 
         self.conto_corrente_label = ctk.CTkLabel(self.user_window_scrollableFrame, text="Conto Corrente:")
         self.conto_corrente_label.pack(pady=(5, 0))
-        self.conto_corrente_combobox = ctk.CTkOptionMenu(self.user_window_scrollableFrame, values=self.accounts_list)
+        accounts_map_list = self.account_controller.retrieve_accounts_map_list()
+        self.conto_corrente_combobox = ctk.CTkOptionMenu(self.user_window_scrollableFrame, values=[account[DBAccountsColumns.NAME.value] for account in accounts_map_list])
         self.conto_corrente_combobox.pack(pady=(5, 15))
 
         self.regime_fiscale_label = ctk.CTkLabel(self.user_window_scrollableFrame, text="Regime Fiscale:")

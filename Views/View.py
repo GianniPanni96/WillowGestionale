@@ -104,7 +104,7 @@ class MainWindow(ctk.CTk):
 
 
         #Aggiungi widget alla tab clienti tramite la classe ClientsView
-        self.user_tab = UsersView(self.db_model, self.user_controller, self.tabview.tab("Utenti"))
+        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller, self.tabview.tab("Utenti"))
         #self.user_tab.create_user_tab()
         self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Clienti"))
         self.client_tab.create_client_tab()

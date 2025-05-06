@@ -109,9 +109,8 @@ class UserController:
         ORDINARIO = "Ordinario"
 
     class UserStatus(Enum):
-        ATTIVO = "active"
-        CANCELLATO = "deleted"
-        BLOCCATO = "locked"
+        ATTIVO = "attivo"
+        DISATTIVO = "disattivo"
 
     def __init__(self, db_model: DatabaseModel, fiscal_settings):
         """Inizializza il controller con il modello del database"""
@@ -229,6 +228,23 @@ class UserController:
         rows = self.db_model.fetch_users()
         return [ValidationUtils._row_to_map(row, DBUsersColumns) for row in rows]
 
+    def retrieve_user_with_invoices_map_list(self, user_id):
+        """
+        Recupera lo specifico user unito alle rispettive fatture e
+        li restituisce come lista di dizionari.
+
+        Utilizza la funzione fetch_user_with_invoices per ottenere le righe,
+        quindi combina le colonne dei client e delle invoices per convertire
+        ogni riga in un dizionario tramite _row_to_map.
+        """
+        # Recupera le righe dal database per lo specifico client
+        rows = self.db_model.fetch_user_with_invoices(user_id)
+
+        all_columns = list(DBUsersColumns) + list(DBInvoicesColumns)
+
+        # Converte ogni riga in un dizionario
+        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
     def delete_user_by_ID(self, user_id):
         """Elimina un utente dato un certo user"""
         table = "users"
@@ -246,61 +262,59 @@ class UserController:
         :param user_data: Dizionario contenente i dati da aggiornare
         :return: Tuple (success, message), dove success è True/False
         """
+
+        # Controllo validità user_id
+        if not user_id or not isinstance(user_id, int):
+            return False, "ID utente non valido. Deve essere un intero positivo."
+
+        # Filtra solo i campi validi definiti nell'Enum
+        valid_columns = {column.value for column in DBUsersColumns}
+        update_fields = {key: value for key, value in user_data.items() if key in valid_columns}
+
+        if not update_fields:
+            return False, "Nessun campo valido fornito per l'aggiornamento."
+
+
+        # Validazione campi obbligatori
+        if update_fields.get(
+                DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
+            self.required_fields.add(DBUsersColumns.USERNAME_PROVIDER.value)
+            self.required_fields.add(DBUsersColumns.PASSWORD_PROVIDER.value)
+
+        missing_fields = [field for field in self.required_fields if not update_fields.get(field)]
+        if missing_fields:
+            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+        # Validazione Partita IVA
+        if DBUsersColumns.PARTITA_IVA.value in update_fields:
+            if not ValidationUtils.validate_partita_iva(update_fields[DBUsersColumns.PARTITA_IVA.value]):
+                return False, "La partita IVA non è valida. Deve contenere esattamente 11 cifre."
+
+        # Validazione Email
+        if DBUsersColumns.EMAIL.value in update_fields:
+            email = update_fields[DBUsersColumns.EMAIL.value]
+            if email and not ValidationUtils.validate_email(email):
+                return False, "L'indirizzo email non è valido."
+
+        # Cifratura dei dati di accesso se il provider è selezionato
+        if update_fields.get(DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
+            try:
+                if DBUsersColumns.USERNAME_PROVIDER.value in update_fields:
+                    update_fields[DBUsersColumns.USERNAME_PROVIDER.value] = self.encrypt_string(
+                        update_fields[DBUsersColumns.USERNAME_PROVIDER.value]
+                    )
+                if DBUsersColumns.PASSWORD_PROVIDER.value in update_fields:
+                    update_fields[DBUsersColumns.PASSWORD_PROVIDER.value] = self.encrypt_string(
+                        update_fields[DBUsersColumns.PASSWORD_PROVIDER.value]
+                    )
+            except Exception as e:
+                print(f"Errore durante la cifratura dei dati di accesso: {e}")
+                return False, "Errore durante la cifratura dei dati di accesso."
+        else:
+            update_fields.pop(DBUsersColumns.USERNAME_PROVIDER.value)
+            update_fields.pop(DBUsersColumns.PASSWORD_PROVIDER.value)
+
         try:
-            # Controllo validità user_id
-            if not user_id or not isinstance(user_id, int):
-                return False, "ID utente non valido. Deve essere un intero positivo."
-
-            # Filtra solo i campi validi definiti nell'Enum
-            valid_columns = {column.value for column in DBUsersColumns}
-            update_fields = {key: value for key, value in user_data.items() if key in valid_columns}
-
-            if not update_fields:
-                return False, "Nessun campo valido fornito per l'aggiornamento."
-
-            # Rimuove campi con valore None
-            #update_fields = {key: value for key, value in update_fields.items() if value is not None}
-
-            # Validazione campi obbligatori
-            if update_fields.get(
-                    DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
-                self.required_fields.add(DBUsersColumns.USERNAME_PROVIDER.value)
-                self.required_fields.add(DBUsersColumns.PASSWORD_PROVIDER.value)
-
-            missing_fields = [field for field in self.required_fields if not update_fields.get(field)]
-            if missing_fields:
-                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-            # Validazione Partita IVA
-            if DBUsersColumns.PARTITA_IVA.value in update_fields:
-                if not ValidationUtils.validate_partita_iva(update_fields[DBUsersColumns.PARTITA_IVA.value]):
-                    return False, "La partita IVA non è valida. Deve contenere esattamente 11 cifre."
-
-            # Validazione Email
-            if DBUsersColumns.EMAIL.value in update_fields:
-                email = update_fields[DBUsersColumns.EMAIL.value]
-                if email and not ValidationUtils.validate_email(email):
-                    return False, "L'indirizzo email non è valido."
-
-            # Cifratura dei dati di accesso se il provider è selezionato
-            if update_fields.get(DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
-                try:
-                    if DBUsersColumns.USERNAME_PROVIDER.value in update_fields:
-                        update_fields[DBUsersColumns.USERNAME_PROVIDER.value] = self.encrypt_string(
-                            update_fields[DBUsersColumns.USERNAME_PROVIDER.value]
-                        )
-                    if DBUsersColumns.PASSWORD_PROVIDER.value in update_fields:
-                        update_fields[DBUsersColumns.PASSWORD_PROVIDER.value] = self.encrypt_string(
-                            update_fields[DBUsersColumns.PASSWORD_PROVIDER.value]
-                        )
-                except Exception as e:
-                    print(f"Errore durante la cifratura dei dati di accesso: {e}")
-                    return False, "Errore durante la cifratura dei dati di accesso."
-
-            else:
-                update_fields[DBUsersColumns.USERNAME_PROVIDER.value] = None
-                update_fields[DBUsersColumns.PASSWORD_PROVIDER.value] = None
-
             # Invoca il metodo del model per aggiornare l'utente
             self.db_model.update_user(user_id, **update_fields)
             return True, "Utente aggiornato con successo!"

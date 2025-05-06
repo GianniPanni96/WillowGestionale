@@ -282,6 +282,30 @@ class DatabaseModel:
             cursor.execute(query, (new_tax_rate, user_id))
             conn.commit()
 
+    def fetch_user_with_invoices(self, user_id):
+        """
+        Recupera lo specifico user unito alle rispettive fatture.
+        Utilizza un LEFT JOIN per includere tutti gli users anche se non hanno fatture.
+        Ritorna una lista di tuple, in cui le colonne dei client compaiono per prime,
+        seguite dalle colonne delle fatture (che possono essere NULL se non esistono).
+        """
+        # Costruzione dinamica delle colonne per clients e invoices
+        user_columns = [f"u.{col.value}" for col in DBUsersColumns]
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = user_columns + invoice_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM users u
+        LEFT JOIN invoices i ON i.{DBInvoicesColumns.ID_UTENTE.value} = u.{DBUsersColumns.ID.value}
+        WHERE u.{DBUsersColumns.ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (user_id,))
+            return cursor.fetchall()
+
 
 
 

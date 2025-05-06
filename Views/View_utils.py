@@ -91,6 +91,35 @@ class ViewUtils(ctk.CTk):
             parent.destroy()
 
     @staticmethod
+    def show_confirm_popup_2(parent, title="CONFERMA", message="L'operazione è andata a buon fine"):
+        """
+        Genera un pop-up di errore.
+        :param parent: La finestra principale da cui viene lanciato il pop-up.
+        :param title: Il titolo del pop-up.
+        :param message: Il messaggio di errore da mostrare.
+        """
+        confirm_popup = ctk.CTkToplevel(parent)
+        confirm_popup.title(title)
+        confirm_popup.geometry("300x150")
+
+        # Assicurati che il pop-up sia modale
+        confirm_popup.grab_set()
+        confirm_popup.lift()
+
+        # Etichetta per il messaggio di errore
+        confirm_label = ctk.CTkLabel(confirm_popup, text=message, wraplength=250, font=("Arial", 14))
+        confirm_label.pack(pady=(20, 10))
+
+        # Bottone per chiudere il pop-up
+        close_button = ctk.CTkButton(confirm_popup, text="Chiudi",
+                                     command=lambda: on_closing_popup(confirm_popup))
+        close_button.pack(pady=(10, 20))
+
+        def on_closing_popup(pop_up):
+            pop_up.destroy()
+
+
+    @staticmethod
     def ask_confirmation_popup(parent, message, title="CONFERMA OPERAZIONE"):
         """
         Crea un pop-up che chiede conferma all'utente per proseguire un'operazione.

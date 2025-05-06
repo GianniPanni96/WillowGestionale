@@ -3,11 +3,11 @@ import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk
 from datetime import datetime
-import os
+import os, re
 from Views.View_utils import ViewUtils
 
 from Controllers import AccountController, ValidationUtils
-from Model import DBUsersColumns, DBAccountsColumns
+from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 class UsersView(ctk.CTk):
@@ -757,6 +757,10 @@ class UserDetailView(ctk.CTkFrame):
         )
         self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
 
+        self.user_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+
+        self.nome_conto_string = "CONTO"
+
         # Container per i contenuti dinamici
         self.content_frame = ctk.CTkScrollableFrame(self)
 
@@ -764,6 +768,7 @@ class UserDetailView(ctk.CTkFrame):
 
         # Layout iniziale
         self._setup_base_layout()
+
 
     def _setup_base_layout(self):
         """Inizializza la struttura base del layout"""
@@ -783,6 +788,13 @@ class UserDetailView(ctk.CTkFrame):
         # 2. Caricamento dati
         user = self.user_controller.retrieve_user_map_by_id(user_id)
 
+        #prendo il nome del conto:
+        id_conto = user[DBUsersColumns.CONTO_CORRENTE_ID.value]
+        conto = self.account_controller.retrieve_account_map_by_id(id_conto)
+        nome_conto = conto[DBAccountsColumns.NAME.value]
+
+        user[self.nome_conto_string] = nome_conto
+
         # 3. Aggiornamento elementi persistenti
         self.title_label.configure(
             text=f"{user[DBUsersColumns.FIRST_NAME.value]} {user[DBUsersColumns.LAST_NAME.value]}")
@@ -790,7 +802,7 @@ class UserDetailView(ctk.CTkFrame):
         # 4. Creazione contenuti dinamici
         self._create_user_info_section(user)
         self.toggle_edit(self.content_frame)
-        self._create_transaction_history()
+        self._create_invoices_history()
         self._create_action_buttons()
 
     def _clear_content(self):
@@ -799,116 +811,220 @@ class UserDetailView(ctk.CTkFrame):
             widget.destroy()
 
     def _create_user_info_section(self, user_data):
-        """Visualizza i dati utente in modalità sola lettura con Label+Entry/OptionMenu"""
-        # Frame principale
-        info_frame = ctk.CTkFrame(self.content_frame)
+        # Dizionari per la configurazione
+
+        self.entry_fields = {
+            # Sezione Anagrafica
+            DBUsersColumns.FIRST_NAME.value: {
+                "type": ctk.CTkEntry,
+                "label": "Nome",
+                "section": "Dati Anagrafici"
+            },
+            DBUsersColumns.LAST_NAME.value: {
+                "type": ctk.CTkEntry,
+                "label": "Cognome",
+                "section": "Dati Anagrafici"
+            },
+            DBUsersColumns.EMAIL.value: {
+                "type": ctk.CTkEntry,
+                "label": "Email",
+                "section": "Dati Anagrafici"
+            },
+            DBUsersColumns.TELEFONO.value: {
+                "type": ctk.CTkEntry,
+                "label": "Telefono",
+                "section": "Dati Anagrafici"
+            },
+
+            # Sezione Fiscale
+            DBUsersColumns.PARTITA_IVA.value: {
+                "type": ctk.CTkEntry,
+                "label": "Partita IVA",
+                "section": "Dati Fiscali"
+            },
+            DBUsersColumns.CODICE_FISCALE.value: {
+                "type": ctk.CTkEntry,
+                "label": "Codice Fiscale",
+                "section": "Dati Fiscali"
+            },
+            DBUsersColumns.REGIME_FISCALE.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Regime Fiscale",
+                "section": "Dati Fiscali",
+                "values": [item.value for item in self.user_controller.RegimeFiscale]
+            },
+            DBUsersColumns.ANNO_APERTURA_PIVA.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Anno Apertura P.IVA",
+                "section": "Dati Fiscali",
+                "values": [str(y) for y in range(2000, datetime.now().year + 1)]
+            },
+            DBUsersColumns.REDDITO_ESTERNO.value: {
+                "type": ctk.CTkEntry,
+                "label": "Reddito Esterno",
+                "section": "Dati Fiscali"
+            },
+
+            # Sezione Provider
+            DBUsersColumns.PROVIDER_FATTURE.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Provider FE",
+                "section": "Fatturazione Elettronica",
+                "values": [item.value for item in FatturazioneElettronicaProvider]
+            },
+            DBUsersColumns.USERNAME_PROVIDER.value: {
+                "type": ctk.CTkEntry,
+                "label": "Username FE",
+                "section": "Fatturazione Elettronica",
+                "password": True
+            },
+            DBUsersColumns.PASSWORD_PROVIDER.value: {
+                "type": ctk.CTkEntry,
+                "label": "Password FE",
+                "section": "Fatturazione Elettronica",
+                "password": True
+            },
+
+            # Sezione Conto Corrente
+            self.nome_conto_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Conto Associato",
+                "section": "Conto Corrente",
+                "values": [acc[DBAccountsColumns.NAME.value] for acc in
+                           self.account_controller.retrieve_accounts_map_list()]
+            },
+
+            # Immagine Profilo
+            DBUsersColumns.PHOTO_PATH.value: {
+                "type": ctk.CTkEntry,
+                "label": "Percorso Immagine",
+                "section": "Immagine Profilo"
+            },
+
+            # status
+            DBUsersColumns.STATUS.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Status",
+                "section": "Status",
+                "values": [item.value for item in self.user_controller.UserStatus]
+            }
+        }
+
+        self.error_fields = {
+            DBUsersColumns.FIRST_NAME.value: "Il nome non può essere vuoto",
+            DBUsersColumns.LAST_NAME.value: "Il cognome non può essere vuoto",
+            DBUsersColumns.PARTITA_IVA.value: "Partita IVA non valida (11 cifre)",
+            DBUsersColumns.REDDITO_ESTERNO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
+            DBUsersColumns.EMAIL.value: "Formato email non valido"
+        }
+
+        validation_rules = {
+            DBUsersColumns.FIRST_NAME.value: (
+                lambda val: val.strip() != "",
+                "Il nome non può essere vuoto"
+            ),
+            DBUsersColumns.LAST_NAME.value: (
+                lambda val: val.strip() != "",
+                "Il cognome non può essere vuoto"
+            ),
+            DBUsersColumns.PARTITA_IVA.value: (
+                lambda val: len(val) == 11 and val.isdigit(),
+                "Partita IVA non valida (11 cifre)"
+            ),
+            DBUsersColumns.EMAIL.value: (
+                lambda val: re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", val),
+                "Formato email non valido"
+            ),
+            DBUsersColumns.REDDITO_ESTERNO.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
+                "Inserire cifra numerica con due cifre decimali seprate da \".\" "
+            )
+        }
+
+        # Inizializzazione strutture dati
+        self.user_info_widgets = {}
+        self.error_labels = {}
+        sections = {}
+
+        # Creazione frame principale
+        info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
         info_frame.pack(fill="both", expand=True, pady=10, padx=5)
+
+        # Configurazione griglia
         info_frame.grid_columnconfigure(0, weight=1, uniform="col")
         info_frame.grid_columnconfigure(1, weight=1, uniform="col")
         info_frame.grid_columnconfigure(2, weight=1, uniform="col")
 
-        # Helper per riga: crea Label + Entry o OptionMenu
-        def add_row(parent, text, widget, row):
-            lbl = ctk.CTkLabel(parent, text=text + ":")
-            lbl.grid(row=row, column=0, sticky="w", padx=5, pady=2)
-            widget.grid(row=row, column=1, sticky="ew", padx=5, pady=2)
-            return row + 1
+        # Creazione sezioni
+        sections_order = [
+            "Dati Anagrafici",
+            "Dati Fiscali",
+            "Fatturazione Elettronica",
+            "Conto Corrente",
+            "Immagine Profilo",
+            "Status"
+        ]
 
-        row = 0
-        col = 0
+        # Crea i frame per ogni sezione
+        for i, section_name in enumerate(sections_order):
+            frame = ctk.CTkFrame(info_frame)
+            column = i if i <= 2 else i-3
+            frame.grid(row=0 if i <= 2 else 1 , column=column, sticky="nsew", padx=(15, 7) if column != 2 else 15, pady=(15, 10))
+            frame.grid_columnconfigure(1, weight=1)
+            sections[section_name] = {
+                "frame": frame,
+                "row": 0
+            }
+            ctk.CTkLabel(frame, text=section_name, font=("Arial", 14, "bold")).grid(
+                row=0, column=0, columnspan=2, sticky="w", padx=15, pady=5
+            )
+            sections[section_name]["row"] += 1
 
-        # Dati anagrafici
-        personal = ctk.CTkFrame(info_frame)
-        personal.grid(row=row, column=col, sticky="nsew", pady=5, padx=5)
-        personal.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(personal, text="Dati Anagrafici", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-        sub = 1
-        # Nome
-        fn = ctk.CTkEntry(personal)
-        fn.insert(0, user_data[DBUsersColumns.FIRST_NAME.value])
-        sub = add_row(personal, "Nome", fn, sub)
-        # Cognome
-        ln = ctk.CTkEntry(personal)
-        ln.insert(0, user_data[DBUsersColumns.LAST_NAME.value])
-        sub = add_row(personal, "Cognome", ln, sub)
-        # Email
-        em = ctk.CTkEntry(personal)
-        em.insert(0, user_data.get(DBUsersColumns.EMAIL.value, ""))
-        sub = add_row(personal, "Email", em, sub)
-        # Telefono
-        tl = ctk.CTkEntry(personal)
-        tl.insert(0, user_data.get(DBUsersColumns.TELEFONO.value, ""))
-        sub = add_row(personal, "Telefono", tl, sub)
-        col += 1
 
-        # Dati fiscali
-        fiscal = ctk.CTkFrame(info_frame)
-        fiscal.grid(row=row, column=col, sticky="nsew", pady=5, padx=(0,5))
-        fiscal.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(fiscal, text="Dati Fiscali", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-        sub = 1
-        # Partita IVA
-        piva = ctk.CTkEntry(fiscal)
-        piva.insert(0, user_data.get(DBUsersColumns.PARTITA_IVA.value, ""))
-        sub = add_row(fiscal, "Partita IVA", piva, sub)
-        # Codice Fiscale
-        cf = ctk.CTkEntry(fiscal)
-        cf.insert(0, user_data.get(DBUsersColumns.CODICE_FISCALE.value, ""))
-        sub = add_row(fiscal, "Codice Fiscale", cf, sub)
-        # Regime Fiscale (OptionMenu)
-        regimes = [item.value for item in self.user_controller.RegimeFiscale]
-        rf = ctk.CTkOptionMenu(fiscal, values=regimes)
-        rf.set(user_data.get(DBUsersColumns.REGIME_FISCALE.value, regimes[0] if regimes else ""))
-        sub = add_row(fiscal, "Regime Fiscale", rf, sub)
-        # Anno Apertura P.IVA
-        years = [str(y) for y in range(2000, datetime.now().year+1)]
-        ap = ctk.CTkOptionMenu(fiscal, values=years)
-        ap.set(str(user_data.get(DBUsersColumns.ANNO_APERTURA_PIVA.value, years[-1] if years else "")))
-        sub = add_row(fiscal, "Anno Apertura P.IVA", ap, sub)
-        col += 1
+        # Popolamento delle sezioni
+        for field, config in self.entry_fields.items():
+            section = sections[config["section"]]
+            frame = section["frame"]
+            row = section["row"]
 
-        # Provider Fatturazione Elettronica
-        prov = ctk.CTkFrame(info_frame)
-        prov.grid(row=row, column=col, sticky="nsew", pady=5, padx=(0,5))
-        prov.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(prov, text="Fatturazione Elettronica", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-        sub = 1
-        # Provider
-        providers = [item.value for item in FatturazioneElettronicaProvider]
-        prom = ctk.CTkOptionMenu(prov, values=providers)
-        prom.set(user_data.get(DBUsersColumns.PROVIDER_FATTURE.value, providers[0] if providers else ""))
-        sub = add_row(prov, "Provider", prom, sub)
-        # Username
-        pu = ctk.CTkEntry(prov, show="*")
-        pu.insert(0, user_data.get(DBUsersColumns.USERNAME_PROVIDER.value, ""))
-        sub = add_row(prov, "Username", pu, sub)
-        # Password
-        pp = ctk.CTkEntry(prov, show="*")
-        pp.insert(0, user_data.get(DBUsersColumns.PASSWORD_PROVIDER.value, ""))
-        sub = add_row(prov, "Password", pp, sub)
-        row += 1
-        col = 0
+            # Creazione label
+            lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(2, 10))
 
-        # Conto Corrente
-        account = ctk.CTkFrame(info_frame)
-        account.grid(row=row, column=col, sticky="nsew", pady=(0, 5), padx=5)
-        account.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(account, text="Conto Corrente", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-        sub = 1
-        acc_list = [account[DBAccountsColumns.NAME.value] for account in self.account_controller.retrieve_accounts_map_list()]
-        ac = ctk.CTkOptionMenu(account, values=acc_list)
-        ac.set(user_data.get(DBUsersColumns.CONTO_CORRENTE_ID.value, acc_list[0] if acc_list else ""))
-        sub = add_row(account, "Conto Associato", ac, sub)
-        col += 1
+            # Creazione widget
+            if config["type"] == ctk.CTkOptionMenu:
+                widget = config["type"](frame, values=config.get("values", []))
+                widget.set(user_data.get(field, config.get("values", [""])[0]))
+            else:
+                widget = config["type"](frame, show="*" if config.get("password", False) else "")
+                # Converti esplicitamente a stringa prima dell'inserimento
+                value = str(user_data.get(field, ""))
+                widget.insert(0, value)
 
-        # Immagine Profilo (solo preview path)
-        photo = ctk.CTkFrame(info_frame)
-        photo.grid(row=row, column=col, sticky="nsew", pady=(0, 5), padx=(0,5))
-        photo.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(photo, text="Immagine Profilo", font=("Arial",14,"bold")).grid(row=0, column=0, columnspan=2, sticky="w", padx=5, pady=5)
-        ppv = ctk.CTkEntry(photo)
-        ppv.insert(0, user_data.get(DBUsersColumns.PHOTO_PATH.value, ""))
-        ppv.grid(row=1, column=0, columnspan=2, sticky="ew", padx=5, pady=2)
+
+            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(2, 15))
+            self.user_info_widgets[field] = widget
+
+            if field in validation_rules:
+                validation_func, error_message = validation_rules[field]
+
+                error_lbl = ctk.CTkLabel(frame, text="", text_color="#e8e5dc")
+                error_lbl.grid(row=row + 1, column=1, sticky="w", padx=5)
+                self.error_labels[field] = error_lbl
+
+                widget.bind("<FocusOut>",
+                            lambda e, w=widget, vl=validation_func, el=error_lbl, em=error_message:
+                            ViewUtils.validate_entry(w, vl, el, em)
+                            )
+
+                section["row"] += 2
+            else:
+                section["row"] += 1
+
+
+        # Bottone Salva
+        self.save_info_btn = ctk.CTkButton(info_frame, text="Salva Modifiche", command=self.save_info_mod)
+        self.save_info_btn.grid(row=2, column=1, pady=10)
 
     def toggle_edit(self, parent):
         """
@@ -918,14 +1034,12 @@ class UserDetailView(ctk.CTkFrame):
         state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
 
         # Cambia anche lo stato del pulsante Salva
-        #self.save_button.configure(state=state)
-        #self.show_provider_username_button.configure(state=state)
-        #self.show_provider_password_button.configure(state=state)
+        self.save_info_btn.configure(state=state)
 
         for w in parent.winfo_children():
             # se è un Entry
             if isinstance(w, ctk.CTkEntry):
-                w.configure(state=state)
+                w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
             # se è un OptionMenu
             elif isinstance(w, ctk.CTkOptionMenu):
                 w.configure(state=state)
@@ -933,20 +1047,63 @@ class UserDetailView(ctk.CTkFrame):
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)
 
+    def save_info_mod(self):
+        """Salva i dati dell'utente tramite il controller"""
+
+        nome_conto = self.user_info_widgets[self.nome_conto_string].get()
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        id_conto = conto[DBAccountsColumns.ID.value] if conto else None
+
+        user_data = {
+            DBUsersColumns.FIRST_NAME.value: self.user_info_widgets[DBUsersColumns.FIRST_NAME.value].get().strip(),
+            DBUsersColumns.LAST_NAME.value: self.user_info_widgets[DBUsersColumns.LAST_NAME.value].get().strip(),
+            DBUsersColumns.PARTITA_IVA.value: self.user_info_widgets[DBUsersColumns.PARTITA_IVA.value].get().strip(),
+            DBUsersColumns.CODICE_FISCALE.value: self.user_info_widgets[DBUsersColumns.CODICE_FISCALE.value].get().strip(),
+            DBUsersColumns.TELEFONO.value: self.user_info_widgets[DBUsersColumns.TELEFONO.value].get().strip(),
+            DBUsersColumns.EMAIL.value: self.user_info_widgets[DBUsersColumns.EMAIL.value].get().strip(),
+            DBUsersColumns.REDDITO_ESTERNO.value: self.user_info_widgets[DBUsersColumns.REDDITO_ESTERNO.value].get().strip(),
+            DBUsersColumns.PROVIDER_FATTURE.value: self.user_info_widgets[DBUsersColumns.PROVIDER_FATTURE.value].get(),
+            DBUsersColumns.USERNAME_PROVIDER.value: self.user_info_widgets[DBUsersColumns.USERNAME_PROVIDER.value].get().strip(),
+            DBUsersColumns.PASSWORD_PROVIDER.value: self.user_info_widgets[DBUsersColumns.PASSWORD_PROVIDER.value].get().strip(),
+            DBUsersColumns.REGIME_FISCALE.value: self.user_info_widgets[DBUsersColumns.REGIME_FISCALE.value].get(),
+            DBUsersColumns.PHOTO_PATH.value: self.user_info_widgets[DBUsersColumns.PHOTO_PATH.value].get().strip(),
+            DBUsersColumns.CONTO_CORRENTE_ID.value: id_conto,  # Da aggiornare se necessario
+            DBUsersColumns.ANNO_APERTURA_PIVA.value: self.user_info_widgets[DBUsersColumns.ANNO_APERTURA_PIVA.value].get(),
+            DBUsersColumns.STATUS.value: self.user_info_widgets[DBUsersColumns.STATUS.value].get(),
+        }
+
+        # Chiamata al controller per salvare i dati
+        success, message = self.user_controller.update_user(self.current_user_id, user_data)
+        if success:
+            print(f"User {user_data[DBUsersColumns.FIRST_NAME.value]} {user_data[DBUsersColumns.LAST_NAME.value]} salvato con successo")
+            ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+            self.switch_modify.deselect()
+            self.toggle_edit(self.content_frame)
+        else:
+            # Mostra il messaggio d'errore
+            print(message)
+            ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
 
 
-    def _create_transaction_history(self):
-        """Crea la sezione storico transazioni"""
-        section_frame = ctk.CTkFrame(self.content_frame)
-        section_frame.pack(fill="both", expand=True, pady=10)
+    def _create_invoices_history(self):
+        """Crea la sezione storico fatture"""
+        section_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", expand=True, pady=30, padx=5)
 
-        ctk.CTkLabel(section_frame, text="Ultime transazioni", font=("Arial", 14)).pack(anchor="w")
+        ctk.CTkLabel(section_frame, text="FATTURE WILLOW", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 20), padx=10)
 
-        # Esempio tabella transazioni
-        scroll_frame = ctk.CTkScrollableFrame(section_frame, height=200)
-        scroll_frame.pack(fill="both", expand=True)
+        # tabella invoices
+        invoices_frame = ctk.CTkScrollableFrame(section_frame, height=200)
+        invoices_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
-        # Aggiungi qui la logica per popolare le transazioni
+        # popolo gli invoices
+        invoices = self.user_controller.retrieve_user_with_invoices_map_list(self.current_user_id)
+        for invoice in invoices:
+            if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None:
+                nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
+                id_fattura = invoice[DBInvoicesColumns.ID.value]
+                fattura_button = ctk.CTkButton(invoices_frame, text=f"{nome_fattura}")
+                fattura_button.pack(padx=10, pady=10)
 
     def _create_action_buttons(self):
         """Crea la sezione pulsanti azioni"""

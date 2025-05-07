@@ -238,6 +238,23 @@ class UserController:
         # Converte ogni riga in un dizionario
         return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
 
+    def retrieve_user_with_expenses_map_list(self, user_id):
+        """
+        Recupera lo specifico user unito alle rispettive spese anticipate e
+        li restituisce come lista di dizionari.
+
+        Utilizza la funzione fetch_user_with_expenses per ottenere le righe,
+        quindi combina le colonne dei client e delle invoices per convertire
+        ogni riga in un dizionario tramite _row_to_map.
+        """
+        # Recupera le righe dal database per lo specifico client
+        rows = self.db_model.fetch_user_with_expenses(user_id)
+
+        all_columns = list(DBUsersColumns) + list(DBExpensesColumns)
+
+        # Converte ogni riga in un dizionario
+        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
     def delete_user_by_ID(self, user_id):
         """Elimina un utente dato un certo user"""
         table = "users"
@@ -343,27 +360,82 @@ class UserController:
     def calcola_tot_fatturato_utente(self, user_id):
         """
         Calcola il reddito di un utente come somma delle fatture
+        emesse nell'anno corrente, sfruttando il join user‑invoices.
+
         :param user_id: ID dell'utente
-        :return: il reddito
+        :return: il reddito (float)
         """
-        user = self.retrieve_user_map_by_id(user_id)
-        regime_utente = user[DBUsersColumns.REGIME_FISCALE.value]
+        # Recupera l'utente + tutte le sue fatture
+        rows = self.retrieve_user_with_invoices_map_list(user_id)
+        if not rows:
+            return 0.0
 
-        invoices = self.db_model.fetch_invoices_by_user_id(user_id)
+        # Estraggo il regime fiscale dall'utente (prendo il primo row)
+        regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
+
+        # Calcolo l'anno corrente
+        current_year = datetime.now().year
+
         reddito = 0.0
+        for row in rows:
+            # Se la fattura non c'è (outer join), salto
+            data_str = row.get(DBInvoicesColumns.DATA_CREAZIONE.value)
+            if not data_str:
+                continue
 
-        # Filtro le fatture emesse solo nell'anno corrente
-        current_year_value = datetime.now().year
-        invoices = [
-            invoice
-            for invoice in invoices
-            if datetime.strptime(invoice[DBInvoicesColumns.DATA_CREAZIONE.value], "%Y-%m-%d").year == current_year_value
-        ]
+            # Controllo che la data di creazione sia nell'anno corrente
+            try:
+                anno = datetime.strptime(data_str, "%Y-%m-%d").year
+            except ValueError:
+                # formato data non valido: skip
+                continue
 
-        for invoice in invoices:
-            reddito = reddito + invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]
+            if anno == current_year:
+                # Sommo il totale del documento
+                tot = row.get(DBInvoicesColumns.TOT_DOCUMENTO.value) or 0.0
+                reddito += float(tot)
 
         return reddito
+
+    def calcola_tot_spese_utente(self, user_id):
+        """
+        Calcola le spese di un utente come somma delle expenses
+        emesse nell'anno corrente, sfruttando il join user‑expenses.
+
+        :param user_id: ID dell'utente
+        :return: il totale delle spese (float)
+        """
+        # Recupera l'utente + tutte le sue spese
+        rows = self.retrieve_user_with_expenses_map_list(user_id)
+        if not rows:
+            return 0.0
+
+        # Estraggo il regime fiscale dall'utente (prendo il primo row)
+        regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
+
+        # Calcolo l'anno corrente
+        current_year = datetime.now().year
+
+        tot_spese = 0.0
+        for row in rows:
+            # Se la fattura non c'è (outer join), salto
+            data_str = row.get(DBExpensesColumns.created_at.value)
+            if not data_str:
+                continue
+
+            # Controllo che la data di creazione sia nell'anno corrente
+            try:
+                anno = datetime.strptime(data_str, "%Y-%m-%d").year
+            except ValueError:
+                # formato data non valido: skip
+                continue
+
+            if anno == current_year:
+                # Sommo il totale del documento
+                tot = row.get(DBExpensesColumns.TOT_AMOUNT.value) or 0.0
+                tot_spese += float(tot)
+
+        return tot_spese
 
     def reset_reddito_esterno(self):
         return
@@ -467,6 +539,51 @@ class UserController:
 
         summary = f"Aggiornamento completato: {updated_count} su {total} utenti aggiornati."
         return True, summary
+
+    def pick_fiscal_data_by_user_id(self, user_id: int) -> dict[str, dict[str, str]]:
+        """
+        Prepara i dati fiscali di un utente, suddivisi in due sezioni:
+          - 'aliquote': { titolo: valore }
+          - 'imponibili': { titolo: valore }
+
+        Pronto per essere mostrato in View come label-readonly.
+        """
+        user = self.retrieve_user_map_by_id(user_id)
+        regime = user.get(DBUsersColumns.REGIME_FISCALE.value)
+        anno = user.get(DBUsersColumns.ANNO_APERTURA_PIVA.value)
+
+        aliquote: dict[str, str] = {}
+        imponibili: dict[str, str] = {}
+
+        if regime == UserController.RegimeFiscale.FORFETTARIO.value:
+            f = self.fiscal_settings.partita_iva_forfettaria
+            # Aliquote
+            aliquote["IRPEF forfettaria (%)"] = f"{self.calcola_aliquota_tax_forfettaria(anno)}"
+            aliquote["INPS (%)"] = f"{f.aliquota_inps}"
+            aliquote["Rivalsa INPS (%)"] = f"{f.aliquota_rivalsa_inps}"
+            # Imponibili
+            imponibili["Imponibile forfettario (%)"] = f"{f.imponibile}"
+
+        else:
+            # Regime ordinario
+            o = self.fiscal_settings.partita_iva_ordinaria
+            iva = self.fiscal_settings.aliquota_iva
+            # Aliquote
+            aliquote["INPS (%)"] = f"{o.aliquota_inps}"
+            aliquote["Cassa INPS (%)"] = f"{o.aliquota_cassa_inps}"
+            aliquote["Ritenuta (%)"] = f"{o.aliquota_ritenuta}"
+            aliquote["IVA ordinaria (%)"] = f"{iva.aliquota_iva_ordinaria}"
+            # Imponibili
+            imponibili["Imponibile IVA (%)"] = f"{o.imponibile_iva}"
+            imponibili["Imponibile ritenuta (%)"] = f"{o.imponibile_ritenuta_acconto}"
+            imponibili["Imponibile cassa INPS (%)"] = f"{o.imponibile_cassa_inps}"
+            imponibili["Imponibile INPS (%)"] = f"{o.imponibile_inps}"
+            imponibili["Imponibile IRPEF (%)"] = f"{o.imponibile_irpef}"
+
+        return {
+            "aliquote": aliquote,
+            "imponibili": imponibili
+        }
 
     def encrypt_string(self, plain_text: str) -> str:
         """

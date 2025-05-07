@@ -7,17 +7,19 @@ import os, re
 from Views.View_utils import ViewUtils
 
 from Controllers import AccountController, ValidationUtils
-from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns
+from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 class UsersView(ctk.CTk):
-    def __init__(self, db_model, user_controller, account_controller, tab):
+    def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab):
         super().__init__()
 
         self.db_model = db_model
         self.user_controller = user_controller
         self.account_controller = account_controller
+        self.production_controller = production_controller
         self.tab = tab
+        self.fiscal_settings = fiscal_settings
 
         #tool variables
         self.no_data_string = "no data"
@@ -46,7 +48,9 @@ class UsersView(ctk.CTk):
             back_callback=self.show_main_view,
             user_controller=user_controller,
             account_controller=account_controller,
-            db_model=db_model
+            production_controller=production_controller,
+            db_model=db_model,
+            fiscal_settings=self.fiscal_settings
         )
 
         # Inizializza la vista principale
@@ -60,11 +64,11 @@ class UsersView(ctk.CTk):
         self.user_description.pack(pady=(50, 25))
 
         # Area per le cards degli utenti (simulata qui per ora)
-        self.user_card_area = ctk.CTkFrame(self.main_container)
+        self.user_card_area = ctk.CTkFrame(self.main_container, fg_color="#2b2b2b")
         self.user_card_area.pack(fill= "y", expand=True, pady=20)
 
 
-        self.user_card_area1 = ctk.CTkFrame(self.main_container)
+        self.user_card_area1 = ctk.CTkFrame(self.main_container, fg_color="#2b2b2b")
         self.user_card_area1.pack(fill= "y", expand=True, pady=20)
 
 
@@ -570,7 +574,7 @@ class UsersView(ctk.CTk):
         """Aggiungi una card per un utente alla lista"""
 
         user_card = ctk.CTkFrame(self.user_card_area if self.number_of_users_cards < 4 else self.user_card_area1)
-        user_card.pack(side="left", pady=5, padx=25)
+        user_card.pack(side="left", pady=0, padx=25)
         self.user_cards[user_id] = user_card
 
         info_frame = ctk.CTkFrame(user_card)
@@ -744,12 +748,14 @@ class UsersView(ctk.CTk):
 
 
 class UserDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, user_controller, account_controller, db_model):
+    def __init__(self, parent, back_callback, user_controller, account_controller, production_controller, db_model, fiscal_settings):
         super().__init__(parent)
         self.user_controller = user_controller
         self.account_controller = account_controller
         self.db_model = db_model
         self.back_callback = back_callback
+        self.production_controller = production_controller
+        self.fiscal_settings = fiscal_settings
         self.current_user_id = None
 
         # Widgets persistenti (vanno creati una volta sola)
@@ -806,8 +812,14 @@ class UserDetailView(ctk.CTkFrame):
         # 4. Creazione contenuti dinamici
         self._create_user_info_section(user)
         self.toggle_edit(self.content_frame)
-        self._create_invoices_history()
 
+        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="#333333")
+        self.wrapper_frame.pack(padx=25, pady=90, fill="both", expand=True)
+        self._create_invoices_history()
+        self._create_expenses_history()
+        self._create_salary_history()
+
+        self._create_fiscal_data_section()
 
     def _clear_content(self):
         """Distrugge tutti i widget dinamici"""
@@ -952,7 +964,7 @@ class UserDetailView(ctk.CTkFrame):
 
         # Creazione frame principale
         info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
-        info_frame.pack(fill="both", expand=True, pady=10, padx=5)
+        info_frame.pack(fill="both", expand=True, pady=10, padx=25)
 
         # Configurazione griglia
         info_frame.grid_columnconfigure(0, weight=1, uniform="col")
@@ -993,7 +1005,7 @@ class UserDetailView(ctk.CTkFrame):
 
             # Creazione label
             lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
-            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(2, 10))
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(2, 5) if field in validation_rules.keys() else (2, 25))
 
             # Creazione widget
             if config["type"] == ctk.CTkOptionMenu:
@@ -1006,14 +1018,14 @@ class UserDetailView(ctk.CTkFrame):
                 widget.insert(0, value)
 
 
-            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(2, 15))
+            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(2, 5) if field in validation_rules.keys() else (2, 35))
             self.user_info_widgets[field] = widget
 
             if field in validation_rules:
                 validation_func, error_message = validation_rules[field]
 
                 error_lbl = ctk.CTkLabel(frame, text="", text_color="#e8e5dc")
-                error_lbl.grid(row=row + 1, column=1, sticky="w", padx=5)
+                error_lbl.grid(row=row + 1, column=1, sticky="w", padx=5, pady=(0, 10))
                 self.error_labels[field] = error_lbl
 
                 widget.bind("<FocusOut>",
@@ -1028,7 +1040,7 @@ class UserDetailView(ctk.CTkFrame):
 
         # Bottone Salva
         self.save_info_btn = ctk.CTkButton(info_frame, text="Salva Modifiche", command=self.save_info_mod)
-        self.save_info_btn.grid(row=2, column=1, pady=10)
+        self.save_info_btn.grid(row=2, column=1, pady=(10, 30))
 
     def toggle_edit(self, parent):
         """
@@ -1088,13 +1100,58 @@ class UserDetailView(ctk.CTkFrame):
             print(message)
             ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
 
+    def _create_fiscal_data_section(self):
+        # Creazione frame principale
+        dati_fiscali_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
+        dati_fiscali_frame.pack(fill="both", expand=True, pady=10, padx=25)
+
+        ctk.CTkLabel(dati_fiscali_frame, text="DATI FISCALI", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        aliquote_frame = ctk.CTkFrame(dati_fiscali_frame)
+        aliquote_frame.pack(fill="both", expand=True, pady=10, padx=(10, 20), side="left")
+        ctk.CTkLabel(aliquote_frame, text="Aliquote", font=("Arial", 12, "bold")).pack(anchor="w", pady=(10, 10), padx=20)
+
+        imponibili_frame = ctk.CTkFrame(dati_fiscali_frame)
+        imponibili_frame.pack(fill="both", expand=True, pady=10, padx=(20, 10), side="left")
+        ctk.CTkLabel(imponibili_frame, text="Imponibili", font=("Arial", 12, "bold")).pack(anchor="w", pady=(10, 10), padx=20)
+
+        user_fiscal_data = self.user_controller.pick_fiscal_data_by_user_id(self.current_user_id)
+
+        # Prendo i dati suddivisi da controller
+        user_fiscal_data = self.user_controller.pick_fiscal_data_by_user_id(self.current_user_id)
+        aliquote = user_fiscal_data.get("aliquote", {})
+        imponibili = user_fiscal_data.get("imponibili", {})
+
+        # Popolo Aliquote
+        for titolo, valore in aliquote.items():
+            row = ctk.CTkFrame(aliquote_frame)
+            row.pack(fill="x", padx=20, pady=2)
+            ctk.CTkLabel(row, text=f"{titolo}:", anchor="w").pack(side="left", expand=True)
+            ctk.CTkLabel(row, text=valore, anchor="e").pack(side="right")
+
+        # Popolo Imponibili
+        for titolo, valore in imponibili.items():
+            row = ctk.CTkFrame(imponibili_frame)
+            row.pack(fill="x", padx=20, pady=2)
+            ctk.CTkLabel(row, text=f"{titolo}:", anchor="w").pack(side="left", expand=True)
+            ctk.CTkLabel(row, text=valore, anchor="e").pack(side="right")
+
 
     def _create_invoices_history(self):
         """Crea la sezione storico fatture"""
-        section_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
-        section_frame.pack(fill="both", expand=True, pady=30, padx=5)
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
 
-        ctk.CTkLabel(section_frame, text="FATTURE WILLOW", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 20), padx=10)
+        ctk.CTkLabel(section_frame, text="FATTURE WILLOW", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        global_infos = {
+            "TOTALE FATTURATO WILLOW" : {
+                "value" : self.user_controller.calcola_tot_fatturato_utente(self.current_user_id),
+                "uom" : "€"
+            }
+        }
+
+        self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
 
         # tabella invoices
         invoices_frame = ctk.CTkScrollableFrame(section_frame, height=200)
@@ -1106,8 +1163,59 @@ class UserDetailView(ctk.CTkFrame):
             if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None:
                 nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
                 id_fattura = invoice[DBInvoicesColumns.ID.value]
-                fattura_button = ctk.CTkButton(invoices_frame, text=f"{nome_fattura}")
-                fattura_button.pack(padx=10, pady=10)
+                produzione = self.production_controller.retrieve_production_map_by_id(id_fattura)
+                nome_prod = produzione[DBProductionsColumns.NAME.value] if produzione else "Produzione non trovata"
+                fattura_button = ctk.CTkButton(invoices_frame, text=f"{nome_fattura} - {nome_prod}")
+                fattura_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def _create_expenses_history(self):
+        """Crea la sezione storico delle spese anticipate"""
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
+
+        ctk.CTkLabel(section_frame, text="SPESE ANTICIPATE", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        global_infos = {
+            "TOTALE SPESE ANTICIPATE" : {
+                "value" : self.user_controller.calcola_tot_spese_utente(self.current_user_id),
+                "uom" : "€"
+            }
+        }
+
+        self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+        # tabella invoices
+        expenses_frame = ctk.CTkScrollableFrame(section_frame, height=200)
+        expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
+
+        # popolo gli invoices
+        expenses = self.user_controller.retrieve_user_with_expenses_map_list(self.current_user_id)
+        for expense in expenses:
+            if expense[DBExpensesColumns.NAME.value] is not None:
+                nome_spesa = expense[DBExpensesColumns.NAME.value]
+                id_spesa = expense[DBExpensesColumns.ID.value]
+                spesa_button = ctk.CTkButton(expenses_frame, text=f"{nome_spesa}")
+                spesa_button.pack(padx=10, pady=10)
+
+    def _create_salary_history(self):
+        """Crea la sezione storico dei salari"""
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=0)
+
+        ctk.CTkLabel(section_frame, text="PAGAMENTI SALARIO", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        # tabella invoices
+        salary_frame = ctk.CTkScrollableFrame(section_frame, height=200)
+        salary_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
+
+        # popolo gli invoices
+        expenses = self.user_controller.retrieve_user_with_expenses_map_list(self.current_user_id)
+        for expense in expenses:
+            if expense[DBExpensesColumns.NAME.value] is not None:
+                nome_spesa = expense[DBExpensesColumns.NAME.value]
+                id_spesa = expense[DBExpensesColumns.ID.value]
+                spesa_button = ctk.CTkButton(salary_frame, text=f"{nome_spesa}")
+                spesa_button.pack(padx=10, pady=10)
 
 
     def _cleanup_and_go_back(self):
@@ -1115,5 +1223,3 @@ class UserDetailView(ctk.CTkFrame):
         self._clear_content()
         self.pack_forget()
         self.back_callback()
-
-

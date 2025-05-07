@@ -118,7 +118,6 @@ class ViewUtils(ctk.CTk):
         def on_closing_popup(pop_up):
             pop_up.destroy()
 
-
     @staticmethod
     def ask_confirmation_popup(parent, message, title="CONFERMA OPERAZIONE"):
         """
@@ -201,3 +200,46 @@ class ViewUtils(ctk.CTk):
             return text  # Nessun punto valido per la divisione
 
         return " ".join(words[:split_index + 1]) + "\n" + " ".join(words[split_index + 1:])
+
+    @staticmethod
+    def construct_global_infos_cards(frame, infos_dict) -> dict:
+        """
+        Costruisce delle "cards" per ogni elemento di infos_dict e le inserisce nel frame fornito.
+
+        :param frame: ctk.CTkFrame in cui inserire le cards
+        :param infos_dict: dizionario con struttura:
+            {
+              nome_info: {"value": valore (int|float), "uom": unità di misura (str)},
+              ...
+            }
+        :return: dizionario di cards {nome_info: {"card": frame, "label": ctk.CTkLabel}}
+        """
+        cards = {}
+        for name, info in infos_dict.items():
+            # crea la card container
+            card = ctk.CTkFrame(frame, border_width=2, border_color="#2659ab")
+            card.pack(anchor="w", padx=10, pady=(5, 5))
+
+            # titolo
+            title = ctk.CTkLabel(
+                card,
+                text=ViewUtils.split_string_by_length(str(name), 8),
+                font=("Arial", 12, "bold"),
+                bg_color="#1F6AA5"
+            )
+            title.pack(anchor="n", padx=10, pady=(10, 5), ipadx = 5, ipady = 5)
+
+            # valore con unità di misura
+            value = info.get("value", 0)
+            uom = info.get("uom", "")
+            amount = ctk.CTkLabel(
+                card,
+                text=f"{value} {uom}",
+                font=("Arial", 14)
+            )
+            amount.pack(anchor="s", padx=10, pady=(0, 10))
+
+            # conserva la card e la label in output per aggiornamenti futuri
+            cards[name] = {"card": card, "label": amount}
+
+        return cards

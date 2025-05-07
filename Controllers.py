@@ -156,10 +156,6 @@ class UserController:
         if email and not ValidationUtils.validate_email(email):
             return False, "L'indirizzo email non è valido."
 
-        # Mapping conto corrente
-        selected_account_name = user_data.get("conto_corrente")
-        conto_corrente_id = AccountController.get_accounts_mapping(self.db_model).get(selected_account_name)
-
         # Cifra i dati di accesso se il provider è selezionato
         if user_data.get(DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
             try:
@@ -190,9 +186,6 @@ class UserController:
             for column in DBUsersColumns
             if column.value in user_data
         }
-
-        # Aggiungi valori del conto corrente
-        user_data_filtered[DBUsersColumns.CONTO_CORRENTE_ID.value] = conto_corrente_id
 
         # Rimuove i campi None
         user_data_filtered = {key: value for key, value in user_data_filtered.items() if value is not None}
@@ -324,7 +317,7 @@ class UserController:
         except Exception as e:
             return False, f"Errore durante l'aggiornamento dell'utente: {str(e)}"
 
-    def calcola_reddito_utente(self, user_id):
+    def calcola_reddito_tot_utente(self, user_id):
         """
         Calcola il reddito di un utente a partire da un reddito esterno e la somma dei lordi delle fatture
         :param user_id: ID dell'utente
@@ -333,6 +326,31 @@ class UserController:
         invoices = self.db_model.fetch_invoices_by_user_id(user_id)
         reddito_esterno = self.retrieve_user_map_by_id(user_id)[DBUsersColumns.REDDITO_ESTERNO.value]
         reddito = reddito_esterno
+
+        # Filtro le fatture emesse solo nell'anno corrente
+        current_year_value = datetime.now().year
+        invoices = [
+            invoice
+            for invoice in invoices
+            if datetime.strptime(invoice[DBInvoicesColumns.DATA_CREAZIONE.value], "%Y-%m-%d").year == current_year_value
+        ]
+
+        for invoice in invoices:
+            reddito = reddito + invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]
+
+        return reddito
+
+    def calcola_tot_fatturato_utente(self, user_id):
+        """
+        Calcola il reddito di un utente come somma delle fatture
+        :param user_id: ID dell'utente
+        :return: il reddito
+        """
+        user = self.retrieve_user_map_by_id(user_id)
+        regime_utente = user[DBUsersColumns.REGIME_FISCALE.value]
+
+        invoices = self.db_model.fetch_invoices_by_user_id(user_id)
+        reddito = 0.0
 
         # Filtro le fatture emesse solo nell'anno corrente
         current_year_value = datetime.now().year
@@ -383,7 +401,7 @@ class UserController:
         :return: Aliquota IRPEF oppure None se non è possibile calcolarla.
         """
         # Calcola il reddito dell'utente (eventualmente per l'anno corrente)
-        reddito = self.calcola_reddito_utente(user_id)
+        reddito = self.calcola_reddito_tot_utente(user_id)
 
         # Recupera la lista degli scaglioni IRPEF dalla sezione 'partita_iva_ordinaria'
         scaglioni = self.fiscal_settings.partita_iva_ordinaria.scaglioni_irpef

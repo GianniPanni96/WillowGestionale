@@ -410,6 +410,8 @@ class InvoicesView(ctk.CTk):
 
         # Inserisci nella mappa per il filtraggio
         self.invoices_card_list[nome] = card
+        self.toggle_specific_invoice_rate_color_2(invoice_id)
+        self.toggle_specific_invoice_status_color(invoice_id)
 
     def filter_cards(self, event):
         """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""

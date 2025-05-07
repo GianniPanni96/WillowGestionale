@@ -232,6 +232,10 @@ class UsersView(ctk.CTk):
     def save_user_data(self):
         """Salva i dati dell'utente tramite il controller"""
 
+        #prendo l'id del conto
+        conto = self.account_controller.retrieve_account_map_by_name(self.conto_corrente_combobox.get().strip())
+        conto_id = conto[DBAccountsColumns.ID.value]
+
         user_data = {
             DBUsersColumns.FIRST_NAME.value: self.first_name_entry.get().strip(),
             DBUsersColumns.LAST_NAME.value: self.last_name_entry.get().strip(),
@@ -244,7 +248,7 @@ class UsersView(ctk.CTk):
             DBUsersColumns.PASSWORD_PROVIDER.value: self.provider_password_entry.get().strip(),
             DBUsersColumns.REGIME_FISCALE.value: self.regime_fiscale_combobox.get(),
             DBUsersColumns.PHOTO_PATH.value: self.image_path.get(),
-            DBUsersColumns.CONTO_CORRENTE_ID.value: self.conto_corrente_combobox.get(),  # Da aggiornare se necessario
+            DBUsersColumns.CONTO_CORRENTE_ID.value: conto_id,  # Da aggiornare se necessario
             DBUsersColumns.ANNO_APERTURA_PIVA.value: self.anno_apertura_piva_combobox.get(),
             DBUsersColumns.STATUS.value: self.user_controller.UserStatus.ATTIVO.value,
         }
@@ -791,7 +795,7 @@ class UserDetailView(ctk.CTkFrame):
         #prendo il nome del conto:
         id_conto = user[DBUsersColumns.CONTO_CORRENTE_ID.value]
         conto = self.account_controller.retrieve_account_map_by_id(id_conto)
-        nome_conto = conto[DBAccountsColumns.NAME.value]
+        nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "Conto non trovato"
 
         user[self.nome_conto_string] = nome_conto
 
@@ -803,7 +807,7 @@ class UserDetailView(ctk.CTkFrame):
         self._create_user_info_section(user)
         self.toggle_edit(self.content_frame)
         self._create_invoices_history()
-        self._create_action_buttons()
+
 
     def _clear_content(self):
         """Distrugge tutti i widget dinamici"""
@@ -1105,24 +1109,6 @@ class UserDetailView(ctk.CTkFrame):
                 fattura_button = ctk.CTkButton(invoices_frame, text=f"{nome_fattura}")
                 fattura_button.pack(padx=10, pady=10)
 
-    def _create_action_buttons(self):
-        """Crea la sezione pulsanti azioni"""
-        button_frame = ctk.CTkFrame(self.content_frame)
-        button_frame.pack(fill="x", pady=20)
-
-        ctk.CTkButton(
-            button_frame,
-            text="Modifica profilo",
-            command=self._edit_profile
-        ).pack(side="left", padx=5)
-
-        ctk.CTkButton(
-            button_frame,
-            text="Elimina utente",
-            fg_color="#FF4444",
-            hover_color="#CC0000",
-            command=self._delete_user
-        ).pack(side="left", padx=5)
 
     def _cleanup_and_go_back(self):
         """Pulizia completa prima di tornare indietro"""
@@ -1130,10 +1116,4 @@ class UserDetailView(ctk.CTkFrame):
         self.pack_forget()
         self.back_callback()
 
-    def _edit_profile(self):
-        """Gestisce la modifica del profilo"""
-        print(f"Modifica utente {self.current_user_id}")
 
-    def _delete_user(self):
-        """Gestisce l'eliminazione dell'utente"""
-        print(f"Elimina utente {self.current_user_id}")

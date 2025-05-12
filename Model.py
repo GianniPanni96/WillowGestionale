@@ -126,7 +126,6 @@ class DBTransfersColumns(Enum):
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 
-
 class DBExpensesColumns(Enum):
     ID = "ID"
     NAME = "NOME"
@@ -153,6 +152,17 @@ class DBSuppliersColumns(Enum):
     NOTE = "NOTE"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
+
+class DBSalariesColumns(Enum):
+    ID = "ID"
+    NAME = "NAME"
+    AMOUNT = "TOTALE"
+    DATE = "DATE"
+    ACCOUNT_ID = "ID_CONTO"
+    USER_ID = "ID_UTENTE"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
 
 
 
@@ -1360,6 +1370,94 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query, (account_id,))
             return cursor.fetchall()
+
+
+
+
+
+
+    def fetch_all_salaries(self):
+        """Recupera tutti i versamenti-salario"""
+        columns = [col.value for col in DBSalariesColumns]
+        query = f"SELECT {', '.join(columns)} FROM salaries"
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query)
+            return cur.fetchall()
+
+    def add_salary(self, **kwargs):
+        """
+        Aggiungi un nuovo versamento-salario.
+        I campi da aggiungere devono essere passati come keyword arguments.
+        """
+        # colonne valide tranne ID
+        valid = {col.value for col in DBSalariesColumns if col != DBSalariesColumns.ID}
+        data = {k: v for k, v in kwargs.items() if k in valid}
+        if not data:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        cols        = ", ".join(data.keys())
+        placeholders = ", ".join("?" for _ in data)
+        query = f"INSERT INTO salaries ({cols}) VALUES ({placeholders})"
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, tuple(data.values()))
+            conn.commit()
+            return cur.lastrowid  # opzionale: restituisce il nuovo ID
+
+    def fetch_salary_by_id(self, salary_id):
+        """Recupera un versamento-salario specifico per ID"""
+        columns = [col.value for col in DBSalariesColumns]
+        id_col  = DBSalariesColumns.ID.value
+        query   = f"SELECT {', '.join(columns)} FROM salaries WHERE {id_col} = ?"
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (salary_id,))
+            return cur.fetchone()
+
+    def fetch_salary_by_name(self, salary_name: str):
+        cols = [col.value for col in DBSalariesColumns]
+        query = (
+            f"SELECT {', '.join(cols)} "
+            f"FROM salaries "
+            f"WHERE {DBSalariesColumns.NAME.value} = ? "
+            f"LIMIT 1"
+        )
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (salary_name,))
+            return cur.fetchone()
+
+    def fetch_last_salary_insert(self):
+        """Recupera l'ultimo versamento-salario inserito"""
+        columns = [col.value for col in DBSalariesColumns]
+        created = DBSalariesColumns.CREATED_AT.value
+        query = f"""
+        SELECT {', '.join(columns)}
+          FROM salaries
+         ORDER BY {created} DESC
+         LIMIT 1
+        """
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query)
+            return cur.fetchone()
+
+    def fetch_salaries_by_user(self, user_id):
+        """
+        Recupera tutti i versamenti-salario per un dato utente.
+        """
+        columns = [col.value for col in DBSalariesColumns]
+        user_col = DBSalariesColumns.USER_ID.value
+        query = f"""
+        SELECT {', '.join(columns)}
+          FROM salaries
+         WHERE {user_col} = ?
+        """
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (user_id,))
+            return cur.fetchall()
 
 
 

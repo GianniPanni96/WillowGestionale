@@ -603,9 +603,6 @@ class UsersView(ctk.CTk):
         user_info_email = ctk.CTkLabel(detail_info_frame, text=f"e-mail: {email}")
         user_info_email.pack(anchor="w",padx=10, pady=10)
 
-        self.modify_button = ctk.CTkButton(user_card, text="Modifica", command=lambda: self.open_modify_user_window(user_id))
-        self.modify_button.pack(side="left",  pady=10, padx=28)
-
         self.detail_button = ctk.CTkButton(user_card, text="Dettaglio", command=lambda uid=user_id: self.open_user_detail_tab(uid))
         self.detail_button.pack(pady=10)
 
@@ -820,6 +817,7 @@ class UserDetailView(ctk.CTkFrame):
         self._create_salary_history()
 
         self._create_fiscal_data_section()
+        self._create_taxes_section()
 
     def _clear_content(self):
         """Distrugge tutti i widget dinamici"""
@@ -1100,43 +1098,6 @@ class UserDetailView(ctk.CTkFrame):
             print(message)
             ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
 
-    def _create_fiscal_data_section(self):
-        # Creazione frame principale
-        dati_fiscali_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
-        dati_fiscali_frame.pack(fill="both", expand=True, pady=10, padx=25)
-
-        ctk.CTkLabel(dati_fiscali_frame, text="DATI FISCALI", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
-
-        aliquote_frame = ctk.CTkFrame(dati_fiscali_frame)
-        aliquote_frame.pack(fill="both", expand=True, pady=10, padx=(10, 20), side="left")
-        ctk.CTkLabel(aliquote_frame, text="Aliquote", font=("Arial", 12, "bold")).pack(anchor="w", pady=(10, 10), padx=20)
-
-        imponibili_frame = ctk.CTkFrame(dati_fiscali_frame)
-        imponibili_frame.pack(fill="both", expand=True, pady=10, padx=(20, 10), side="left")
-        ctk.CTkLabel(imponibili_frame, text="Imponibili", font=("Arial", 12, "bold")).pack(anchor="w", pady=(10, 10), padx=20)
-
-        user_fiscal_data = self.user_controller.pick_fiscal_data_by_user_id(self.current_user_id)
-
-        # Prendo i dati suddivisi da controller
-        user_fiscal_data = self.user_controller.pick_fiscal_data_by_user_id(self.current_user_id)
-        aliquote = user_fiscal_data.get("aliquote", {})
-        imponibili = user_fiscal_data.get("imponibili", {})
-
-        # Popolo Aliquote
-        for titolo, valore in aliquote.items():
-            row = ctk.CTkFrame(aliquote_frame)
-            row.pack(fill="x", padx=20, pady=2)
-            ctk.CTkLabel(row, text=f"{titolo}:", anchor="w").pack(side="left", expand=True)
-            ctk.CTkLabel(row, text=valore, anchor="e").pack(side="right")
-
-        # Popolo Imponibili
-        for titolo, valore in imponibili.items():
-            row = ctk.CTkFrame(imponibili_frame)
-            row.pack(fill="x", padx=20, pady=2)
-            ctk.CTkLabel(row, text=f"{titolo}:", anchor="w").pack(side="left", expand=True)
-            ctk.CTkLabel(row, text=valore, anchor="e").pack(side="right")
-
-
     def _create_invoices_history(self):
         """Crea la sezione storico fatture"""
         section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
@@ -1154,7 +1115,7 @@ class UserDetailView(ctk.CTkFrame):
         self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
 
         # tabella invoices
-        invoices_frame = ctk.CTkScrollableFrame(section_frame, height=200)
+        invoices_frame = ctk.CTkScrollableFrame(section_frame, height=300)
         invoices_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
@@ -1185,7 +1146,7 @@ class UserDetailView(ctk.CTkFrame):
         self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
 
         # tabella invoices
-        expenses_frame = ctk.CTkScrollableFrame(section_frame, height=200)
+        expenses_frame = ctk.CTkScrollableFrame(section_frame, height=300)
         expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
@@ -1205,7 +1166,7 @@ class UserDetailView(ctk.CTkFrame):
         ctk.CTkLabel(section_frame, text="PAGAMENTI SALARIO", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
 
         # tabella invoices
-        salary_frame = ctk.CTkScrollableFrame(section_frame, height=200)
+        salary_frame = ctk.CTkScrollableFrame(section_frame, height=300)
         salary_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
@@ -1216,6 +1177,51 @@ class UserDetailView(ctk.CTkFrame):
                 id_spesa = expense[DBExpensesColumns.ID.value]
                 spesa_button = ctk.CTkButton(salary_frame, text=f"{nome_spesa}")
                 spesa_button.pack(padx=10, pady=10)
+
+    def _create_fiscal_data_section(self):
+        # Creazione frame principale
+        dati_fiscali_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
+        dati_fiscali_frame.pack(fill="both", expand=True, pady=10, padx=25, ipady=20, side="left")
+
+        ctk.CTkLabel(dati_fiscali_frame, text="DATI FISCALI", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        aliquote_frame = ctk.CTkFrame(dati_fiscali_frame)
+        aliquote_frame.pack(fill="both", expand=True, pady=20, padx=(20, 20), side="left")
+        ctk.CTkLabel(aliquote_frame, text="Aliquote", font=("Arial", 12, "bold")).pack(anchor="w", pady=(10, 10), padx=20)
+
+        imponibili_frame = ctk.CTkFrame(dati_fiscali_frame)
+        imponibili_frame.pack(fill="both", expand=True, pady=20, padx=(20, 20), side="left")
+        ctk.CTkLabel(imponibili_frame, text="Imponibili", font=("Arial", 12, "bold")).pack(anchor="w", pady=(10, 10), padx=20)
+
+        user_fiscal_data = self.user_controller.pick_fiscal_data_by_user_id(self.current_user_id)
+
+        # Prendo i dati suddivisi da controller
+        user_fiscal_data = self.user_controller.pick_fiscal_data_by_user_id(self.current_user_id)
+        aliquote = user_fiscal_data.get("aliquote", {})
+        imponibili = user_fiscal_data.get("imponibili", {})
+
+        # Popolo Aliquote
+        for titolo, valore in aliquote.items():
+            row = ctk.CTkFrame(aliquote_frame)
+            row.pack(fill="x", padx=20, pady=5)
+            ctk.CTkLabel(row, text=f"{titolo}:", anchor="w").pack(side="left", pady=5, padx=10)
+            ctk.CTkLabel(row, text=valore, anchor="e").pack(side="left", pady=5, padx=10)
+
+        # Popolo Imponibili
+        for titolo, valore in imponibili.items():
+            row = ctk.CTkFrame(imponibili_frame)
+            row.pack(fill="x", padx=20, pady=5)
+            ctk.CTkLabel(row, text=f"{titolo}:", anchor="w").pack(side="left", pady=5, padx=10)
+            ctk.CTkLabel(row, text=valore, anchor="e").pack(side="left", pady=5, padx=10)
+
+    def _create_taxes_section(self):
+        # Creazione frame principale
+        tax_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
+        tax_frame.pack(fill="both", expand=True, pady=10, padx=25, ipady=20, side="left")
+
+        ctk.CTkLabel(tax_frame, text="PREVISIONE TASSE", font=("Arial", 14, "bold")).pack(anchor="w",
+                                                                                               pady=(10, 10),
+                                                                                               padx=10)
 
 
     def _cleanup_and_go_back(self):

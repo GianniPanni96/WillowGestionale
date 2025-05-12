@@ -403,6 +403,7 @@ class ExpensesView(ctk.CTk):
         # Configura il grid della card: 1 riga, n_cols colonne uguali
         for c in range(n_cols):
             card.grid_columnconfigure(c, weight=1, uniform="clientcol")
+
         card.grid_rowconfigure(0, weight=1)
 
         # 0) Bottone "nome"

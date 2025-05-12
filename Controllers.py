@@ -3,14 +3,16 @@ from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from enum import Enum
 
-
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
 import hashlib
 
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
-from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns, DBTransfersColumns
+
+from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, \
+DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, \
+DBSuppliersColumns, DBTransfersColumns, DBSalariesColumns
 
 from Views.View_utils import ViewUtils
 
@@ -97,6 +99,23 @@ class ControllerUtils:
         words = [word.upper() for word in words if word]
         # Unisce le parole con "_"
         return "_".join(words)
+
+    @staticmethod
+    def is_in_current_year(date_str: str, date_formats: list[str] = None) -> bool:
+        """
+        Restituisce True se la data passata (stringa) cade nell'anno corrente.
+        :param date_str: data in formato 'YYYY-MM-DD' o 'YYYY-MM-DD HH:MM:SS'
+        :param date_formats: lista di formati da provare in ordine (default quelli comuni)
+        """
+        fmts = date_formats or ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]
+        for fmt in fmts:
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                return dt.year == datetime.now().year
+            except ValueError:
+                continue
+        # se nessun formato corrisponde, consideriamo fuori anno
+        return False
 
 
 
@@ -210,6 +229,18 @@ class UserController:
     def retrieve_user_map_by_fullname(self, user_first_name, user_last_name):
         row = self.retrieve_user_by_fullname(user_first_name, user_last_name)
         return ValidationUtils._row_to_map(row, DBUsersColumns)
+
+    def retrieve_user_map_by_extended_name(self, user_extended_name):
+        """
+        :param user_extended_name: str composed as following: user_first_name user_last_name
+        :return: the DBuser as a dictionary
+        """
+
+        array = user_extended_name.split(" ")
+        first = array[0]
+        last = array[1]
+
+        return self.retrieve_user_map_by_fullname(first, last)
 
     def retrieve_user_map_by_id(self, user_id):
         """Recupera un utente specifico e lo restituisce come dizionario."""
@@ -2684,7 +2715,6 @@ class TransfersController:
             return []
         return [ValidationUtils._row_to_map(transfer, DBTransfersColumns) for transfer in transfers]
 
-
     def retrieve_received_transfers_map(self, account_id):
         """
         Recupera i trasferimenti ricevuti da un conto come lista di dizionari.
@@ -3657,6 +3687,147 @@ class UpdatesController:
                 print(f"ERRORE: {str(e)}")
 
 
+class SalaryController:
+
+    class SalariesAggregateData(Enum):
+        NUMERO_SALARI = "#SALARI"
+        TOT_SALARI = "TOT. SALARI"
+
+    def __init__(self, db_model, user_controller, account_controller):
+        self.db_model = db_model
+        self.user_controller = user_controller
+        self.account_controller = account_controller
+
+    def save_salary(self, salary_data):
+        """
+        Gestisce il salvataggio di un salario, con validazioni di primo livello.
+        :param salary_data: Dizionario contenente i dati del salario
+        :return: Tuple (success, message), dove success è True/False
+        """
+
+        # Campi obbligatori (solo quelli modellati tramite entry)
+        self.required_fields = {DBSalariesColumns.NAME.value, DBSalariesColumns.AMOUNT.value}
+
+        # Validazione dei campi obbligatori
+        missing_fields = [field for field in self.required_fields if not salary_data.get(field)]
+        if missing_fields:
+            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+        # Validazione importi
+        importo = salary_data.get(DBSalariesColumns.AMOUNT.value)
+        if not ValidationUtils.validate_amount(importo):
+            return False, "L'importo non è valido"
+
+        #prendo ID Utente
+        user_id = None
+        user_name = salary_data.get("NOME UTENTE")
+        if len(user_name.split(" ")) >= 2: #se è un nome di un utente vero allora è Nome Cognome
+            user_first = user_name.split(" ")[0]
+            user_last = user_name.split(" ")[1]
+            user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
+            user_id = user[DBUsersColumns.ID.value]
+
+        #prendo ID conto
+        conto_id = None
+        conto_name = salary_data.get("CONTO")
+        if conto_name:
+            conto = self.account_controller.retrieve_account_map_by_name(conto_name)
+            conto_id = conto[DBAccountsColumns.ID.value]
+
+
+        salary_data_prepared = {
+            DBSalariesColumns.NAME.value: salary_data.get(DBSalariesColumns.NAME.value),
+            DBSalariesColumns.USER_ID.value: user_id,
+            DBSalariesColumns.DATE.value: salary_data.get(DBSalariesColumns.DATE.value),
+            DBSalariesColumns.AMOUNT.value: salary_data.get(DBSalariesColumns.AMOUNT.value),
+            DBSalariesColumns.ACCOUNT_ID.value: conto_id
+        }
+
+        try:
+            self.db_model.add_salary(**salary_data_prepared)
+            return True, "Salario salvato con successo!"
+        except Exception as e:
+            return False, f"Errore durante il salvataggio: {str(e)}"
+
+    def retrieve_salaries(self, current_year: bool = True) -> list[tuple]:
+        """
+        Recupera tutte le tuple dei versamenti-salario dalla tabella.
+        :return: Lista di tuple.
+        """
+        rows = self.db_model.fetch_all_salaries()
+        return rows
+
+    def retrieve_salary_by_id(self, salary_id: int) -> tuple | None:
+        """
+        Recupera una tupla del versamento specifico per ID.
+        :param salary_id: ID del versamento.
+        :return: Tupla con i dati del versamento oppure None.
+        """
+        row = self.db_model.fetch_salary_by_id(salary_id)
+        return row
+
+    def retrieve_salary_map_by_name(self, salary_name: str) -> dict | None:
+        """
+        Recupera un versamento-salario specifico tramite il suo nome e lo restituisce come dizionario.
+        :param salary_name: il nome del versamento-salario (campo NAME nella tabella).
+        :return: dizionario con i dati del versamento oppure None se non trovato.
+        """
+        row = self.db_model.fetch_salary_by_name(salary_name)
+        if not row:
+            return None
+        return ValidationUtils._row_to_map(row, DBSalariesColumns)
+
+    def retrieve_salary_map_by_id(self, salary_id: int) -> dict | None:
+        """
+        Recupera un versamento specifico per ID e lo restituisce come dizionario.
+        :param salary_id: ID del versamento.
+        :return: Dizionario con i dati del versamento oppure None.
+        """
+        row = self.db_model.fetch_salary_by_id(salary_id)
+        return ValidationUtils._row_to_map(row, DBSalariesColumns)
+
+    def retrieve_salaries_map_list(self, current_year: bool = True) -> list[dict]:
+        """
+        Recupera tutti i versamenti come lista di dizionari.
+        :return: Lista di dizionari con i dati dei versamenti.
+        """
+        rows = self.db_model.fetch_all_salaries()
+        return [ValidationUtils._row_to_map(row, DBSalariesColumns) for row in rows]
+
+    def retrieve_last_salary_insert_map(self) -> dict | None:
+        """
+        Recupera l'ultimo versamento inserito come dizionario.
+        :return: Dizionario con i dati dell'ultimo versamento oppure None.
+        """
+        row = self.db_model.fetch_last_salary_insert()
+        return ValidationUtils._row_to_map(row, DBSalariesColumns)
+
+    def count_salaries(self, current_year: bool = True) -> int:
+        """
+        Conta il numero di versamenti-salario, applicando il filtro per l'anno corrente se specificato.
+
+        :param current_year: Se True, conta solo le salaries dell'anno corrente.
+        :return: Numero di salaries (int).
+        """
+        salaries = self.retrieve_salaries_map_list(current_year=current_year)
+        return len(salaries)
+
+    def calculate_tot_salaries(self, current_year: bool = True) -> float:
+        """
+        Calcola il totale degli importi dei versamenti-salario, filtrandoli per l'anno corrente se specificato.
+
+        :param current_year: Se True, somma solo le salaries dell'anno corrente.
+        :return: Totale degli importi (float).
+        """
+        total = 0.0
+        salary_list = self.retrieve_salaries_map_list(current_year=current_year)
+        for sal in salary_list:
+            total += float(sal[DBSalariesColumns.AMOUNT.value])
+        return total
+
+
+
+
 class Analyzer:
     def __init__(self,
                  user_controller,
@@ -3667,6 +3838,7 @@ class Analyzer:
                  production_controller,
                  payment_controller,
                  expenses_controller,
+                 salary_controller,
                  fiscal_settings,
                  recurring_expenses_settings
                  ):
@@ -3678,6 +3850,7 @@ class Analyzer:
         self.production_controller = production_controller
         self.payment_controller = payment_controller
         self.expenses_controller = expenses_controller
+        self.salary_controller = salary_controller
         self.fiscal_settings = fiscal_settings
         self.recurring_expenses_settings = recurring_expenses_settings
 

@@ -6,7 +6,7 @@ from Views.View_utils import ViewUtils
 
 from Controllers import UserController, AccountController, ClientController, InvoiceController, \
     PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
-    Analyzer, TransfersController
+    Analyzer, TransfersController, SalaryController
 from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns
 
 
@@ -18,6 +18,7 @@ from Views.Productions_view import ProductionsView
 from Views.Expenses_view import ExpensesView
 from Views.Suppliers_view import SuppliersView
 from Views.Accounts_view import AccountsView
+from Views.Salaries_view import SalariesView
 
 
 class MainWindow(ctk.CTk):
@@ -41,6 +42,7 @@ class MainWindow(ctk.CTk):
         self.db_model = DatabaseModel(db_path)  # Istanzia il modello
         self.user_controller = UserController(self.db_model, fiscal_settings)  # Crea il controller per gli utenti
         self.account_controller = AccountController(self.db_model, self.user_controller)
+        self.salary_controller = SalaryController(self.db_model, self.user_controller, self.account_controller)
         self.transfer_controller = TransfersController(self.db_model, self.account_controller)
         self.client_controller = ClientController(self.db_model)
         self.supplier_controller = SupplierController(self.db_model)
@@ -57,6 +59,7 @@ class MainWindow(ctk.CTk):
                  self.production_controller,
                  self.payment_controller,
                  self.expense_controller,
+                 self.salary_controller,
                  fiscal_settings,
                  self.recurring_expenses_settings)
 
@@ -120,6 +123,8 @@ class MainWindow(ctk.CTk):
         self.supplier_tab.create_suppliers_tab()
         self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller, self.transfer_controller, self.config_manager, self.catalogo_elenchi, self.analyzer, self.tabview.tab("Conti"))
         self.account_tab.create_accounts_tab()
+        self.salary_tab = SalariesView(self.db_model, self.salary_controller, self.user_controller, self.account_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, config_manager, self.tabview.tab("Salario"))
+        self.salary_tab.create_salaries_tab()
 
         self.update_idletasks()
         self.after(100, lambda: self.state("zoomed"))

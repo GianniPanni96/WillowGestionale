@@ -7,7 +7,8 @@ import os, re
 from Views.View_utils import ViewUtils
 
 from Controllers import AccountController, ValidationUtils
-from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns
+from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns, \
+    DBSalariesColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 class UsersView(ctk.CTk):
@@ -1124,7 +1125,8 @@ class UserDetailView(ctk.CTkFrame):
             if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None:
                 nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
                 id_fattura = invoice[DBInvoicesColumns.ID.value]
-                produzione = self.production_controller.retrieve_production_map_by_id(id_fattura)
+                id_produzione = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+                produzione = self.production_controller.retrieve_production_map_by_id(id_produzione)
                 nome_prod = produzione[DBProductionsColumns.NAME.value] if produzione else "Produzione non trovata"
                 fattura_button = ctk.CTkButton(invoices_frame, text=f"{nome_fattura} - {nome_prod}")
                 fattura_button.pack(padx=10, pady=10, fill="x", expand=True)
@@ -1165,17 +1167,26 @@ class UserDetailView(ctk.CTkFrame):
 
         ctk.CTkLabel(section_frame, text="PAGAMENTI SALARIO", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
 
+        global_infos = {
+            "TOTALE SALARI" : {
+                "value" : self.user_controller.calcola_tot_salari_utente(self.current_user_id),
+                "uom" : "€"
+            }
+        }
+
+        self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
         # tabella invoices
         salary_frame = ctk.CTkScrollableFrame(section_frame, height=300)
         salary_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
-        expenses = self.user_controller.retrieve_user_with_expenses_map_list(self.current_user_id)
-        for expense in expenses:
-            if expense[DBExpensesColumns.NAME.value] is not None:
-                nome_spesa = expense[DBExpensesColumns.NAME.value]
-                id_spesa = expense[DBExpensesColumns.ID.value]
-                spesa_button = ctk.CTkButton(salary_frame, text=f"{nome_spesa}")
+        salaries = self.user_controller.retrieve_user_with_salaries_map_list(self.current_user_id)
+        for salary in salaries:
+            if salary[DBSalariesColumns.NAME.value] is not None:
+                nome_salario = salary[DBSalariesColumns.NAME.value]
+                id_salario = salary[DBSalariesColumns.ID.value]
+                spesa_button = ctk.CTkButton(salary_frame, text=f"{nome_salario}")
                 spesa_button.pack(padx=10, pady=10)
 
     def _create_fiscal_data_section(self):

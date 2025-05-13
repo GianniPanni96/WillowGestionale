@@ -339,7 +339,7 @@ class SalariesView(ctk.CTk):
             salary_map = self.salary_controller.retrieve_last_salary_insert_map()
             print(f"Salario {salary_data[DBSalariesColumns.NAME.value]} salvato con successo")
 
-            user = self.user_controller.retrieve_user_map_by_id(salary_map[DBSalariesColumns.ACCOUNT_ID.value])
+            user = self.user_controller.retrieve_user_map_by_id(salary_map[DBSalariesColumns.USER_ID.value])
             user_first = user[DBUsersColumns.FIRST_NAME.value]
             user_last = user[DBUsersColumns.LAST_NAME.value]
             user_full = user_first + " " + user_last

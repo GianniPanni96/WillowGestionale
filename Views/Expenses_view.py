@@ -323,7 +323,7 @@ class ExpensesView(ctk.CTk):
             supplier_name = self.supplier_controller.retrieve_supplier_map_by_id(expense_map[DBExpensesColumns.SUPPLIER_ID.value])[
                 DBSuppliersColumns.NAME.value]
 
-            user= self.user_controller.retrieve_user_map_by_id(expense_map[DBExpensesColumns.ACCOUNT_ID.value])
+            user= self.user_controller.retrieve_user_map_by_id(expense_map[DBExpensesColumns.USER_ID.value])
             user_first = user[DBUsersColumns.FIRST_NAME.value]
             user_last = user[DBUsersColumns.LAST_NAME.value]
             user_full = user_first + " " + user_last

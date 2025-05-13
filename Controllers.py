@@ -286,6 +286,19 @@ class UserController:
         # Converte ogni riga in un dizionario
         return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
 
+    def retrieve_user_with_salaries_map_list(self, user_id):
+        """
+        Recupera lo specifico user unito ai rispettivi salari e
+        li restituisce come lista di dizionari.
+        """
+        # Recupera le righe dal database per lo specifico client
+        rows = self.db_model.fetch_user_with_salaries(user_id)
+
+        all_columns = list(DBUsersColumns) + list(DBSalariesColumns)
+
+        # Converte ogni riga in un dizionario
+        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
     def delete_user_by_ID(self, user_id):
         """Elimina un utente dato un certo user"""
         table = "users"
@@ -467,6 +480,46 @@ class UserController:
                 tot_spese += float(tot)
 
         return tot_spese
+
+    def calcola_tot_salari_utente(self, user_id):
+        """
+        Calcola gli ingressi di un utente come somma dei salari
+        emesse nell'anno corrente, sfruttando il join user‑expenses.
+
+        :param user_id: ID dell'utente
+        :return: il totale delle spese (float)
+        """
+        # Recupera l'utente + tutte le sue spese
+        rows = self.retrieve_user_with_salaries_map_list(user_id)
+        if not rows:
+            return 0.0
+
+        # Estraggo il regime fiscale dall'utente (prendo il primo row)
+        regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
+
+        # Calcolo l'anno corrente
+        current_year = datetime.now().year
+
+        tot_salary = 0.0
+        for row in rows:
+            # Se la fattura non c'è (outer join), salto
+            data_str = row.get(DBSalariesColumns.CREATED_AT.value)
+            if not data_str:
+                continue
+
+            # Controllo che la data di creazione sia nell'anno corrente
+            try:
+                anno = datetime.strptime(data_str, "%Y-%m-%d %h:%m:%s").year
+            except ValueError as v:
+                print(f"formato data non valido: skip {str(v)}")
+                continue
+
+            if anno == current_year:
+                # Sommo il totale del documento
+                tot = row.get(DBSalariesColumns.AMOUNT.value) or 0.0
+                tot_salary += float(tot)
+
+        return tot_salary
 
     def reset_reddito_esterno(self):
         return

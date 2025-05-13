@@ -340,6 +340,30 @@ class DatabaseModel:
             cursor.execute(query, (user_id,))
             return cursor.fetchall()
 
+    def fetch_user_with_salaries(self, user_id):
+        """
+        Recupera lo specifico user unito alle rispettive spese anticipate.
+        Utilizza un LEFT JOIN per includere tutti gli users anche se non hanno spese.
+        Ritorna una lista di tuple, in cui le colonne dello user compaiono per prime,
+        seguite dalle colonne delle spese (che possono essere NULL se non esistono).
+        """
+        # Costruzione dinamica delle colonne per clients e invoices
+        user_columns = [f"u.{col.value}" for col in DBUsersColumns]
+        salaries_columns = [f"s.{col.value}" for col in DBSalariesColumns]
+        all_columns = user_columns + salaries_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM users u
+        LEFT JOIN salaries s ON s.{DBSalariesColumns.USER_ID.value} = u.{DBUsersColumns.ID.value}
+        WHERE u.{DBUsersColumns.ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (user_id,))
+            return cursor.fetchall()
+
 
 
 

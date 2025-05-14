@@ -75,7 +75,7 @@ class ExpensesView(ctk.CTk):
         self.expenses_table_frame = ctk.CTkFrame(self.tab)
         self.expenses_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
-        self.table_headers = ["NOME", "FORNITORE", "NETTO", "LORDO", "CATEGORIA", "DATA", "DEDUCIBILE", "UTENTE\nASSOCIATO", "CONTO\nCORRENTE"]
+        self.table_headers = ["NOME", "FORNITORE", "NETTO", "LORDO", "CATEGORIA", "DATA", "DEDUCIBILE", "DEDUZIONE A\nCARICO DI", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
             # crea il container
@@ -114,7 +114,7 @@ class ExpensesView(ctk.CTk):
                 date = expense[DBExpensesColumns.DATE.value]
                 category = expense[DBExpensesColumns.CATEGORY.value]
                 deducibile = expense[DBExpensesColumns.DEDUCIBILE.value]
-                user_id = expense[DBExpensesColumns.USER_ID.value]
+                user_id = expense[DBExpensesColumns.USER_ID_DEDUZIONE.value]
                 if user_id:
                     user = self.user_controller.retrieve_user_map_by_id(user_id)
                     user_first = user[DBUsersColumns.FIRST_NAME.value]
@@ -146,6 +146,7 @@ class ExpensesView(ctk.CTk):
         self.nome_fornitore_string = "NOME FORNITORE"
         self.aliquota_iva_string = "ALIQUOTA IVA"
         self.nome_fattura_string = "FATTURA ASSOCIATA"
+        self.nome_utente_deduz_string = "DEDUZIONE A CARICO"
 
         self.entry_fields = {
             self.nome_fornitore_string: ctk.CTkOptionMenu,
@@ -153,6 +154,7 @@ class ExpensesView(ctk.CTk):
             DBExpensesColumns.NAME.value : ctk.CTkEntry,
             DBExpensesColumns.DATE.value: Calendar,
             DBExpensesColumns.DEDUCIBILE.value: ctk.CTkOptionMenu,
+            self.nome_utente_deduz_string : ctk.CTkOptionMenu,
             self.aliquota_iva_string : ctk.CTkOptionMenu,
             DBExpensesColumns.TOT_AMOUNT.value: ctk.CTkEntry,
             self.nome_utente_string : ctk.CTkOptionMenu,
@@ -174,9 +176,9 @@ class ExpensesView(ctk.CTk):
             # Etichetta
             label = ctk.CTkLabel(self.expense_window_scrollableFrame, text=label_text)
             # disegno i labels
-            if i == 0 and label_text != self.nome_fattura_string:
+            if i == 0 and label_text != self.nome_fattura_string and label_text != self.nome_utente_deduz_string:
                 label.pack(pady=5)
-            elif i != 0 and label_text != self.nome_fattura_string:
+            elif i != 0 and label_text != self.nome_fattura_string and label_text != self.nome_utente_deduz_string:
                 label.pack(pady=(35, 0))
 
             self.expenses_labels[label_text] = label
@@ -218,7 +220,9 @@ class ExpensesView(ctk.CTk):
 
             elif label_text == DBExpensesColumns.DEDUCIBILE.value:
                 widget = widget_class(self.expense_window_scrollableFrame,
-                                      values=["Sì", "No"])
+                                      values=["Sì", "No"],
+                                      command=lambda selected_value: self.toggle_user_deduzione(selected_value))
+                widget.set("No")
 
             elif label_text == self.nome_utente_string:
                 #recupero gli utenti
@@ -227,6 +231,13 @@ class ExpensesView(ctk.CTk):
                                       values=[" ----- "] + [user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users])
 
                 widget.set(" ----- ")
+
+            elif label_text == self.nome_utente_deduz_string:
+                #recupero gli utenti
+                users = self.user_controller.retrieve_users_map_list()
+                widget = widget_class(self.expense_window_scrollableFrame,
+                                      values=[user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users
+                                              if user[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value])
 
             elif label_text == self.nome_fattura_string:
                 #recupero le fatture
@@ -246,7 +257,7 @@ class ExpensesView(ctk.CTk):
             else:
                 widget = widget_class(self.expense_window_scrollableFrame)
 
-            if label_text != self.nome_fattura_string:
+            if label_text != self.nome_fattura_string and label_text != self.nome_utente_deduz_string:
                 widget.pack(pady=5, padx=10, fill="x", expand=True)
 
             self.expenses_widgets[label_text] = widget
@@ -310,6 +321,9 @@ class ExpensesView(ctk.CTk):
         if str(self.expenses_widgets[DBExpensesColumns.CATEGORY.value].get()) != str(category_dict.get("PRODUCTION_EXPENSE")):
             expense_data.pop(self.nome_fattura_string)
 
+        if self.expenses_widgets[DBExpensesColumns.DEDUCIBILE.value].get() == "No":
+            expense_data[self.nome_utente_deduz_string] = None
+
         # chiamata al controller per salvare i dati
         success, message = self.expense_controller.save_expense(expense_data)
 
@@ -323,7 +337,7 @@ class ExpensesView(ctk.CTk):
             supplier_name = self.supplier_controller.retrieve_supplier_map_by_id(expense_map[DBExpensesColumns.SUPPLIER_ID.value])[
                 DBSuppliersColumns.NAME.value]
 
-            user= self.user_controller.retrieve_user_map_by_id(expense_map[DBExpensesColumns.USER_ID.value])
+            user= self.user_controller.retrieve_user_map_by_id(expense_map[DBExpensesColumns.USER_ID_DEDUZIONE.value])
             user_first = user[DBUsersColumns.FIRST_NAME.value]
             user_last = user[DBUsersColumns.LAST_NAME.value]
             user_full = user_first + " " + user_last
@@ -490,6 +504,48 @@ class ExpensesView(ctk.CTk):
             self.expenses_labels[self.nome_fattura_string].pack_forget()
             self.expenses_widgets[self.nome_fattura_string].pack_forget()
             self.linked_invoice_warning_label.pack_forget()
+
+    def toggle_user_deduzione(self, selected_value):
+        # Manteniamo una lista separata per l'ordine delle chiavi
+        if not hasattr(self, 'ordered_expenses_keys'):
+            self.ordered_expenses_keys = list(self.expenses_widgets.keys())
+
+        # Indice di partenza (n=6)
+        n = 6
+
+        if selected_value == "Sì":
+            try:
+                # Prendiamo le chiavi dall'indice n in poi
+                keys_to_manage = self.ordered_expenses_keys[n:]
+            except IndexError:
+                keys_to_manage = []
+
+            # Nascondi i widget
+            for key in reversed(keys_to_manage):
+                self.expenses_labels[key].pack_forget()
+                self.expenses_widgets[key].pack_forget()
+            self.error_labels[DBExpensesColumns.TOT_AMOUNT.value].pack_forget()
+            self.save_button.pack_forget()
+
+
+            # Mostra il widget specifico della deduzione
+            ded_key = self.nome_utente_deduz_string
+            self.expenses_labels[ded_key].pack(pady=(35, 0))
+            self.expenses_widgets[ded_key].pack(pady=5, padx=10, fill="x", expand=True)
+
+            # Ripristina gli altri widget nell'ordine originale
+            for key in keys_to_manage:
+                self.expenses_labels[key].pack(pady=(35, 0))
+                self.expenses_widgets[key].pack(pady=5, padx=10, fill="x", expand=True)
+                if key == DBExpensesColumns.TOT_AMOUNT.value:
+                    self.error_labels[DBExpensesColumns.TOT_AMOUNT.value].pack(pady=(0, 15))
+            self.save_button.pack(pady=(50, 15))
+
+        elif selected_value == "No":
+            # Nascondi solo il widget della deduzione
+            ded_key = self.nome_utente_deduz_string
+            self.expenses_labels[ded_key].pack_forget()
+            self.expenses_widgets[ded_key].pack_forget()
 
     def linked_invoice_optionMenu_behaviour(self, selected_value):
         invoice = self.invoice_controller.retrieve_invoice_map_by_name(selected_value)

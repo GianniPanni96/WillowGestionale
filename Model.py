@@ -129,7 +129,8 @@ class DBTransfersColumns(Enum):
 class DBExpensesColumns(Enum):
     ID = "ID"
     NAME = "NOME"
-    USER_ID = "ID_UTENTE"
+    USER_ID_DEDUZIONE = "ID_UTENTE_DEDUZIONE"
+    USER_ID_ANTICIPO = "ID_UTENTE_ANTICIPO"
     SUPPLIER_ID = "ID_FORNITORE"
     CATEGORY = "CATEGORIA"
     NET_AMOUNT = "IMPORTO_NETTO"
@@ -316,7 +317,7 @@ class DatabaseModel:
             cursor.execute(query, (user_id,))
             return cursor.fetchall()
 
-    def fetch_user_with_expenses(self, user_id):
+    def fetch_user_with_anticipated_expenses(self, user_id):
         """
         Recupera lo specifico user unito alle rispettive spese anticipate.
         Utilizza un LEFT JOIN per includere tutti gli users anche se non hanno spese.
@@ -331,7 +332,31 @@ class DatabaseModel:
         query = f"""
         SELECT {', '.join(all_columns)}
         FROM users u
-        LEFT JOIN expenses e ON e.{DBExpensesColumns.USER_ID.value} = u.{DBUsersColumns.ID.value}
+        LEFT JOIN expenses e ON e.{DBExpensesColumns.USER_ID_ANTICIPO.value} = u.{DBUsersColumns.ID.value}
+        WHERE u.{DBUsersColumns.ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (user_id,))
+            return cursor.fetchall()
+
+    def fetch_user_with_deducted_expenses(self, user_id):
+        """
+        Recupera lo specifico user unito alle rispettive spese anticipate.
+        Utilizza un LEFT JOIN per includere tutti gli users anche se non hanno spese.
+        Ritorna una lista di tuple, in cui le colonne dello user compaiono per prime,
+        seguite dalle colonne delle spese (che possono essere NULL se non esistono).
+        """
+        # Costruzione dinamica delle colonne per clients e invoices
+        user_columns = [f"u.{col.value}" for col in DBUsersColumns]
+        expenses_columns = [f"e.{col.value}" for col in DBExpensesColumns]
+        all_columns = user_columns + expenses_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM users u
+        LEFT JOIN expenses e ON e.{DBExpensesColumns.USER_ID_DEDUZIONE.value} = u.{DBUsersColumns.ID.value}
         WHERE u.{DBUsersColumns.ID.value} = ?
         """
 

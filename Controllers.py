@@ -269,7 +269,7 @@ class UserController:
         # Converte ogni riga in un dizionario
         return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
 
-    def retrieve_user_with_expenses_map_list(self, user_id):
+    def retrieve_user_with_anticipated_expenses_map_list(self, user_id):
         """
         Recupera lo specifico user unito alle rispettive spese anticipate e
         li restituisce come lista di dizionari.
@@ -279,7 +279,24 @@ class UserController:
         ogni riga in un dizionario tramite _row_to_map.
         """
         # Recupera le righe dal database per lo specifico client
-        rows = self.db_model.fetch_user_with_expenses(user_id)
+        rows = self.db_model.fetch_user_with_anticipated_expenses(user_id)
+
+        all_columns = list(DBUsersColumns) + list(DBExpensesColumns)
+
+        # Converte ogni riga in un dizionario
+        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
+    def retrieve_user_with_deducted_expenses_map_list(self, user_id):
+        """
+        Recupera lo specifico user unito alle rispettive spese in deduzione e
+        li restituisce come lista di dizionari.
+
+        Utilizza la funzione fetch_user_with_expenses per ottenere le righe,
+        quindi combina le colonne dei client e delle invoices per convertire
+        ogni riga in un dizionario tramite _row_to_map.
+        """
+        # Recupera le righe dal database per lo specifico client
+        rows = self.db_model.fetch_user_with_deducted_expenses(user_id)
 
         all_columns = list(DBUsersColumns) + list(DBExpensesColumns)
 
@@ -441,16 +458,16 @@ class UserController:
 
         return reddito
 
-    def calcola_tot_spese_utente(self, user_id):
+    def calcola_tot_spese_utente_anticipate(self, user_id):
         """
-        Calcola le spese di un utente come somma delle expenses
+        Calcola le spese anticipate di un utente come somma delle expenses
         emesse nell'anno corrente, sfruttando il join user‑expenses.
 
         :param user_id: ID dell'utente
         :return: il totale delle spese (float)
         """
         # Recupera l'utente + tutte le sue spese
-        rows = self.retrieve_user_with_expenses_map_list(user_id)
+        rows = self.retrieve_user_with_anticipated_expenses_map_list(user_id)
         if not rows:
             return 0.0
 
@@ -469,7 +486,47 @@ class UserController:
 
             # Controllo che la data di creazione sia nell'anno corrente
             try:
-                anno = datetime.strptime(data_str, "%Y-%m-%d").year
+                anno = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S").year
+            except ValueError:
+                # formato data non valido: skip
+                continue
+
+            if anno == current_year:
+                # Sommo il totale del documento
+                tot = row.get(DBExpensesColumns.TOT_AMOUNT.value) or 0.0
+                tot_spese += float(tot)
+
+        return tot_spese
+
+    def calcola_tot_spese_utente_dedotte(self, user_id):
+        """
+        Calcola le spese in deduzione di un utente come somma delle expenses
+        emesse nell'anno corrente, sfruttando il join user‑expenses.
+
+        :param user_id: ID dell'utente
+        :return: il totale delle spese (float)
+        """
+        # Recupera l'utente + tutte le sue spese
+        rows = self.retrieve_user_with_deducted_expenses_map_list(user_id)
+        if not rows:
+            return 0.0
+
+        # Estraggo il regime fiscale dall'utente (prendo il primo row)
+        regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
+
+        # Calcolo l'anno corrente
+        current_year = datetime.now().year
+
+        tot_spese = 0.0
+        for row in rows:
+            # Se la fattura non c'è (outer join), salto
+            data_str = row.get(DBExpensesColumns.created_at.value)
+            if not data_str:
+                continue
+
+            # Controllo che la data di creazione sia nell'anno corrente
+            try:
+                anno = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S").year
             except ValueError:
                 # formato data non valido: skip
                 continue
@@ -509,7 +566,7 @@ class UserController:
 
             # Controllo che la data di creazione sia nell'anno corrente
             try:
-                anno = datetime.strptime(data_str, "%Y-%m-%d %h:%m:%s").year
+                anno = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S").year
             except ValueError as v:
                 print(f"formato data non valido: skip {str(v)}")
                 continue
@@ -3217,14 +3274,23 @@ class ExpenseController:
         if not ValidationUtils.validate_amount(spesa_lorda):
             return False, "L'importo lordo non è valido"
 
-        #prendo ID Utente
-        user_id = None
+        #prendo ID Utente per l'anticipo
+        user_id_anticipo = None
         user_name = expense_data.get("QUALCUNO HA ANTICIPATO?")
         if len(user_name.split(" ")) >= 2: #se è un nome di un utente vero allora è Nome Cognome
             user_first = user_name.split(" ")[0]
             user_last = user_name.split(" ")[1]
             user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
-            user_id = user[DBUsersColumns.ID.value]
+            user_id_anticipo = user[DBUsersColumns.ID.value]
+
+        #prendo ID Utente per la deduzione
+        user_id_deduzione = None
+        user_name = expense_data.get("DEDUZIONE A CARICO")
+        if len(user_name.split(" ")) >= 2: #se è un nome di un utente vero allora è Nome Cognome
+            user_first = user_name.split(" ")[0]
+            user_last = user_name.split(" ")[1]
+            user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
+            user_id_deduzione = user[DBUsersColumns.ID.value]
 
         #prendo ID fattura associata:
         invoice_id = None
@@ -3256,7 +3322,8 @@ class ExpenseController:
 
         expense_data_prepared = {
             DBExpensesColumns.NAME.value: expense_data.get(DBExpensesColumns.NAME.value),
-            DBExpensesColumns.USER_ID.value: user_id,
+            DBExpensesColumns.USER_ID_ANTICIPO.value: user_id_anticipo,
+            DBExpensesColumns.USER_ID_DEDUZIONE.value: user_id_deduzione,
             DBExpensesColumns.SUPPLIER_ID.value: supplier_id,
             DBExpensesColumns.CATEGORY.value: expense_data.get(DBExpensesColumns.CATEGORY.value),
             DBExpensesColumns.NET_AMOUNT.value: spesa_netta,

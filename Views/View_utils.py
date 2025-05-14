@@ -243,3 +243,19 @@ class ViewUtils(ctk.CTk):
             cards[name] = {"card": card, "label": amount}
 
         return cards
+
+    @staticmethod
+    def hide_widgets(keys, labels_dict, widgets_dict, save_button):
+        """Nasconde i widget e le label specificate."""
+        for key in reversed(keys):
+            labels_dict[key].pack_forget()
+            widgets_dict[key].pack_forget()
+        save_button.pack_forget()
+
+    @staticmethod
+    def show_widgets(keys, labels_dict, widgets_dict, save_button, label_pady=(35, 0), widget_pady=5):
+        """Mostra i widget e le label specificate."""
+        for key in keys:
+            labels_dict[key].pack(pady=label_pady)
+            widgets_dict[key].pack(pady=widget_pady, padx=10, fill="x", expand=True)
+        save_button.pack(pady=(50, 15))

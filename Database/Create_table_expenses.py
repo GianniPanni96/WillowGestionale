@@ -6,7 +6,8 @@ import sqlite3
 columns = [
     f"{DBExpensesColumns.ID.value} INTEGER PRIMARY KEY AUTOINCREMENT",
     f"{DBExpensesColumns.NAME.value} TEXT NOT NULL UNIQUE",
-    f"{DBExpensesColumns.USER_ID.value} INTEGER",
+    f"{DBExpensesColumns.USER_ID_DEDUZIONE.value} INTEGER",
+    f"{DBExpensesColumns.USER_ID_ANTICIPO.value} INTEGER",
     f"{DBExpensesColumns.SUPPLIER_ID.value} INTEGER NOT NULL",
     f"{DBExpensesColumns.CATEGORY.value} TEXT NOT NULL",
     f"{DBExpensesColumns.NET_AMOUNT.value} REAL NOT NULL",
@@ -18,7 +19,8 @@ columns = [
     f"{DBExpensesColumns.LINKED_INVOICE_ID.value} INTEGER",
     f"{DBExpensesColumns.created_at.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"{DBExpensesColumns.updated_at.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-    f"FOREIGN KEY ({DBExpensesColumns.USER_ID.value}) REFERENCES users({DBUsersColumns.ID.value})"
+    f"FOREIGN KEY ({DBExpensesColumns.USER_ID_DEDUZIONE.value}) REFERENCES users({DBUsersColumns.ID.value})"
+    f"FOREIGN KEY ({DBExpensesColumns.USER_ID_ANTICIPO.value}) REFERENCES users({DBUsersColumns.ID.value})"
     f"FOREIGN KEY ({DBExpensesColumns.SUPPLIER_ID.value}) REFERENCES suppliers({DBSuppliersColumns.ID.value})"
     f"FOREIGN KEY ({DBExpensesColumns.ACCOUNT_ID.value}) REFERENCES accounts({DBAccountsColumns.ID.value})"
     f"FOREIGN KEY ({DBExpensesColumns.LINKED_INVOICE_ID.value}) REFERENCES invoices({DBInvoicesColumns.ID.value})"

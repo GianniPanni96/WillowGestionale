@@ -6,7 +6,7 @@ from datetime import datetime
 import os, re
 from Views.View_utils import ViewUtils
 
-from Controllers import AccountController, ValidationUtils
+from Controllers import AccountController, ValidationUtils, UserController
 from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns, \
     DBSalariesColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
@@ -777,7 +777,6 @@ class UserDetailView(ctk.CTkFrame):
         # Layout iniziale
         self._setup_base_layout()
 
-
     def _setup_base_layout(self):
         """Inizializza la struttura base del layout"""
         self.head_frame.pack(fill="x", pady=5, padx=5)
@@ -801,6 +800,8 @@ class UserDetailView(ctk.CTkFrame):
         conto = self.account_controller.retrieve_account_map_by_id(id_conto)
         nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "Conto non trovato"
 
+        regime = user[DBUsersColumns.REGIME_FISCALE.value]
+
         user[self.nome_conto_string] = nome_conto
 
         # 3. Aggiornamento elementi persistenti
@@ -812,13 +813,19 @@ class UserDetailView(ctk.CTkFrame):
         self.toggle_edit(self.content_frame)
 
         self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="#333333")
-        self.wrapper_frame.pack(padx=25, pady=90, fill="both", expand=True)
+        self.wrapper_frame.pack(padx=25, pady=(90, 0), fill="both", expand=True)
+        self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="#333333")
+        self.wrapper_frame2.pack(padx=25, pady=(90, 90), fill="both", expand=True)
         self._create_invoices_history()
-        self._create_expenses_history()
         self._create_salary_history()
+        self._create_anticipated_expenses_history()
+        if regime == UserController.RegimeFiscale.ORDINARIO.value:
+            self._create_deduz_expenses_history()
 
         self._create_fiscal_data_section()
         self._create_taxes_section()
+        if regime == UserController.RegimeFiscale.ORDINARIO.value:
+            self._create_iva_section()
 
     def _clear_content(self):
         """Distrugge tutti i widget dinamici"""
@@ -1131,7 +1138,7 @@ class UserDetailView(ctk.CTkFrame):
                 fattura_button = ctk.CTkButton(invoices_frame, text=f"{nome_fattura} - {nome_prod}")
                 fattura_button.pack(padx=10, pady=10, fill="x", expand=True)
 
-    def _create_expenses_history(self):
+    def _create_anticipated_expenses_history(self):
         """Crea la sezione storico delle spese anticipate"""
         section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
         section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
@@ -1140,7 +1147,7 @@ class UserDetailView(ctk.CTkFrame):
 
         global_infos = {
             "TOTALE SPESE ANTICIPATE" : {
-                "value" : self.user_controller.calcola_tot_spese_utente(self.current_user_id),
+                "value" : self.user_controller.calcola_tot_spese_utente_anticipate(self.current_user_id),
                 "uom" : "€"
             }
         }
@@ -1152,18 +1159,47 @@ class UserDetailView(ctk.CTkFrame):
         expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
-        expenses = self.user_controller.retrieve_user_with_expenses_map_list(self.current_user_id)
+        expenses = self.user_controller.retrieve_user_with_anticipated_expenses_map_list(self.current_user_id)
         for expense in expenses:
             if expense[DBExpensesColumns.NAME.value] is not None:
                 nome_spesa = expense[DBExpensesColumns.NAME.value]
                 id_spesa = expense[DBExpensesColumns.ID.value]
                 spesa_button = ctk.CTkButton(expenses_frame, text=f"{nome_spesa}")
-                spesa_button.pack(padx=10, pady=10)
+                spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def _create_deduz_expenses_history(self):
+        """Crea la sezione storico delle spese messe in deduzione"""
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=0)
+
+        ctk.CTkLabel(section_frame, text="SPESE IN DEDUZIONE", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        global_infos = {
+            "TOTALE SPESE IN DEDUZIONE" : {
+                "value" : self.user_controller.calcola_tot_spese_utente_dedotte(self.current_user_id),
+                "uom" : "€"
+            }
+        }
+
+        self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+        # tabella invoices
+        expenses_frame = ctk.CTkScrollableFrame(section_frame, height=300)
+        expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
+
+        # popolo gli invoices
+        expenses = self.user_controller.retrieve_user_with_deducted_expenses_map_list(self.current_user_id)
+        for expense in expenses:
+            if expense[DBExpensesColumns.NAME.value] is not None:
+                nome_spesa = expense[DBExpensesColumns.NAME.value]
+                id_spesa = expense[DBExpensesColumns.ID.value]
+                spesa_button = ctk.CTkButton(expenses_frame, text=f"{nome_spesa}")
+                spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
 
     def _create_salary_history(self):
         """Crea la sezione storico dei salari"""
         section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
-        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=0)
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
 
         ctk.CTkLabel(section_frame, text="PAGAMENTI SALARIO", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
 
@@ -1187,12 +1223,12 @@ class UserDetailView(ctk.CTkFrame):
                 nome_salario = salary[DBSalariesColumns.NAME.value]
                 id_salario = salary[DBSalariesColumns.ID.value]
                 spesa_button = ctk.CTkButton(salary_frame, text=f"{nome_salario}")
-                spesa_button.pack(padx=10, pady=10)
+                spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
 
     def _create_fiscal_data_section(self):
         # Creazione frame principale
-        dati_fiscali_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
-        dati_fiscali_frame.pack(fill="both", expand=True, pady=10, padx=25, ipady=20, side="left")
+        dati_fiscali_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
+        dati_fiscali_frame.pack(fill="both", expand=True, pady=0, padx=(0, 10), ipady=20, side="left")
 
         ctk.CTkLabel(dati_fiscali_frame, text="DATI FISCALI", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
 
@@ -1227,10 +1263,19 @@ class UserDetailView(ctk.CTkFrame):
 
     def _create_taxes_section(self):
         # Creazione frame principale
-        tax_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
-        tax_frame.pack(fill="both", expand=True, pady=10, padx=25, ipady=20, side="left")
+        tax_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
+        tax_frame.pack(fill="both", expand=True, pady=0, padx=(10, 10), ipady=20, side="left")
 
         ctk.CTkLabel(tax_frame, text="PREVISIONE TASSE", font=("Arial", 14, "bold")).pack(anchor="w",
+                                                                                               pady=(10, 10),
+                                                                                               padx=10)
+
+    def _create_iva_section(self):
+        # Creazione frame principale
+        iva_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
+        iva_frame.pack(fill="both", expand=True, pady=0, padx=(10, 0), ipady=20, side="left")
+
+        ctk.CTkLabel(iva_frame, text="IVA TRIMESTRALE", font=("Arial", 14, "bold")).pack(anchor="w",
                                                                                                pady=(10, 10),
                                                                                                padx=10)
 

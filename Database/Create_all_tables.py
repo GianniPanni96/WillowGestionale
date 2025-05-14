@@ -8,7 +8,9 @@ table_scripts = [
     "Create_table_expenses.py",
     "Create_table_accounts.py",
     "Create_table_payments.py",
-    "Create_table_productions.py"
+    "Create_table_productions.py",
+    "Create_table_transfers.py",
+    "Create_table_salaries.py"
 ]
 
 def execute_script(script_name):

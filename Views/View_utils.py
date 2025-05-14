@@ -38,7 +38,6 @@ class ViewUtils(ctk.CTk):
             entry_widget.configure(border_color="red")  # Sfondo rosso per errore
             error_label.configure(text_color="#e8e5dc", text=error_message)  # Mostra il messaggio di errore
 
-
     @staticmethod
     def show_error_popup(parent, title="Errore", message="Si è verificato un errore"):
         """
@@ -92,6 +91,83 @@ class ViewUtils(ctk.CTk):
             parent.destroy()
 
     @staticmethod
+    def show_confirm_popup_2(parent, title="CONFERMA", message="L'operazione è andata a buon fine"):
+        """
+        Genera un pop-up di errore.
+        :param parent: La finestra principale da cui viene lanciato il pop-up.
+        :param title: Il titolo del pop-up.
+        :param message: Il messaggio di errore da mostrare.
+        """
+        confirm_popup = ctk.CTkToplevel(parent)
+        confirm_popup.title(title)
+        confirm_popup.geometry("300x150")
+
+        # Assicurati che il pop-up sia modale
+        confirm_popup.grab_set()
+        confirm_popup.lift()
+
+        # Etichetta per il messaggio di errore
+        confirm_label = ctk.CTkLabel(confirm_popup, text=message, wraplength=250, font=("Arial", 14))
+        confirm_label.pack(pady=(20, 10))
+
+        # Bottone per chiudere il pop-up
+        close_button = ctk.CTkButton(confirm_popup, text="Chiudi",
+                                     command=lambda: on_closing_popup(confirm_popup))
+        close_button.pack(pady=(10, 20))
+
+        def on_closing_popup(pop_up):
+            pop_up.destroy()
+
+    @staticmethod
+    def ask_confirmation_popup(parent, message, title="CONFERMA OPERAZIONE"):
+        """
+        Crea un pop-up che chiede conferma all'utente per proseguire un'operazione.
+
+        :param parent: La finestra principale da cui viene lanciato il pop-up.
+        :param message: Il messaggio di conferma da mostrare.
+        :param title: Il titolo del pop-up.
+        :return: True se l'utente conferma, False se annulla.
+        """
+        # Dizionario per memorizzare il risultato della scelta
+        result = {"confirmed": False}
+
+        # Creazione del Toplevel e impostazioni iniziali
+        popup = ctk.CTkToplevel(parent)
+        popup.title(title)
+        popup.geometry("300x150")
+        popup.grab_set()  # Rende il pop-up modale
+        popup.lift()  # Porta il pop-up in primo piano
+
+        # Etichetta per il messaggio
+        label = ctk.CTkLabel(popup, text=message, wraplength=250, font=("Arial", 14))
+        label.pack(pady=(20, 10))
+
+        # Funzioni per la gestione dei bottoni
+        def on_confirm():
+            result["confirmed"] = True
+            popup.destroy()
+
+        def on_cancel():
+            result["confirmed"] = False
+            popup.destroy()
+
+        # Creazione dei bottoni
+        # Puoi posizionarli affiancati usando un frame, oppure direttamente con il pack
+        buttons_frame = ctk.CTkFrame(popup)
+        buttons_frame.pack(pady=(10, 20))
+
+        confirm_button = ctk.CTkButton(buttons_frame, text="Conferma", command=on_confirm)
+        confirm_button.pack(side="left", padx=10)
+
+        cancel_button = ctk.CTkButton(buttons_frame, text="Annulla", command=on_cancel)
+        cancel_button.pack(side="left", padx=10)
+
+        # Attendi la chiusura del pop-up prima di restituire il risultato
+        popup.wait_window()
+
+        return result["confirmed"]
+
+    @staticmethod
     def invert_data_string(data):
         date = data.split("-")
         return date[2] + "-" + date[1] + "-" + date[0]
@@ -125,4 +201,61 @@ class ViewUtils(ctk.CTk):
 
         return " ".join(words[:split_index + 1]) + "\n" + " ".join(words[split_index + 1:])
 
+    @staticmethod
+    def construct_global_infos_cards(frame, infos_dict) -> dict:
+        """
+        Costruisce delle "cards" per ogni elemento di infos_dict e le inserisce nel frame fornito.
 
+        :param frame: ctk.CTkFrame in cui inserire le cards
+        :param infos_dict: dizionario con struttura:
+            {
+              nome_info: {"value": valore (int|float), "uom": unità di misura (str)},
+              ...
+            }
+        :return: dizionario di cards {nome_info: {"card": frame, "label": ctk.CTkLabel}}
+        """
+        cards = {}
+        for name, info in infos_dict.items():
+            # crea la card container
+            card = ctk.CTkFrame(frame, border_width=2, border_color="#2659ab")
+            card.pack(anchor="w", padx=10, pady=(5, 5))
+
+            # titolo
+            title = ctk.CTkLabel(
+                card,
+                text=ViewUtils.split_string_by_length(str(name), 8),
+                font=("Arial", 12, "bold"),
+                bg_color="#1F6AA5"
+            )
+            title.pack(anchor="n", padx=10, pady=(10, 5), ipadx = 5, ipady = 5)
+
+            # valore con unità di misura
+            value = info.get("value", 0)
+            uom = info.get("uom", "")
+            amount = ctk.CTkLabel(
+                card,
+                text=f"{value} {uom}",
+                font=("Arial", 14)
+            )
+            amount.pack(anchor="s", padx=10, pady=(0, 10))
+
+            # conserva la card e la label in output per aggiornamenti futuri
+            cards[name] = {"card": card, "label": amount}
+
+        return cards
+
+    @staticmethod
+    def hide_widgets(keys, labels_dict, widgets_dict, save_button):
+        """Nasconde i widget e le label specificate."""
+        for key in reversed(keys):
+            labels_dict[key].pack_forget()
+            widgets_dict[key].pack_forget()
+        save_button.pack_forget()
+
+    @staticmethod
+    def show_widgets(keys, labels_dict, widgets_dict, save_button, label_pady=(35, 0), widget_pady=5):
+        """Mostra i widget e le label specificate."""
+        for key in keys:
+            labels_dict[key].pack(pady=label_pady)
+            widgets_dict[key].pack(pady=widget_pady, padx=10, fill="x", expand=True)
+        save_button.pack(pady=(50, 15))

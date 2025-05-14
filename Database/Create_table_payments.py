@@ -5,7 +5,7 @@ import sqlite3
  #Creazione della tabella `invoices` utilizzando l'enum
 columns = [
     f"{DBPaymentsColumns.ID.value} INTEGER PRIMARY KEY AUTOINCREMENT",
-    f"{DBPaymentsColumns.PAYMENT_NAME.value} TEXT NOT NULL",
+    f"{DBPaymentsColumns.PAYMENT_NAME.value} TEXT NOT NULL UNIQUE",
     f"{DBPaymentsColumns.PAYMENT_AMOUNT.value} REAL NOT NULL",
     f"{DBPaymentsColumns.PAYMENT_DATE.value} DATE NOT NULL",
     f"{DBPaymentsColumns.LINKED_RATA.value} INTEGER NOT NULL",

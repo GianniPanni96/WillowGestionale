@@ -26,20 +26,33 @@ class PaymentsView(ctk.CTk):
         self.global_infos = {}
         self.amount_aggregate_labels = {}
 
-        self.VF_invoice_list = {}
-        self.construct_invoices_list_view_friendly()
+        #self.VF_invoice_list = {}
+        #self.construct_invoices_list_view_friendly()
 
         self.payment_card_list = {}
         self.payment_card_labels_status = {}
 
     def create_payments_tab(self):
-        self.global_info_frame = ctk.CTkFrame(self.tab)
-        self.global_info_frame.pack(pady=(5, 10), fill="x", anchor="n")
+
+        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
+        self.search_bar = ctk.CTkEntry(self.search_bar_frame)
+        self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
+        self.search_bar_option_menu_values = {"NOME PAGAM.": "NOME PAGAM.", "NOME CLIENTE": "NOME CLIENTE",
+                                              "NOME PRODUZIONE": "NOME PRODUZIONE", "CONTO": "CONTO"}
+        self.search_bar_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.search_bar_option_menu_values.values()))
+        self.search_bar_optionMenu.pack(padx=5, anchor="s", side="right")
+        self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per ", font=("Arial", 14))
+        self.search_bar_label.pack(padx=5, anchor="s", side="right")
+
+        # Aggiungi evento alla barra di ricerca
+        self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         self.populate_global_infos()
 
         for (key, info) in self.global_infos.items():
-            card = ctk.CTkFrame(self.global_info_frame)
+            card = ctk.CTkFrame(self.search_bar_frame)
 
             if key == PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value:
                 global_info_unità_di_misura = ""
@@ -62,10 +75,18 @@ class PaymentsView(ctk.CTk):
         self.table_headers = ["NOME", "CLIENTE", "PRODUZIONE", "TOTALE", "DATA", "RATA", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
+            # crea il container
             column = ctk.CTkFrame(self.payments_table_frame)
-            label = ctk.CTkLabel(column, text=f"{header}", font=("Arial", 14), width=250)
-            column.pack(padx=(0, 5), pady=5, fill="y", expand=True, side="left")
-            label.pack(padx=5, pady=15, anchor="n")
+            column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
+
+            # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
+            self.payments_table_frame.grid_columnconfigure(i, weight=1, uniform="col")
+
+            # la label riempie il suo container
+            label = ctk.CTkLabel(column,
+                                 text=header,
+                                 font=("Arial", 14))
+            label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
         self.payments_cards_frame = ctk.CTkScrollableFrame(self.tab)
@@ -78,28 +99,68 @@ class PaymentsView(ctk.CTk):
                                          command=self.open_add_payment_window)
         self.save_button.pack()
 
-        for payment in self.payment_controller.CY_payment_list:
-            payment_id = payment[DBPaymentsColumns.ID.value]
-            name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
-            amount = payment[DBPaymentsColumns.PAYMENT_AMOUNT.value]
-            payment_date = payment[DBPaymentsColumns.PAYMENT_DATE.value]
-            linked_rata = payment[DBPaymentsColumns.LINKED_RATA.value]
-            invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
-            invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
-            cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-            client = self.client_controller.retrieve_client_map_by_id(cliente_id)
-            client_name = client[DBClientsColumns.NAME.value]
-            production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-            production = self.production_controller.retrieve_production_map_by_id(production_id)
-            production_name = production[DBProductionsColumns.NAME.value]
-            conto = self.account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
-            nome_conto = conto[DBAccountsColumns.NAME.value]
+        for payment in self.payment_controller.retrieve_payments_map_list(current_year=True):
+            if payment:
+                payment_id = payment[DBPaymentsColumns.ID.value]
+                name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
+                amount = payment[DBPaymentsColumns.PAYMENT_AMOUNT.value]
+                payment_date = payment[DBPaymentsColumns.PAYMENT_DATE.value]
+                linked_rata = payment[DBPaymentsColumns.LINKED_RATA.value]
+                invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
+                invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+                cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
+                client = self.client_controller.retrieve_client_map_by_id(cliente_id)
+                client_name = client[DBClientsColumns.NAME.value]
+                production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+                production = self.production_controller.retrieve_production_map_by_id(production_id)
+                production_name = production[DBProductionsColumns.NAME.value]
+                conto = self.account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
+                nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
 
-            self.add_payment_card(payment_id, name, amount, payment_date, linked_rata, client_name, production_name, nome_conto)
+                self.add_payment_card(payment_id, name, amount, payment_date, linked_rata, client_name, production_name, nome_conto)
 
     def populate_global_infos(self):
-        self.global_infos[f"{PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value}"] = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value]
-        self.global_infos[f"{PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value}"] = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value]
+        numero_pagamenti = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value]
+        totale_pagamenti = round(self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value], 2)
+        self.global_infos[f"{PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value}"] = numero_pagamenti
+        self.global_infos[f"{PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value}"] = f"{totale_pagamenti:.2f}"
+
+    def filter_cards(self, event):
+        """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""
+        search_text = self.search_bar.get().lower()
+        search_type = self.search_bar_optionMenu.get()
+
+        # Mappatura: ogni chiave associa una tupla (indice, classe_attesa) del widget da cui prelevare il testo
+        filter_mapping = {
+            "NOME PAGAM.": (0, ctk.CTkButton),  # Bottone
+            "NOME CLIENTE": (1, ctk.CTkLabel),
+            "NOME PRODUZIONE": (2, ctk.CTkLabel),
+            "CONTO": (3, ctk.CTkLabel),
+        }
+
+        mapping = filter_mapping.get(search_type)
+
+        # Prima rimuovo tutte le card dal container per avere un layout pulito
+        for card in self.payment_card_list.values():
+            card.pack_forget()
+
+        # Se il tipo di ricerca non è riconosciuto, riposiziona tutte le card nell'ordine originale
+        if mapping is None:
+            for card in self.payment_card_list.values():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
+            return
+
+        idx, expected_class = mapping
+
+        # Itera sulle card nell’ordine originale (grazie al dizionario ordinato)
+        for key, card in self.payment_card_list.items():
+            children = card.winfo_children()  # Lista dei widget figli
+            widget_text = ""
+            if len(children) > idx and isinstance(children[idx], expected_class):
+                widget_text = children[idx].cget("text")
+            # Se il testo (in lowercase) contiene il testo di ricerca, riposiziona la card
+            if search_text in widget_text.lower():
+                card.pack(pady=10, padx=10, fill="x", expand=True)
 
     def open_add_payment_window(self):
         self.add_payment_window = ctk.CTkToplevel(self)
@@ -118,17 +179,18 @@ class PaymentsView(ctk.CTk):
         self.nome_conto_string = "NOME CONTO"
 
         self.entry_fields = {
+            self.nome_fattura_string: ctk.CTkOptionMenu,
+            DBPaymentsColumns.LINKED_RATA.value: ctk.CTkOptionMenu,
             DBPaymentsColumns.PAYMENT_NAME.value: ctk.CTkEntry,
             DBPaymentsColumns.PAYMENT_AMOUNT.value: ctk.CTkEntry,
             DBPaymentsColumns.PAYMENT_DATE.value: Calendar,
-            self.nome_fattura_string : ctk.CTkOptionMenu,
-            DBPaymentsColumns.LINKED_RATA.value: ctk.CTkOptionMenu,
             self.nome_conto_string: ctk.CTkOptionMenu,
         }
 
         self.error_fields = {
             DBPaymentsColumns.PAYMENT_NAME.value: ctk.CTkLabel,
-            DBPaymentsColumns.PAYMENT_AMOUNT.value: ctk.CTkLabel
+            DBPaymentsColumns.PAYMENT_AMOUNT.value: ctk.CTkLabel,
+            DBPaymentsColumns.LINKED_RATA.value: ctk.CTkLabel
         }
 
         self.payment_widgets = {}
@@ -149,16 +211,18 @@ class PaymentsView(ctk.CTk):
 
             # creo i widgets
             if label_text == self.nome_fattura_string:
-                reversed_invoices = list(self.VF_invoice_list.values())[::-1]
+                VF_invoice_list = self.construct_invoices_list_view_friendly()
+                reversed_invoices = list(VF_invoice_list.values())[::-1]
                 widget = widget_class(self.payment_window_scrollableFrame,
                                       values=reversed_invoices, command=lambda selected_value: self.toggle_linked_rata(selected_value))
             elif label_text == self.nome_conto_string:
                 widget = widget_class(self.payment_window_scrollableFrame,
                                       values=[f"{item[DBAccountsColumns.NAME.value]}" for item in
-                                              self.account_controller.account_list])
+                                              self.account_controller.retrieve_accounts_map_list()])
             elif label_text == DBPaymentsColumns.LINKED_RATA.value:
                 widget = widget_class(self.payment_window_scrollableFrame,
-                                      values=["1", "2", "3"])
+                                      values=["1", "2", "3"],
+                                      command = lambda selected_value: self.control_linked_rata(selected_value))
             elif label_text == DBPaymentsColumns.PAYMENT_DATE.value:
                 widget = widget_class(self.payment_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
             else:
@@ -172,6 +236,9 @@ class PaymentsView(ctk.CTk):
                 error_label = ctk.CTkLabel(self.payment_window_scrollableFrame, text="")
                 error_label.pack(pady=(0, 15))
                 self.error_labels[label_text] = error_label
+
+        self.autofill_payment_amount()
+        self.control_linked_rata("1")
 
         # Bottone per salvare
         self.save_button = ctk.CTkButton(
@@ -215,25 +282,32 @@ class PaymentsView(ctk.CTk):
         card = ctk.CTkFrame(self.payments_cards_frame, fg_color="dimgray")
         card.pack(pady=10, padx=8, fill="x", expand=True)  # Spaziatura tra le card
 
-        ctk.CTkButton(card, text=f"{payment_name}", width=245,
-                      command=lambda: self.open_modify_payment(payment_id)).pack(
-            padx=(10), pady=10, fill="both", side="left")
-
         # Dati da visualizzare nella card
-        data = [client_name, production_name, round(amount, 2), ViewUtils.invert_data_string(payment_date), linked_rata, nome_conto]
-        units = ["", "", "€", "", "", ""]
-        i = 0
-        # Aggiunta dei dati alla card
-        for value in data:
-            label = ctk.CTkLabel(card, text=f"{value} {units[i]}", font=("Arial", 14), width=245)
-            label.pack(padx=(10), pady=5, fill="both", expand=True, side="left")
+        data = [payment_name, client_name, production_name, round(amount, 2), ViewUtils.invert_data_string(payment_date), linked_rata, nome_conto]
+        units = ["", "", "", "€", "", "", ""]
+        n_cols = len(data)  # 8 colonne totali
 
-        self.payment_card_list[production_name] = card
+        # Configura il grid della card: 1 riga, n_cols colonne uguali
+        for c in range(n_cols):
+            card.grid_columnconfigure(c, weight=1, uniform="clientcol")
+        card.grid_rowconfigure(0, weight=1)
 
-        """child_list = self.payment_card_list[production_name].winfo_children()
-        child_list[1].configure(bg_color="red")
-        child_list[3].configure(bg_color="red")
-        child_list[5].configure(bg_color="red")"""
+        # 0) Bottone "nome"
+        btn = ctk.CTkButton(
+            card,
+            text=payment_name,
+            command=lambda pid=payment_id: self.open_modify_payment(pid)
+        )
+        btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
+
+        # 1..7) Le altre colonne
+        for idx, val in enumerate(data[1:], start=1):
+            text = f"{val} {units[idx]}"
+            lbl = ctk.CTkLabel(card, text=text, font=("Arial", 14))
+            lbl.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
+
+        # Salva la card per eventuale successivo accesso
+        self.payment_card_list[payment_name] = card
 
     def auto_compile_name_entry(self, selected_value):
         return
@@ -244,24 +318,32 @@ class PaymentsView(ctk.CTk):
         # riempi il dizionario con i dati dei widgets primari
         for label_text, widget in self.payment_widgets.items():
             if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
-                payment_data[label_text] = widget.get()
+                payment_data[label_text] = widget.get().strip()
             elif isinstance(widget, Calendar):
                 payment_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):
                 payment_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
 
         #sistemo il nome della fattura che è ViewFriendly:
-        nome_fattura_array = payment_data[self.nome_fattura_string].split(" - ")
+        nome_fattura_array = payment_data[self.nome_fattura_string].strip().split(" - ")
         nome_fattura_ricostruito = nome_fattura_array[0] + " - " + nome_fattura_array[1]
         invoice_id = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura_ricostruito)[DBInvoicesColumns.ID.value]
         payment_data[DBPaymentsColumns.INVOICE_ID.value] = invoice_id
 
-        # chiamata al controller per salvare i dati
-        success, message = self.payment_controller.save_payment(payment_data)
+        ctrl_linked_rata = self.control_linked_rata(payment_data[DBPaymentsColumns.LINKED_RATA.value])
+        confirmation = True
+
+        if ctrl_linked_rata:
+            confirmation = ViewUtils.ask_confirmation_popup(self.add_payment_window, "La rata selezionata presenta già un pagamento associato\nsei sicuro di voler continuare?", "CONFERMA OPERAZIONE")
+
+        if confirmation:
+            # chiamata al controller per salvare i dati
+            success, message = self.payment_controller.save_payment(payment_data)
 
         if success:
             #aggiorno il controller delle fatture
             self.update_controller.update_invoices(invoice_id)
+            self.update_controller.on_adding_payment()
 
             # prendo l'ID della fattura appena creata
             payment_map = self.payment_controller.retrieve_last_payment_insert_map()
@@ -293,11 +375,15 @@ class PaymentsView(ctk.CTk):
             ViewUtils.show_error_popup(self.add_payment_window, "ERRORE", message)
 
     def construct_invoices_list_view_friendly(self):
-        for invoice in self.invoice_controller.current_year_invoices_list:
-            #invoicer_first_name = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])[DBUsersColumns.FIRST_NAME.value]
+        VF_invoice_list = {}
+
+        for invoice in self.invoice_controller.retrieve_invoices_map_list(True):
             invoicer_second_name = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])[DBUsersColumns.LAST_NAME.value]
             client_name = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])[DBClientsColumns.NAME.value]
-            self.VF_invoice_list[invoice[DBInvoicesColumns.ID.value]] =  invoice[DBInvoicesColumns.NUMERO_FATTURA.value] + " - " + client_name
+
+            VF_invoice_list[invoice[DBInvoicesColumns.ID.value]] =  invoice[DBInvoicesColumns.NUMERO_FATTURA.value] + " - " + client_name
+
+        return VF_invoice_list
 
     def toggle_linked_rata(self, selected_value):
         invoice_name = selected_value.split(" - ")
@@ -311,9 +397,100 @@ class PaymentsView(ctk.CTk):
         if rateizzazione == int(InvoiceController.Rateizzazione.TRE.value):
             widget.configure(values=["1", "2", "3"], state=tk.NORMAL)
 
+        self.autofill_payment_amount()
+        selected_rata = self.payment_widgets[DBPaymentsColumns.LINKED_RATA.value].get()
+        self.control_linked_rata(selected_rata)
+
     def clear_class_variable(self):  #potrebbe non servire in quanto vengono inizializzate all'apertura della funzione
         self.payment_widgets.clear()
         self.payment_widgets.clear()
+
+    def autofill_payment_amount(self):
+        # prendo la fattura di riferimento del pagamento
+        VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
+        invoice_name_array = VF_invoice_name.split(" - ")
+        invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1]
+        invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
+        invoice_amount = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
+        invoice_rateiz = invoice[DBInvoicesColumns.NUMERO_RATE.value]
+
+        self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].delete(0, tk.END)
+        if int(invoice_rateiz) == int(InvoiceController.Rateizzazione.UNA.value):
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, f"{invoice_amount:.2f}")
+        elif int(invoice_rateiz) == int(InvoiceController.Rateizzazione.TRE.value):
+            amount = round(invoice_amount/3, 2)
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, f"{amount:.2f}")
+
+    def control_linked_rata(self, selected_value):
+        # prendo la fattura di riferimento del pagamento
+        VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
+        invoice_name_array = VF_invoice_name.split(" - ")
+        invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1]
+        invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
+
+        netto_rate_fattura = {
+            "1" : 0.0,
+            "2" : 0.0,
+            "3" : 0.0
+        }
+
+        netto_rate_pagate = {
+            "1": 0.0,
+            "2": 0.0,
+            "3": 0.0
+        }
+
+        if int(invoice[DBInvoicesColumns.NUMERO_RATE.value]) == int(InvoiceController.Rateizzazione.UNA.value):
+            netto_rate_fattura["1"] = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
+            netto_rate_fattura["2"] = 0.0
+            netto_rate_fattura["3"] = 0.0
+        elif int(invoice[DBInvoicesColumns.NUMERO_RATE.value]) == int(InvoiceController.Rateizzazione.TRE.value):
+            rata = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value]) / 3
+            netto_rate_fattura["1"] = rata
+            netto_rate_fattura["2"] = rata
+            netto_rate_fattura["3"] = rata
+
+        rate_saldate = {
+            "1" : False,
+            "2" : False,
+            "3" : False
+        }
+
+        #calcolo il totale dei pagamenti per rata
+        payments = self.payment_controller.retrieve_payments_map_list_by_invoice_id(invoice[DBInvoicesColumns.ID.value])
+        for payment in payments:
+            if int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 1:
+                netto_rate_pagate["1"] = netto_rate_pagate["1"] + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
+            elif int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 2:
+                netto_rate_pagate["2"] = netto_rate_pagate["2"] + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
+            elif int(payment[DBPaymentsColumns.LINKED_RATA.value]) == 3:
+                netto_rate_pagate["3"] = netto_rate_pagate["3"] + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
+
+        for i in ["1", "2", "3"]:
+            tot_mancante = netto_rate_fattura[i] - netto_rate_pagate[i]
+            if netto_rate_pagate[i] >= netto_rate_fattura[i] or (5 > tot_mancante > 0):
+                rate_saldate[i] = True
+
+        if rate_saldate[str(selected_value)]:
+            self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(
+                text=f"La rata {selected_value} è già interamente saldata ({round(netto_rate_pagate[str(selected_value)], 2)}€)", text_color="#e39e27")
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].delete(0, tk.END)
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, "0.00")
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].configure(border_color="#e39e27")
+            return True
+        else:
+            tot_mancante = (netto_rate_fattura[str(selected_value)] - netto_rate_pagate[str(selected_value)])
+            self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].configure(border_color="gray")
+            if netto_rate_pagate[str(selected_value)] > 0 and tot_mancante >= 5:
+                self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(
+                    text=f"Totale mancante da saldare della rata {selected_value}: {round(tot_mancante, 2)}€", text_color="#e39e27")
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].delete(0, tk.END)
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, round(tot_mancante, 2))
+            else:
+                self.error_labels[DBPaymentsColumns.LINKED_RATA.value].configure(text="", text_color="#e39e27")
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].configure(border_color="gray")
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].delete(0, tk.END)
+                self.payment_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].insert(0, round(tot_mancante, 2))
 
     def open_modify_payment(self, payment_id):
 

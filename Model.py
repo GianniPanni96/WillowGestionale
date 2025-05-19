@@ -29,6 +29,7 @@ class DBUsersColumns(Enum):
     REGIME_FISCALE = "regime_fiscale"
     ANNO_APERTURA_PIVA = "anno_apertura_piva"
     REDDITO_ESTERNO = "reddito_esterno"
+    SPESE_DEDOTTE_ESTERNE = "spese_dedotte_esterne" #totale iva inclusa delle spese non attribuibili a willow
     CONTO_CORRENTE_ID = "conto_corrente_id"
     PROVIDER_FATTURE = "provider_fatture"
     USERNAME_PROVIDER = "username_provider"

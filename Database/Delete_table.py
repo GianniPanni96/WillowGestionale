@@ -30,5 +30,5 @@ def delete_all_rows(table_name):
     finally:
         conn.close()
 
-table_name = "expenses"
+table_name = "suppliers"
 delete_all_rows(table_name)

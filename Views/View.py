@@ -7,8 +7,7 @@ from Views.View_utils import ViewUtils
 from Controllers import UserController, AccountController, ClientController, InvoiceController, \
     PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
     Analyzer, TransfersController, SalaryController
-from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns
-
+from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns, DBExpensesColumns
 
 from Views.Users_view import UsersView
 from Views.Clients_view import ClientsView
@@ -49,7 +48,7 @@ class MainWindow(ctk.CTk):
         self.payment_controller = PaymentsController(self.db_model, self.account_controller)
         self.production_controller = ProductionController(self.db_model, self.client_controller)
         self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, fiscal_settings)
-        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller, self.recurring_expenses_settings)
+        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller, self.recurring_expenses_settings, self.catalogo_elenchi)
         self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
         self.analyzer = Analyzer(self.user_controller,
                  self.client_controller,

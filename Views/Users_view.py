@@ -886,6 +886,11 @@ class UserDetailView(ctk.CTkFrame):
                 "label": "Reddito Esterno",
                 "section": "Dati Fiscali"
             },
+            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: {
+                "type": ctk.CTkEntry,
+                "label": "Spese Dedotte Esterne",
+                "section": "Dati Fiscali"
+            },
 
             # Sezione Provider
             DBUsersColumns.PROVIDER_FATTURE.value: {
@@ -937,6 +942,7 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.LAST_NAME.value: "Il cognome non può essere vuoto",
             DBUsersColumns.PARTITA_IVA.value: "Partita IVA non valida (11 cifre)",
             DBUsersColumns.REDDITO_ESTERNO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
+            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
             DBUsersColumns.EMAIL.value: "Formato email non valido"
         }
 
@@ -958,6 +964,10 @@ class UserDetailView(ctk.CTkFrame):
                 "Formato email non valido"
             ),
             DBUsersColumns.REDDITO_ESTERNO.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
+                "Inserire cifra numerica con due cifre decimali seprate da \".\" "
+            ),
+            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: (
                 lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
                 "Inserire cifra numerica con due cifre decimali seprate da \".\" "
             )
@@ -1084,6 +1094,7 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.TELEFONO.value: self.user_info_widgets[DBUsersColumns.TELEFONO.value].get().strip(),
             DBUsersColumns.EMAIL.value: self.user_info_widgets[DBUsersColumns.EMAIL.value].get().strip(),
             DBUsersColumns.REDDITO_ESTERNO.value: self.user_info_widgets[DBUsersColumns.REDDITO_ESTERNO.value].get().strip(),
+            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: self.user_info_widgets[DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value].get().strip(),
             DBUsersColumns.PROVIDER_FATTURE.value: self.user_info_widgets[DBUsersColumns.PROVIDER_FATTURE.value].get(),
             DBUsersColumns.USERNAME_PROVIDER.value: self.user_info_widgets[DBUsersColumns.USERNAME_PROVIDER.value].get().strip(),
             DBUsersColumns.PASSWORD_PROVIDER.value: self.user_info_widgets[DBUsersColumns.PASSWORD_PROVIDER.value].get().strip(),

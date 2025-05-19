@@ -3244,13 +3244,14 @@ class ExpenseController:
         ATTIVA = "Attiva"
         SOSPESA = "Sospesa"
 
-    def __init__(self, db_model, user_controller, account_controller, invoice_controller, supplier_controller, recurring_expenses_settings):
+    def __init__(self, db_model, user_controller, account_controller, invoice_controller, supplier_controller, recurring_expenses_settings, catalogo_elenchi):
         self.db_model = db_model
         self.user_controller = user_controller
         self.account_controller = account_controller
         self.invoice_controller = invoice_controller
         self.supplier_controller = supplier_controller
         self.recurring_expenses_settings = recurring_expenses_settings
+        self.catalogo_elenchi = catalogo_elenchi
 
         self.create_recurring_expenses()
 
@@ -3572,8 +3573,7 @@ class ExpenseController:
 
             new_exp = {
                 DBExpensesColumns.NAME.value: nominal,
-                DBExpensesColumns.SUPPLIER_ID.value: self.supplier_controller
-                .retrieve_supplier_map_by_name(exp.supplier)[DBSuppliersColumns.ID.value],
+                DBExpensesColumns.SUPPLIER_ID.value: self.supplier_controller.retrieve_supplier_map_by_name(exp.supplier)[DBSuppliersColumns.ID.value],
                 DBExpensesColumns.CATEGORY.value: exp.category,
                 DBExpensesColumns.NET_AMOUNT.value: netto,
                 DBExpensesColumns.IVA_AMOUNT.value: iva_amt,
@@ -3591,6 +3591,40 @@ class ExpenseController:
 
     def sum_expenses_for_account(self, account_id):
         return self.db_model.sum_expenses_by_account(account_id)
+
+    def add_DB_voices_for_recurring_expenses(self):
+        # Estraggo la chiave del settore di default
+        default_sector_key = self.catalogo_elenchi["clients_business_sectors"][0][0]
+
+        for expense in self.recurring_expenses_settings.values():
+            supplier_name = expense.supplier
+            account_name = expense.account
+
+            # ---- FORNITORE ----
+            supp_map = self.supplier_controller.retrieve_supplier_map_by_name(supplier_name)
+            if supp_map is None:
+                esito, to_print = self.supplier_controller.save_supplier(
+                    supplier_data={
+                        DBSuppliersColumns.NAME.value: supplier_name,
+                        DBSuppliersColumns.CATEGORIA.value: default_sector_key
+                    }
+                )
+                print(to_print)
+            else:
+                print(f"Fornitore '{supplier_name}' già presente. SKIPPING")
+
+            # ---- CONTO ----
+            acc_map = self.account_controller.retrieve_account_map_by_name(account_name)
+            if acc_map is None:
+                esito, to_print = self.account_controller.save_account(
+                    account_data={
+                        DBAccountsColumns.NAME.value: account_name,
+                        DBAccountsColumns.INIT_BALANCE.value: 0
+                    }
+                )
+                print(to_print)
+            else:
+                print(f"Conto '{account_name}' già presente. SKIPPING")
 
 
 class SupplierController:

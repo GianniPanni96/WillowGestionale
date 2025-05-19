@@ -14,6 +14,7 @@ columns = [
     f"{DBUsersColumns.REGIME_FISCALE.value} TEXT NOT NULL",
     f"{DBUsersColumns.ANNO_APERTURA_PIVA.value} INTEGER NOT NULL",
     f"{DBUsersColumns.REDDITO_ESTERNO.value} REAL NOT NULL DEFAULT 0",
+    f"{DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value} REAL NOT NULL DEFAULT 0",
     f"{DBUsersColumns.CONTO_CORRENTE_ID.value} INTEGER",
     f"{DBUsersColumns.PROVIDER_FATTURE.value} TEXT NOT NULL",
     f"{DBUsersColumns.USERNAME_PROVIDER.value} TEXT",

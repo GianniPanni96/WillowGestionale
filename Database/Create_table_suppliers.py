@@ -6,7 +6,7 @@ import sqlite3
 columns = [
     f"{DBSuppliersColumns.ID.value} INTEGER PRIMARY KEY AUTOINCREMENT",
     f"{DBSuppliersColumns.NAME.value} TEXT NOT NULL UNIQUE",
-    f"{DBSuppliersColumns.PARTITA_IVA.value} TEXT NOT NULL UNIQUE",
+    f"{DBSuppliersColumns.PARTITA_IVA.value} TEXT",
     f"{DBSuppliersColumns.SEDE.value} TEXT",
     f"{DBSuppliersColumns.CONTATTO.value} TEXT",
     f"{DBSuppliersColumns.CATEGORIA.value} TEXT NOT NULL",

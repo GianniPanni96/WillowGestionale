@@ -19,6 +19,10 @@
     },
     "fiscal_settings": {
         "iva": {
+			"no_iva": {
+                "value": "0.00",
+                "description": "Assenza di IVA"
+            },
             "aliquota_iva_ordinaria": {
                 "value": "0.22",
                 "description": "Aliquota IVA standard"
@@ -176,113 +180,43 @@
         "INSURANCE": "Assicurazionee",
         "PRODUCTION_EXPENSE": "Spesa di produzione",
         "USER_SALARY": "Salario",
-		"TRIMESTRAL_IVA": "Iva trimestrale",
+        "TRIMESTRAL_IVA": "Iva trimestrale",
         "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
     },
     "recurring_expenses": {
-        "office_rental": {
+        "affitto_studio": {
             "description": "AFFITTO STUDIO",
             "amount": {
-                "value": "1600.0",
-                "description": "IMPORTO_LORDO"
+                "value": "1600",
+                "description": ""
             },
             "supplier": {
-                "value": "MAURIZIO",
-                "description": "FORNITORE"
+                "value": "Maurizio",
+                "description": ""
             },
             "deductible": {
                 "value": "S\u00ec",
-                "description": "DEDUCIBILE"
+                "description": ""
             },
             "category": {
                 "value": "Affitto Ufficio",
-                "description": "CATEGORIA"
+                "description": ""
             },
             "iva": {
                 "value": "0.22",
-                "description": "ALIQUOTA IVA"
+                "description": ""
             },
             "account": {
                 "value": "WeBank",
-                "description": "CONTO"
+                "description": ""
             },
             "frequency": {
                 "value": "MENSILE",
-                "description": "CADENZA"
+                "description": ""
             },
             "status": {
                 "value": "Attiva",
-                "description": "STATO"
-            }
-        },
-        "internet_bill": {
-            "description": "INTERNET",
-            "amount": {
-                "value": "28.0",
-                "description": "IMPORTO_LORDO"
-            },
-            "supplier": {
-                "value": "Tiscali",
-                "description": "FORNITORE"
-            },
-            "deductible": {
-                "value": "S\u00ec",
-                "description": "DEDUCIBILE"
-            },
-            "category": {
-                "value": "Abbonamento Internet",
-                "description": "CATEGORIA"
-            },
-            "iva": {
-                "value": "0.22",
-                "description": "ALIQUOTA IVA"
-            },
-            "account": {
-                "value": "WeBank",
-                "description": "CONTO"
-            },
-            "frequency": {
-                "value": "SETTIMANALE",
-                "description": "CADENZA"
-            },
-            "status": {
-                "value": "Attiva",
-                "description": "STATO"
-            }
-        },
-        "art_list": {
-            "description": "ARTLIST",
-            "amount": {
-                "value": "250.0",
-                "description": "IMPORTO_LORDO"
-            },
-            "supplier": {
-                "value": "Tiscali",
-                "description": "FORNITORE"
-            },
-            "deductible": {
-                "value": "S\u00ec",
-                "description": "DEDUCIBILE"
-            },
-            "category": {
-                "value": "Abbonamento",
-                "description": "CATEGORIA"
-            },
-            "iva": {
-                "value": "0.22",
-                "description": "ALIQUOTA IVA"
-            },
-            "account": {
-                "value": "WeBank",
-                "description": "CONTO"
-            },
-            "frequency": {
-                "value": "SETTIMANALE",
-                "description": "CADENZA"
-            },
-            "status": {
-                "value": "Sospesa",
-                "description": "STATO"
+                "description": ""
             }
         }
     }

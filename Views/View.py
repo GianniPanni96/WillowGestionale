@@ -354,6 +354,7 @@ class MainWindow(ctk.CTk):
 
         # Lista delle chiavi in ordine desiderato
         iva_keys = [
+            "no_iva",
             "aliquota_iva_ordinaria",
             "aliquota_iva_ridotta_1",
             "aliquota_iva_ridotta_2",
@@ -778,6 +779,7 @@ class MainWindow(ctk.CTk):
             suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
 
             aliquote_list = [
+                self.fiscal_settings.aliquota_iva.no_iva,
                 self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
                 self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
                 self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
@@ -827,7 +829,7 @@ class MainWindow(ctk.CTk):
                             dropdown_font=self.entry_font
                         )
                         current = getattr(expense, field)
-                        widget.set(current if current in options else options[0])
+                        widget.set(current)
 
                 widget.pack(fill="x", expand=True, padx=5)
                 self.expense_widgets[expense_key][field] = widget

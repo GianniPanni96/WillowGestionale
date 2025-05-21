@@ -656,6 +656,8 @@ class PartitaIVAOrdinaria:
 
 @dataclass
 class AliquotaIva:
+    no_iva: float = 0.0
+    desc_no_iva: str = ""
     aliquota_iva_ordinaria: float = 0.0
     desc_iva_ordinaria: str = ""
     aliquota_iva_ridotta_1: float = 0.0
@@ -668,7 +670,8 @@ class AliquotaIva:
     @staticmethod
     def from_dict(data: dict) -> 'AliquotaIva':
         return AliquotaIva(
-            aliquota_iva_ordinaria = float(data.get("aliquota_iva_ordinaria", {}).get("value", 0.0)),
+            no_iva                  = float(data.get("no_iva", {}).get("value", 0.0)),
+            aliquota_iva_ordinaria  = float(data.get("aliquota_iva_ordinaria", {}).get("value", 0.0)),
             desc_iva_ordinaria      = data.get("aliquota_iva_ordinaria", {}).get("description", ""),
             aliquota_iva_ridotta_1  = float(data.get("aliquota_iva_ridotta_1", {}).get("value", 0.0)),
             desc_iva_ridotta_1      = data.get("aliquota_iva_ridotta_1", {}).get("description", ""),

@@ -259,3 +259,5 @@ class ViewUtils(ctk.CTk):
             labels_dict[key].pack(pady=label_pady)
             widgets_dict[key].pack(pady=widget_pady, padx=10, fill="x", expand=True)
         save_button.pack(pady=(50, 15))
+
+

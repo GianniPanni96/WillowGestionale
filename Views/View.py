@@ -111,7 +111,7 @@ class MainWindow(ctk.CTk):
         self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Clienti"))
         self.client_tab.create_client_tab()
         self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, self.tabview.tab("Fatture"), fiscal_settings)
-        self.invoice_tab.create_invoices_tab()
+        #self.invoice_tab.create_invoices_tab()
         self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"))
         self.payment_tab.create_payments_tab()
         self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Produzioni"))

@@ -51,9 +51,30 @@ class InvoicesView(ctk.CTk):
         #self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
         self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color_2, self.toggle_aggregate_data)
 
+        # Container principale
+        self.main_container = ctk.CTkFrame(self.tab)
+        self.detail_container = ctk.CTkFrame(self.tab)
+
+        # Vista dettaglio
+        self.invoice_detail_view = InvoiceDetailView(
+            parent=self.tab,
+            invoice_controller=self.invoice_controller,
+            back_callback=self.show_main_view,
+            user_controller=user_controller,
+            client_controller=self.client_controller,
+            account_controller=account_controller,
+            production_controller=production_controller,
+            db_model=db_model,
+            fiscal_settings=self.fiscal_settings
+        )
+
+        # Inizializza la vista principale
+        self.create_invoices_tab()
+        self.show_main_view()
+
     def create_invoices_tab(self):
 
-        self.switch_frame = ctk.CTkFrame(self.tab)
+        self.switch_frame = ctk.CTkFrame(self.main_container, fg_color="#2b2b2b")
         self.switch_frame.pack(fill="x")
         ctk.CTkLabel(self.switch_frame, text="LORDI   ", font=("Arial", 20)).pack(pady=(10,0), padx=(10, 0), anchor="w", side=ctk.LEFT)
         self.lordo_netto_switch = ctk.CTkSwitch(self.switch_frame,
@@ -64,7 +85,7 @@ class InvoicesView(ctk.CTk):
                                                 variable=self.lordo_netto_switch_var)
         self.lordo_netto_switch.pack(pady=(10,0), anchor="w")
 
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="#2b2b2b")
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="n")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5,35), anchor="s", side="right")
@@ -84,7 +105,7 @@ class InvoicesView(ctk.CTk):
 
         #costruisco i capi delle informazioni aggregate
         for key, value in self.global_infos_lordi.items():
-            card = ctk.CTkFrame(self.search_bar_frame)
+            card = ctk.CTkFrame(self.search_bar_frame, fg_color="#333333")
 
             if i == 6:
                 global_info_unità_di_misura = "€/h"
@@ -104,7 +125,7 @@ class InvoicesView(ctk.CTk):
 
             i = i + 1
 
-        self.invoices_table_frame = ctk.CTkFrame(self.tab)
+        self.invoices_table_frame = ctk.CTkFrame(self.main_container, fg_color="#2b2b2b")
         self.invoices_table_frame.pack(pady=(20, 0), padx=(10,15), fill="x", anchor="n")
 
         self.headers = ["NOME", "CLIENTE", "UTENTE", "PRODUZIONE\nASSOCIATA", "DATA EMISSIONE", "STATO",
@@ -112,7 +133,7 @@ class InvoicesView(ctk.CTk):
 
         for i, header in enumerate(self.headers):
             # crea il container
-            column = ctk.CTkFrame(self.invoices_table_frame)
+            column = ctk.CTkFrame(self.invoices_table_frame, fg_color="#333333")
             column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
 
             # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
@@ -125,10 +146,10 @@ class InvoicesView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.invoices_cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.invoices_cards_frame = ctk.CTkScrollableFrame(self.main_container)
         self.invoices_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_invoice_frame = ctk.CTkFrame(self.tab)
+        self.add_invoice_frame = ctk.CTkFrame(self.main_container, fg_color="#2b2b2b")
         self.add_invoice_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_invoice_frame, text="Aggiungi una fattura",
@@ -155,6 +176,17 @@ class InvoicesView(ctk.CTk):
             self.add_invoice_card(invoice_id, invoice_name, invoice_client_name, invoice_user_name, invoice_production_name, invoice_creation_date, invoice_state, invoice_rate, invoice_tot_documento, invoice_tipologia)
             self.toggle_specific_invoice_rate_color_2(invoice_id)
             self.toggle_specific_invoice_status_color(invoice_id)
+
+    def show_main_view(self):
+        """Torna alla vista principale"""
+        self.invoice_detail_view.pack_forget()
+        self.main_container.pack(fill='both', expand=True)
+
+    def open_user_detail_tab(self, invoice_id):
+        """Mostra la vista dettaglio utente"""
+        self.main_container.pack_forget()
+        self.invoice_detail_view.pack(fill='both', expand=True)
+        self.invoice_detail_view.create_detail_tab(invoice_id)  # Ricrea i contenuti ogni volta
 
     def populate_global_infos(self):
         self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
@@ -378,7 +410,7 @@ class InvoicesView(ctk.CTk):
         # 0) Bottone "nome"
         btn = ctk.CTkButton(card,
                             text=nome,
-                            command=lambda: self.open_invoice_detail(invoice_id))
+                            command=lambda: self.open_user_detail_tab(invoice_id))
         btn.grid(row=0, column=0, sticky="nsew", padx=(10,5), pady=10)
 
         # 1) CLIENTE, 2) UTENTE, 3) PRODUZIONE, 4) DATA, 5) STATO, 6) RATE, 7) NETTO, 8) TIPOLOGIA
@@ -709,17 +741,6 @@ class InvoicesView(ctk.CTk):
 
         self.select_correct_invoice_window.destroy()
 
-    def open_invoice_detail(self, invoice_id):
-        """self.client_details_window = ctk.CTkToplevel(self)
-        invoice_db_info = self.client_controller.retrieve_client_map_by_id(invoice_id)
-        self.client_details_window.title(f"Dettaglio del cliente: {invoice_db_info[DBClientsColumns.NAME.value]}")
-
-        # Assicurati che la finestra rimanga sopra
-        self.client_details_window.lift()  # Porta la finestra sopra quella principale
-        self.client_details_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
-
-        self.client_details_window.geometry("700x700")"""
-
     def toggle_specific_invoice_status(self, invoice_id):
         fattura = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
         label = self.invoice_card_labels_status[invoice_id]
@@ -1006,3 +1027,369 @@ class InvoicesView(ctk.CTk):
         self.invoice_widgets.clear()
         self.invoice_labels.clear()
 
+
+
+
+
+
+
+
+
+class InvoiceDetailView(ctk.CTkFrame):
+    def __init__(self, parent, back_callback, invoice_controller, user_controller, client_controller, account_controller, production_controller, db_model, fiscal_settings):
+        super().__init__(parent)
+        self.invoice_controller = invoice_controller
+        self.user_controller = user_controller
+        self.client_controller = client_controller
+        self.account_controller = account_controller
+        self.db_model = db_model
+        self.back_callback = back_callback
+        self.production_controller = production_controller
+        self.fiscal_settings = fiscal_settings
+        self.current_user_id = None
+
+        # Widgets persistenti (vanno creati una volta sola)
+        self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
+        self.back_button = ctk.CTkButton(
+            self.head_frame,
+            text="Indietro",
+            command=self._cleanup_and_go_back
+        )
+        self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
+
+        self.invoice_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+
+        self.nome_conto_string = "CONTO"
+        self.nome_cliente_string = "CLIENTE"
+        self.nome_user_string = "UTENTE"
+        self.nome_fattura_associata_string = "FATTURA ASSOCIATA"
+        self.nome_produzione_associata_string = "PRODUZIONE ASSOCIATA"
+
+        # Container per i contenuti dinamici
+        self.content_frame = ctk.CTkScrollableFrame(self)
+
+        self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_edit(self.content_frame))
+
+        # Layout iniziale
+        self._setup_base_layout()
+
+    def _setup_base_layout(self):
+        """Inizializza la struttura base del layout"""
+        self.head_frame.pack(fill="x", pady=5, padx=5)
+        self.back_button.pack(anchor="w", side="left", pady=10, padx=10)
+        self.title_label.pack(anchor="c", side="left", fill="x", expand=True, pady=10)
+        self.switch_modify.pack(anchor="e", side="left", pady=10, padx=10)
+        self.content_frame.pack(fill="both", expand=True, pady=20, padx=20)
+
+    def create_detail_tab(self, invoice_id):
+        """Ricrea la vista dettaglio per una fattura specifica"""
+        self.current_invoice_id = invoice_id
+
+        # 1. Pulizia dei widget precedenti
+        self._clear_content()
+
+        # 2. Caricamento dati
+        invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+
+        #prendo il nome del conto:
+        id_conto = invoice[DBInvoicesColumns.ID_CONTO.value]
+        conto = self.account_controller.retrieve_account_map_by_id(id_conto)
+        nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "Conto non trovato"
+        invoice[self.nome_conto_string] = nome_conto
+
+        #prendo il nome dell' utente:
+        id_user = invoice[DBInvoicesColumns.ID_UTENTE.value]
+        user = self.user_controller.retrieve_user_map_by_id(id_user)
+        nome_user = user[DBUsersColumns.FIRST_NAME.value] + user[DBUsersColumns.LAST_NAME.value] if user else "Utente non trovato"
+        invoice[self.nome_user_string] = nome_user
+
+        #prendo il nome del cliente
+        id_cliente = invoice[DBInvoicesColumns.ID_CLIENTE.value]
+        cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)
+        nome_cliente = cliente[DBClientsColumns.NAME.value] if cliente else "Cliente non trovato"
+        invoice[self.nome_cliente_string] = nome_cliente
+
+        #prendo il nome della produzione associata
+        id_prod = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+        prod = self.production_controller.retrieve_production_map_by_id(id_prod)
+        nome_produzione = prod[DBProductionsColumns.NAME.value] if prod else "Produzione non trovata"
+        invoice[self.nome_produzione_associata_string] = nome_produzione
+
+        #prendo il nome della fattura associata
+        id_fattura_ass = invoice[DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value]
+        fatt_ass = self.invoice_controller.retrieve_invoice_map_by_id(id_fattura_ass)
+        nome_fatt_ass = fatt_ass[DBInvoicesColumns.NUMERO_FATTURA.value] if fatt_ass else "Nessuna fattura associata"
+        invoice[self.nome_fattura_associata_string] = nome_fatt_ass
+
+        # 3. Aggiornamento elementi persistenti
+        self.title_label.configure(
+            text=f"{invoice[DBInvoicesColumns.NUMERO_FATTURA.value]}")
+
+        # 4. Creazione contenuti dinamici
+        self._create_invoice_info_section(invoice)
+        self.toggle_edit(self.content_frame)
+
+        """self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="#333333")
+        self.wrapper_frame.pack(padx=25, pady=(90, 0), fill="both", expand=True)
+        self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="#333333")
+        self.wrapper_frame2.pack(padx=25, pady=(90, 90), fill="both", expand=True)
+        self._create_invoices_history()
+        self._create_salary_history()
+        self._create_anticipated_expenses_history()
+        if regime == UserController.RegimeFiscale.ORDINARIO.value:
+            self._create_deduz_expenses_history()
+
+        self._create_fiscal_data_section()
+        self._create_taxes_section()
+        if regime == UserController.RegimeFiscale.ORDINARIO.value:
+            self._create_iva_section()"""
+
+    def _create_invoice_info_section(self, invoice_data):
+        self.entry_fields = {
+            # Sezione Dati Generali
+            DBInvoicesColumns.NUMERO_FATTURA.value: {
+                "type": ctk.CTkEntry,
+                "label": "Numero Fattura",
+                "section": "Dati Generali"
+            },
+            DBInvoicesColumns.DATA_CREAZIONE.value: {
+                "type": ctk.CTkEntry,
+                "label": "Data Creazione",
+                "section": "Dati Generali"
+            },
+            self.nome_cliente_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Cliente",
+                "section": "Dati Generali",
+                "values": [c[DBClientsColumns.NAME.value] for c in self.client_controller.retrieve_clients_map_list()]
+            },
+            self.nome_user_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Utente",
+                "section": "Dati Generali",
+                "values": [u[DBUsersColumns.FIRST_NAME.value] + u[DBUsersColumns.LAST_NAME.value] for u in self.user_controller.retrieve_users_map_list()]
+            },
+
+            # Sezione Dati Fiscali
+            DBInvoicesColumns.SERVIZI.value: {
+                "type": ctk.CTkEntry,
+                "label": "Importo Servizi (€)",
+                "section": "Dati Fiscali"
+            },
+            DBInvoicesColumns.RIMBORSI.value: {
+                "type": ctk.CTkEntry,
+                "label": "Rimborsi (€)",
+                "section": "Dati Fiscali"
+            },
+            DBInvoicesColumns.RIVALSA_INPS.value: {
+                "type": ctk.CTkEntry,
+                "label": "Rivalsa INPS (€)",
+                "section": "Dati Fiscali"
+            },
+            DBInvoicesColumns.METODO_PAGAMENTO.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Metodo Pagamento",
+                "section": "Dati Fiscali",
+                "values": [item.value for item in self.invoice_controller.PaymentsMethods]
+            },
+
+            # Sezione Dati Pagamento
+            DBInvoicesColumns.NUMERO_RATE.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Numero Rate",
+                "section": "Dati Pagamento",
+                "values": [item.value for item in self.invoice_controller.Rateizzazione]
+            },
+            DBInvoicesColumns.DATA_SCADENZA_1.value: {
+                "type": ctk.CTkEntry,
+                "label": "Scadenza 1",
+                "section": "Dati Pagamento"
+            },
+            DBInvoicesColumns.DATA_SCADENZA_2.value: {
+                "type": ctk.CTkEntry,
+                "label": "Scadenza 2",
+                "section": "Dati Pagamento"
+            },
+            DBInvoicesColumns.DATA_SCADENZA_3.value: {
+                "type": ctk.CTkEntry,
+                "label": "Scadenza 3",
+                "section": "Dati Pagamento"
+            },
+
+            # Sezione Collegamenti
+            self.nome_produzione_associata_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Produzione Associata",
+                "section": "Collegamenti",
+                "values": [p[DBProductionsColumns.NAME.value] for p in self.production_controller.retrieve_productions_map_list()]
+            },
+            self.nome_fattura_associata_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Fattura Associata",
+                "section": "Collegamenti",
+                "values": [i[DBInvoicesColumns.NUMERO_FATTURA.value] for i in self.invoice_controller.retrieve_invoices_map_list()
+                           if i[DBInvoicesColumns.TIPO.value] != self.invoice_controller.Tipologia.NOTA_DI_CREDITO]
+            },
+
+            # Sezione Note/Status
+            DBInvoicesColumns.NOTE.value: {
+                "type": ctk.CTkEntry,
+                "label": "Note",
+                "section": "Note/Status"
+            },
+            DBInvoicesColumns.STATUS.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Status",
+                "section": "Note/Status",
+                "values": [item.value for item in self.invoice_controller.InvoiceRateizzSatus]
+            },
+            DBInvoicesColumns.TIPO.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Tipo Documento",
+                "section": "Note/Status",
+                "values": [item.value for item in self.invoice_controller.Tipologia]
+            }
+        }
+
+        self.error_fields = {
+            DBInvoicesColumns.NUMERO_FATTURA.value: "Campo obbligatorio",
+            DBInvoicesColumns.SERVIZI.value: "Valore numerico con massimo 2 decimali",
+            DBInvoicesColumns.RIMBORSI.value: "Valore numerico con massimo 2 decimali",
+            DBInvoicesColumns.RIVALSA_INPS.value: "Valore numerico con massimo 2 decimali"
+        }
+
+        validation_rules = {
+            DBInvoicesColumns.NUMERO_FATTURA.value: (
+                lambda val: val.strip() != "",
+                "Campo obbligatorio"
+            ),
+            DBInvoicesColumns.SERVIZI.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            ),
+            DBInvoicesColumns.RIMBORSI.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            ),
+            DBInvoicesColumns.RIVALSA_INPS.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            )
+        }
+
+        # Inizializzazione strutture dati
+        self.invoice_info_widgets = {}
+        self.error_labels = {}
+        sections = {}
+
+        # Creazione frame principale
+        info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
+        info_frame.pack(fill="both", expand=True, pady=10, padx=25)
+
+        # Configurazione griglia a 3 colonne
+        info_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        info_frame.grid_columnconfigure(1, weight=1, uniform="col")
+        info_frame.grid_columnconfigure(2, weight=1, uniform="col")
+
+        # Sezioni organizzate per colonne
+        sections_order = [
+            "Dati Generali",
+            "Dati Fiscali",
+            "Dati Pagamento",
+            "Collegamenti",
+            "Note/Status"
+        ]
+
+        # Creazione frame sezioni
+        for i, section_name in enumerate(sections_order):
+            frame = ctk.CTkFrame(info_frame)
+            column = i if i <= 2 else i - 3  # Per sezioni oltre la terza, riparte dalla prima colonna
+            frame.grid(row=0 if i <= 2 else 1, column=column, sticky="nsew", padx=15, pady=15)
+            frame.grid_columnconfigure(1, weight=1)
+
+            sections[section_name] = {
+                "frame": frame,
+                "row": 0
+            }
+
+            ctk.CTkLabel(frame, text=section_name, font=("Arial", 14, "bold")).grid(
+                row=0, column=0, columnspan=2, sticky="w", padx=15, pady=5
+            )
+            sections[section_name]["row"] += 1
+
+        # Popolamento sezioni
+        for field, config in self.entry_fields.items():
+            section = sections[config["section"]]
+            frame = section["frame"]
+            row = section["row"]
+
+            # Creazione label
+            lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(2, 5))
+
+            # Creazione widget
+            if config["type"] == ctk.CTkOptionMenu:
+                widget = config["type"](frame, values=config.get("values", []))
+                widget.set(invoice_data.get(field, config.get("values", [""])[0]))
+            else:
+                widget = config["type"](frame)
+                value = str(invoice_data.get(field, ""))
+                widget.insert(0, value)
+
+            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(2, 5))
+            self.invoice_info_widgets[field] = widget
+
+            # Gestione validazione
+            if field in validation_rules:
+                validation_func, error_message = validation_rules[field]
+
+                error_lbl = ctk.CTkLabel(frame, text="", text_color="#e8e5dc")
+                error_lbl.grid(row=row + 1, column=1, sticky="w", padx=5, pady=(0, 10))
+                self.error_labels[field] = error_lbl
+
+                widget.bind("<FocusOut>",
+                            lambda e, w=widget, vl=validation_func, el=error_lbl, em=error_message:
+                            ViewUtils.validate_entry(w, vl, el, em))
+
+                section["row"] += 2
+            else:
+                section["row"] += 1
+
+        # Bottone Salva
+        self.save_invoice_btn = ctk.CTkButton(info_frame, text="Salva Fattura", command=self.save_invoice_mod)
+        self.save_invoice_btn.grid(row=2, column=1, pady=(20, 10))
+
+    def _clear_content(self):
+        """Distrugge tutti i widget dinamici"""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+    def _cleanup_and_go_back(self):
+        """Pulizia completa prima di tornare indietro"""
+        self._clear_content()
+        self.pack_forget()
+        self.back_callback()
+
+    def toggle_edit(self, parent):
+        """
+        Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
+        """
+        # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
+        state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
+
+        # Cambia anche lo stato del pulsante Salva
+        self.save_invoice_btn.configure(state=state)
+
+        for w in parent.winfo_children():
+            # se è un Entry
+            if isinstance(w, ctk.CTkEntry):
+                w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            # se è un OptionMenu
+            elif isinstance(w, ctk.CTkOptionMenu):
+                w.configure(state=state)
+            # se è un Frame/container, scendi ricorsivamente
+            elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
+                self.toggle_edit(w)
+
+    def save_invoice_mod(self):
+        return

@@ -1046,7 +1046,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.back_callback = back_callback
         self.production_controller = production_controller
         self.fiscal_settings = fiscal_settings
-        self.current_user_id = None
+        self.current_invoice_id = None
 
         # Widgets persistenti (vanno creati una volta sola)
         self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
@@ -1155,13 +1155,16 @@ class InvoiceDetailView(ctk.CTkFrame):
             DBInvoicesColumns.NETTO_A_PAGARE.value: "Netto a Pagare (€)"
         }
 
+        """self.nome_user_string: {
+            "type": ctk.CTkOptionMenu,
+            "label": "Utente",
+            "section": "Dati Generali",
+            "values": [u[DBUsersColumns.FIRST_NAME.value] + " " + u[DBUsersColumns.LAST_NAME.value] for u in
+                       self.user_controller.retrieve_users_map_list()]
+        },"""
+
         self.entry_fields = {
             # Dati Generali
-            DBInvoicesColumns.NUMERO_FATTURA.value: {
-                "type": ctk.CTkEntry,
-                "label": "Numero Fattura",
-                "section": "Dati Generali"
-            },
             DBInvoicesColumns.DATA_CREAZIONE.value: {
                 "type": Calendar,
                 "label": "Data Creazione",
@@ -1172,13 +1175,6 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "label": "Cliente",
                 "section": "Dati Generali",
                 "values": [c[DBClientsColumns.NAME.value] for c in self.client_controller.retrieve_clients_map_list()]
-            },
-            self.nome_user_string: {
-                "type": ctk.CTkOptionMenu,
-                "label": "Utente",
-                "section": "Dati Generali",
-                "values": [u[DBUsersColumns.FIRST_NAME.value] + " " + u[DBUsersColumns.LAST_NAME.value] for u in
-                           self.user_controller.retrieve_users_map_list()]
             },
 
             # Dati Fiscali
@@ -1197,6 +1193,16 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "label": "Rivalsa INPS (€)",
                 "section": "Dati Fiscali"
             },
+
+            # Campi derivati (non editabili)
+            **{
+                key: {
+                    "type": ctk.CTkEntry,
+                    "label": label,
+                    "section": "Dati Fiscali"
+                } for key, label in self.derived_fields.items()
+            },
+
             DBInvoicesColumns.METODO_PAGAMENTO.value: {
                 "type": ctk.CTkOptionMenu,
                 "label": "Metodo Pagamento",
@@ -1208,15 +1214,6 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "label": "Conto",
                 "section": "Dati Fiscali",
                 "values": [c[DBAccountsColumns.NAME.value] for c in self.account_controller.retrieve_accounts_map_list()]
-            },
-
-            # Campi derivati (non editabili)
-            **{
-                key: {
-                    "type": ctk.CTkLabel,
-                    "label": label,
-                    "section": "Dati Fiscali"
-                } for key, label in self.derived_fields.items()
             },
 
             # Dati Pagamento
@@ -1252,7 +1249,7 @@ class InvoiceDetailView(ctk.CTkFrame):
                            self.production_controller.retrieve_productions_map_list()]
             },
             self.nome_fattura_associata_string: {
-                "type": ctk.CTkOptionMenu,
+                "type": ctk.CTkLabel,
                 "label": "Fattura Associata",
                 "section": "Collegamenti",
                 "values": [i[DBInvoicesColumns.NUMERO_FATTURA.value] for i in
@@ -1384,7 +1381,7 @@ class InvoiceDetailView(ctk.CTkFrame):
                     widget.insert(0, value)
 
 
-            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=self.pady_value)
+            widget.grid(row=row, column=1, sticky="ew" if config["type"] != ctk.CTkLabel else "w", padx=(5, 15), pady=self.pady_value)
             self.invoice_info_widgets[field] = widget
 
 
@@ -1406,6 +1403,12 @@ class InvoiceDetailView(ctk.CTkFrame):
 
         self.setup_expiration_dates(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get())
 
+        # Binding calcolo automatico importi derivati
+        self.invoice_info_widgets[DBInvoicesColumns.SERVIZI.value].bind("<FocusOut>", lambda event: self.toggle_importi_derivati_fattura(event, False))
+        self.invoice_info_widgets[DBInvoicesColumns.RIMBORSI.value].bind("<FocusOut>", lambda event: self.toggle_importi_derivati_fattura(event, False))
+        self.invoice_info_widgets[DBInvoicesColumns.RIVALSA_INPS.value].bind("<FocusOut>", lambda event: self.toggle_importi_derivati_fattura(event, True))
+
+
         # Bottone Salva
         self.save_invoice_btn = ctk.CTkButton(info_frame, text="Salva Fattura", command=self.save_invoice_mod)
         self.save_invoice_btn.grid(row=2, column=1, pady=(20, 20))
@@ -1414,6 +1417,8 @@ class InvoiceDetailView(ctk.CTkFrame):
         """Distrugge tutti i widget dinamici"""
         for widget in self.content_frame.winfo_children():
             widget.destroy()
+
+        self.switch_modify.deselect()
 
     def _cleanup_and_go_back(self):
         """Pulizia completa prima di tornare indietro"""
@@ -1424,26 +1429,132 @@ class InvoiceDetailView(ctk.CTkFrame):
     def toggle_edit(self, parent):
         """
         Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
+        I campi derivati e il campo RIVAlSA_INPS per utenti con regime ordinario restano disabilitati.
         """
-        # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
         state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
 
-        # Cambia anche lo stato del pulsante Salva
+        # Stato del pulsante Salva
         self.save_invoice_btn.configure(state=state)
 
+        # Recupera il regime fiscale dell'utente corrente
+        invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)
+        user_map = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
+        is_ordinario = user_map[
+                           DBUsersColumns.REGIME_FISCALE.value] == self.user_controller.RegimeFiscale.ORDINARIO.value
+
         for w in parent.winfo_children():
-            # se è un Entry
+            # Ottieni il campo associato a questo widget, se esiste
+            widget_field = next((k for k, v in self.invoice_info_widgets.items() if v == w), None)
+
+            # Verifica se campo derivato
+            is_derived = widget_field in self.derived_fields if widget_field else False
+            # Verifica se è il campo Rivalsa INPS con utente ordinario
+            is_rivalsa_locked = widget_field == DBInvoicesColumns.RIVALSA_INPS.value and is_ordinario
+
+            # Imposta stato finale
+            widget_state = ctk.DISABLED if is_derived or is_rivalsa_locked else state
+
             if isinstance(w, ctk.CTkEntry):
-                w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
-            # se è un OptionMenu
+                w.configure(state=widget_state, text_color="#636363" if widget_state == ctk.DISABLED else "#c2c2c2")
             elif isinstance(w, ctk.CTkOptionMenu):
-                w.configure(state=state)
-            # se è un Calendar
+                w.configure(state=widget_state)
             elif isinstance(w, Calendar):
-                w.configure(state=state)
-            # se è un Frame/container, scendi ricorsivamente
+                w.configure(state=widget_state)
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)
+
+    def toggle_importi_derivati_fattura(self, event, isRivalsaInps):
+        #prendo i dati necessari al calcolo degli importi derivati
+        servizi =  float(self.invoice_info_widgets[DBInvoicesColumns.SERVIZI.value].get())
+        rimborsi =  float(self.invoice_info_widgets[DBInvoicesColumns.RIMBORSI.value].get())
+        rivalsa_inps = float(self.invoice_info_widgets[DBInvoicesColumns.RIVALSA_INPS.value].get())
+        invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)
+        user = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
+        regime_fiscale = user[DBUsersColumns.REGIME_FISCALE.value]
+        client = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])
+        tipologia_cliente = client[DBClientsColumns.TIPOLOGIA.value]
+
+        #ottengo gli importi derivati
+        importi_derivati = self.invoice_controller.calcola_derivati_fattura(regime_fiscale, tipologia_cliente, servizi, rimborsi, rivalsa_inps)
+
+        if not isRivalsaInps:
+            #self.invoice_info_widgets[DBInvoicesColumns.RIVALSA_INPS.value].configure(state = tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.RIVALSA_INPS.value].insert(0, importi_derivati[DBInvoicesColumns.RIVALSA_INPS.value])
+            #self.invoice_info_widgets[DBInvoicesColumns.RIVALSA_INPS.value].configure(state=tk.DISABLED)
+
+            self.invoice_info_widgets[DBInvoicesColumns.CASSA_INPS.value].configure(state = tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.CASSA_INPS.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.CASSA_INPS.value].insert(0, importi_derivati[DBInvoicesColumns.CASSA_INPS.value])
+            self.invoice_info_widgets[DBInvoicesColumns.CASSA_INPS.value].configure(state=tk.DISABLED)
+
+
+            self.invoice_info_widgets[DBInvoicesColumns.IMPONIBILE.value].configure(state = tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.IMPONIBILE.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.IMPONIBILE.value].insert(0, importi_derivati[DBInvoicesColumns.IMPONIBILE.value])
+            self.invoice_info_widgets[DBInvoicesColumns.IMPONIBILE.value].configure(state=tk.DISABLED)
+
+
+            self.invoice_info_widgets[DBInvoicesColumns.IVA.value].configure(state = tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.IVA.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.IVA.value].insert(0, importi_derivati[DBInvoicesColumns.IVA.value])
+            self.invoice_info_widgets[DBInvoicesColumns.IVA.value].configure(state=tk.DISABLED)
+
+
+            self.invoice_info_widgets[DBInvoicesColumns.TOT_DOCUMENTO.value].configure(state = tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.TOT_DOCUMENTO.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.TOT_DOCUMENTO.value].insert(0, importi_derivati[DBInvoicesColumns.TOT_DOCUMENTO.value])
+            self.invoice_info_widgets[DBInvoicesColumns.TOT_DOCUMENTO.value].configure(state=tk.DISABLED)
+
+
+
+            self.invoice_info_widgets[DBInvoicesColumns.RITENUTA.value].configure(state = tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.RITENUTA.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.RITENUTA.value].insert(0, importi_derivati[DBInvoicesColumns.RITENUTA.value])
+            self.invoice_info_widgets[DBInvoicesColumns.RITENUTA.value].configure(state=tk.DISABLED)
+
+
+
+            self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].configure(state = tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].insert(0, importi_derivati[DBInvoicesColumns.NETTO_A_PAGARE.value])
+            self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].configure(state=tk.DISABLED)
+        else:
+            self.invoice_info_widgets[DBInvoicesColumns.CASSA_INPS.value].configure(state=tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.CASSA_INPS.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.CASSA_INPS.value].insert(0, importi_derivati[
+                DBInvoicesColumns.CASSA_INPS.value])
+            self.invoice_info_widgets[DBInvoicesColumns.CASSA_INPS.value].configure(state=tk.DISABLED)
+
+            self.invoice_info_widgets[DBInvoicesColumns.IMPONIBILE.value].configure(state=tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.IMPONIBILE.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.IMPONIBILE.value].insert(0, importi_derivati[
+                DBInvoicesColumns.IMPONIBILE.value])
+            self.invoice_info_widgets[DBInvoicesColumns.IMPONIBILE.value].configure(state=tk.DISABLED)
+
+            self.invoice_info_widgets[DBInvoicesColumns.IVA.value].configure(state=tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.IVA.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.IVA.value].insert(0,
+                                                                          importi_derivati[DBInvoicesColumns.IVA.value])
+            self.invoice_info_widgets[DBInvoicesColumns.IVA.value].configure(state=tk.DISABLED)
+
+            self.invoice_info_widgets[DBInvoicesColumns.TOT_DOCUMENTO.value].configure(state=tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.TOT_DOCUMENTO.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.TOT_DOCUMENTO.value].insert(0, importi_derivati[
+                DBInvoicesColumns.TOT_DOCUMENTO.value])
+            self.invoice_info_widgets[DBInvoicesColumns.TOT_DOCUMENTO.value].configure(state=tk.DISABLED)
+
+            self.invoice_info_widgets[DBInvoicesColumns.RITENUTA.value].configure(state=tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.RITENUTA.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.RITENUTA.value].insert(0, importi_derivati[
+                DBInvoicesColumns.RITENUTA.value])
+            self.invoice_info_widgets[DBInvoicesColumns.RITENUTA.value].configure(state=tk.DISABLED)
+
+            self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].configure(state=tk.NORMAL)
+            self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].delete(0, tk.END)
+            self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].insert(0, importi_derivati[
+                DBInvoicesColumns.NETTO_A_PAGARE.value])
+            self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].configure(state=tk.DISABLED)
 
     def setup_expiration_dates(self, selected_value):
         if str(selected_value) == self.invoice_controller.Rateizzazione.UNA.value:
@@ -1458,4 +1569,69 @@ class InvoiceDetailView(ctk.CTkFrame):
             self.invoice_info_widgets[DBInvoicesColumns.DATA_SCADENZA_3.value].grid(row=5, column=1, sticky="ew", padx=(5, 15), pady=(5, 35))
 
     def save_invoice_mod(self):
-        return
+        nome_conto = self.invoice_info_widgets[self.nome_conto_string].get()
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        id_conto = conto[DBAccountsColumns.ID.value] if conto else None
+
+        nome_cliente = self.invoice_info_widgets[self.nome_cliente_string].get()
+        cliente = self.client_controller.retrieve_client_map_by_name(nome_cliente)
+        id_cliente = cliente[DBClientsColumns.ID.value]
+
+        nome_utente = self.invoice_info_widgets[self.nome_user_string].get()
+        utente = self.user_controller.retrieve_user_map_by_name(nome_utente)
+        id_utente = utente[DBUsersColumns.ID.value]
+
+        nome_produzione = self.invoice_info_widgets[self.nome_produzione_associata_string].get()
+        produzione = self.production_controller.retrieve_production_map_by_name(nome_produzione)
+        id_produzione = produzione[DBProductionsColumns.ID.value]
+
+        invoice_data = {
+            DBInvoicesColumns.DATA_CREAZIONE.value: self.invoice_info_widgets[DBInvoicesColumns.DATA_CREAZIONE.value].get().strip(),
+            DBInvoicesColumns.ID_CLIENTE.value: id_cliente,
+            DBInvoicesColumns.SERVIZI.value: self.invoice_info_widgets[
+                DBInvoicesColumns.SERVIZI.value].get().strip(),
+            DBInvoicesColumns.RIMBORSI.value: self.invoice_info_widgets[
+                DBInvoicesColumns.RIMBORSI.value].get().strip(),
+            DBInvoicesColumns.RIVALSA_INPS.value: self.invoice_info_widgets[
+                DBInvoicesColumns.RIVALSA_INPS.value].get().strip(),
+            DBInvoicesColumns.CASSA_INPS.value: self.invoice_info_widgets[
+                DBInvoicesColumns.CASSA_INPS.value].get().strip(),
+            DBInvoicesColumns.IMPONIBILE.value: self.invoice_info_widgets[
+                DBInvoicesColumns.IMPONIBILE.value].get().strip(),
+            DBInvoicesColumns.IVA.value: self.invoice_info_widgets[
+                DBInvoicesColumns.IVA.value].get().strip(),
+            DBInvoicesColumns.TOT_DOCUMENTO.value: self.invoice_info_widgets[
+                DBInvoicesColumns.TOT_DOCUMENTO.value].get().strip(),
+            DBInvoicesColumns.RITENUTA.value: self.invoice_info_widgets[
+                DBInvoicesColumns.RITENUTA.value].get().strip(),
+            DBInvoicesColumns.NETTO_A_PAGARE.value: self.invoice_info_widgets[
+                DBInvoicesColumns.NETTO_A_PAGARE.value].get().strip(),
+            DBInvoicesColumns.METODO_PAGAMENTO.value: self.invoice_info_widgets[
+                DBInvoicesColumns.METODO_PAGAMENTO.value].get().strip(),
+            DBInvoicesColumns.ID_CONTO.value: id_conto,
+            DBInvoicesColumns.NUMERO_RATE.value: self.invoice_info_widgets[
+                DBInvoicesColumns.NUMERO_RATE.value].get().strip(),
+            DBInvoicesColumns.DATA_SCADENZA_1.value: self.invoice_info_widgets[
+                DBInvoicesColumns.DATA_SCADENZA_1.value].get().strip(),
+            DBInvoicesColumns.DATA_SCADENZA_2.value: self.invoice_info_widgets[
+                DBInvoicesColumns.DATA_SCADENZA_2.value].get().strip() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(self.invoice_controller.Rateizzazione.TRE.value)
+                                                                       else None,
+            DBInvoicesColumns.DATA_SCADENZA_3.value: self.invoice_info_widgets[
+                DBInvoicesColumns.DATA_SCADENZA_3.value].get().strip() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(self.invoice_controller.Rateizzazione.TRE.value)
+                                                                       else None,
+            DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value: id_produzione,
+            DBInvoicesColumns.NOTE.value: self.invoice_info_widgets[
+                DBInvoicesColumns.NOTE.value].get().strip()
+        }
+
+        # Chiamata al controller per salvare i dati
+        success, message = self.invoice_controller.update_invoice(self.current_invoice_id, invoice_data)
+        if success:
+            print(f"Invoice {self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)[DBInvoicesColumns.NUMERO_FATTURA.value]} salvata con successo")
+            ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+            self.switch_modify.deselect()
+            self.toggle_edit(self.content_frame)
+        else:
+            # Mostra il messaggio d'errore
+            print(message)
+            ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)

@@ -2008,15 +2008,15 @@ class InvoiceController:
         self.invoices_aggregated_data[InvoiceController.InvoiceAggregatedData.MEDIA_PAGAM_ORARIO_NETTO.value] = round(self.calculate_MEDIA_PAGAM_ORARIO_NETTO_invoiced(False),2)
 
     def calcola_derivati_fattura_ordinaria(self,
-    aliquota_cassa_inps,
-    aliquota_ritenuta_acconto,
-    aliquota_iva,
-    imponibile_tax,
-    imponibile_cassa_inps,
-    imponibile_iva,
-    tipologia_cliente,
-    tot_servizi,
-    tot_rimborsi):
+                                            aliquota_cassa_inps,
+                                            aliquota_ritenuta_acconto,
+                                            aliquota_iva,
+                                            imponibile_tax,
+                                            imponibile_cassa_inps,
+                                            imponibile_iva,
+                                            tipologia_cliente,
+                                            tot_servizi,
+                                            tot_rimborsi):
 
         imponibile = tot_servizi * imponibile_tax
         cassa_inps = tot_servizi * imponibile_cassa_inps * aliquota_cassa_inps
@@ -2026,14 +2026,59 @@ class InvoiceController:
         netto_a_pagare = tot_documento - ritenuta
 
         invoice_data = {
-            "cassa_inps": cassa_inps,
-            "imponibile": imponibile,
-            "iva": iva,
-            "tot_documento": tot_documento,
-            "ritenuta": ritenuta,
-            "netto_a_pagare": netto_a_pagare
+            DBInvoicesColumns.CASSA_INPS.value: cassa_inps,
+            DBInvoicesColumns.IMPONIBILE.value: imponibile,
+            DBInvoicesColumns.IVA.value: iva,
+            DBInvoicesColumns.TOT_DOCUMENTO.value: tot_documento,
+            DBInvoicesColumns.RITENUTA.value: ritenuta,
+            DBInvoicesColumns.NETTO_A_PAGARE.value: netto_a_pagare
         }
         return invoice_data
+
+    def calcola_derivati_fattura(self, regime_fiscale, tipologia_cliente, tot_servizi, tot_rimborsi, ext_rivalsa_inps):
+        """
+        Calcola i campi derivati della fattura sulla base del regime fiscale dell'utente e della tipologia di cliente.
+        Usa i dati fiscali da self.fiscal_settings.
+        """
+
+        if regime_fiscale == self.user_controller.RegimeFiscale.ORDINARIO.value:
+            settings = self.fiscal_settings.partita_iva_ordinaria
+
+            imponibile = tot_servizi * float(settings.imponibile_irpef)
+            cassa_inps = tot_servizi * float(settings.imponibile_cassa_inps) * float(settings.aliquota_cassa_inps)
+            iva = imponibile * float(self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria) * float(settings.imponibile_iva)
+            tot_documento = imponibile + cassa_inps + iva + tot_rimborsi
+
+            ritenuta = 0
+            if tipologia_cliente != ClientController.TipologiaCliente.PRIVATO.value:
+                ritenuta = imponibile * float(settings.aliquota_ritenuta)
+
+            netto_a_pagare = tot_documento - ritenuta
+            rivalsa_inps = 0  # Non prevista nel regime ordinario
+
+        elif regime_fiscale == self.user_controller.RegimeFiscale.FORFETTARIO.value:
+            settings = self.fiscal_settings.partita_iva_forfettaria
+
+            imponibile = tot_servizi
+            cassa_inps = 0
+            iva = 0
+            ritenuta = 0
+            rivalsa_inps = tot_servizi * float(settings.aliquota_rivalsa_inps) if ext_rivalsa_inps != 0 else ext_rivalsa_inps
+            tot_documento = imponibile + rivalsa_inps + tot_rimborsi
+            netto_a_pagare = tot_documento
+
+        else:
+            raise ValueError(f"Regime fiscale non supportato: {regime_fiscale}")
+
+        return {
+            DBInvoicesColumns.CASSA_INPS.value: cassa_inps,
+            DBInvoicesColumns.IMPONIBILE.value: imponibile,
+            DBInvoicesColumns.IVA.value: iva,
+            DBInvoicesColumns.TOT_DOCUMENTO.value: tot_documento,
+            DBInvoicesColumns.RITENUTA.value: ritenuta,
+            DBInvoicesColumns.NETTO_A_PAGARE.value: netto_a_pagare,
+            DBInvoicesColumns.RIVALSA_INPS.value: rivalsa_inps
+        }
 
     def print_invoice(self, invoice):
         """

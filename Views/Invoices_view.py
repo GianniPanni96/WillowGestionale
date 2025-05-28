@@ -1,6 +1,6 @@
 import customtkinter as ctk
 import tkinter as tk
-from tkcalendar import Calendar
+from tkcalendar import Calendar, DateEntry
 from Views.View_utils import ViewUtils
 from Controllers import ValidationUtils, InvoiceController, UserController, ControllerUtils
 from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns
@@ -1145,15 +1145,25 @@ class InvoiceDetailView(ctk.CTkFrame):
             self._create_iva_section()"""
 
     def _create_invoice_info_section(self, invoice_data):
+        # Aggiunta campi derivati
+        self.derived_fields = {
+            DBInvoicesColumns.CASSA_INPS.value: "Cassa INPS (€)",
+            DBInvoicesColumns.IMPONIBILE.value: "Imponibile (€)",
+            DBInvoicesColumns.IVA.value: "IVA (€)",
+            DBInvoicesColumns.TOT_DOCUMENTO.value: "Totale Documento (€)",
+            DBInvoicesColumns.RITENUTA.value: "Ritenuta (€)",
+            DBInvoicesColumns.NETTO_A_PAGARE.value: "Netto a Pagare (€)"
+        }
+
         self.entry_fields = {
-            # Sezione Dati Generali
+            # Dati Generali
             DBInvoicesColumns.NUMERO_FATTURA.value: {
                 "type": ctk.CTkEntry,
                 "label": "Numero Fattura",
                 "section": "Dati Generali"
             },
             DBInvoicesColumns.DATA_CREAZIONE.value: {
-                "type": ctk.CTkEntry,
+                "type": Calendar,
                 "label": "Data Creazione",
                 "section": "Dati Generali"
             },
@@ -1167,10 +1177,11 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Utente",
                 "section": "Dati Generali",
-                "values": [u[DBUsersColumns.FIRST_NAME.value] + u[DBUsersColumns.LAST_NAME.value] for u in self.user_controller.retrieve_users_map_list()]
+                "values": [u[DBUsersColumns.FIRST_NAME.value] + " " + u[DBUsersColumns.LAST_NAME.value] for u in
+                           self.user_controller.retrieve_users_map_list()]
             },
 
-            # Sezione Dati Fiscali
+            # Dati Fiscali
             DBInvoicesColumns.SERVIZI.value: {
                 "type": ctk.CTkEntry,
                 "label": "Importo Servizi (€)",
@@ -1192,62 +1203,78 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "section": "Dati Fiscali",
                 "values": [item.value for item in self.invoice_controller.PaymentsMethods]
             },
+            self.nome_conto_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Conto",
+                "section": "Dati Fiscali",
+                "values": [c[DBAccountsColumns.NAME.value] for c in self.account_controller.retrieve_accounts_map_list()]
+            },
 
-            # Sezione Dati Pagamento
+            # Campi derivati (non editabili)
+            **{
+                key: {
+                    "type": ctk.CTkLabel,
+                    "label": label,
+                    "section": "Dati Fiscali"
+                } for key, label in self.derived_fields.items()
+            },
+
+            # Dati Pagamento
             DBInvoicesColumns.NUMERO_RATE.value: {
                 "type": ctk.CTkOptionMenu,
                 "label": "Numero Rate",
                 "section": "Dati Pagamento",
-                "values": [item.value for item in self.invoice_controller.Rateizzazione]
+                "values": [item.value for item in self.invoice_controller.Rateizzazione],
+                "command": lambda selected_value: self.setup_expiration_dates(selected_value)
             },
             DBInvoicesColumns.DATA_SCADENZA_1.value: {
-                "type": ctk.CTkEntry,
+                "type": Calendar,
                 "label": "Scadenza 1",
                 "section": "Dati Pagamento"
             },
             DBInvoicesColumns.DATA_SCADENZA_2.value: {
-                "type": ctk.CTkEntry,
+                "type": Calendar,
                 "label": "Scadenza 2",
                 "section": "Dati Pagamento"
             },
             DBInvoicesColumns.DATA_SCADENZA_3.value: {
-                "type": ctk.CTkEntry,
+                "type": Calendar,
                 "label": "Scadenza 3",
                 "section": "Dati Pagamento"
             },
 
-            # Sezione Collegamenti
+            # Collegamenti
             self.nome_produzione_associata_string: {
                 "type": ctk.CTkOptionMenu,
                 "label": "Produzione Associata",
                 "section": "Collegamenti",
-                "values": [p[DBProductionsColumns.NAME.value] for p in self.production_controller.retrieve_productions_map_list()]
+                "values": [p[DBProductionsColumns.NAME.value] for p in
+                           self.production_controller.retrieve_productions_map_list()]
             },
             self.nome_fattura_associata_string: {
                 "type": ctk.CTkOptionMenu,
                 "label": "Fattura Associata",
                 "section": "Collegamenti",
-                "values": [i[DBInvoicesColumns.NUMERO_FATTURA.value] for i in self.invoice_controller.retrieve_invoices_map_list()
+                "values": [i[DBInvoicesColumns.NUMERO_FATTURA.value] for i in
+                           self.invoice_controller.retrieve_invoices_map_list()
                            if i[DBInvoicesColumns.TIPO.value] != self.invoice_controller.Tipologia.NOTA_DI_CREDITO]
             },
 
-            # Sezione Note/Status
+            # Note e campi statici
             DBInvoicesColumns.NOTE.value: {
                 "type": ctk.CTkEntry,
                 "label": "Note",
                 "section": "Note/Status"
             },
             DBInvoicesColumns.STATUS.value: {
-                "type": ctk.CTkOptionMenu,
+                "type": ctk.CTkLabel,
                 "label": "Status",
-                "section": "Note/Status",
-                "values": [item.value for item in self.invoice_controller.InvoiceRateizzSatus]
+                "section": "Note/Status"
             },
             DBInvoicesColumns.TIPO.value: {
-                "type": ctk.CTkOptionMenu,
+                "type": ctk.CTkLabel,
                 "label": "Tipo Documento",
-                "section": "Note/Status",
-                "values": [item.value for item in self.invoice_controller.Tipologia]
+                "section": "Note/Status"
             }
         }
 
@@ -1279,6 +1306,7 @@ class InvoiceDetailView(ctk.CTkFrame):
 
         # Inizializzazione strutture dati
         self.invoice_info_widgets = {}
+        self.invoice_info_labels = {}
         self.error_labels = {}
         sections = {}
 
@@ -1325,19 +1353,40 @@ class InvoiceDetailView(ctk.CTkFrame):
 
             # Creazione label
             lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
-            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(2, 5))
+            self.invoice_info_labels[field] = lbl
+
+            if field in validation_rules:
+                self.pady_value = (5, 5)
+            else:
+                self.pady_value = (5, 35)
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=self.pady_value)
 
             # Creazione widget
-            if config["type"] == ctk.CTkOptionMenu:
-                widget = config["type"](frame, values=config.get("values", []))
-                widget.set(invoice_data.get(field, config.get("values", [""])[0]))
-            else:
-                widget = config["type"](frame)
+            if config["type"] == ctk.CTkLabel:
                 value = str(invoice_data.get(field, ""))
-                widget.insert(0, value)
+                widget = config["type"](frame, text=value)
+            else:
+                if config["type"] == ctk.CTkOptionMenu:
+                    widget = config["type"](frame, values=config.get("values", []))
+                    widget.set(invoice_data.get(field, config.get("values", [""])[0]))
 
-            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(2, 5))
+                    # Se il config ha una chiave "command", la assegna
+                    if "command" in config:
+                        widget.configure(command=config["command"])
+
+                elif config["type"] == Calendar:
+                    widget = config["type"](frame, date_pattern=ViewUtils.date_pattern)
+                    value = invoice_data.get(field, "")
+                    widget.selection_set(str(value)) if value else widget.selection_set(datetime.today())
+                else:
+                    widget = config["type"](frame)
+                    value = str(invoice_data.get(field, ""))
+                    widget.insert(0, value)
+
+
+            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=self.pady_value)
             self.invoice_info_widgets[field] = widget
+
 
             # Gestione validazione
             if field in validation_rules:
@@ -1355,9 +1404,11 @@ class InvoiceDetailView(ctk.CTkFrame):
             else:
                 section["row"] += 1
 
+        self.setup_expiration_dates(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get())
+
         # Bottone Salva
         self.save_invoice_btn = ctk.CTkButton(info_frame, text="Salva Fattura", command=self.save_invoice_mod)
-        self.save_invoice_btn.grid(row=2, column=1, pady=(20, 10))
+        self.save_invoice_btn.grid(row=2, column=1, pady=(20, 20))
 
     def _clear_content(self):
         """Distrugge tutti i widget dinamici"""
@@ -1387,9 +1438,24 @@ class InvoiceDetailView(ctk.CTkFrame):
             # se è un OptionMenu
             elif isinstance(w, ctk.CTkOptionMenu):
                 w.configure(state=state)
+            # se è un Calendar
+            elif isinstance(w, Calendar):
+                w.configure(state=state)
             # se è un Frame/container, scendi ricorsivamente
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)
+
+    def setup_expiration_dates(self, selected_value):
+        if str(selected_value) == self.invoice_controller.Rateizzazione.UNA.value:
+            self.invoice_info_labels[DBInvoicesColumns.DATA_SCADENZA_2.value].grid_forget()
+            self.invoice_info_widgets[DBInvoicesColumns.DATA_SCADENZA_2.value].grid_forget()
+            self.invoice_info_labels[DBInvoicesColumns.DATA_SCADENZA_3.value].grid_forget()
+            self.invoice_info_widgets[DBInvoicesColumns.DATA_SCADENZA_3.value].grid_forget()
+        elif str(selected_value) == self.invoice_controller.Rateizzazione.TRE.value:
+            self.invoice_info_labels[DBInvoicesColumns.DATA_SCADENZA_2.value].grid(row=4, column=0, sticky="w", padx=(15, 5), pady=(5, 35))
+            self.invoice_info_widgets[DBInvoicesColumns.DATA_SCADENZA_2.value].grid(row=4, column=1, sticky="ew", padx=(5, 15), pady=(5, 35))
+            self.invoice_info_labels[DBInvoicesColumns.DATA_SCADENZA_3.value].grid(row=5, column=0, sticky="w", padx=(15, 5), pady=(5, 35))
+            self.invoice_info_widgets[DBInvoicesColumns.DATA_SCADENZA_3.value].grid(row=5, column=1, sticky="ew", padx=(5, 15), pady=(5, 35))
 
     def save_invoice_mod(self):
         return

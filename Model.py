@@ -58,32 +58,32 @@ class DBInvoicesColumns(Enum):
     """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE INVOICE DELLA VIEW"""
 
     ID = "id" #db
-    NUMERO_FATTURA = "numero_fattura" #view
-    DATA_CREAZIONE = "creation_date" #view
-    DATA_SCADENZA_1 = "expiration_date_1" #controller -> funzione di rate
+    NUMERO_FATTURA = "numero_fattura"
+    DATA_CREAZIONE = "creation_date"
+    DATA_SCADENZA_1 = "expiration_date_1"
     DATA_SCADENZA_2 = "expiration_date_2"
     DATA_SCADENZA_3 = "expiration_date_3"
-    ID_UTENTE = "invoicer_id" #controller(view)
-    ID_CLIENTE = "client_id" #controller(view)
+    ID_UTENTE = "invoicer_id"
+    ID_CLIENTE = "client_id"
     ID_CONTO = "ID_CONTO"
-    NOTE = "note" #view
-    SERVIZI = "importo_servizi" #view (comprensivo di rivalsa)
-    CASSA_INPS = "cassa_inps" #controller -> servizi*coeff redditività*aliquota INPS
-    IMPONIBILE = "imponibile" #controller -> servizi*coeff redditività
-    IVA = "iva" #controller = 0
-    RIMBORSI = "rimborsi" #view
+    NOTE = "note"
+    SERVIZI = "importo_servizi"
+    CASSA_INPS = "cassa_inps"
+    IMPONIBILE = "imponibile"
+    IVA = "iva"
+    RIMBORSI = "rimborsi"
     RIVALSA_INPS = "rivalsa_inps"
     TOT_DOCUMENTO = "tot_documento"
-    RITENUTA = "ritenuta" #controller = 0
-    NETTO_A_PAGARE = "netto_a_pagare" #controller = 0
-    STATUS = "status" #controller -> default: emessa
-    METODO_PAGAMENTO = "metodo_pagamento" #view
-    NUMERO_RATE = "rate_totali" #view
-    TIPO = "tipo"  # se è nota di credito #view
-    ID_FATTURA_ASSOCIATA = "id_fattura_associata"  #view (a comparsa)
+    RITENUTA = "ritenuta"
+    NETTO_A_PAGARE = "netto_a_pagare"
+    STATUS = "status"
+    METODO_PAGAMENTO = "metodo_pagamento"
+    NUMERO_RATE = "rate_totali"
+    TIPO = "tipo"
+    ID_FATTURA_ASSOCIATA = "id_fattura_associata"
     ID_PRODUZIONE_ASSOCIATA = "id_produzione_associata"
-    CREATED_AT = "created_at" #db
-    UPDATED_AT = "updated_at" #db
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
 
 class DBPaymentsColumns(Enum):
     """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE PAYMENT DELLA VIEW"""

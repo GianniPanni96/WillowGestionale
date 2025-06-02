@@ -184,40 +184,5 @@
         "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
     },
     "recurring_expenses": {
-        "affitto_studio": {
-            "description": "AFFITTO STUDIO",
-            "amount": {
-                "value": "1600",
-                "description": ""
-            },
-            "supplier": {
-                "value": "Maurizio",
-                "description": ""
-            },
-            "deductible": {
-                "value": "S\u00ec",
-                "description": ""
-            },
-            "category": {
-                "value": "Affitto Ufficio",
-                "description": ""
-            },
-            "iva": {
-                "value": "0.22",
-                "description": ""
-            },
-            "account": {
-                "value": "WeBank",
-                "description": ""
-            },
-            "frequency": {
-                "value": "MENSILE",
-                "description": ""
-            },
-            "status": {
-                "value": "Attiva",
-                "description": ""
-            }
-        }
     }
 }

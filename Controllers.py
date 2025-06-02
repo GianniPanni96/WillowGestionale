@@ -53,7 +53,7 @@ class ValidationUtils:
             return False
 
         # Regex: una o più cifre, opzionalmente seguite da un punto e 1 o 2 cifre
-        pattern = r'^\d+(\.\d{1,2})?$'
+        pattern = r"^\d+(\.\d{1,2})?$"
         return re.fullmatch(pattern, amount) is not None
 
     @staticmethod
@@ -1441,34 +1441,27 @@ class InvoiceController:
         if not ValidationUtils.validate_amount(tot_non_ivato):
             return False, "L'importo dei rimborsi non è valido"
 
-        #prendo i dati della produzione associata
-        """production_name = invoice_data.get("PRODUZIONE ASSOCIATA")
-        if production_name:
-            production = self.production_controller.retrieve_production_map_by_name(production_name)
-            if production:
-                production_id = production[DBProductionsColumns.ID.value]
-            else:
-                return False, "Aggiungere una produzione prima di emettere questa fattura"
-
-
-        #prendo i dati necessari del cliente
-        nome_cliente = invoice_data.get("CLIENTE")
-        cliente_map = self.client_controller.retrieve_client_map_by_id(nome_cliente)
-        id_cliente = cliente_map[DBClientsColumns.ID.value]
-
-        #prendo i dati necessari al conto
-        nome_conto = invoice_data.get("CONTO")
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
-        if conto:
-            conto_id = conto[DBAccountsColumns.ID.value]"""
-
-
         invoice_data_prepared = {}
         for col in DBInvoicesColumns:
-            invoice_data_prepared[col.value] = invoice_data.get(col.value)
+            try:
+                invoice_data_prepared[col.value] = float(invoice_data.get(col.value))
+            except Exception as e:
+                invoice_data_prepared[col.value] = invoice_data.get(col.value)
+                print(f"{col.name} pushed as string")
 
+        #sistemazione dei dati prima di pushare verso db
+        for key, data in invoice_data.items():
+            if data is None:
+                invoice_data_prepared.pop(key)
+        invoice_data_prepared.pop(DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value) #da valutare se reintrodurla
+        invoice_data_prepared.pop(DBInvoicesColumns.ID.value)
         invoice_data_prepared.pop(DBInvoicesColumns.CREATED_AT.value)
-        invoice_data_prepared.pop(DBInvoicesColumns.UPDATED_AT.value)
+        invoice_data_prepared.pop(DBInvoicesColumns.TIPO.value)
+        invoice_data_prepared.pop(DBInvoicesColumns.STATUS.value)
+        invoice_data_prepared.pop(DBInvoicesColumns.ID_UTENTE.value)
+        invoice_data_prepared.pop(DBInvoicesColumns.NUMERO_FATTURA.value)
+
+        invoice_data_prepared[DBInvoicesColumns.UPDATED_AT.value] = datetime.now().replace(microsecond=0)
 
         try:
             # Invoca il metodo del model per aggiornare l'utente

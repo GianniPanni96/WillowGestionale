@@ -1578,6 +1578,8 @@ class InvoiceDetailView(ctk.CTkFrame):
             self.invoice_info_widgets[DBInvoicesColumns.DATA_SCADENZA_3.value].grid(row=5, column=1, sticky="ew", padx=(5, 15), pady=(5, 35))
 
     def save_invoice_mod(self):
+        self.toggle_importi_derivati_fattura(None, True)
+
         nome_conto = self.invoice_info_widgets[self.nome_conto_string].get()
         conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
         id_conto = conto[DBAccountsColumns.ID.value] if conto else None

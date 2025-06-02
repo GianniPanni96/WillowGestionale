@@ -72,7 +72,7 @@ class ViewUtils(ctk.CTk):
         """
         confirm_popup = ctk.CTkToplevel(parent)
         confirm_popup.title(title)
-        confirm_popup.geometry("300x150")
+        confirm_popup.geometry("350x190")
 
         # Assicurati che il pop-up sia modale
         confirm_popup.grab_set()
@@ -100,7 +100,7 @@ class ViewUtils(ctk.CTk):
         """
         confirm_popup = ctk.CTkToplevel(parent)
         confirm_popup.title(title)
-        confirm_popup.geometry("300x150")
+        confirm_popup.geometry("350x190")
 
         # Assicurati che il pop-up sia modale
         confirm_popup.grab_set()
@@ -134,7 +134,7 @@ class ViewUtils(ctk.CTk):
         # Creazione del Toplevel e impostazioni iniziali
         popup = ctk.CTkToplevel(parent)
         popup.title(title)
-        popup.geometry("300x150")
+        popup.geometry("350x190")
         popup.grab_set()  # Rende il pop-up modale
         popup.lift()  # Porta il pop-up in primo piano
 
@@ -260,4 +260,21 @@ class ViewUtils(ctk.CTk):
             widgets_dict[key].pack(pady=widget_pady, padx=10, fill="x", expand=True)
         save_button.pack(pady=(50, 15))
 
+    @staticmethod
+    def toggle_warning_on_card(card: ctk.CTkFrame, cards_warnings: dict):
+        # Cerca il bottone figlio del frame
+        button = next((child for child in card.winfo_children() if isinstance(child, ctk.CTkButton)), None)
 
+        if not button:
+            return  # Nessun bottone trovato, esce silenziosamente
+
+        button_text = button.cget("text").replace(" ⚠️", "")  # Rimuove warning se già presente
+
+        if button_text in cards_warnings:
+            # Applica il warning
+            button.configure(text=f"{button_text} ⚠️")
+            card.configure(border_width=2, border_color="#e6c719")
+        else:
+            # Ripristina lo stato normale
+            button.configure(text=button_text)
+            card.configure(border_width=0)

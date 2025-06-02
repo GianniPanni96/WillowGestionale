@@ -1473,6 +1473,28 @@ class InvoiceController:
         except Exception as e:
             return False, f"Errore durante l'aggiornamento della fattura: {str(e)}"
 
+    def storna_invoice(self, invoice_id, invoice_data):
+        # Campi obbligatori (solo quelli modellati tramite entry)
+        required_fields = {DBInvoicesColumns.STATUS.value}
+
+        # Validazione dei campi obbligatori
+        missing_fields = [field for field in required_fields if not invoice_data.get(field)]
+        if missing_fields:
+            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+        invoice_data_prepared = invoice_data
+        invoice_data_prepared[DBInvoicesColumns.UPDATED_AT.value] = datetime.now().replace(microsecond=0)
+
+        try:
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_invoice(invoice_id, **invoice_data_prepared)
+            return True, "Fattura aggiornata con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento della fattura: {str(e)}"
+
     def retrieve_invoices(self, current_year=True):
         """
         Recupera tutte le fatture, filtrandole per l'anno corrente se specificato.

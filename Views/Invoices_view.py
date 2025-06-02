@@ -1409,10 +1409,16 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.invoice_info_widgets[DBInvoicesColumns.RIMBORSI.value].bind("<FocusOut>", lambda event: self.toggle_importi_derivati_fattura(event, False))
         self.invoice_info_widgets[DBInvoicesColumns.RIVALSA_INPS.value].bind("<FocusOut>", lambda event: self.toggle_importi_derivati_fattura(event, True))
 
+        buttons_frame = ctk.CTkFrame(info_frame, fg_color="#2b2b2b")
+        buttons_frame.grid(row=2, column=0, columnspan=3, pady=(5, 15))
 
         # Bottone Salva
-        self.save_invoice_btn = ctk.CTkButton(info_frame, text="Salva Fattura", command=self.save_invoice_mod)
-        self.save_invoice_btn.grid(row=2, column=1, pady=(20, 20))
+        self.save_invoice_btn = ctk.CTkButton(buttons_frame, text="Salva Fattura", command=self.save_invoice_mod)
+        self.save_invoice_btn.pack(padx= 10, pady=(20, 20), side="left")
+
+        #bottone storna
+        self.storna_btn = ctk.CTkButton(buttons_frame, text="Storna Fattura", command=self.storna_invoice)
+        self.storna_btn.pack(padx= 10, pady=(20, 20), side="left")
 
     def _clear_content(self):
         """Distrugge tutti i widget dinamici"""
@@ -1436,6 +1442,7 @@ class InvoiceDetailView(ctk.CTkFrame):
 
         # Stato del pulsante Salva
         self.save_invoice_btn.configure(state=state)
+        self.storna_btn.configure(state=state)
 
         # Recupera il regime fiscale dell'utente corrente
         invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)
@@ -1636,6 +1643,31 @@ class InvoiceDetailView(ctk.CTkFrame):
         if success:
             print(f"Invoice {self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)[DBInvoicesColumns.NUMERO_FATTURA.value]} salvata con successo")
             ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+            self.switch_modify.deselect()
+            self.toggle_edit(self.content_frame)
+        else:
+            # Mostra il messaggio d'errore
+            print(message)
+            ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
+
+    def storna_invoice(self):
+        invoice_data = {
+            DBInvoicesColumns.STATUS.value : self.invoice_controller.InvoiceSatus.STORNATA.value
+        }
+
+        confirmation = ViewUtils.ask_confirmation_popup(self.content_frame, "Stai per stornare questa fattura.\n "
+                                                             "Essa non verrà più conteggiata all'interno del sistema ma potrai comunque visionarla eo modificarla\n"
+                                                             "Questa operazione non è irreversibile.\n"
+                                                             "desideri continuare ?")
+
+        if confirmation is False:
+            return
+
+        success, message = self.invoice_controller.storna_invoice(self.current_invoice_id, invoice_data)
+        if success:
+            print(f"Invoice {self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)[DBInvoicesColumns.NUMERO_FATTURA.value]} salvata con successo")
+            ViewUtils.show_confirm_popup_2(self.content_frame, "FATTURA STORNATA CON SUCCESSO", message)
+            self.invoice_info_widgets[DBInvoicesColumns.STATUS.value].configure(text=f"{self.invoice_controller.InvoiceSatus.STORNATA.value}")
             self.switch_modify.deselect()
             self.toggle_edit(self.content_frame)
         else:

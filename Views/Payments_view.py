@@ -31,6 +31,7 @@ class PaymentsView(ctk.CTk):
 
         self.payment_card_list = {}
         self.payment_card_labels_status = {}
+        self.cards_warnings = {}
 
     def create_payments_tab(self):
 
@@ -72,7 +73,7 @@ class PaymentsView(ctk.CTk):
         self.payments_table_frame = ctk.CTkFrame(self.tab)
         self.payments_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
-        self.table_headers = ["NOME", "CLIENTE", "PRODUZIONE", "TOTALE", "DATA", "RATA", "CONTO\nCORRENTE"]
+        self.table_headers = ["NOME", "CLIENTE", "PRODUZIONE", "FATTURA", "TOTALE", "DATA", "RATA", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
             # crea il container
@@ -108,6 +109,7 @@ class PaymentsView(ctk.CTk):
                 linked_rata = payment[DBPaymentsColumns.LINKED_RATA.value]
                 invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
                 invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+                invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
                 cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
                 client = self.client_controller.retrieve_client_map_by_id(cliente_id)
                 client_name = client[DBClientsColumns.NAME.value]
@@ -117,7 +119,13 @@ class PaymentsView(ctk.CTk):
                 conto = self.account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
                 nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
 
-                self.add_payment_card(payment_id, name, amount, payment_date, linked_rata, client_name, production_name, nome_conto)
+                self.add_payment_card(payment_id, name, amount, payment_date, linked_rata, client_name, production_name, invoice_name, nome_conto)
+
+                if invoice[DBInvoicesColumns.STATUS.value] == InvoiceController.InvoiceSatus.STORNATA.value:
+                    self.cards_warnings[name] = "La fattura collegata a questo pagamento risulta stornata"
+
+        for card in self.payment_card_list.values():
+            ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
 
     def populate_global_infos(self):
         numero_pagamenti = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value]
@@ -265,7 +273,7 @@ class PaymentsView(ctk.CTk):
             "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
         ))
 
-    def add_payment_card(self, payment_id, payment_name, amount, payment_date, linked_rata, client_name, production_name, nome_conto):
+    def add_payment_card(self, payment_id, payment_name, amount, payment_date, linked_rata, client_name, production_name, invoice_name, nome_conto):
         """
         Aggiunge una card di pagamento alla scrollable frame con i dati specificati.
 
@@ -276,6 +284,7 @@ class PaymentsView(ctk.CTk):
         :param linked_rata: Identificativo o numero della rata collegata, se applicabile.
         :param client_name: Nome del cliente associato al pagamento.
         :param production_name: Nome della produzione correlata al pagamento.
+        :param invoice_name: Nome della fattura correlata al pagamento.
         :param nome_conto: Nome del conto bancario associato al pagamento.
         """
         # Creazione della card
@@ -283,8 +292,8 @@ class PaymentsView(ctk.CTk):
         card.pack(pady=10, padx=8, fill="x", expand=True)  # Spaziatura tra le card
 
         # Dati da visualizzare nella card
-        data = [payment_name, client_name, production_name, round(amount, 2), ViewUtils.invert_data_string(payment_date), linked_rata, nome_conto]
-        units = ["", "", "", "€", "", "", ""]
+        data = [payment_name, client_name, production_name, invoice_name, round(amount, 2), ViewUtils.invert_data_string(payment_date), linked_rata, nome_conto]
+        units = ["", "", "", "", "€", "", "", ""]
         n_cols = len(data)  # 8 colonne totali
 
         # Configura il grid della card: 1 riga, n_cols colonne uguali
@@ -350,6 +359,7 @@ class PaymentsView(ctk.CTk):
             print(f"Pagamento {payment_data[DBPaymentsColumns.PAYMENT_NAME.value]} salvato con successo")
 
             invoice = self.invoice_controller.retrieve_invoice_map_by_id(payment_map[DBPaymentsColumns.INVOICE_ID.value])
+            invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
             client = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])
             client_name = client[DBClientsColumns.NAME.value]
             production = self.production_controller.retrieve_production_map_by_id(invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value])
@@ -365,6 +375,7 @@ class PaymentsView(ctk.CTk):
                 payment_map[DBPaymentsColumns.LINKED_RATA.value],
                 client_name,
                 production_name,
+                invoice_name,
                 nome_conto
             )
 
@@ -519,3 +530,18 @@ class PaymentsView(ctk.CTk):
 
     def modify_payment_data(self):
         return
+
+    # funzionne da passare all'apdater come callback
+    def attach_warning_on_a_card(self, payment_name, warning):
+        #cerco tra le cards quella che mi interessa
+        for card in self.payment_card_list:
+            children = card.winfo_children()
+            for child in children:
+                if isinstance(child, ctk.CTkButton):
+                    button_text = child.cget("text")  # oppure child["text"]
+                    if button_text == payment_name:
+                        self.cards_warnings[payment_name] = warning
+                        card = card
+                        continue
+
+        ViewUtils.toggle_warning_on_card(card, self.cards_warnings)

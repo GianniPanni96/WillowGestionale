@@ -619,6 +619,35 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchone()
 
+    def update_invoice(self, invoice_id, **kwargs):
+        """
+        Aggiorna i valori di un utente esistente nella tabella `invoices`.
+        I campi da aggiornare devono essere passati come keyword arguments.
+
+        :param invoice_id: ID della fattura da aggiornare
+        :param kwargs: Campi da aggiornare (anche `None` per settare `NULL`)
+        :raises ValueError: Se non vengono specificati campi validi per l'aggiornamento
+        """
+        # Controllo che i campi passati siano validi
+        valid_columns = {column.value for column in DBInvoicesColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        # Creazione dinamica della query SQL senza COALESCE per permettere valori NULL
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE invoices SET {set_clause} WHERE {DBInvoicesColumns.ID.value} = ?"
+
+        # Esecuzione della query
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), invoice_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento della fattura: {str(e)}")
+
     def modify_invoice_datum(self, invoice_id, column, datum):
         """
         Modifica la specifica fattura inserendo il dato nella colonna passata come argomento.

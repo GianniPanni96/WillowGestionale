@@ -1423,6 +1423,63 @@ class InvoiceController:
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
 
+    def update_invoice(self, invoice_id, invoice_data):
+        # Campi obbligatori (solo quelli modellati tramite entry)
+        required_fields = {DBInvoicesColumns.SERVIZI.value, DBInvoicesColumns.RIMBORSI.value}
+
+        # Validazione dei campi obbligatori
+        missing_fields = [field for field in required_fields if not invoice_data.get(field)]
+        if missing_fields:
+            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+        # Validazione importi
+        servizi = invoice_data.get(DBInvoicesColumns.SERVIZI.value)
+        if not ValidationUtils.validate_amount(servizi):
+            return False, "L'importo dei servizi non è valido"
+
+        tot_non_ivato = invoice_data.get(DBInvoicesColumns.RIMBORSI.value)
+        if not ValidationUtils.validate_amount(tot_non_ivato):
+            return False, "L'importo dei rimborsi non è valido"
+
+        #prendo i dati della produzione associata
+        """production_name = invoice_data.get("PRODUZIONE ASSOCIATA")
+        if production_name:
+            production = self.production_controller.retrieve_production_map_by_name(production_name)
+            if production:
+                production_id = production[DBProductionsColumns.ID.value]
+            else:
+                return False, "Aggiungere una produzione prima di emettere questa fattura"
+
+
+        #prendo i dati necessari del cliente
+        nome_cliente = invoice_data.get("CLIENTE")
+        cliente_map = self.client_controller.retrieve_client_map_by_id(nome_cliente)
+        id_cliente = cliente_map[DBClientsColumns.ID.value]
+
+        #prendo i dati necessari al conto
+        nome_conto = invoice_data.get("CONTO")
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        if conto:
+            conto_id = conto[DBAccountsColumns.ID.value]"""
+
+
+        invoice_data_prepared = {}
+        for col in DBInvoicesColumns:
+            invoice_data_prepared[col.value] = invoice_data.get(col.value)
+
+        invoice_data_prepared.pop(DBInvoicesColumns.CREATED_AT.value)
+        invoice_data_prepared.pop(DBInvoicesColumns.UPDATED_AT.value)
+
+        try:
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_invoice(invoice_id, **invoice_data_prepared)
+            return True, "Fattura aggiornata con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento della fattura: {str(e)}"
+
     def retrieve_invoices(self, current_year=True):
         """
         Recupera tutte le fatture, filtrandole per l'anno corrente se specificato.

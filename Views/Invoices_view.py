@@ -1174,7 +1174,8 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Cliente",
                 "section": "Dati Generali",
-                "values": [c[DBClientsColumns.NAME.value] for c in self.client_controller.retrieve_clients_map_list()]
+                "values": [c[DBClientsColumns.NAME.value] for c in self.client_controller.retrieve_clients_map_list()],
+                "command": lambda selected_value: self.toggle_production_list(selected_value)
             },
 
             # Dati Fiscali
@@ -1246,7 +1247,7 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "label": "Produzione Associata",
                 "section": "Collegamenti",
                 "values": [p[DBProductionsColumns.NAME.value] for p in
-                           self.production_controller.retrieve_productions_map_list()]
+                           self.production_controller.retrieve_productions_map_list_by_client_id(invoice_data[DBInvoicesColumns.ID_CLIENTE.value])]
             },
             self.nome_fattura_associata_string: {
                 "type": ctk.CTkLabel,
@@ -1556,6 +1557,14 @@ class InvoiceDetailView(ctk.CTkFrame):
                 DBInvoicesColumns.NETTO_A_PAGARE.value])
             self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].configure(state=tk.DISABLED)
 
+    def toggle_production_list(self, selected_value):
+        cliente = self.client_controller.retrieve_client_map_by_name(selected_value)
+        if cliente:
+            cliente_id = cliente[DBClientsColumns.ID.value]
+            productions_of_client = self.production_controller.retrieve_productions_map_list_by_client_id(cliente_id)
+            self.invoice_info_widgets[self.nome_produzione_associata_string].configure(values=[p[DBProductionsColumns.NAME.value] for p in productions_of_client])
+            self.invoice_info_widgets[self.nome_produzione_associata_string].set(productions_of_client[0][DBProductionsColumns.NAME.value])
+
     def setup_expiration_dates(self, selected_value):
         if str(selected_value) == self.invoice_controller.Rateizzazione.UNA.value:
             self.invoice_info_labels[DBInvoicesColumns.DATA_SCADENZA_2.value].grid_forget()
@@ -1577,16 +1586,12 @@ class InvoiceDetailView(ctk.CTkFrame):
         cliente = self.client_controller.retrieve_client_map_by_name(nome_cliente)
         id_cliente = cliente[DBClientsColumns.ID.value]
 
-        nome_utente = self.invoice_info_widgets[self.nome_user_string].get()
-        utente = self.user_controller.retrieve_user_map_by_name(nome_utente)
-        id_utente = utente[DBUsersColumns.ID.value]
-
         nome_produzione = self.invoice_info_widgets[self.nome_produzione_associata_string].get()
         produzione = self.production_controller.retrieve_production_map_by_name(nome_produzione)
         id_produzione = produzione[DBProductionsColumns.ID.value]
 
         invoice_data = {
-            DBInvoicesColumns.DATA_CREAZIONE.value: self.invoice_info_widgets[DBInvoicesColumns.DATA_CREAZIONE.value].get().strip(),
+            DBInvoicesColumns.DATA_CREAZIONE.value: self.invoice_info_widgets[DBInvoicesColumns.DATA_CREAZIONE.value].get_date(),
             DBInvoicesColumns.ID_CLIENTE.value: id_cliente,
             DBInvoicesColumns.SERVIZI.value: self.invoice_info_widgets[
                 DBInvoicesColumns.SERVIZI.value].get().strip(),
@@ -1610,14 +1615,14 @@ class InvoiceDetailView(ctk.CTkFrame):
                 DBInvoicesColumns.METODO_PAGAMENTO.value].get().strip(),
             DBInvoicesColumns.ID_CONTO.value: id_conto,
             DBInvoicesColumns.NUMERO_RATE.value: self.invoice_info_widgets[
-                DBInvoicesColumns.NUMERO_RATE.value].get().strip(),
+                DBInvoicesColumns.NUMERO_RATE.value].get(),
             DBInvoicesColumns.DATA_SCADENZA_1.value: self.invoice_info_widgets[
-                DBInvoicesColumns.DATA_SCADENZA_1.value].get().strip(),
+                DBInvoicesColumns.DATA_SCADENZA_1.value].get_date(),
             DBInvoicesColumns.DATA_SCADENZA_2.value: self.invoice_info_widgets[
-                DBInvoicesColumns.DATA_SCADENZA_2.value].get().strip() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(self.invoice_controller.Rateizzazione.TRE.value)
+                DBInvoicesColumns.DATA_SCADENZA_2.value].get_date() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(self.invoice_controller.Rateizzazione.TRE.value)
                                                                        else None,
             DBInvoicesColumns.DATA_SCADENZA_3.value: self.invoice_info_widgets[
-                DBInvoicesColumns.DATA_SCADENZA_3.value].get().strip() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(self.invoice_controller.Rateizzazione.TRE.value)
+                DBInvoicesColumns.DATA_SCADENZA_3.value].get_date() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(self.invoice_controller.Rateizzazione.TRE.value)
                                                                        else None,
             DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value: id_produzione,
             DBInvoicesColumns.NOTE.value: self.invoice_info_widgets[

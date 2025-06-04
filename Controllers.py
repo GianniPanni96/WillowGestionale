@@ -1424,6 +1424,9 @@ class InvoiceController:
             return False, f"Errore durante il salvataggio: {str(e)}"
 
     def update_invoice(self, invoice_id, invoice_data):
+
+        invoice = self.retrieve_invoice_map_by_id(invoice_id)
+
         # Campi obbligatori (solo quelli modellati tramite entry)
         required_fields = {DBInvoicesColumns.SERVIZI.value, DBInvoicesColumns.RIMBORSI.value}
 
@@ -1447,7 +1450,7 @@ class InvoiceController:
                 invoice_data_prepared[col.value] = float(invoice_data.get(col.value))
             except Exception as e:
                 invoice_data_prepared[col.value] = invoice_data.get(col.value)
-                print(f"{col.name} pushed as string")
+
 
         #sistemazione dei dati prima di pushare verso db
         for key, data in invoice_data.items():
@@ -1460,6 +1463,8 @@ class InvoiceController:
         invoice_data_prepared.pop(DBInvoicesColumns.STATUS.value)
         invoice_data_prepared.pop(DBInvoicesColumns.ID_UTENTE.value)
         invoice_data_prepared.pop(DBInvoicesColumns.NUMERO_FATTURA.value)
+
+        invoice_data_prepared[DBInvoicesColumns.CREATED_AT.value] = invoice[DBInvoicesColumns.CREATED_AT.value]
 
         invoice_data_prepared[DBInvoicesColumns.UPDATED_AT.value] = datetime.now().replace(microsecond=0)
 
@@ -2151,6 +2156,26 @@ class InvoiceController:
             DBInvoicesColumns.NETTO_A_PAGARE.value: netto_a_pagare,
             DBInvoicesColumns.RIVALSA_INPS.value: rivalsa_inps
         }
+
+    def calcola_totale_pagamenti_fattura(self, id_invoice):
+        payments = self.retrieve_invoice_with_payments_map_list(id_invoice)
+        tot = 0.0
+
+        for payment in payments:
+            if payment[DBPaymentsColumns.PAYMENT_NAME.value] is not None:
+                tot = tot + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
+
+        return tot
+
+    def calcola_totale_spese_produzione_fattura(self, id_invoice):
+        expenses = self.retrieve_invoice_with_expenses_map_list(id_invoice)
+        tot = 0.0
+
+        for expense in expenses:
+            if expense[DBExpensesColumns.NAME.value] is not None:
+                tot = tot + float(expense[DBExpensesColumns.TOT_AMOUNT.value])
+
+        return tot
 
     def print_invoice(self, invoice):
         """

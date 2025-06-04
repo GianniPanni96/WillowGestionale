@@ -1,5 +1,6 @@
 from enum import Enum
 import customtkinter as ctk
+import tkinter as tk
 
 
 class ViewUtils(ctk.CTk):
@@ -278,3 +279,45 @@ class ViewUtils(ctk.CTk):
             # Ripristina lo stato normale
             button.configure(text=button_text)
             card.configure(border_width=0)
+
+    @staticmethod
+    def add_tooltip(widget, text):
+        tooltip = None
+
+        def show_tooltip(event):
+            nonlocal tooltip
+            if tooltip or not text:
+                return
+
+            tooltip = tk.Toplevel(widget)
+            tooltip.wm_overrideredirect(True)
+            tooltip.configure(bg="#2a2a2a")  # sfondo dark
+
+            # Cornice per "simulare" bordo arrotondato
+            frame = tk.Frame(tooltip, bg="#2a2a2a", bd=0, highlightthickness=1, highlightbackground="#3a3a3a")
+            frame.pack()
+
+            label = tk.Label(frame,
+                             text=text,
+                             justify="left",
+                             bg="#2a2a2a",
+                             fg="#f2f2f2",  # testo chiaro
+                             wraplength=300,
+                             font=("Segoe UI", 9, "normal"),
+                             padx=10,
+                             pady=6)
+            label.pack()
+
+            # Posiziona tooltip vicino al mouse
+            x = event.x_root + 15
+            y = event.y_root + 10
+            tooltip.wm_geometry(f"+{x}+{y}")
+
+        def hide_tooltip(event):
+            nonlocal tooltip
+            if tooltip:
+                tooltip.destroy()
+                tooltip = None
+
+        widget.bind("<Enter>", show_tooltip)
+        widget.bind("<Leave>", hide_tooltip)

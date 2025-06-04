@@ -121,11 +121,24 @@ class PaymentsView(ctk.CTk):
                 conto = self.account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
                 nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
 
+                #warnings attachments
+                if invoice[DBInvoicesColumns.STATUS.value] == InvoiceController.InvoiceSatus.STORNATA.value:
+                    self.cards_warnings[name] = "Questo pagamento fa riferimento ad una fattura stornata,\n"\
+                                                "modificare i dati del pagamento per mantenere la consistenza dei dati.\n"\
+                                                "Si consiglia di eliminare questo pagamento o collegarlo alla fattura corretta."
+
+                invoice_update_date = datetime.strptime(invoice[DBInvoicesColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S")
+                payment_update_date = datetime.strptime(payment[DBPaymentsColumns.UPDATED_AT.value], "%Y-%m-%d %H:%M:%S")
+
+                if invoice_update_date > payment_update_date and invoice[DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceSatus.STORNATA.value:
+                    self.cards_warnings[name] = (
+                        "Questo pagamento fa riferimento ad una fattura i cui dati sono stati modificati.\n"
+                        "Controllare la consistenza dei dati di questo pagamento.\n"
+                    )
+
                 self.add_payment_card(payment_id, name, amount, payment_date, linked_rata, client_name, production_name, invoice_name, nome_conto)
 
-                if invoice[DBInvoicesColumns.STATUS.value] == InvoiceController.InvoiceSatus.STORNATA.value:
-                    self.cards_warnings[name] = "La fattura collegata a questo pagamento risulta stornata"
-
+        #warnings launch
         for card in self.payment_card_list.values():
             ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
 
@@ -319,6 +332,10 @@ class PaymentsView(ctk.CTk):
 
         # Salva la card per eventuale successivo accesso
         self.payment_card_list[payment_name] = card
+
+        # Se esiste un warning associato al nome del pagamento, aggiungi il tooltip
+        if payment_name in self.cards_warnings:
+            ViewUtils.add_tooltip(btn, self.cards_warnings[payment_name])
 
     def auto_compile_name_entry(self, selected_value):
         return
@@ -533,7 +550,7 @@ class PaymentsView(ctk.CTk):
     def modify_payment_data(self):
         return
 
-    # funzionne da passare all'apdater come callback
+    # funzione da passare all'updater come callback
     def attach_warning_on_a_card(self, payment_name, warning):
         #cerco tra le cards quella che mi interessa
         for card in self.payment_card_list.values():

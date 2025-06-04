@@ -3,7 +3,7 @@ import tkinter as tk
 from tkcalendar import Calendar, DateEntry
 from Views.View_utils import ViewUtils
 from Controllers import ValidationUtils, InvoiceController, UserController, ControllerUtils
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns
+from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns
 from datetime import datetime
 import re
 from enum import Enum
@@ -491,7 +491,7 @@ class InvoicesView(ctk.CTk):
         #riempi il dizionario con i dati dei widgets primari
         for label_text, widget in self.invoice_widgets.items():
             if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
-                invoice_data[label_text] = widget.get().strip()
+                invoice_data[label_text] = widget.get().strip() if isinstance(widget.get(), str) else widget.get()
             elif isinstance(widget, Calendar):
                 invoice_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):
@@ -1132,20 +1132,13 @@ class InvoiceDetailView(ctk.CTkFrame):
         self._create_invoice_info_section(invoice)
         self.toggle_edit(self.content_frame)
 
-        """self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="#333333")
+        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="#333333")
         self.wrapper_frame.pack(padx=25, pady=(90, 0), fill="both", expand=True)
         self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="#333333")
         self.wrapper_frame2.pack(padx=25, pady=(90, 90), fill="both", expand=True)
-        self._create_invoices_history()
-        self._create_salary_history()
-        self._create_anticipated_expenses_history()
-        if regime == UserController.RegimeFiscale.ORDINARIO.value:
-            self._create_deduz_expenses_history()
 
-        self._create_fiscal_data_section()
-        self._create_taxes_section()
-        if regime == UserController.RegimeFiscale.ORDINARIO.value:
-            self._create_iva_section()"""
+        self._create_payments_history()
+        self._create_production_expenses_history()
 
     def _create_invoice_info_section(self, invoice_data):
         # Aggiunta campi derivati
@@ -1413,28 +1406,15 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.invoice_info_widgets[DBInvoicesColumns.RIVALSA_INPS.value].bind("<FocusOut>", lambda event: self.toggle_importi_derivati_fattura(event, True))
 
         buttons_frame = ctk.CTkFrame(info_frame, fg_color="#2b2b2b")
-        buttons_frame.grid(row=2, column=0, columnspan=3, pady=(5, 15))
+        buttons_frame.grid(row=2, column=0, columnspan=3, pady=(5, 15), padx=20, sticky="WE")
 
         # Bottone Salva
         self.save_invoice_btn = ctk.CTkButton(buttons_frame, text="Salva Fattura", command=self.save_invoice_mod)
-        self.save_invoice_btn.pack(padx= 10, pady=(20, 20), side="left")
+        self.save_invoice_btn.pack(padx= (800, 10), pady=(20, 20), side="left")
 
         #bottone storna
         self.storna_btn = ctk.CTkButton(buttons_frame, text="Storna Fattura", command=self.storna_invoice)
-        self.storna_btn.pack(padx= 10, pady=(20, 20), side="left")
-
-    def _clear_content(self):
-        """Distrugge tutti i widget dinamici"""
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
-
-        self.switch_modify.deselect()
-
-    def _cleanup_and_go_back(self):
-        """Pulizia completa prima di tornare indietro"""
-        self._clear_content()
-        self.pack_forget()
-        self.back_callback()
+        self.storna_btn.pack(padx= 10, pady=(20, 20), side="right", anchor="e")
 
     def toggle_edit(self, parent):
         """
@@ -1648,6 +1628,12 @@ class InvoiceDetailView(ctk.CTkFrame):
             ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
             self.switch_modify.deselect()
             self.toggle_edit(self.content_frame)
+            payments = self.invoice_controller.retrieve_invoice_with_payments_map_list(self.current_invoice_id)
+            for payment in payments:
+                self.update_controller.launch_payment_warning(payment[DBPaymentsColumns.PAYMENT_NAME.value],
+                                                                      "Questo pagamento fa riferimento ad una fattura i cui dati sono stati modificati,\n"
+                                                                      "controllare la consistenza dei dati di questo pagamento.\n")
+
         else:
             # Mostra il messaggio d'errore
             print(message)
@@ -1678,8 +1664,83 @@ class InvoiceDetailView(ctk.CTkFrame):
             for payment in payments:
                 self.update_controller.launch_payment_warning(payment[DBPaymentsColumns.PAYMENT_NAME.value],
                                                                 "Questo pagamento fa riferimento ad una fattura stornata,\n"
-                                                                "modificare i dati del pagamento per mantenere la consistenza dei dati")
+                                                                "modificare i dati del pagamento per mantenere la consistenza dei dati.\n"
+                                                                "Si consiglia di eliminare questo pagamento o collegarlo alla fattura corretta")
         else:
             # Mostra il messaggio d'errore
             print(message)
             ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
+
+
+
+    def _create_payments_history(self):
+        """Crea la sezione storico dei pagamenti"""
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
+
+        ctk.CTkLabel(section_frame, text="PAGAMENTI ASSOCIATI", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        global_infos = {
+            "TOTALE PAGAMENTI" : {
+                "value" : self.invoice_controller.calcola_totale_pagamenti_fattura(self.current_invoice_id),
+                "uom" : "€"
+            }
+        }
+
+        self.global_infos_payments_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+        # tabella payments
+        payments_frame = ctk.CTkScrollableFrame(section_frame, height=300)
+        payments_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
+
+        # popolo i payments
+        payments = self.invoice_controller.retrieve_invoice_with_payments_map_list(self.current_invoice_id)
+        for payment in payments:
+            if payment[DBPaymentsColumns.PAYMENT_NAME.value] is not None:
+                nome_pagamento = payment[DBPaymentsColumns.PAYMENT_NAME.value]
+                id_pagamento = payment[DBPaymentsColumns.ID.value]
+                pagamento_button = ctk.CTkButton(payments_frame, text=f"{nome_pagamento}")
+                pagamento_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def _create_production_expenses_history(self):
+        """Crea la sezione storico delle spese di produzione"""
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
+
+        ctk.CTkLabel(section_frame, text="SPESE DI PRODUZIONE ASSOCIATE", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        global_infos = {
+            "TOTALE SPESE" : {
+                "value" : self.invoice_controller.calcola_totale_spese_produzione_fattura(self.current_invoice_id),
+                "uom" : "€"
+            }
+        }
+
+        self.global_infos_payments_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+        # tabella payments
+        expenses_frame = ctk.CTkScrollableFrame(section_frame, height=300)
+        expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
+
+        # popolo i payments
+        expenses = self.invoice_controller.retrieve_invoice_with_expenses_map_list(self.current_invoice_id)
+        for expense in expenses:
+            if expense[DBExpensesColumns.NAME.value] is not None:
+                nome_spesa = expense[DBExpensesColumns.NAME.value]
+                id_spesa = expense[DBExpensesColumns.ID.value]
+                spesa_button = ctk.CTkButton(expenses_frame, text=f"{nome_spesa}")
+                spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+
+    def _clear_content(self):
+        """Distrugge tutti i widget dinamici"""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        self.switch_modify.deselect()
+
+    def _cleanup_and_go_back(self):
+        """Pulizia completa prima di tornare indietro"""
+        self._clear_content()
+        self.pack_forget()
+        self.back_callback()

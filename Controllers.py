@@ -3896,6 +3896,7 @@ class UpdatesController:
         self.on_adding_payment_view_cllbks = []
         self.on_adding_expense_view_cllbks = []
         self.on_adding_transfer_view_cllbks = []
+        self.on_modify_invoice_view_cllbks = []
 
     def update_invoices(self, invoice_id):
         #richiedo di updatare le liste in back
@@ -3908,6 +3909,13 @@ class UpdatesController:
                 callback(invoice_id)
             except TypeError as e:
                 callback()
+
+    def launch_payment_warning(self, payment_name:str, warning:str):
+        for cllbk in self.on_modify_invoice_view_cllbks:
+            try:
+                cllbk(payment_name, warning)
+            except TypeError as e:
+                cllbk()
 
     def register_on_adding_payment_view_cllbks(self, *callbacks):
         """
@@ -3935,6 +3943,9 @@ class UpdatesController:
 
         """
         self.on_adding_transfer_view_cllbks = list(callbacks)
+
+    def register_on_modify_invoice_view_cllbks(self, *callbacks):
+        self.on_modify_invoice_view_cllbks = list(callbacks)
 
     def on_adding_payment(self):
         for callback in self.on_adding_payment_view_cllbks:

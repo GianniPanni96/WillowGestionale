@@ -33,6 +33,8 @@ class PaymentsView(ctk.CTk):
         self.payment_card_labels_status = {}
         self.cards_warnings = {}
 
+        self.update_controller.register_on_modify_invoice_view_cllbks(self.attach_warning_on_a_card)
+
     def create_payments_tab(self):
 
         self.search_bar_frame = ctk.CTkFrame(self.tab)
@@ -534,7 +536,7 @@ class PaymentsView(ctk.CTk):
     # funzionne da passare all'apdater come callback
     def attach_warning_on_a_card(self, payment_name, warning):
         #cerco tra le cards quella che mi interessa
-        for card in self.payment_card_list:
+        for card in self.payment_card_list.values():
             children = card.winfo_children()
             for child in children:
                 if isinstance(child, ctk.CTkButton):

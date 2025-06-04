@@ -18,7 +18,7 @@ class InvoicesView(ctk.CTk):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, tab, fiscal_settings):
+    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tab, fiscal_settings):
         super().__init__()
 
         self.db_model = db_model
@@ -28,6 +28,7 @@ class InvoicesView(ctk.CTk):
         self.production_controller = production_controller
         self.payment_controller = payment_controller
         self.account_controller = account_controller
+        self.update_controller = update_controller
         self.tab = tab
         self.fiscal_settings = fiscal_settings
 
@@ -64,6 +65,7 @@ class InvoicesView(ctk.CTk):
             client_controller=self.client_controller,
             account_controller=account_controller,
             production_controller=production_controller,
+            update_controller=self.update_controller,
             db_model=db_model,
             fiscal_settings=self.fiscal_settings
         )
@@ -1036,7 +1038,7 @@ class InvoicesView(ctk.CTk):
 
 
 class InvoiceDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, invoice_controller, user_controller, client_controller, account_controller, production_controller, db_model, fiscal_settings):
+    def __init__(self, parent, back_callback, invoice_controller, user_controller, client_controller, account_controller, production_controller, update_controller, db_model, fiscal_settings):
         super().__init__(parent)
         self.invoice_controller = invoice_controller
         self.user_controller = user_controller
@@ -1045,6 +1047,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.db_model = db_model
         self.back_callback = back_callback
         self.production_controller = production_controller
+        self.update_controller = update_controller
         self.fiscal_settings = fiscal_settings
         self.current_invoice_id = None
 
@@ -1665,11 +1668,17 @@ class InvoiceDetailView(ctk.CTkFrame):
 
         success, message = self.invoice_controller.storna_invoice(self.current_invoice_id, invoice_data)
         if success:
-            print(f"Invoice {self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)[DBInvoicesColumns.NUMERO_FATTURA.value]} salvata con successo")
+            invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)
+            print(f"Invoice {invoice[DBInvoicesColumns.NUMERO_FATTURA.value]} salvata con successo")
             ViewUtils.show_confirm_popup_2(self.content_frame, "FATTURA STORNATA CON SUCCESSO", message)
             self.invoice_info_widgets[DBInvoicesColumns.STATUS.value].configure(text=f"{self.invoice_controller.InvoiceSatus.STORNATA.value}")
             self.switch_modify.deselect()
             self.toggle_edit(self.content_frame)
+            payments = self.invoice_controller.retrieve_invoice_with_payments_map_list(self.current_invoice_id)
+            for payment in payments:
+                self.update_controller.launch_payment_warning(payment[DBPaymentsColumns.PAYMENT_NAME.value],
+                                                                "Questo pagamento fa riferimento ad una fattura stornata,\n"
+                                                                "modificare i dati del pagamento per mantenere la consistenza dei dati")
         else:
             # Mostra il messaggio d'errore
             print(message)

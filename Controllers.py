@@ -4132,6 +4132,9 @@ class SalaryController:
             total += float(sal[DBSalariesColumns.AMOUNT.value])
         return total
 
+    def sum_salaries_for_account(self, account_id):
+        return self.db_model.sum_salaries_by_account(account_id)
+
 
 
 
@@ -4167,8 +4170,14 @@ class Analyzer:
         if account:
             init_balance = float(account[DBAccountsColumns.INIT_BALANCE.value])
 
-            tot_entrate = self.payment_controller.sum_payments_for_account(account_id) + self.transfer_controller.calculate_tot_amount_received_transfers_by_account(account_id)
-            tot_uscite = self.expenses_controller.sum_expenses_for_account(account_id) + self.transfer_controller.calculate_tot_amount_sent_transfers_by_account(account_id)
+            tot_payments = self.payment_controller.sum_payments_for_account(account_id)
+            tot_expenses = self.expenses_controller.sum_expenses_for_account(account_id)
+            tot_rec_transf = self.transfer_controller.calculate_tot_amount_received_transfers_by_account(account_id)
+            tot_sent_transf = self.transfer_controller.calculate_tot_amount_sent_transfers_by_account(account_id)
+            tot_salaries = self.salary_controller.sum_salaries_for_account(account_id)
+
+            tot_entrate = tot_payments + tot_rec_transf
+            tot_uscite = tot_expenses + tot_sent_transf + tot_salaries
 
             balance = init_balance + float(tot_entrate) - float(tot_uscite)
 

@@ -1538,6 +1538,29 @@ class DatabaseModel:
             cur.execute(query, (user_id,))
             return cur.fetchall()
 
+    def sum_salaries_by_account(self, account_id: int) -> float:
+        """
+        Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
+
+        :param account_id: l'ID del conto (DBAccountsColumns.ID)
+        :return: somma (float), 0.0 se non ci sono pagamenti
+        """
+        # Nome colonna importo e colonna conto
+        amt_col = DBSalariesColumns.AMOUNT.value
+        conto_col = DBSalariesColumns.ACCOUNT_ID.value
+
+        query = f"""
+        SELECT SUM({amt_col})
+        FROM salaries
+        WHERE {conto_col} = ?
+        """
+
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (account_id,))
+            result = cur.fetchone()[0]
+            return result if result is not None else 0.0
+
 
 
 

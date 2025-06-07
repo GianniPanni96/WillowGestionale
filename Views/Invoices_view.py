@@ -1076,6 +1076,8 @@ class InvoiceDetailView(ctk.CTkFrame):
         # Layout iniziale
         self._setup_base_layout()
 
+        self.update_controller.register_on_adding_payment_view_cllbks(self.toggle_warning_global_info_payments)
+
     def _setup_base_layout(self):
         """Inizializza la struttura base del layout"""
         self.head_frame.pack(fill="x", pady=5, padx=5)
@@ -1680,14 +1682,35 @@ class InvoiceDetailView(ctk.CTkFrame):
 
         ctk.CTkLabel(section_frame, text="PAGAMENTI ASSOCIATI", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
 
-        global_infos = {
+        self.payments_global_infos = {
             "TOTALE PAGAMENTI" : {
-                "value" : self.invoice_controller.calcola_totale_pagamenti_fattura(self.current_invoice_id),
+                "value" : self.invoice_controller.calcola_totale_pagamenti_fattura(self.current_invoice_id)[0],
                 "uom" : "€"
+            },
+            "TOTALE RATA 1": {
+                "value": self.invoice_controller.calcola_totale_pagamenti_fattura(self.current_invoice_id)[1],
+                "uom": "€"
+            },
+            "TOTALE RATA 2": {
+                "value": self.invoice_controller.calcola_totale_pagamenti_fattura(self.current_invoice_id)[2],
+                "uom": "€"
+            },
+            "TOTALE RATA 3": {
+                "value": self.invoice_controller.calcola_totale_pagamenti_fattura(self.current_invoice_id)[3],
+                "uom": "€"
             }
         }
 
-        self.global_infos_payments_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+        invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)
+        if(int(invoice[DBInvoicesColumns.NUMERO_RATE.value]) == int(self.invoice_controller.Rateizzazione.UNA.value)):
+            self.payments_global_infos.pop("TOTALE RATA 1")
+            self.payments_global_infos.pop("TOTALE RATA 2")
+            self.payments_global_infos.pop("TOTALE RATA 3")
+
+
+        self.global_infos_payments_widgets = ViewUtils.construct_global_infos_cards(section_frame, self.payments_global_infos)
+        self.toggle_warning_global_info_payments()
+
 
         # tabella payments
         payments_frame = ctk.CTkScrollableFrame(section_frame, height=300)
@@ -1701,6 +1724,58 @@ class InvoiceDetailView(ctk.CTkFrame):
                 id_pagamento = payment[DBPaymentsColumns.ID.value]
                 pagamento_button = ctk.CTkButton(payments_frame, text=f"{nome_pagamento}")
                 pagamento_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    #da salvare come callback alla modifica/aggiunta di un pagamento
+    def toggle_warning_global_info_payments(self):
+        if not hasattr(self, "global_infos_payments_widgets"):
+            return  # L'oggetto non esiste ancora, esco silenziosamente
+
+        # Ricalcola i nuovi valori delle rate
+        totali = self.invoice_controller.calcola_totale_pagamenti_fattura(self.current_invoice_id)
+        invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)
+        totale_fattura = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
+        tot_rata = totale_fattura if str(invoice[DBInvoicesColumns.NUMERO_RATE.value]) == str(self.invoice_controller.Rateizzazione.UNA.value) else totale_fattura/3
+
+        warning = "Il totale dei pagamenti relativi a questa rata eccede il totale della rata segnata in fattura.\n"\
+                   "Controllare i pagamenti legati a questa fattura."
+
+        # Aggiorna ogni card, se presente
+        if "TOTALE PAGAMENTI" in self.global_infos_payments_widgets:
+            valore = totali[0]
+            label = self.global_infos_payments_widgets["TOTALE PAGAMENTI"]["label"]
+            card = self.global_infos_payments_widgets["TOTALE PAGAMENTI"]["card"]
+            label.configure(text=f"{valore} €")
+            if totali[0] > tot_rata + 5:
+                card.configure(border_width=2, border_color="#e6c719")
+                ViewUtils.add_tooltip(label, warning)
+
+
+        if "TOTALE RATA 1" in self.global_infos_payments_widgets:
+            valore = totali[1]
+            label = self.global_infos_payments_widgets["TOTALE RATA 1"]["label"]
+            card = self.global_infos_payments_widgets["TOTALE RATA 1"]["card"]
+            label.configure(text=f"{valore} €")
+            if totali[1] > tot_rata + 5:
+                card.configure(border_width=2, border_color="#e6c719")
+                ViewUtils.add_tooltip(label, warning)
+
+        if "TOTALE RATA 2" in self.global_infos_payments_widgets:
+            valore = totali[2]
+            label = self.global_infos_payments_widgets["TOTALE RATA 2"]["label"]
+            card = self.global_infos_payments_widgets["TOTALE RATA 2"]["card"]
+            label.configure(text=f"{valore} €")
+            if totali[2] > tot_rata + 5:
+                card.configure(border_width=2, border_color="#e6c719")
+                ViewUtils.add_tooltip(label, warning)
+
+        if "TOTALE RATA 3" in self.global_infos_payments_widgets:
+            valore = totali[3]
+            label = self.global_infos_payments_widgets["TOTALE RATA 3"]["label"]
+            card = self.global_infos_payments_widgets["TOTALE RATA 3"]["card"]
+            label.configure(text=f"{valore} €")
+            if totali[3] > tot_rata + 5:
+                card.configure(border_width=2, border_color="#e6c719")
+                ViewUtils.add_tooltip(label, warning)
 
     def _create_production_expenses_history(self):
         """Crea la sezione storico delle spese di produzione"""

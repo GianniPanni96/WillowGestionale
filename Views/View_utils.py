@@ -216,10 +216,12 @@ class ViewUtils(ctk.CTk):
         :return: dizionario di cards {nome_info: {"card": frame, "label": ctk.CTkLabel}}
         """
         cards = {}
+        cards_container = ctk.CTkFrame(frame, fg_color="#2b2b2b")
+        cards_container.pack(fill="x", expand=True, padx=5, pady=5)
         for name, info in infos_dict.items():
             # crea la card container
-            card = ctk.CTkFrame(frame, border_width=2, border_color="#2659ab")
-            card.pack(anchor="w", padx=10, pady=(5, 5))
+            card = ctk.CTkFrame(cards_container, border_width=2, border_color="#2659ab")
+            card.pack(anchor="w", padx=10, pady=(5, 5), side="left")
 
             # titolo
             title = ctk.CTkLabel(

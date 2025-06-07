@@ -2160,12 +2160,21 @@ class InvoiceController:
     def calcola_totale_pagamenti_fattura(self, id_invoice):
         payments = self.retrieve_invoice_with_payments_map_list(id_invoice)
         tot = 0.0
+        tot_1 = 0.0
+        tot_2 = 0.0
+        tot_3 = 0.0
 
         for payment in payments:
             if payment[DBPaymentsColumns.PAYMENT_NAME.value] is not None:
                 tot = tot + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
+                if payment[DBPaymentsColumns.LINKED_RATA.value] == 1:
+                    tot_1 = tot_1 + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
+                elif payment[DBPaymentsColumns.LINKED_RATA.value] == 2:
+                    tot_2 = tot_2 + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
+                elif payment[DBPaymentsColumns.LINKED_RATA.value] == 3:
+                    tot_3 = tot_3 + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
 
-        return tot
+        return [tot, tot_1, tot_2, tot_3]
 
     def calcola_totale_spese_produzione_fattura(self, id_invoice):
         expenses = self.retrieve_invoice_with_expenses_map_list(id_invoice)

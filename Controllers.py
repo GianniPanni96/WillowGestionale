@@ -7,6 +7,11 @@ from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
 import hashlib
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from collections import OrderedDict
+
 
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
@@ -242,6 +247,18 @@ class UserController:
 
         return self.retrieve_user_map_by_fullname(first, last)
 
+    def id_to_full_name_tuple(self, user_id:int) -> [str, str]:
+        """:return The tuple containing first and second name"""
+
+        user = self.retrieve_user_by_id(user_id)
+        return [user[DBUsersColumns.FIRST_NAME.value], user[DBUsersColumns.LAST_NAME.value]]
+
+    def id_to_full_name_str(self, user_id: int) -> str:
+        """:return The string containing first and second name"""
+
+        user = self.retrieve_user_map_by_id(user_id)
+        return user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
+
     def retrieve_user_map_by_id(self, user_id):
         """Recupera un utente specifico e lo restituisce come dizionario."""
         row = self.db_model.fetch_user_by_id(user_id)
@@ -268,6 +285,32 @@ class UserController:
 
         # Converte ogni riga in un dizionario
         return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
+    def retrieve_users_with_tot_fatturato(self) -> dict[str, dict[str, float]]:
+        output_map = {
+            self.RegimeFiscale.FORFETTARIO.value : {},
+            self.RegimeFiscale.ORDINARIO.value: {}
+        }
+
+        for user in self.retrieve_users_map_list():
+            if user[DBUsersColumns.REGIME_FISCALE.value] == self.RegimeFiscale.FORFETTARIO.value:
+                output_map[self.RegimeFiscale.FORFETTARIO.value][user[DBUsersColumns.LAST_NAME.value]] = self.calcola_tot_fatturato_utente(user[DBUsersColumns.ID.value])
+            elif user[DBUsersColumns.REGIME_FISCALE.value] == self.RegimeFiscale.ORDINARIO.value:
+                output_map[self.RegimeFiscale.ORDINARIO.value][user[DBUsersColumns.LAST_NAME.value]] = self.calcola_tot_fatturato_utente(user[DBUsersColumns.ID.value])
+
+        return output_map
+
+    def retrieve_users_with_tot_spese(self) -> dict[str, float]:
+        output_map: dict[str, float] = {}
+
+        for user in self.retrieve_users_map_list():
+            user_id = user[DBUsersColumns.ID.value]
+            cognome = user[DBUsersColumns.LAST_NAME.value]
+            chiave = f"{cognome}"
+
+            output_map[chiave] = self.calcola_tot_spese_utente_dedotte(user_id)
+
+        return output_map
 
     def retrieve_user_with_anticipated_expenses_map_list(self, user_id):
         """
@@ -1236,7 +1279,7 @@ class InvoiceController:
         MEDIA_PAGAM_ORARIO_LORDO = "MEDIA_PAGAM_ORARIO_LORDO"
         MEDIA_PAGAM_ORARIO_NETTO = "MDIA_PAGAM_ORARIO_NETTO"
 
-    def __init__(self, db_model: DatabaseModel, user_controller, client_controller, production_controller, payment_controller, account_controller, fiscal_settings):
+    def __init__(self, db_model: DatabaseModel, user_controller, client_controller, production_controller, payment_controller, account_controller, fiscal_settings, historical_financial_data_settings):
         """Inizializza il controller con il modello del database"""
         self.db_model = db_model
         self.fiscal_settings = fiscal_settings
@@ -1245,6 +1288,7 @@ class InvoiceController:
         self.production_controller = production_controller
         self.payment_controller = payment_controller
         self.account_controller = account_controller
+        self.historical_financial_data_settings = historical_financial_data_settings
 
 
         #self.invoices_list = {}
@@ -2371,6 +2415,190 @@ class InvoiceController:
 
     def register_on_updating_invoice_controller_callbacks(self, *callbacks):
         self.on_updating_invoice_controller_callbacks = list(callbacks)
+
+    def select_best_invoicer(self, nuovo_importo: float) -> dict[str, float]:
+        """
+        Suggerisce quale partita IVA debba emettere una nuova fattura,
+        con un modello di previsione avanzato che combina:
+        - Dati storici annuali
+        - Andamento stagionale
+        - Regressione ponderata
+        - Media mobile per spese
+        """
+
+        # 1. Recupero dati base
+        user_list = self.user_controller.retrieve_users_map_list()
+        id_to_last_name = {user[DBUsersColumns.ID.value]: user[DBUsersColumns.LAST_NAME.value] for user in user_list}
+        name_to_id = {v: k for k, v in id_to_last_name.items()}
+
+        # 2. Fatturati e spese correnti
+        fatturati = self.user_controller.retrieve_users_with_tot_fatturato()
+        spese = self.user_controller.retrieve_users_with_tot_spese()
+
+        ordinari = fatturati.get(self.user_controller.RegimeFiscale.ORDINARIO.value, {})
+        if len(ordinari) != 1:
+            raise ValueError("Richiesta esattamente 1 partita IVA ordinaria")
+
+        nome_ordinaria = next(iter(ordinari))
+        id_ordinaria = name_to_id[nome_ordinaria]
+
+        # 3. Strutture dati
+        piva_ordinaria = {
+            id_ordinaria: {
+                "fatturato": ordinari[nome_ordinaria],
+                "spese_deducibili": spese.get(nome_ordinaria, 0.0)
+            }
+        }
+
+        piva_forfettarie = {
+            name_to_id[nome]: tot
+            for nome, tot in fatturati.get(self.user_controller.RegimeFiscale.FORFETTARIO.value, {}).items()
+        }
+
+        # 4. Storico fatture e spese
+        fatture = self.retrieve_invoices_map_list(current_year=False)
+        storico_fatture = [{
+            "piva": f.get(DBInvoicesColumns.ID_UTENTE.value),
+            "data": f.get(DBInvoicesColumns.DATA_CREAZIONE.value),
+            "amount": f.get(DBInvoicesColumns.TOT_DOCUMENTO.value)
+        } for f in fatture]
+
+        spese_ordinaria_raw = self.user_controller.retrieve_user_with_deducted_expenses_map_list(id_ordinaria)
+        storico_spese_ordinaria = [{
+            "data": s.get(DBExpensesColumns.created_at.value),
+            "amount": s.get(DBExpensesColumns.TOT_AMOUNT.value)
+        } for s in spese_ordinaria_raw]
+
+        # 5. Dati storici annuali
+        storico_annuale_fatturato = self.historical_financial_data_settings.revenues
+        storico_annuale_spese_ordinaria = self.historical_financial_data_settings.deducted_expenses
+
+        oggi = datetime.today()
+        anno_corrente = oggi.year
+        mese_corrente = oggi.month
+        trimestre_corrente = (mese_corrente - 1) // 3 + 1
+
+        # 6. Funzione di previsione avanzata
+        def predict_annual(feature_data, historical_annuals, current_year, current_month, is_expense=False):
+            """Previsione combinata con pesi dinamici"""
+            # Calcolo medie storiche ponderate
+            anni = sorted([int(a) for a in historical_annuals.keys() if int(a) < current_year], reverse=True)
+            storico_pesato = 0
+            total_weight = 0
+
+            for i, anno in enumerate(anni[:3]):  # Considera ultimi 3 anni
+                weight = 3 - i  # Peso decrescente (anno più recente = peso maggiore)
+                if is_expense:
+                    storico_pesato += historical_annuals[str(anno)] * weight
+                else:
+                    # Per le entrate: media per P.IVA
+                    avg = sum(historical_annuals[str(anno)].values()) / len(historical_annuals[str(anno)])
+                    storico_pesato += avg * weight
+                total_weight += weight
+
+            media_storica = storico_pesato / total_weight if total_weight > 0 else 0
+
+            # Calcolo andamento corrente
+            df = pd.DataFrame(feature_data)
+            df["data"] = pd.to_datetime(df["data"])
+            df["mese"] = df["data"].dt.month
+            df["anno"] = df["data"].dt.year
+
+            ytd = df[df["anno"] == current_year]["amount"].sum()
+            mesi_mancanti = 12 - current_month
+
+            # Regressione solo con sufficienti dati
+            if len(df) >= 3 and current_month < 10:
+                df_current = df[df["anno"] == current_year].groupby("mese")["amount"].sum().reset_index()
+                X = df_current["mese"].values.reshape(-1, 1)
+                y = df_current["amount"].values
+
+                try:
+                    model = LinearRegression().fit(X, y)
+                    next_months = np.arange(current_month + 1, 13).reshape(-1, 1)
+                    forecast = model.predict(next_months).sum()
+                    trend_factor = max(0.5, min(1.5, (ytd + forecast) / (ytd + 0.001)))  # Fattore di crescita
+                except:
+                    forecast = ytd / max(1, current_month) * mesi_mancanti
+                    trend_factor = 1.0
+            else:
+                forecast = ytd / max(1, current_month) * mesi_mancanti
+                trend_factor = 1.0
+
+            # Calibrazione previsione finale
+            peso_storico = max(0.1, 1 - current_month / 12)  # Pesa di più a inizio anno
+            peso_corrente = 1 - peso_storico
+
+            if current_month < 4:  # Primo trimestre
+                return (media_storica * 0.7 + (ytd + forecast) * 0.3) * trend_factor
+            elif current_month < 8:  # Prima metà anno
+                return (media_storica * 0.4 + (ytd + forecast) * 0.6) * trend_factor
+            else:  # Seconda metà anno
+                return (media_storica * 0.1 + (ytd + forecast) * 0.9) * trend_factor
+
+        # 7. Previsione fatturati
+        fatturati_previsti = {}
+        for piva in list(piva_forfettarie.keys()) + [id_ordinaria]:
+            # Filtra storico per P.IVA
+            storico_piva = [f for f in storico_fatture if f["piva"] == piva]
+            nome = self.user_controller.id_to_full_name_str(piva)
+
+            # Estrai storico annuale per questa P.IVA
+            storico_annuale_piva = {}
+            for anno, valori in storico_annuale_fatturato.items():
+                if nome in valori:
+                    storico_annuale_piva[anno] = {nome: valori[nome]}
+
+            fatturati_previsti[piva] = predict_annual(
+                storico_piva,
+                storico_annuale_piva,
+                anno_corrente,
+                mese_corrente
+            )
+
+        # 8. Previsione spese ordinaria
+        spese_previste = predict_annual(
+            storico_spese_ordinaria,
+            storico_annuale_spese_ordinaria,
+            anno_corrente,
+            mese_corrente,
+            is_expense=True
+        )
+
+        # 9. Calcolo punteggi
+        punteggi = {}
+        TARGET_FORFETTARIO = 85000  # Soglia ottimale forfettario
+
+        # Forfettarie: penalizza chi supera la soglia
+        for piva in piva_forfettarie:
+            previsto = fatturati_previsti[piva]
+            distanza_soglia = max(0, TARGET_FORFETTARIO - previsto)
+            punteggio = distanza_soglia / 1000  # Normalizzazione
+            punteggi[piva] = punteggio
+
+        # Ordinaria: bilanciamento con spese
+        MARGINE_SICURO = 5000  # Margine ottimale sopra le spese
+        previsto_ordinario = fatturati_previsti[id_ordinaria]
+        gap = (previsto_ordinario + nuovo_importo) - (spese_previste + MARGINE_SICURO)
+
+        if gap < -10000:
+            score_ordinaria = 25  # Urgenza di fatturare
+        elif gap < 0:
+            score_ordinaria = 15 + (gap / 1000)  # Punteggio decrescente
+        elif gap < MARGINE_SICURO:
+            score_ordinaria = 10 - (gap / 500)
+        else:
+            score_ordinaria = 5 - (gap / 1000)  # Penalità per eccesso
+
+        punteggi[id_ordinaria] = max(score_ordinaria, -10)  # Limite minimo
+
+        # 10. Preparazione risultato
+        punteggi_finali = {
+            id_to_last_name[piva]: round(score, 2)
+            for piva, score in punteggi.items()
+        }
+
+        return dict(sorted(punteggi_finali.items(), key=lambda x: x[1], reverse=True))
 
     @staticmethod
     def calculate_three_expiration_dates(creation_date):

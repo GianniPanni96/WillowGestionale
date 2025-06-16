@@ -21,7 +21,7 @@ from Views.Salaries_view import SalariesView
 
 
 class MainWindow(ctk.CTk):
-    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings):
+    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings):
         super().__init__()
 
         self._after_ids = set()
@@ -36,6 +36,7 @@ class MainWindow(ctk.CTk):
         self.fiscal_settings = fiscal_settings
         self.catalogo_elenchi = catalogo_elenchi
         self.recurring_expenses_settings = recurring_expenses_settings
+        self.historical_financial_data_settings = historical_financial_data_settings
 
         # inizializzatori oggetti controllers e model
         self.db_model = DatabaseModel(db_path)  # Istanzia il modello
@@ -47,7 +48,7 @@ class MainWindow(ctk.CTk):
         self.supplier_controller = SupplierController(self.db_model)
         self.payment_controller = PaymentsController(self.db_model, self.account_controller)
         self.production_controller = ProductionController(self.db_model, self.client_controller)
-        self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, fiscal_settings)
+        self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, fiscal_settings, self.historical_financial_data_settings)
         self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller, self.recurring_expenses_settings, self.catalogo_elenchi)
         self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
         self.analyzer = Analyzer(self.user_controller,
@@ -110,7 +111,7 @@ class MainWindow(ctk.CTk):
         #self.user_tab.create_user_tab()
         self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Clienti"))
         self.client_tab.create_client_tab()
-        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, self.update_controller, self.tabview.tab("Fatture"), fiscal_settings)
+        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, self.update_controller, self.tabview.tab("Fatture"), fiscal_settings, self.historical_financial_data_settings)
         #self.invoice_tab.create_invoices_tab()
         self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"))
         self.payment_tab.create_payments_tab()

@@ -18,7 +18,7 @@ class InvoicesView(ctk.CTk):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tab, fiscal_settings):
+    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tab, fiscal_settings, historical_financial_data_settings):
         super().__init__()
 
         self.db_model = db_model
@@ -31,6 +31,7 @@ class InvoicesView(ctk.CTk):
         self.update_controller = update_controller
         self.tab = tab
         self.fiscal_settings = fiscal_settings
+        self.historical_financial_data_settings = historical_financial_data_settings
 
         #aggiorno lo stato delle fatture in funzione della data di oggi e dei pagamenti effettuati
         #self.invoice_controller.update_stato_fatture()
@@ -67,7 +68,8 @@ class InvoicesView(ctk.CTk):
             production_controller=production_controller,
             update_controller=self.update_controller,
             db_model=db_model,
-            fiscal_settings=self.fiscal_settings
+            fiscal_settings=self.fiscal_settings,
+            historical_financial_data_settings = self.historical_financial_data_settings
         )
 
         # Inizializza la vista principale
@@ -152,11 +154,15 @@ class InvoicesView(ctk.CTk):
         self.invoices_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
         self.add_invoice_frame = ctk.CTkFrame(self.main_container, fg_color="#2b2b2b")
-        self.add_invoice_frame.pack(padx=0, pady=(5, 20), fill="x")
+        self.add_invoice_frame.pack(padx=0, pady=(5, 20))
 
         self.save_button = ctk.CTkButton(self.add_invoice_frame, text="Aggiungi una fattura",
                                          command=self.open_add_invoice_window)
-        self.save_button.pack()
+        self.save_button.pack(side="left", padx=20)
+
+        self.suggest_user = ctk.CTkButton(self.add_invoice_frame, text="Suggerisci partita iva",
+                                         command=self.open_suggest_user_window)
+        self.suggest_user.pack(padx=20)
 
         #aggiungo una tab per ogni fattura presente nel database
         for invoice in self.invoice_controller.retrieve_invoices_map_list(True):
@@ -1029,16 +1035,90 @@ class InvoicesView(ctk.CTk):
         self.invoice_widgets.clear()
         self.invoice_labels.clear()
 
+    def open_suggest_user_window(self):
+        """Apre una finestra per farsi suggerire l'utente che deve fatturare"""
+
+        self.suggest_invoicer_window = ctk.CTkToplevel(self)
+        self.suggest_invoicer_window.title("Suggeritore di fatturatore")
+
+        # Assicurati che la finestra rimanga sopra
+        self.suggest_invoicer_window.lift()  # Porta la finestra sopra quella principale
+        self.suggest_invoicer_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+
+        #self.suggest_invoicer_window.geometry("550x700")
 
 
+        self.suggest_invoicer_window_Frame = ctk.CTkFrame(self.suggest_invoicer_window)
+        self.suggest_invoicer_window_Frame.pack(fill="x", expand=True)
+
+        info_label = ctk.CTkLabel(self.suggest_invoicer_window_Frame, text="    ℹ️", font=("Arial", 16), bg_color="#4287f5")
+        info_label.pack(padx=10, pady=10, anchor="w")
+        ViewUtils.add_tooltip(info_label, "Questa funzionalità prevede che esista una singola partita iva ordinaria tra tante forfettarie.\n"
+                                          "L'ordinaria è incaricata di dedurre le spese deducibili.\n"
+                                          "Il suggeritore cerca di far fatturare l'ordinaria fino al raggiungimento delle spese deducibili effettuate finora,\n"
+                                          "Se le spese deducibili sono già coperte allora viene prediletta la forfettaria con minor fatturato.")
+
+        self.new_invoice_import_label = ctk.CTkLabel(self.suggest_invoicer_window_Frame, text="IMPORTO DA FATTURARE")
+        self.new_invoice_import_label.pack(padx=10, pady=(20,5), fill="x")
+
+        self.new_invoice_import_entry = ctk.CTkEntry(self.suggest_invoicer_window_Frame, width=520)
+        self.new_invoice_import_entry.pack(padx=10, pady=(0,5), fill="x")
+
+        self.new_invoice_import_error = ctk.CTkLabel(self.suggest_invoicer_window_Frame, text="", text_color="red")
+        self.new_invoice_import_error.pack(padx=10, pady=(0,15), fill="x")
+
+        self.show_suggestion_button = ctk.CTkButton(self.suggest_invoicer_window_Frame, text="SUGGERISCI", command=self.get_invoicer_suggestion)
+        self.show_suggestion_button.pack(padx=10, pady=(20, 25))
+
+        self.ranking_header_frame = ctk.CTkFrame(self.suggest_invoicer_window, fg_color="#2b2b2b")
+        self.ranking_header_frame.pack(fill="x", expand=True, padx=10, pady=(25, 0))
+        header1 = ctk.CTkFrame(self.ranking_header_frame, fg_color="#333333")
+        header1.grid(row=0, column=0, sticky="nsew", padx=(5, 5), pady=5)
+        header2 = ctk.CTkFrame(self.ranking_header_frame, fg_color="#333333")
+        header2.grid(row=0, column=1, sticky="nsew", padx=(0, 5), pady=5)
+        self.ranking_header_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        self.ranking_header_frame.grid_columnconfigure(1, weight=1, uniform="col")
+        ctk.CTkLabel(header1, text="UTENTE", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
+        ctk.CTkLabel(header2, text="PUNTEGGIO", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
 
 
+        self.invoicers_ranking_frame = ctk.CTkScrollableFrame(self.suggest_invoicer_window)
+        self.invoicers_ranking_frame.pack(fill="both", expand=True, padx=10, pady=(0, 25))
+
+        self.new_invoice_import_entry.bind("<KeyRelease>", lambda event: ViewUtils.validate_entry(
+            self.new_invoice_import_entry,
+            lambda val: len(val.strip()) >= 3 and re.fullmatch(r"^\d+(\.\d{2})?$", val.strip()) is not None,
+            self.new_invoice_import_error,
+            "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
+        ))
 
 
+    def get_invoicer_suggestion(self):
+        try:
+            new_import = float(self.new_invoice_import_entry.get())
+        except Exception as e:
+            ViewUtils.show_error_popup(self.suggest_invoicer_window, "Errore", f"Inserimento non valido")
+            return
+
+        try:
+            users_rank = self.invoice_controller.select_best_invoicer(new_import)
+            #pulisco prima il ranking presente
+            for widget in self.invoicers_ranking_frame.winfo_children():
+                widget.destroy()
+
+            #ricreo il ranking
+            for user_name, score in users_rank.items():
+                user_card = ctk.CTkFrame(self.invoicers_ranking_frame)
+                ctk.CTkLabel(user_card, text=f"{user_name}  -   ").pack(padx=10, pady=10, side="left")
+                ctk.CTkLabel(user_card, text=f"{score}").pack(padx=10, pady=10)
+                user_card.pack(padx=10, pady=10, fill="x", expand=True)
+
+        except ValueError as ve:
+            ViewUtils.show_error_popup(self.suggest_invoicer_window, "Errore", f"Predizione non possibile: {str(ve)}")
 
 
 class InvoiceDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, invoice_controller, user_controller, client_controller, account_controller, production_controller, update_controller, db_model, fiscal_settings):
+    def __init__(self, parent, back_callback, invoice_controller, user_controller, client_controller, account_controller, production_controller, update_controller, db_model, fiscal_settings, historical_financial_data_settings):
         super().__init__(parent)
         self.invoice_controller = invoice_controller
         self.user_controller = user_controller
@@ -1049,6 +1129,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.production_controller = production_controller
         self.update_controller = update_controller
         self.fiscal_settings = fiscal_settings
+        self.historical_financial_data_settings = historical_financial_data_settings
         self.current_invoice_id = None
 
         # Widgets persistenti (vanno creati una volta sola)

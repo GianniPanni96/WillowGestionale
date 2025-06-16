@@ -305,7 +305,7 @@ class ViewUtils(ctk.CTk):
                              bg="#2a2a2a",
                              fg="#f2f2f2",  # testo chiaro
                              wraplength=300,
-                             font=("Segoe UI", 9, "normal"),
+                             font=("Segoe UI", 10, "normal"),
                              padx=10,
                              pady=6)
             label.pack()

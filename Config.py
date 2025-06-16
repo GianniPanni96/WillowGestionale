@@ -743,3 +743,23 @@ class RecurringExpense:
             status=data.get("status", {}).get("value", ExpenseController.RecurringExpensesStatus.SOSPESA.value) == ExpenseController.RecurringExpensesStatus.ATTIVA.value,
             descr_status=data.get("status", {}).get("description", ""),
         )
+
+@dataclass
+class HistoricalFinancialData:
+    revenues: Dict[str, Dict[str, float]]           # anno → nome persona → fatturato
+    deducted_expenses: Dict[str, float]             # anno → spese dedotte totali
+
+    @staticmethod
+    def from_dict(data: dict) -> 'HistoricalFinancialData':
+        return HistoricalFinancialData(
+            revenues={
+                year: {
+                    name: float(amount)
+                    for name, amount in names.items()
+                } for year, names in data.get("revenues", {}).items()
+            },
+            deducted_expenses={
+                year: float(amount)
+                for year, amount in data.get("deducted_expenses", {}).items()
+            }
+        )

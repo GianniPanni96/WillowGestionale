@@ -1082,7 +1082,7 @@ class InvoicesView(ctk.CTk):
         ctk.CTkLabel(header2, text="PUNTEGGIO", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
 
 
-        self.invoicers_ranking_frame = ctk.CTkScrollableFrame(self.suggest_invoicer_window)
+        self.invoicers_ranking_frame = ctk.CTkScrollableFrame(self.suggest_invoicer_window, height=100)
         self.invoicers_ranking_frame.pack(fill="both", expand=True, padx=10, pady=(0, 25))
 
         self.new_invoice_import_entry.bind("<KeyRelease>", lambda event: ViewUtils.validate_entry(
@@ -1109,9 +1109,19 @@ class InvoicesView(ctk.CTk):
             #ricreo il ranking
             for user_name, score in users_rank.items():
                 user_card = ctk.CTkFrame(self.invoicers_ranking_frame)
-                ctk.CTkLabel(user_card, text=f"{user_name}  -   ").pack(padx=10, pady=10, side="left")
-                ctk.CTkLabel(user_card, text=f"{score}").pack(padx=10, pady=10)
-                user_card.pack(padx=10, pady=10, fill="x", expand=True)
+                user_card.pack(padx=10, pady=5, fill="x", expand=True)
+
+                # Frame interno per il nome
+                name_frame = ctk.CTkFrame(user_card, fg_color="transparent")
+                name_frame.pack(side="left", fill="x", expand=True, padx=(5), pady=5)
+                ctk.CTkLabel(name_frame, text=f"{user_name}", anchor="w").pack(fill="x", expand=True, padx=10, pady=5)
+
+                # Frame interno per il punteggio
+                score_frame = ctk.CTkFrame(user_card, fg_color="transparent")
+                score_frame.pack(side="right", fill="x", expand=True, padx=(5), pady=5)
+                ctk.CTkLabel(score_frame, text=f"{score}", anchor="e").pack(fill="x", expand=True, padx=10, pady=5)
+
+            self.invoicers_ranking_frame.winfo_children()[0].configure(border_width=2, border_color="#3c60b5")
 
         except ValueError as ve:
             ViewUtils.show_error_popup(self.suggest_invoicer_window, "Errore", f"Predizione non possibile: {str(ve)}")

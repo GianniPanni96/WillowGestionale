@@ -2419,13 +2419,9 @@ class InvoiceController:
     def select_best_invoicer(self, nuovo_importo: float) -> dict[str, float]:
         """
         Suggerisce quale partita IVA debba emettere una nuova fattura,
-        con un modello di previsione avanzato che combina:
-        - Dati storici annuali
-        - Andamento stagionale
-        - Regressione ponderata
-        - Media mobile per spese
+        con un bilanciamento migliore tra situazione corrente e obiettivi annuali,
+        specialmente per la partita IVA ordinaria.
         """
-
         # 1. Recupero dati base
         user_list = self.user_controller.retrieve_users_map_list()
         id_to_last_name = {user[DBUsersColumns.ID.value]: user[DBUsersColumns.LAST_NAME.value] for user in user_list}
@@ -2443,16 +2439,19 @@ class InvoiceController:
         id_ordinaria = name_to_id[nome_ordinaria]
 
         # 3. Strutture dati
+        piva_forfettarie = {
+            name_to_id[nome]: {
+                "fatturato": tot,
+                "spese_deducibili": spese.get(nome, 0.0)
+            }
+            for nome, tot in fatturati.get(self.user_controller.RegimeFiscale.FORFETTARIO.value, {}).items()
+        }
+
         piva_ordinaria = {
             id_ordinaria: {
                 "fatturato": ordinari[nome_ordinaria],
                 "spese_deducibili": spese.get(nome_ordinaria, 0.0)
             }
-        }
-
-        piva_forfettarie = {
-            name_to_id[nome]: tot
-            for nome, tot in fatturati.get(self.user_controller.RegimeFiscale.FORFETTARIO.value, {}).items()
         }
 
         # 4. Storico fatture e spese
@@ -2465,7 +2464,7 @@ class InvoiceController:
 
         spese_ordinaria_raw = self.user_controller.retrieve_user_with_deducted_expenses_map_list(id_ordinaria)
         storico_spese_ordinaria = [{
-            "data": s.get(DBExpensesColumns.created_at.value),
+            "data": s.get(DBExpensesColumns.DATE.value),
             "amount": s.get(DBExpensesColumns.TOT_AMOUNT.value)
         } for s in spese_ordinaria_raw]
 
@@ -2476,129 +2475,157 @@ class InvoiceController:
         oggi = datetime.today()
         anno_corrente = oggi.year
         mese_corrente = oggi.month
-        trimestre_corrente = (mese_corrente - 1) // 3 + 1
 
-        # 6. Funzione di previsione avanzata
-        def predict_annual(feature_data, historical_annuals, current_year, current_month, is_expense=False):
-            """Previsione combinata con pesi dinamici"""
-            # Calcolo medie storiche ponderate
-            anni = sorted([int(a) for a in historical_annuals.keys() if int(a) < current_year], reverse=True)
-            storico_pesato = 0
-            total_weight = 0
-
-            for i, anno in enumerate(anni[:3]):  # Considera ultimi 3 anni
-                weight = 3 - i  # Peso decrescente (anno più recente = peso maggiore)
-                if is_expense:
-                    storico_pesato += historical_annuals[str(anno)] * weight
-                else:
-                    # Per le entrate: media per P.IVA
-                    avg = sum(historical_annuals[str(anno)].values()) / len(historical_annuals[str(anno)])
-                    storico_pesato += avg * weight
-                total_weight += weight
-
-            media_storica = storico_pesato / total_weight if total_weight > 0 else 0
-
-            # Calcolo andamento corrente
-            df = pd.DataFrame(feature_data)
-            df["data"] = pd.to_datetime(df["data"])
-            df["mese"] = df["data"].dt.month
-            df["anno"] = df["data"].dt.year
-
-            ytd = df[df["anno"] == current_year]["amount"].sum()
-            mesi_mancanti = 12 - current_month
-
-            # Regressione solo con sufficienti dati
-            if len(df) >= 3 and current_month < 10:
-                df_current = df[df["anno"] == current_year].groupby("mese")["amount"].sum().reset_index()
-                X = df_current["mese"].values.reshape(-1, 1)
-                y = df_current["amount"].values
-
-                try:
-                    model = LinearRegression().fit(X, y)
-                    next_months = np.arange(current_month + 1, 13).reshape(-1, 1)
-                    forecast = model.predict(next_months).sum()
-                    trend_factor = max(0.5, min(1.5, (ytd + forecast) / (ytd + 0.001)))  # Fattore di crescita
-                except:
-                    forecast = ytd / max(1, current_month) * mesi_mancanti
-                    trend_factor = 1.0
-            else:
-                forecast = ytd / max(1, current_month) * mesi_mancanti
-                trend_factor = 1.0
-
-            # Calibrazione previsione finale
-            peso_storico = max(0.1, 1 - current_month / 12)  # Pesa di più a inizio anno
-            peso_corrente = 1 - peso_storico
-
-            if current_month < 4:  # Primo trimestre
-                return (media_storica * 0.7 + (ytd + forecast) * 0.3) * trend_factor
-            elif current_month < 8:  # Prima metà anno
-                return (media_storica * 0.4 + (ytd + forecast) * 0.6) * trend_factor
-            else:  # Seconda metà anno
-                return (media_storica * 0.1 + (ytd + forecast) * 0.9) * trend_factor
-
-        # 7. Previsione fatturati
-        fatturati_previsti = {}
-        for piva in list(piva_forfettarie.keys()) + [id_ordinaria]:
-            # Filtra storico per P.IVA
+        # 6. Calcolo valori correnti (situazione attuale)
+        fatturati_correnti = {}
+        for piva, data in {**piva_forfettarie, **piva_ordinaria}.items():
             storico_piva = [f for f in storico_fatture if f["piva"] == piva]
+            df = pd.DataFrame(storico_piva)
+            if not df.empty:
+                df["data"] = pd.to_datetime(df["data"])
+                df["anno"] = df["data"].dt.year
+                fatturati_correnti[piva] = df[df["anno"] == anno_corrente]["amount"].sum()
+            else:
+                fatturati_correnti[piva] = 0
+
+        # Spese YTD corrente per ordinaria
+        df_spese = pd.DataFrame(storico_spese_ordinaria)
+        if not df_spese.empty:
+            df_spese["data"] = pd.to_datetime(df_spese["data"])
+            df_spese["anno"] = df_spese["data"].dt.year
+            spese_correnti_ordinaria = df_spese[df_spese["anno"] == anno_corrente]["amount"].sum()
+        else:
+            spese_correnti_ordinaria = 0
+
+        # 7. Previsioni semplificate (solo per bilanciamento)
+        previsioni = {}
+        for piva, data in {**piva_forfettarie, **piva_ordinaria}.items():
             nome = self.user_controller.id_to_full_name_str(piva)
 
-            # Estrai storico annuale per questa P.IVA
-            storico_annuale_piva = {}
+            # Recupera dati storici se disponibili
+            storico_annuale = 0
+            count = 0
             for anno, valori in storico_annuale_fatturato.items():
-                if nome in valori:
-                    storico_annuale_piva[anno] = {nome: valori[nome]}
+                if int(anno) < anno_corrente and nome in valori:
+                    storico_annuale += valori[nome]
+                    count += 1
 
-            fatturati_previsti[piva] = predict_annual(
-                storico_piva,
-                storico_annuale_piva,
-                anno_corrente,
-                mese_corrente
-            )
+            media_storica = storico_annuale / count if count > 0 else 0
+            fatturato_attuale = fatturati_correnti[piva]
 
-        # 8. Previsione spese ordinaria
-        spese_previste = predict_annual(
-            storico_spese_ordinaria,
-            storico_annuale_spese_ordinaria,
-            anno_corrente,
-            mese_corrente,
-            is_expense=True
-        )
+            # Peso dinamico: più peso al corrente man mano che avanziamo nell'anno
+            peso_corrente = min(0.9, max(0.5, mese_corrente / 12))
+            peso_storico = 1 - peso_corrente
 
-        # 9. Calcolo punteggi
+            # Previsione conservativa
+            previsioni[piva] = (fatturato_attuale * peso_corrente) + (media_storica * peso_storico)
+
+        # Previsione spese ordinaria
+        storico_spese = 0
+        count = 0
+        for anno, valore in storico_annuale_spese_ordinaria.items():
+            if int(anno) < anno_corrente:
+                storico_spese += valore
+                count += 1
+
+        media_spese_storiche = storico_spese / count if count > 0 else 0
+        peso_corrente_spese = min(0.9, max(0.5, mese_corrente / 12))
+        spese_previste = (spese_correnti_ordinaria * peso_corrente_spese) + (
+                    media_spese_storiche * (1 - peso_corrente_spese))
+
+        # 8. Calcolo punteggi integrati
+        TARGET_FORFETTARIO = 85000
+        MARGINE_SICURO = 2000
         punteggi = {}
-        TARGET_FORFETTARIO = 85000  # Soglia ottimale forfettario
 
-        # Forfettarie: penalizza chi supera la soglia
-        for piva in piva_forfettarie:
-            previsto = fatturati_previsti[piva]
-            distanza_soglia = max(0, TARGET_FORFETTARIO - previsto)
-            punteggio = distanza_soglia / 1000  # Normalizzazione
-            punteggi[piva] = punteggio
+        # Soglia per bonus/malus
+        SOGLIA_IMPORTO = 5000
+        # Fattori aumentati per maggiore impatto
+        MALUS_FACTOR_FORFETTARIE = 0.3
+        BONUS_FACTOR_ORDINARIA = 0.25
 
-        # Ordinaria: bilanciamento con spese
-        MARGINE_SICURO = 5000  # Margine ottimale sopra le spese
-        previsto_ordinario = fatturati_previsti[id_ordinaria]
-        gap = (previsto_ordinario + nuovo_importo) - (spese_previste + MARGINE_SICURO)
+        # Calcola il fatturato totale corrente di tutte le forfettarie
+        totale_forfettarie_corrente = sum(fatturati_correnti[piva] for piva in piva_forfettarie)
 
-        if gap < -10000:
-            score_ordinaria = 25  # Urgenza di fatturare
-        elif gap < 0:
-            score_ordinaria = 15 + (gap / 1000)  # Punteggio decrescente
-        elif gap < MARGINE_SICURO:
-            score_ordinaria = 10 - (gap / 500)
+        # Calcola il fatturato medio corrente delle forfettarie
+        if piva_forfettarie:
+            media_forfettarie_corrente = totale_forfettarie_corrente / len(piva_forfettarie)
         else:
-            score_ordinaria = 5 - (gap / 1000)  # Penalità per eccesso
+            media_forfettarie_corrente = 0
 
-        punteggi[id_ordinaria] = max(score_ordinaria, -10)  # Limite minimo
+        # Punteggi forfettarie
+        for piva in piva_forfettarie:
+            # Punteggio base basato su distanza dalla soglia
+            distanza_soglia = max(0, TARGET_FORFETTARIO - previsioni[piva])
 
-        # 10. Preparazione risultato
-        punteggi_finali = {
-            id_to_last_name[piva]: round(score, 2)
-            for piva, score in punteggi.items()
-        }
+            # Considera l'impatto della nuova fattura
+            impatto_nuova_fattura = min(nuovo_importo, distanza_soglia)
+
+            # Differenziale rispetto alla media
+            differenziale_media = media_forfettarie_corrente - fatturati_correnti[piva]
+
+            punteggio = (
+                                (distanza_soglia * 0.7) +
+                                (impatto_nuova_fattura * 0.5) +
+                                (max(0, differenziale_media) * 0.4)
+                        ) / 1000
+
+            # Applica malus più impattante se l'importo è grande
+            if nuovo_importo > SOGLIA_IMPORTO:
+                eccesso = nuovo_importo - SOGLIA_IMPORTO
+                # Malus proporzionale alla distanza dalla soglia
+                fattore_distanza = min(1, distanza_soglia / TARGET_FORFETTARIO)
+                malus = eccesso * MALUS_FACTOR_FORFETTARIE * (1 + fattore_distanza) / 500
+                punteggio = max(0, punteggio - malus)
+
+            punteggi[piva] = max(0, punteggio)
+
+        # Punteggio ordinaria - RIBILANCIATO
+        current_revenue = fatturati_correnti[id_ordinaria]
+        current_expenses = spese_correnti_ordinaria
+        projected_revenue = previsioni[id_ordinaria]
+
+        # 1. Base score basato sul deficit corrente
+        deficit_corrente = max(0, current_expenses - current_revenue)
+        base_score = deficit_corrente * 0.8  # 0.8 punti per euro di deficit
+
+        # 2. Score per avvicinamento al margine di sicurezza
+        gap_previsto = max(0, projected_revenue - spese_previste)
+        avvicinamento_margine = min(nuovo_importo, max(0, MARGINE_SICURO - gap_previsto))
+        margine_score = avvicinamento_margine * 0.6  # 0.6 punti per euro che avvicinano al margine
+
+        # 3. Bonus per copertura immediata del deficit
+        copertura_immediata = min(nuovo_importo, deficit_corrente)
+        copertura_score = copertura_immediata * 1.2  # Bonus più alto per copertura diretta
+
+        # 4. Fattore di urgenza (deficit corrente vs previsione)
+        fattore_urgenza = 1 + (deficit_corrente / max(1, current_revenue))
+
+        punteggio_ordinaria = (base_score + margine_score + copertura_score) * fattore_urgenza / 100
+
+        # Applica bonus più impattante se l'importo è grande
+        if nuovo_importo > SOGLIA_IMPORTO:
+            eccesso = nuovo_importo - SOGLIA_IMPORTO
+            # Bonus proporzionale all'urgenza
+            bonus = eccesso * BONUS_FACTOR_ORDINARIA * fattore_urgenza / 50
+            punteggio_ordinaria += bonus
+
+        # Aggiusta il punteggio per evitare valori estremi
+        punteggio_ordinaria = min(100, max(5, punteggio_ordinaria))  # Minimo 5 per essere sempre considerata
+        punteggi[id_ordinaria] = punteggio_ordinaria
+
+        # 9. Normalizzazione e ordinamento
+        # Calcola il punteggio massimo per normalizzazione
+        max_punteggio = max(punteggi.values()) if punteggi else 1
+
+        punteggi_finali = {}
+        for piva, score in punteggi.items():
+            cognome = id_to_last_name[piva]
+            # Normalizza tra 0 e 100 se c'è un punteggio positivo
+            punteggi_finali[cognome] = round((score / max_punteggio) * 100, 2) if max_punteggio > 0 else 0
 
         return dict(sorted(punteggi_finali.items(), key=lambda x: x[1], reverse=True))
+
 
     @staticmethod
     def calculate_three_expiration_dates(creation_date):

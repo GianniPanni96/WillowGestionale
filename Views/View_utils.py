@@ -18,6 +18,9 @@ class ViewUtils(ctk.CTk):
         ELIMINAZIONE_FATTURA = "ELIMINAZIONE FATTURA"
         MODIFICA_FATTURA = "MODIFICA FATTURA"
 
+    class EventBusKeys(Enum):
+        SHOW_INVOICE_DETAIL = "SHOW_INVOICE_DETAIL"
+
     date_pattern = "yyyy-mm-dd"
 
     disabled_label_color = "#4a4948"

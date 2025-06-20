@@ -10,7 +10,7 @@ from dataclasses import fields
 
 class ExpensesView(ctk.CTk):
 
-    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab):
+    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab, event_bus):
         super().__init__()
 
         self.db_model = db_model
@@ -25,6 +25,7 @@ class ExpensesView(ctk.CTk):
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
         self.tab = tab
+        self.event_bus = event_bus
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}

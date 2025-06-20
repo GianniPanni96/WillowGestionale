@@ -12,7 +12,7 @@ from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpens
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 class UsersView(ctk.CTk):
-    def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab):
+    def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab, event_bus):
         super().__init__()
 
         self.db_model = db_model
@@ -21,6 +21,7 @@ class UsersView(ctk.CTk):
         self.production_controller = production_controller
         self.tab = tab
         self.fiscal_settings = fiscal_settings
+        self.event_bus = event_bus
 
         #tool variables
         self.no_data_string = "no data"
@@ -51,7 +52,8 @@ class UsersView(ctk.CTk):
             account_controller=account_controller,
             production_controller=production_controller,
             db_model=db_model,
-            fiscal_settings=self.fiscal_settings
+            fiscal_settings=self.fiscal_settings,
+            event_bus = self.event_bus
         )
 
         # Inizializza la vista principale
@@ -746,7 +748,7 @@ class UsersView(ctk.CTk):
 
 
 class UserDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, user_controller, account_controller, production_controller, db_model, fiscal_settings):
+    def __init__(self, parent, back_callback, user_controller, account_controller, production_controller, db_model, fiscal_settings, event_bus):
         super().__init__(parent)
         self.user_controller = user_controller
         self.account_controller = account_controller
@@ -754,6 +756,7 @@ class UserDetailView(ctk.CTkFrame):
         self.back_callback = back_callback
         self.production_controller = production_controller
         self.fiscal_settings = fiscal_settings
+        self.event_bus = event_bus
         self.current_user_id = None
 
         # Widgets persistenti (vanno creati una volta sola)
@@ -1146,8 +1149,13 @@ class UserDetailView(ctk.CTkFrame):
                 id_produzione = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
                 produzione = self.production_controller.retrieve_production_map_by_id(id_produzione)
                 nome_prod = produzione[DBProductionsColumns.NAME.value] if produzione else "Produzione non trovata"
-                fattura_button = ctk.CTkButton(invoices_frame, text=f"{nome_fattura} - {nome_prod}")
+                fattura_button = ctk.CTkButton(invoices_frame,
+                                               text=f"{nome_fattura} - {nome_prod}",
+                                               command=lambda id=id_fattura: self.show_invoice_detail(id))
                 fattura_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def show_invoice_detail(self, invoice_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, invoice_id)
 
     def _create_anticipated_expenses_history(self):
         """Crea la sezione storico delle spese anticipate"""

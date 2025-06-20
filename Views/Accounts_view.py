@@ -10,7 +10,7 @@ from enum import Enum
 
 class AccountsView(ctk.CTk):
 
-    def __init__(self, db_model, account_controller, update_controller, transfer_controller, config_manager, catalogo_elenchi, analyzer, tab):
+    def __init__(self, db_model, account_controller, update_controller, transfer_controller, config_manager, catalogo_elenchi, analyzer, tab, event_bus):
         super().__init__()
 
         self.db_model = db_model
@@ -21,6 +21,7 @@ class AccountsView(ctk.CTk):
         self.catalogo_elenchi = catalogo_elenchi
         self.analyzer = analyzer
         self.tab = tab
+        self.event_bus = event_bus
 
         self.transfers_view = TransfersView(self.db_model, self.account_controller, self.update_controller, self.transfer_controller, self.config_manager, self.catalogo_elenchi, self.analyzer)
 

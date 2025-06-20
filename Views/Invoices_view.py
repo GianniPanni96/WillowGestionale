@@ -18,7 +18,7 @@ class InvoicesView(ctk.CTk):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tab, fiscal_settings, historical_financial_data_settings):
+    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tabview, fiscal_settings, historical_financial_data_settings, event_bus):
         super().__init__()
 
         self.db_model = db_model
@@ -29,12 +29,13 @@ class InvoicesView(ctk.CTk):
         self.payment_controller = payment_controller
         self.account_controller = account_controller
         self.update_controller = update_controller
-        self.tab = tab
+        self.tabview = tabview
+        self.tab = tabview.tab("Fatture")
         self.fiscal_settings = fiscal_settings
         self.historical_financial_data_settings = historical_financial_data_settings
+        self.event_bus = event_bus
 
-        #aggiorno lo stato delle fatture in funzione della data di oggi e dei pagamenti effettuati
-        #self.invoice_controller.update_stato_fatture()
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self.handle_show_invoice_detail)
 
         self.invoices_card_list = {}
         self.invoice_card_labels_status = {}
@@ -69,7 +70,8 @@ class InvoicesView(ctk.CTk):
             update_controller=self.update_controller,
             db_model=db_model,
             fiscal_settings=self.fiscal_settings,
-            historical_financial_data_settings = self.historical_financial_data_settings
+            historical_financial_data_settings = self.historical_financial_data_settings,
+            event_bus = self.event_bus
         )
 
         # Inizializza la vista principale
@@ -195,6 +197,10 @@ class InvoicesView(ctk.CTk):
         self.main_container.pack_forget()
         self.invoice_detail_view.pack(fill='both', expand=True)
         self.invoice_detail_view.create_detail_tab(invoice_id)  # Ricrea i contenuti ogni volta
+
+    def handle_show_invoice_detail(self, invoice_id):
+        self.tabview.set("Fatture")  # Cambia tab
+        self.open_user_detail_tab(invoice_id)  # Mostra il dettaglio
 
     def populate_global_infos(self):
         self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
@@ -1128,7 +1134,7 @@ class InvoicesView(ctk.CTk):
 
 
 class InvoiceDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, invoice_controller, user_controller, client_controller, account_controller, production_controller, update_controller, db_model, fiscal_settings, historical_financial_data_settings):
+    def __init__(self, parent, back_callback, invoice_controller, user_controller, client_controller, account_controller, production_controller, update_controller, db_model, fiscal_settings, historical_financial_data_settings, event_bus):
         super().__init__(parent)
         self.invoice_controller = invoice_controller
         self.user_controller = user_controller
@@ -1140,6 +1146,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.update_controller = update_controller
         self.fiscal_settings = fiscal_settings
         self.historical_financial_data_settings = historical_financial_data_settings
+        self.event_bus = event_bus
         self.current_invoice_id = None
 
         # Widgets persistenti (vanno creati una volta sola)
@@ -1763,8 +1770,6 @@ class InvoiceDetailView(ctk.CTkFrame):
             # Mostra il messaggio d'errore
             print(message)
             ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
-
-
 
     def _create_payments_history(self):
         """Crea la sezione storico dei pagamenti"""

@@ -12,7 +12,7 @@ from Model import DBClientsColumns
 
 
 class ClientsView(ctk.CTk):
-    def __init__(self, db_model, client_controller, catalogo_elenchi, config_manager, tab):
+    def __init__(self, db_model, client_controller, catalogo_elenchi, config_manager, tab, event_bus):
         super().__init__()
 
         self.db_model = db_model
@@ -20,6 +20,7 @@ class ClientsView(ctk.CTk):
         self.tab = tab
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
+        self.event_bus = event_bus
 
         self.clients_card_list = {}
 

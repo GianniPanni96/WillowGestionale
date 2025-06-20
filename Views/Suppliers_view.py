@@ -10,7 +10,7 @@ from enum import Enum
 
 class SuppliersView(ctk.CTk):
 
-    def __init__(self, db_model, supplier_controller, update_controller,  config_manager, catalogo_elenchi, tab):
+    def __init__(self, db_model, supplier_controller, update_controller,  config_manager, catalogo_elenchi, tab, event_bus):
         super().__init__()
 
         self.db_model = db_model
@@ -19,6 +19,7 @@ class SuppliersView(ctk.CTk):
         self.config_manager = config_manager
         self.catalogo_elenchi = catalogo_elenchi
         self.tab = tab
+        self.event_bus = event_bus
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}

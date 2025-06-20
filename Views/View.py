@@ -105,25 +105,26 @@ class MainWindow(ctk.CTk):
         self.custom_font = ctk.CTkFont("Arial", 20)
         self.tabview._segmented_button.configure(font=self.custom_font)
 
+        self.event_bus = EventBus()
 
         #Aggiungi widget alla tab clienti tramite la classe ClientsView
-        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller, self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"))
+        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller, self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"), self.event_bus)
         #self.user_tab.create_user_tab()
-        self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Clienti"))
+        self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Clienti"), self.event_bus)
         self.client_tab.create_client_tab()
-        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, self.update_controller, self.tabview.tab("Fatture"), fiscal_settings, self.historical_financial_data_settings)
+        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, self.update_controller, self.tabview, fiscal_settings, self.historical_financial_data_settings, self.event_bus)
         #self.invoice_tab.create_invoices_tab()
-        self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"))
+        self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"), self.event_bus)
         self.payment_tab.create_payments_tab()
-        self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Produzioni"))
+        self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Produzioni"), self.event_bus)
         self.production_tab.create_productions_tab()
-        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller, self.account_controller, self.supplier_controller, self.invoice_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, self.config_manager, self.tabview.tab("Spese"))
+        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller, self.account_controller, self.supplier_controller, self.invoice_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, self.config_manager, self.tabview.tab("Spese"), self.event_bus)
         self.expense_tab.create_expenses_tab()
-        self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller, self.config_manager, catalogo_elenchi, self.tabview.tab("Fornitori"))
+        self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller, self.config_manager, catalogo_elenchi, self.tabview.tab("Fornitori"), self.event_bus)
         self.supplier_tab.create_suppliers_tab()
-        self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller, self.transfer_controller, self.config_manager, self.catalogo_elenchi, self.analyzer, self.tabview.tab("Conti"))
+        self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller, self.transfer_controller, self.config_manager, self.catalogo_elenchi, self.analyzer, self.tabview.tab("Conti"), self.event_bus)
         self.account_tab.create_accounts_tab()
-        self.salary_tab = SalariesView(self.db_model, self.salary_controller, self.user_controller, self.account_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, config_manager, self.tabview.tab("Salario"))
+        self.salary_tab = SalariesView(self.db_model, self.salary_controller, self.user_controller, self.account_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, config_manager, self.tabview.tab("Salario"), self.event_bus)
         self.salary_tab.create_salaries_tab()
 
         self.update_idletasks()
@@ -1078,3 +1079,19 @@ class MainWindow(ctk.CTk):
                 widget.pack(fill="x", expand=True, padx=5)
 
             self.expense_widgets[expense_key][field] = widget
+
+
+
+class EventBus:
+    def __init__(self):
+        self.subscribers = {}
+
+    def subscribe(self, event_type, handler):
+        if event_type not in self.subscribers:
+            self.subscribers[event_type] = []
+        self.subscribers[event_type].append(handler)
+
+    def publish(self, event_type, data):
+        if event_type in self.subscribers:
+            for handler in self.subscribers[event_type]:
+                handler(data)

@@ -54,6 +54,7 @@ class MainWindow(ctk.CTk):
         self.analyzer = Analyzer(self.user_controller,
                  self.client_controller,
                  self.account_controller,
+                 self.invoice_controller,
                  self.transfer_controller,
                  self.supplier_controller,
                  self.production_controller,
@@ -96,7 +97,7 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Fatture")
         self.tabview.add("Pagamenti")
         self.tabview.add("Spese")
-        self.tabview.add("Iva")
+        #self.tabview.add("Iva")
         self.tabview.add("Salario")
         self.tabview.add("Tasse")
         self.tabview.add("Report")
@@ -108,7 +109,7 @@ class MainWindow(ctk.CTk):
         self.event_bus = EventBus()
 
         #Aggiungi widget alla tab clienti tramite la classe ClientsView
-        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller, self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"), self.event_bus)
+        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller, self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"), self.analyzer, self.event_bus)
         #self.user_tab.create_user_tab()
         self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Clienti"), self.event_bus)
         self.client_tab.create_client_tab()

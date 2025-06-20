@@ -122,6 +122,104 @@ class ControllerUtils:
         # se nessun formato corrisponde, consideriamo fuori anno
         return False
 
+    # Formati di data supportati
+    DATE_FORMATS = [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%Y/%m/%d"
+    ]
+
+    @staticmethod
+    def _parse_date(date_str):
+        """Tenta di parsare una data da stringa con vari formati"""
+        for fmt in ControllerUtils.DATE_FORMATS:
+            try:
+                return datetime.strptime(date_str, fmt)
+            except ValueError:
+                continue
+        return None
+
+    # Filtri specifici per tipo di dato
+    @staticmethod
+    def filter_invoices(invoices, current_year=True):
+        if not current_year or not invoices:
+            return invoices
+
+        current_year_value = datetime.now().year
+        return [
+            inv for inv in invoices
+            if (date_str := inv.get(DBInvoicesColumns.DATA_CREAZIONE.value)) and
+               (dt := ControllerUtils._parse_date(date_str)) and
+               dt.year == current_year_value
+        ]
+
+    @staticmethod
+    def filter_expenses(expenses, current_year=True):
+        if not current_year or not expenses:
+            return expenses
+
+        current_year_value = datetime.now().year
+        return [
+            exp for exp in expenses
+            if (date_str := exp.get(DBExpensesColumns.DATE.value)) and
+               (dt := ControllerUtils._parse_date(date_str)) and
+               dt.year == current_year_value
+        ]
+
+    @staticmethod
+    def filter_payments(payments, current_year=True):
+        if not current_year or not payments:
+            return payments
+
+        current_year_value = datetime.now().year
+        return [
+            p for p in payments
+            if (date_str := p.get(DBPaymentsColumns.PAYMENT_DATE.value)) and
+               (dt := ControllerUtils._parse_date(date_str)) and
+               dt.year == current_year_value
+        ]
+
+    @staticmethod
+    def filter_productions(productions, current_year=True):
+        if not current_year or not productions:
+            return productions
+
+        current_year_value = datetime.now().year
+        return [
+            prod for prod in productions
+            if (date_str := prod.get(DBProductionsColumns.CREATED_AT.value)) and
+               (dt := ControllerUtils._parse_date(date_str)) and
+               dt.year == current_year_value
+        ]
+
+    @staticmethod
+    def filter_salaries(salaries, current_year=True):
+        if not current_year or not salaries:
+            return salaries
+
+        current_year_value = datetime.now().year
+        return [
+            sal for sal in salaries
+            if (date_str := sal.get(DBSalariesColumns.DATE.value)) and
+               (dt := ControllerUtils._parse_date(date_str)) and
+               dt.year == current_year_value
+        ]
+
+    @staticmethod
+    def filter_transfers(transfers, current_year=True):
+        if not current_year or not transfers:
+            return transfers
+
+        current_year_value = datetime.now().year
+        return [
+            tr for tr in transfers
+            if (date_str := tr.get(DBTransfersColumns.DATE.value)) and
+               (dt := ControllerUtils._parse_date(date_str)) and
+               dt.year == current_year_value
+        ]
+
 
 
 
@@ -4407,6 +4505,7 @@ class Analyzer:
                  user_controller,
                  client_controller,
                  account_controller,
+                 invoice_controller,
                  transfer_controller,
                  supplier_controller,
                  production_controller,
@@ -4419,6 +4518,7 @@ class Analyzer:
         self.user_controller = user_controller
         self.client_controller = client_controller
         self.account_controller = account_controller
+        self.invoice_controller = invoice_controller
         self.transfer_controller = transfer_controller
         self.supplier_controller = supplier_controller
         self.production_controller = production_controller
@@ -4446,4 +4546,67 @@ class Analyzer:
             balance = init_balance + float(tot_entrate) - float(tot_uscite)
 
         return balance
+
+    def calculate_trimestral_iva_by_account_id(self, account_id):
+        # Dizionario di output con i trimestri
+        output_dict = {
+            "Gen-Marz": {"debito": 0.0, "credito": 0.0, "da_pagare": 0.0},
+            "Apr-Giu": {"debito": 0.0, "credito": 0.0, "da_pagare": 0.0},
+            "Lug-Sett": {"debito": 0.0, "credito": 0.0, "da_pagare": 0.0},
+            "Ott-Dic": {"debito": 0.0, "credito": 0.0, "da_pagare": 0.0}
+        }
+
+        # Funzione per determinare il trimestre da un mese
+        def get_trimestre(month):
+            if 1 <= month <= 3:
+                return "Gen-Marz"
+            elif 4 <= month <= 6:
+                return "Apr-Giu"
+            elif 7 <= month <= 9:
+                return "Lug-Sett"
+            else:
+                return "Ott-Dic"
+
+        # Recupera le spese deducibili e le fatture
+        deducted_expenses = self.user_controller.retrieve_user_with_deducted_expenses_map_list(account_id)
+        invoices = self.user_controller.retrieve_user_with_invoices_map_list(account_id)
+        invoices = self.invoice_controller.clear_invoices_list_from_NDC_and_stornate(invoices)
+
+        # Elabora le spese (IVA a credito)
+        for e in deducted_expenses:
+            date_str = e.get(DBExpensesColumns.DATE.value)
+            if date_str:
+                try:
+                    # Converti la stringa in data ed estrai il mese
+                    expense_date = datetime.strptime(date_str, "%Y-%m-%d")
+                    trimestre = get_trimestre(expense_date.month)
+
+                    # Somma l'IVA a credito
+                    iva_amount = float(e.get(DBExpensesColumns.IVA_AMOUNT.value, 0))
+                    output_dict[trimestre]["credito"] += iva_amount
+                except (ValueError, TypeError):
+                    # Gestisci errori di conversione
+                    continue
+
+        # Elabora le fatture (IVA a debito)
+        for i in invoices:
+            date_str = i.get(DBInvoicesColumns.DATA_CREAZIONE.value)
+            if date_str:
+                try:
+                    # Converti la stringa in data e estrai il mese
+                    invoice_date = datetime.strptime(date_str, "%Y-%m-%d")
+                    trimestre = get_trimestre(invoice_date.month)
+
+                    # Somma l'IVA a debito
+                    iva_amount = float(i.get(DBInvoicesColumns.IVA.value, 0))
+                    output_dict[trimestre]["debito"] += iva_amount
+                except (ValueError, TypeError):
+                    # Gestisci errori di conversione
+                    continue
+
+        # Calcola l'IVA da pagare per ogni trimestre
+        for trimestre, valori in output_dict.items():
+            valori["da_pagare"] = valori["debito"] - valori["credito"]
+
+        return output_dict
 

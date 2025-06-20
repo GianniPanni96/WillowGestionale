@@ -12,7 +12,7 @@ from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpens
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 class UsersView(ctk.CTk):
-    def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab, event_bus):
+    def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab, analyzer, event_bus):
         super().__init__()
 
         self.db_model = db_model
@@ -21,6 +21,7 @@ class UsersView(ctk.CTk):
         self.production_controller = production_controller
         self.tab = tab
         self.fiscal_settings = fiscal_settings
+        self.analyzer = analyzer
         self.event_bus = event_bus
 
         #tool variables
@@ -53,6 +54,7 @@ class UsersView(ctk.CTk):
             production_controller=production_controller,
             db_model=db_model,
             fiscal_settings=self.fiscal_settings,
+            analyzer=self.analyzer,
             event_bus = self.event_bus
         )
 
@@ -748,7 +750,7 @@ class UsersView(ctk.CTk):
 
 
 class UserDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, user_controller, account_controller, production_controller, db_model, fiscal_settings, event_bus):
+    def __init__(self, parent, back_callback, user_controller, account_controller, production_controller, db_model, fiscal_settings, analyzer, event_bus):
         super().__init__(parent)
         self.user_controller = user_controller
         self.account_controller = account_controller
@@ -758,6 +760,7 @@ class UserDetailView(ctk.CTkFrame):
         self.fiscal_settings = fiscal_settings
         self.event_bus = event_bus
         self.current_user_id = None
+        self.analyzer = analyzer
 
         # Widgets persistenti (vanno creati una volta sola)
         self.head_frame = ctk.CTkFrame(self)
@@ -1294,9 +1297,87 @@ class UserDetailView(ctk.CTkFrame):
         iva_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
         iva_frame.pack(fill="both", expand=True, pady=0, padx=(10, 0), ipady=20, side="left")
 
-        ctk.CTkLabel(iva_frame, text="IVA TRIMESTRALE", font=("Arial", 14, "bold")).pack(anchor="w",
-                                                                                               pady=(10, 10),
-                                                                                               padx=10)
+        ctk.CTkLabel(iva_frame, text="IVA TRIMESTRALE", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        self.iva_header_frame = ctk.CTkFrame(iva_frame, fg_color="#2b2b2b")
+        self.iva_header_frame.pack(fill="x", expand=True, padx=(10, 10), pady=(15, 0))
+
+        header0 = ctk.CTkFrame(self.iva_header_frame, fg_color="#333333")
+        header0.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=5)
+        header1 = ctk.CTkFrame(self.iva_header_frame, fg_color="#333333")
+        header1.grid(row=0, column=1, sticky="nsew", padx=(0, 5), pady=5)
+        header2 = ctk.CTkFrame(self.iva_header_frame, fg_color="#333333")
+        header2.grid(row=0, column=2, sticky="nsew", padx=(0, 5), pady=5)
+        header3 = ctk.CTkFrame(self.iva_header_frame, fg_color="#333333")
+        header3.grid(row=0, column=3, sticky="nsew", padx=(0, 5), pady=5)
+
+        self.iva_header_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        self.iva_header_frame.grid_columnconfigure(1, weight=1, uniform="col")
+        self.iva_header_frame.grid_columnconfigure(2, weight=1, uniform="col")
+        self.iva_header_frame.grid_columnconfigure(3, weight=1, uniform="col")
+
+        ctk.CTkLabel(header0, text="TRIMESTRE", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
+        ctk.CTkLabel(header1, text="CREDITO", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
+        ctk.CTkLabel(header2, text="DEBITO", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
+        ctk.CTkLabel(header3, text="DA PAGARE", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
+
+        self.trimestral_list_frame = ctk.CTkFrame(iva_frame)
+        self.trimestral_list_frame.pack(fill="x", expand=True, padx=10, pady=(0, 25))
+
+        # Ottieni i dati IVA trimestrali
+        iva_data = self.analyzer.calculate_trimestral_iva_by_account_id(self.current_user_id)
+
+        # Ordina i trimestri nell'ordine corretto
+        quarters_order = ["Gen-Marz", "Apr-Giu", "Lug-Sett", "Ott-Dic"]
+
+        for quarter in quarters_order:
+            data = iva_data.get(quarter, {"debito": 0.0, "credito": 0.0, "da_pagare": 0.0})
+
+            # Crea il frame per la riga
+            row_frame = ctk.CTkFrame(self.trimestral_list_frame)
+            row_frame.pack(fill="x", pady=(0, 5))
+
+            # Configura le colonne con peso uniforme
+            for col in range(4):
+                row_frame.grid_columnconfigure(col, weight=1, uniform="col")
+
+            # Colonna 1: Nome trimestre
+            quarter_frame = ctk.CTkFrame(row_frame)
+            quarter_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+            ctk.CTkLabel(quarter_frame, text=quarter).pack(padx=5, pady=5)
+
+            # Colonna 2: Credito IVA
+            credito_frame = ctk.CTkFrame(row_frame)
+            credito_frame.grid(row=0, column=1, sticky="nsew", padx=(0, 5))
+            ctk.CTkLabel(credito_frame, text=f"{data['credito']:.2f} €").pack(padx=5, pady=5)
+
+            # Colonna 3: Debito IVA
+            debito_frame = ctk.CTkFrame(row_frame)
+            debito_frame.grid(row=0, column=2, sticky="nsew", padx=(0, 5))
+            ctk.CTkLabel(debito_frame, text=f"{data['debito']:.2f} €").pack(padx=5, pady=5)
+
+            # Colonna 4: Saldo da pagare (con colorazione condizionale)
+            saldo_frame = ctk.CTkFrame(row_frame)
+            saldo_frame.grid(row=0, column=3, sticky="nsew")
+
+            # Determina il colore in base al saldo
+            saldo = data['da_pagare']
+            if saldo > 0:
+                fg_color = "#f52f2f"  # rosso per importi positivi (da pagare)
+            elif saldo < 0:
+                fg_color = "#2ca31c"  # verde per crediti
+            else:
+                fg_color = "#b0b0b0"  # grigio per saldo zero
+
+            # Crea label con colore di sfondo appropriato
+            ctk.CTkLabel(
+                saldo_frame,
+                text=f"{saldo:.2f} €",
+                fg_color=fg_color,
+                corner_radius=4
+            ).pack(padx=5, pady=5, fill="both", expand=True)
+
+
 
 
     def _cleanup_and_go_back(self):

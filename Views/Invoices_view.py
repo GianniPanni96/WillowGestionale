@@ -1098,7 +1098,6 @@ class InvoicesView(ctk.CTk):
             "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
         ))
 
-
     def get_invoicer_suggestion(self):
         try:
             new_import = float(self.new_invoice_import_entry.get())

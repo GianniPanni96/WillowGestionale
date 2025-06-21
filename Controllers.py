@@ -9,12 +9,9 @@ from Crypto.Random import get_random_bytes
 import hashlib
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression
-from collections import OrderedDict
 
 
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
-
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, \
 DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, \
 DBSuppliersColumns, DBTransfersColumns, DBSalariesColumns
@@ -143,17 +140,76 @@ class ControllerUtils:
 
     # Filtri specifici per tipo di dato
     @staticmethod
-    def filter_invoices(invoices, current_year=True):
+    def filter_invoices(invoices, db_model, current_year=True):
+        """
+        Filtra le fatture per l'anno corrente o mantenendo quelle con rate non pagate.
+        Funziona sia con liste che con singole fatture.
+
+        :param invoices: Singola fattura o lista di fatture (tuple)
+        :param db_model: Istanza del DatabaseModel per accedere ai dati
+        :param current_year: Se True, applica il filtro combinato
+        :return: Lista filtrata di fatture o singola fattura
+        """
+        # Gestione del caso di singola fattura
+        single_item = not isinstance(invoices, list)
+        if single_item:
+            invoices = [invoices]
+
         if not current_year or not invoices:
-            return invoices
+            return invoices[0] if single_item else invoices
+
+        # Recupera i pagamenti recenti (ultimi 12 mesi)
+        recent_payments = DatabaseModel._fetch_recent_payments(db_model)
+        recent_payments_map = [ValidationUtils._row_to_map(p, DBPaymentsColumns) for p in recent_payments]
+
+        # Mappatura delle rate pagate per fattura
+        paid_rates = {}
+        for payment in recent_payments_map:
+            invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
+            rata = payment[DBPaymentsColumns.LINKED_RATA.value]
+
+            if invoice_id not in paid_rates:
+                paid_rates[invoice_id] = set()
+            paid_rates[invoice_id].add(rata)
+
+        # Preparazione per l'accesso alle colonne
+        columns = [col.value for col in DBInvoicesColumns]
+        creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
+        id_index = columns.index(DBInvoicesColumns.ID.value)
+        rate_index = columns.index(DBInvoicesColumns.NUMERO_RATE.value)
 
         current_year_value = datetime.now().year
-        return [
-            inv for inv in invoices
-            if (date_str := inv.get(DBInvoicesColumns.DATA_CREAZIONE.value)) and
-               (dt := ControllerUtils._parse_date(date_str)) and
-               dt.year == current_year_value
-        ]
+        filtered_rows = []
+
+        for row in invoices:
+            invoice_id = row[id_index]
+            num_rate = row[rate_index] if row[rate_index] is not None else 1
+
+            # Verifica se ci sono rate non pagate
+            has_unpaid_rates = False
+            if invoice_id in paid_rates:
+                paid_count = len(paid_rates[invoice_id])
+                if paid_count < num_rate:
+                    has_unpaid_rates = True
+            else:
+                has_unpaid_rates = num_rate > 0
+
+            # Mantieni le fatture con rate non pagate
+            if has_unpaid_rates:
+                filtered_rows.append(row)
+                continue
+
+            # Per le altre, applica il filtro dell'anno corrente
+            date_str = row[creation_index]
+            try:
+                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                dt = datetime.strptime(date_str, "%Y-%m-%d")
+
+            if dt.year == current_year_value:
+                filtered_rows.append(row)
+
+        return filtered_rows[0] if single_item and filtered_rows else filtered_rows
 
     @staticmethod
     def filter_expenses(expenses, current_year=True):
@@ -1644,69 +1700,48 @@ class InvoiceController:
 
     def retrieve_invoices(self, current_year=True):
         """
-        Recupera tutte le fatture, filtrandole per l'anno corrente se specificato.
-        :param current_year: Booleano. Se True, ritorna solo le fatture emesse nell'anno corrente.
+        Recupera tutte le fatture, filtrandole per l'anno corrente o mantenendo quelle con rate non pagate.
+        :param current_year: Booleano. Se True, ritorna solo le fatture emesse nell'anno corrente o con rate non pagate.
         :return: Lista di tuple (righe) con i dati delle fatture.
         """
         rows = self.db_model.fetch_invoices()
         if current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBInvoicesColumns]
-            creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
-            filtered_rows = []
-            for row in rows:
-                date_str = row[creation_index]
-                try:
-                    # Prova a fare il parsing includendo l'orario
-                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    # Altrimenti usa solo la data
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                if dt.year == current_year_value:
-                    filtered_rows.append(row)
-            rows = filtered_rows
+            rows = ControllerUtils.filter_invoices(rows, self.db_model, current_year)
         return rows
 
     def retrieve_invoice_by_id(self, invoice_id, current_year=True):
         """
         Recupera una fattura specifica per ID, opzionalmente filtrando per l'anno corrente.
         :param invoice_id: ID della fattura.
-        :param current_year: Se True, ritorna None se la fattura non è dell'anno corrente.
+        :param current_year: Se True, ritorna None se la fattura non è dell'anno corrente o non ha rate non pagate.
         :return: Una tupla con i dati della fattura oppure None.
         """
         row = self.db_model.fetch_invoice_by_id(invoice_id)
         if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBInvoicesColumns]
-            creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
-            date_str = row[creation_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt.year != current_year_value:
-                return None
+            # Passa la singola riga come lista di un elemento
+            filtered = ControllerUtils.filter_invoices([row], self.db_model, current_year)
+            return filtered[0] if filtered else None
         return row
 
     def retrieve_invoice_map_by_id(self, invoice_id, current_year=True):
         """
         Recupera una fattura specifica e la restituisce come dizionario, filtrando per l'anno corrente se specificato.
         :param invoice_id: ID della fattura.
-        :param current_year: Se True, ritorna None se la fattura non è dell'anno corrente.
+        :param current_year: Se True, ritorna None se la fattura non è dell'anno corrente o non ha rate non pagate.
         :return: Dizionario con i dati della fattura oppure None.
         """
         row = self.db_model.fetch_invoice_by_id(invoice_id)
-        if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBInvoicesColumns]
-            creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
-            date_str = row[creation_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt.year != current_year_value:
+        if not row:
+            return None
+
+        if current_year:
+            # Filtra la singola fattura
+            filtered_row = ControllerUtils.filter_invoices(row, self.db_model, current_year)
+            # Se il filtro restituisce None, la fattura non passa i criteri
+            if not filtered_row:
                 return None
+            row = filtered_row
+
         return ValidationUtils._row_to_map(row, DBInvoicesColumns)
 
     def retrieve_invoice_map_by_name(self, invoice_name, current_year=True):
@@ -1715,7 +1750,7 @@ class InvoiceController:
         filtrando per l'anno corrente se specificato.
 
         :param invoice_name: Nome della fattura.
-        :param current_year: Se True, ritorna un dizionario vuoto se la fattura non è dell'anno corrente.
+        :param current_year: Se True, ritorna un dizionario vuoto se la fattura non è dell'anno corrente o non ha rate non pagate.
         :return: Dizionario con i dati della fattura oppure un dizionario vuoto.
         """
         row = self.db_model.fetch_invoice_by_name(invoice_name)
@@ -1723,96 +1758,57 @@ class InvoiceController:
             return {}
 
         if current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBInvoicesColumns]
-            creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
-            date_str = row[creation_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt.year != current_year_value:
+            # Filtra la singola fattura
+            filtered_row = ControllerUtils.filter_invoices(row, self.db_model, current_year)
+            # Se il filtro restituisce None, la fattura non passa i criteri
+            if not filtered_row:
                 return {}
+            row = filtered_row
 
         return ValidationUtils._row_to_map(row, DBInvoicesColumns)
 
     def retrieve_invoices_map_list_by_user(self, user_id, current_year=True):
         """
-        Recupera tutte le fatture di un certo utente e le restituisce come lista di dizionari, filtrandole per l'anno corrente se specificato.
+        Recupera tutte le fatture di un certo utente e le restituisce come lista di dizionari,
+        filtrandole per l'anno corrente o mantenendo quelle con rate non pagate.
+
         :param user_id: ID dell'utente.
-        :param current_year: Se True, ritorna solo le fatture dell'anno corrente.
+        :param current_year: Se True, ritorna solo le fatture dell'anno corrente o con rate non pagate.
         :return: Lista di dizionari contenenti i dati delle fatture.
         """
         rows = self.db_model.fetch_invoices_by_user_id(user_id)
+
         if current_year and rows:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBInvoicesColumns]
-            creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
-            filtered_rows = []
-            for row in rows:
-                date_str = row[creation_index]
-                try:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                if dt.year == current_year_value:
-                    filtered_rows.append(row)
-            rows = filtered_rows
+            rows = ControllerUtils.filter_invoices(rows, self.db_model, current_year)
+
         return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
 
     def retrieve_invoice_map_list_by_production(self, prod_id, current_year=True):
         """
-        Recupera tutte le fatture di un certo utente e le restituisce come lista di dizionari, filtrandole per l'anno corrente se specificato.
+        Recupera tutte le fatture di una produzione e le restituisce come lista di dizionari,
+        filtrandole per l'anno corrente o mantenendo quelle con rate non pagate.
+
         :param prod_id: ID della produzione.
-        :param current_year: Se True, ritorna solo le fatture dell'anno corrente.
+        :param current_year: Se True, ritorna solo le fatture dell'anno corrente o con rate non pagate.
         :return: Lista di dizionari contenenti i dati delle fatture.
         """
         rows = self.db_model.fetch_invoices_by_prod_id(prod_id)
+
         if current_year and rows:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBInvoicesColumns]
-            creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
-            filtered_rows = []
-            for row in rows:
-                date_str = row[creation_index]
-                try:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                if dt.year == current_year_value:
-                    filtered_rows.append(row)
-            rows = filtered_rows
+            rows = ControllerUtils.filter_invoices(rows, self.db_model, current_year)
+
         return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
 
     def retrieve_invoices_map_list(self, current_year=True):
         """
         Recupera tutte le fatture e le restituisce come lista di dizionari,
-        filtrandole per l'anno corrente se specificato.
+        filtrandole per l'anno corrente o mantenendo quelle con rate non pagate.
         """
         rows = self.db_model.fetch_invoices()
-        # Costruisci la lista dei nomi delle colonne in base all'enum (l'ordine è importante)
-        columns = [column.value for column in DBInvoicesColumns]
 
-        if current_year:
-            current_year_value = datetime.now().year
-            # Trova l'indice della colonna DATA_CREAZIONE
-            creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
-            filtered_rows = []
-            for row in rows:
-                try:
-                    date_str = row[creation_index]
-                    # Prova prima con l'orario; se fallisce, usa solo la data
-                    try:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d")
-                    if dt.year == current_year_value:
-                        filtered_rows.append(row)
-                except Exception as e:
-                    print(f"Errore durante il parsing della data '{date_str}': {e}")
-            rows = filtered_rows
+        if current_year and rows:
+            rows = ControllerUtils.filter_invoices(rows, self.db_model, current_year)
 
-        # Converte ogni riga in un dizionario usando la funzione _row_to_map
         return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
 
     def retrieve_last_invoice_insert_map(self):
@@ -1884,317 +1880,185 @@ class InvoiceController:
         """
         Conta il numero di fatture che non siano state stornate, applicando il filtro per l'anno corrente se specificato.
 
-        :param current_year: Booleano. Se True, conta solo le fatture dell'anno corrente.
+        :param current_year: Booleano. Se True, conta solo le fatture dell'anno corrente o con rate non pagate.
         :return: Numero di fatture (int)
         """
-
-        if current_year:
-            #filtra le fatture che sono note di credito
-            invoices = self.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True))
-        else:
-            invoices = self.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False))
-
-        return len(invoices)
+        # Recupera le fatture già filtrate
+        invoices = self.retrieve_invoices_map_list(current_year)
+        # Filtra ulteriormente per rimuovere NDC e stornate
+        filtered_invoices = self.clear_invoices_list_from_NDC_and_stornate(invoices)
+        return len(filtered_invoices)
 
     def calculate_TOT_DOCUMENTO_invoiced(self, current_year=True):
-        if current_year:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True))
-        else:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False))
+        """
+        Calcola il totale fatturato, escludendo NDC e fatture stornate.
 
-        tot = 0.00
-        for invoice in invoices_list:
-            if invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]:
-                tot = tot + float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value])
+        :param current_year: Se True, considera solo fatture dell'anno corrente o con rate non pagate.
+        :return: Totale fatturato (float)
+        """
+        # Recupera le fatture già filtrate
+        invoices = self.retrieve_invoices_map_list(current_year)
+        # Filtra ulteriormente per rimuovere NDC e stornate
+        filtered_invoices = self.clear_invoices_list_from_NDC_and_stornate(invoices)
 
+        tot = 0.0
+        for invoice in filtered_invoices:
+            amount = invoice.get(DBInvoicesColumns.TOT_DOCUMENTO.value)
+            if amount:
+                tot += float(amount)
         return tot
 
     def calculate_IVA_invoiced(self, current_year=True):
-        if current_year:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True))
-        else:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False))
+        """
+        Calcola il totale IVA fatturata, escludendo NDC e fatture stornate.
 
-        IVA = 0.00
-        for invoice in invoices_list:
-            if invoice[DBInvoicesColumns.IVA.value]:
-                IVA = IVA + float(invoice[DBInvoicesColumns.IVA.value])
+        :param current_year: Se True, considera solo fatture dell'anno corrente o con rate non pagate.
+        :return: Totale IVA (float)
+        """
+        # Recupera le fatture già filtrate
+        invoices = self.retrieve_invoices_map_list(current_year)
+        # Filtra ulteriormente per rimuovere NDC e stornate
+        filtered_invoices = self.clear_invoices_list_from_NDC_and_stornate(invoices)
 
-        return IVA
+        iva_total = 0.0
+        for invoice in filtered_invoices:
+            iva = invoice.get(DBInvoicesColumns.IVA.value)
+            if iva:
+                iva_total += float(iva)
+        return iva_total
 
     def calculate_RITENUTA_ACCONTO_invoiced(self, current_year=True):
-        if current_year:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True))
-        else:
-            invoices_list = InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False))
+        """
+        Calcola il totale della ritenuta d'acconto fatturata.
+        """
+        # Recupera le fatture già filtrate
+        invoices = self.retrieve_invoices_map_list(current_year)
+        # Filtra ulteriormente per rimuovere NDC e stornate
+        filtered_invoices = self.clear_invoices_list_from_NDC_and_stornate(invoices)
 
-        ritenuta = 0.00
-        for invoice in invoices_list:
-            if invoice[DBInvoicesColumns.RITENUTA.value]:
-                ritenuta = ritenuta + float(invoice[DBInvoicesColumns.RITENUTA.value])
-
+        ritenuta = 0.0
+        for invoice in filtered_invoices:
+            amount = invoice.get(DBInvoicesColumns.RITENUTA.value)
+            if amount:
+                ritenuta += float(amount)
         return ritenuta
 
     def calculate_FATT_LORDO_invoiced(self, current_year=True):
-        fatt_lordo = float(self.calculate_TOT_DOCUMENTO_invoiced(current_year)) - float(self.calculate_IVA_invoiced(current_year))
-        return fatt_lordo
+        """
+        Calcola il fatturato lordo (totale documento - IVA).
+        """
+        tot_documento = self.calculate_TOT_DOCUMENTO_invoiced(current_year)
+        iva = self.calculate_IVA_invoiced(current_year)
+        return tot_documento - iva
 
     def calculate_FATT_NETTO_invoiced(self, current_year=True):
-        fatt_netto = float(self.calculate_TOT_DOCUMENTO_invoiced(current_year)) - float(self.calculate_IVA_invoiced(current_year)) - float(self.calculate_RITENUTA_ACCONTO_invoiced(current_year))
-        return fatt_netto
+        """
+        Calcola il fatturato netto (totale documento - IVA - ritenuta).
+        """
+        tot_documento = self.calculate_TOT_DOCUMENTO_invoiced(current_year)
+        iva = self.calculate_IVA_invoiced(current_year)
+        ritenuta = self.calculate_RITENUTA_ACCONTO_invoiced(current_year)
+        return tot_documento - iva - ritenuta
 
     def calculate_CRED_LORDO_invoiced(self, current_year=True):
         """
-        Calcola i crediti lordi basandosi sulle fatture (non note di credito e non stornate)
-        e sui pagamenti ad esse associati, sfruttando il join tra invoices e payments.
-        L'IVA viene sottratta dal totale della fattura (o dalla rata, per le fatture rateizzate).
-
-        :param current_year: Se True, considera solo le fatture dell'anno corrente.
-        :return: Totale del credito lordo (float).
+        Calcola i crediti lordi basandosi sulle fatture non pagate.
         """
-        # Recupera i dati dal join: la query restituisce una lista di tuple,
-        # in cui le prime N colonne corrispondono ai dati della fattura (invoices)
-        # e le colonne successive ai dati del pagamento (payments).
-        rows = self.db_model.fetch_invoices_with_payments()
-        oggi = datetime.today().date()
-
-        # Raggruppa i record per invoice_id.
-        # Supponiamo che l'ordine delle colonne in invoices sia quello definito in DBInvoicesColumns;
-        # pertanto, il numero di colonne della fattura è:
-        num_invoice_cols = len(DBInvoicesColumns)
-
-        grouped = {}
-        for row in rows:
-            # L'ID della fattura è la prima colonna della parte invoices.
-            invoice_id = row[0]
-            if invoice_id not in grouped:
-                # Salva i dati della fattura (parte iniziale della tupla) e inizializza la lista dei pagamenti.
-                grouped[invoice_id] = {
-                    "invoice_raw": row[0:num_invoice_cols],
-                    "payments": []
-                }
-            # Le colonne successive rappresentano un pagamento.
-            # Se il record di pagamento è presente (id pagamento non None), lo aggiungiamo.
-            payment_raw = row[num_invoice_cols:]
-            if payment_raw and payment_raw[0] is not None:
-                grouped[invoice_id]["payments"].append(payment_raw)
-
-        # Convertiamo le fatture raggruppate in mappe (dizionari) per poterle filtrare.
-        all_invoice_maps = {}
-        for inv_id, data in grouped.items():
-            # Converte la parte "invoice_raw" in una mappa utilizzando l'enum DBInvoicesColumns.
-            inv_map = ValidationUtils._row_to_map(data["invoice_raw"], DBInvoicesColumns)
-            # Aggiunge alla mappa anche i dati dei pagamenti associati (li lasciamo in forma grezza)
-            inv_map["payments"] = data["payments"]
-            all_invoice_maps[inv_id] = inv_map
-
-        # Filtra le fatture rimuovendo note di credito e fatture stornate.
-        # Il metodo statico clear_invoices_list_from_NDC_and_stornate() riceve una lista di mappe.
-        filtered_invoices = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
-            list(all_invoice_maps.values())
-        )
-
-        totale_credito = 0.0
-
-        # Itera sulle fatture filtrate
-        for invoice in filtered_invoices:
-            # Se si vuole filtrare per anno corrente, controlla DATA_CREAZIONE
-            if current_year:
-                creation_date_str = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
-                try:
-                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d")
-                if dt.year != datetime.today().year:
-                    continue
-
-            # Estrae i campi necessari dalla fattura
-            try:
-                num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
-            except (ValueError, TypeError):
-                continue
-            tot_documento = float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value])
-            iva = float(invoice[DBInvoicesColumns.IVA.value])
-            # Lo stato è già filtrato dalla clear_invoices_list_from_NDC_and_stornate, per cui non è stornata.
-
-            # Recupera i pagamenti associati (li avevamo salvati sotto la chiave "payments")
-            payments = invoice.get("payments", [])
-            # I pagamenti sono ancora in forma di tuple: per accedere al campo LINKED_RATA, usiamo l'enum DBPaymentsColumns.
-            # Creiamo una lista dei pagamenti convertiti in dizionari per comodità:
-            payment_cols = [col.value for col in DBPaymentsColumns]
-            payments_maps = []
-            for p in payments:
-                if p and p[0] is not None:
-                    payments_maps.append(dict(zip(payment_cols, p)))
-
-            if num_rate == int(InvoiceController.Rateizzazione.UNA.value):
-                # Per fatture con 1 rata, verifichiamo se esiste un pagamento associato con LINKED_RATA == 1.
-                paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == 1 for pm in payments_maps)
-                if not paid:
-                    lordo_fattura = tot_documento - iva
-                    totale_credito += lordo_fattura
-            elif num_rate == int(InvoiceController.Rateizzazione.TRE.value):
-                # Per fatture con 3 rate, dividiamo il totale lordo per 3
-                lordo_rate = (tot_documento - iva) / 3.0
-                # Controlla per ciascuna rata (1, 2, 3) se esiste un pagamento associato
-                for rata in [1, 2, 3]:
-                    paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == rata for pm in payments_maps)
-                    if not paid:
-                        totale_credito += lordo_rate
-            else:
-                print(
-                    f"Invoice id {invoice[DBInvoicesColumns.ID.value]}: numero rate non riconosciuto (valore: {num_rate}). Nessuna azione effettuata.")
-
-        return totale_credito
+        # Utilizza la funzione comune di processing
+        return self._process_crediti(current_year, netto=False)
 
     def calculate_CRED_NETTO_invoiced(self, current_year=True):
         """
-        Calcola i crediti netti basandosi sulle fatture non stornate e sui pagamenti associati,
-        sottraendo IVA e RITENUTA dal totale delle fatture.
-
-        Il calcolo si basa sulle seguenti regole:
-
-          Per fatture con una rata:
-            - Se non esiste un pagamento associato (LINKED_RATA == 1), il credito netto è:
-                  tot_documento - IVA - RITENUTA.
-
-          Per fatture rateizzate in 3:
-            - Il credito netto per rata è:
-                  (tot_documento - IVA - RITENUTA) / 3.
-            - Viene sommato per ciascuna rata (1, 2, 3) per cui non esiste un pagamento associato.
-
-        Le fatture vengono ottenute tramite il join tra invoices e payments (con il metodo
-        fetch_invoices_with_payments()) e successivamente filtrate per escludere note di credito
-        e fatture stornate.
-
-        :param current_year: Se True, considera solo le fatture dell'anno corrente.
-        :return: Totale del credito netto (float).
+        Calcola i crediti netti basandosi sulle fatture non pagate.
         """
-        # Recupera le righe dal join tra invoices e payments.
-        rows = self.db_model.fetch_invoices_with_payments()
-        oggi = datetime.today().date()
+        # Utilizza la funzione comune di processing
+        return self._process_crediti(current_year, netto=True)
 
-        # Determina quante colonne appartengono a invoices.
+    def calculate_MEDIA_FATTURA_LORDO_invoiced(self, current_year=True):
+        """
+        Calcola la media del fatturato lordo per fattura.
+        """
+        fatt_lordo = self.calculate_FATT_LORDO_invoiced(current_year)
+        numero_fatt = self.count_invoices(current_year)
+        return fatt_lordo / numero_fatt if numero_fatt > 0 else -1
+
+    def calculate_MEDIA_FATTURA_NETTO_invoiced(self, current_year=True):
+        """
+        Calcola la media del fatturato netto per fattura.
+        """
+        fatt_netto = self.calculate_FATT_NETTO_invoiced(current_year)
+        numero_fatt = self.count_invoices(current_year)
+        return fatt_netto / numero_fatt if numero_fatt > 0 else -1
+
+    # Funzione helper comune per il calcolo dei crediti
+    def _process_crediti(self, current_year, netto=True):
+        """
+        Funzione comune per il calcolo dei crediti lordi o netti.
+        """
+        # Recupera le fatture con i pagamenti associati
+        rows = self.db_model.fetch_invoices_with_payments()
         num_invoice_cols = len(DBInvoicesColumns)
 
-        # Raggruppa i risultati per invoice_id.
+        # Crea un set di ID fatture da includere (usando la nuova logica di filtraggio)
+        included_ids = {inv[DBInvoicesColumns.ID.value] for inv in self.retrieve_invoices_map_list(current_year)}
+
+        # Raggruppa per invoice_id
         grouped = {}
         for row in rows:
-            # L'ID della fattura è la prima colonna della parte invoices.
             invoice_id = row[0]
+            if invoice_id not in included_ids:  # Filtra per le fatture da includere
+                continue
+
             if invoice_id not in grouped:
                 grouped[invoice_id] = {
                     "invoice_raw": row[0:num_invoice_cols],
                     "payments": []
                 }
-            # Le colonne successive sono quelle del pagamento; se il pagamento non è presente, il primo campo sarà None.
             payment_raw = row[num_invoice_cols:]
             if payment_raw and payment_raw[0] is not None:
                 grouped[invoice_id]["payments"].append(payment_raw)
 
-        # Converti ogni fattura in una mappa (dizionario) e associa la lista dei pagamenti (ancora in forma di tuple)
+        # Converti in mappe e filtra
         all_invoice_maps = {}
         for inv_id, data in grouped.items():
             inv_map = ValidationUtils._row_to_map(data["invoice_raw"], DBInvoicesColumns)
             inv_map["payments"] = data["payments"]
             all_invoice_maps[inv_id] = inv_map
 
-        # Filtra le fatture rimuovendo quelle che sono note di credito o stornate.
-        filtered_invoices = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
-            list(all_invoice_maps.values())
-        )
-
-        totale_credito = 0.0
-        # Prepara la lista dei nomi delle colonne per accedere ai campi dei pagamenti.
+        filtered_invoices = self.clear_invoices_list_from_NDC_and_stornate(list(all_invoice_maps.values()))
         payment_cols = [col.value for col in DBPaymentsColumns]
+        totale_credito = 0.0
 
-        # Itera sulle fatture filtrate
         for invoice in filtered_invoices:
-            # Se si vuole considerare solo l'anno corrente, controlla DATA_CREAZIONE.
-            if current_year:
-                creation_date_str = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
-                try:
-                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d")
-                if dt.year != datetime.today().year:
-                    continue
-
-            # Estrai i dati necessari dalla fattura
             try:
                 num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
+                tot_documento = float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value])
+                iva = float(invoice[DBInvoicesColumns.IVA.value])
+                ritenuta = float(invoice.get(DBInvoicesColumns.RITENUTA.value, 0))
             except (ValueError, TypeError):
                 continue
-            tot_documento = float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value])
-            iva = float(invoice[DBInvoicesColumns.IVA.value])
-            # Ritenuta può essere None, quindi se non presente la consideriamo zero.
-            ritenuta = float(invoice[DBInvoicesColumns.RITENUTA.value] or 0)
 
-            # I pagamenti sono memorizzati nella chiave "payments" (lista di tuple).
-            # Convertiamo ciascun pagamento in un dizionario per accedere ai campi.
-            payments = invoice.get("payments", [])
+            # Converti i pagamenti
             payments_maps = []
-            for p in payments:
+            for p in invoice.get("payments", []):
                 if p and p[0] is not None:
                     payments_maps.append(dict(zip(payment_cols, p)))
 
-            # Calcola il credito netto in base alla tipologia di rateizzazione
+            # Calcola il credito in base al tipo di fattura
             if num_rate == int(InvoiceController.Rateizzazione.UNA.value):
-                # Fattura con 1 rata: se non esiste un pagamento (LINKED_RATA == 1) allora il credito è:
-                # tot_documento - IVA - RITENUTA.
-                paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == 1 for pm in payments_maps)
+                paid = any(int(pm.get(DBPaymentsColumns.LINKED_RATA.value, 0)) == 1 for pm in payments_maps)
                 if not paid:
-                    credito = tot_documento - iva - ritenuta
+                    credito = tot_documento - iva - (ritenuta if netto else 0)
                     totale_credito += credito
+
             elif num_rate == int(InvoiceController.Rateizzazione.TRE.value):
-                # Fattura rateizzata in 3: ogni rata ha un credito netto pari a:
-                # (tot_documento - IVA - RITENUTA) / 3.
-                credito_rate = (tot_documento - iva - ritenuta) / 3.0
+                credito_per_rata = (tot_documento - iva - (ritenuta if netto else 0)) / 3.0
                 for rata in [1, 2, 3]:
-                    paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == rata for pm in payments_maps)
+                    paid = any(int(pm.get(DBPaymentsColumns.LINKED_RATA.value, 0)) == rata for pm in payments_maps)
                     if not paid:
-                        totale_credito += credito_rate
-            else:
-                print(
-                    f"Invoice id {invoice[DBInvoicesColumns.ID.value]}: numero rate non riconosciuto (valore: {num_rate}). Nessuna azione effettuata.")
+                        totale_credito += credito_per_rata
 
         return totale_credito
-
-    def calculate_MEDIA_FATTURA_LORDO_invoiced(self, current_year=True):
-        if current_year:
-            fatt_lordo = self.calculate_FATT_LORDO_invoiced(True)
-            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True)))
-            if numero_fatt > 0:
-                media = fatt_lordo/numero_fatt
-            else:
-                media = -1
-        else:
-            fatt_lordo = self.calculate_FATT_LORDO_invoiced(False)
-            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False)))
-            if numero_fatt > 0:
-                media = fatt_lordo/numero_fatt
-            else:
-                media = -1
-
-        return media
-
-    def calculate_MEDIA_FATTURA_NETTO_invoiced(self, current_year=True):
-        if current_year:
-            fatt_netto = self.calculate_FATT_NETTO_invoiced(True)
-            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(True)))
-            if numero_fatt > 0:
-                media = fatt_netto/numero_fatt
-            else:
-                media = -1
-        else:
-            fatt_netto = self.calculate_FATT_LORDO_invoiced(False)
-            numero_fatt = len(InvoiceController.clear_invoices_list_from_NDC_and_stornate(self.retrieve_invoices_map_list(False)))
-            if numero_fatt > 0:
-                media = fatt_netto/numero_fatt
-            else:
-                media = -1
-
-        return media
 
     # ancora da implementare perché manca la parte di produzioni
     def calculate_MEDIA_PAGAM_ORARIO_LORDO_invoiced(self, current_year=True):
@@ -2376,17 +2240,29 @@ class InvoiceController:
         Viene stampato a console il feedback per ogni fattura e un riepilogo finale.
         """
         # Recupera i dati dal join tra invoices e payments
-        # La funzione fetch_invoices_with_payments() restituisce una lista di tuple in cui:
-        # - le prime N colonne (N = len(DBInvoicesColumns)) sono i dati della fattura,
-        # - le colonne successive sono i dati dei pagamenti associati.
         rows = self.db_model.fetch_invoices_with_payments()
         oggi = datetime.today().date()
-
-        # Raggruppa i record per invoice_id.
         num_invoice_cols = len(DBInvoicesColumns)
+
+        # Estrai solo la parte fatture (senza pagamenti) per il filtraggio
+        invoice_tuples = [row[0:num_invoice_cols] for row in rows]
+
+        # Applica il filtro utilizzando ControllerUtils
+        filtered_invoice_tuples = ControllerUtils.filter_invoices(
+            invoice_tuples,
+            self.db_model,
+            current_year=current_year
+        )
+
+        # Crea un set con gli ID delle fatture filtrate
+        filtered_ids = {t[0] for t in filtered_invoice_tuples}  # ID è il primo elemento
+
+        # Filtra le righe originali mantenendo solo quelle delle fatture filtrate
+        filtered_rows = [row for row in rows if row[0] in filtered_ids]
+
+        # Raggruppa i record per invoice_id
         grouped = {}
-        for row in rows:
-            # L'ID della fattura è la prima colonna della parte invoices
+        for row in filtered_rows:
             invoice_id = row[0]
             if invoice_id not in grouped:
                 grouped[invoice_id] = {
@@ -2394,26 +2270,23 @@ class InvoiceController:
                     "payments": []
                 }
             payment_raw = row[num_invoice_cols:]
-            # Se il record di pagamento esiste (ID pagamento non None), lo aggiungiamo.
             if payment_raw and payment_raw[0] is not None:
                 grouped[invoice_id]["payments"].append(payment_raw)
 
-        # Converte ogni gruppo in una mappa (dizionario) per la fattura e conserva la lista dei pagamenti.
+        # Converte ogni gruppo in una mappa
         all_invoice_maps = {}
         for inv_id, data in grouped.items():
             inv_map = ValidationUtils._row_to_map(data["invoice_raw"], DBInvoicesColumns)
-            # Aggiungiamo i pagamenti grezzi (li convertiremo in mappe più avanti)
             inv_map["payments"] = data["payments"]
             all_invoice_maps[inv_id] = inv_map
 
-        # Filtra le fatture, rimuovendo note di credito e fatture stornate
+        # Filtra ulteriormente rimuovendo note di credito e fatture stornate
         filtered_invoices = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
             list(all_invoice_maps.values())
         )
 
         updates = 0
         total = len(filtered_invoices)
-        # Prepara la lista dei nomi delle colonne dei pagamenti per accedere ai campi
         payment_cols = [col.value for col in DBPaymentsColumns]
 
         for invoice in filtered_invoices:
@@ -2422,31 +2295,20 @@ class InvoiceController:
             num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
             nuovo_stato = stato_attuale  # default
 
-            # Se la fattura è segnata come stornata (nota di credito), non viene modificata
+            # Salta note di credito (già gestito in clear_invoices_list... ma doppio check)
             if stato_attuale == InvoiceController.InvoiceSatus.STORNATA.value:
                 print(f"Fattura {invoice_id} non aggiornata poichè è nota di credito")
                 continue
 
-            # Se si filtra per anno corrente, controlla DATA_CREAZIONE
-            if current_year:
-                creation_date_str = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
-                try:
-                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(creation_date_str, "%Y-%m-%d")
-                if dt.year != datetime.today().year:
-                    continue
-
-            # Converti i pagamenti in mappe per accedere ai campi (es. LINKED_RATA)
+            # Converti i pagamenti in mappe
             payments = invoice.get("payments", [])
             payments_maps = []
             for p in payments:
                 if p and p[0] is not None:
                     payments_maps.append(dict(zip(payment_cols, p)))
 
+            # Logica di aggiornamento stato (invariata)
             if num_rate == int(InvoiceController.Rateizzazione.UNA.value):
-                # Fattura con 1 rata: se esiste un pagamento con LINKED_RATA == 1 → PAGATA,
-                # altrimenti se la scadenza (DATA_SCADENZA_1) è passata → SCADUTA, altrimenti EMESSA.
                 paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == 1 for pm in payments_maps)
                 scadenza = ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_1.value])
                 if paid:
@@ -2458,21 +2320,19 @@ class InvoiceController:
                         nuovo_stato = InvoiceController.InvoiceRateizzSatus.EMESSA.value
 
             elif num_rate == int(InvoiceController.Rateizzazione.TRE.value):
-                # Fattura con 3 rate: raggruppa i pagamenti per rata.
-                # Per ciascuna rata (1, 2, 3) verifica se esiste un pagamento con LINKED_RATA uguale.
                 pagamenti = []
                 for rata in [1, 2, 3]:
-                    # Per ogni rata, seleziona il pagamento (se esiste) con LINKED_RATA == rata
                     payment = next((pm for pm in payments_maps if int(pm[DBPaymentsColumns.LINKED_RATA.value]) == rata),
                                    None)
                     pagamenti.append(
                         ControllerUtils.parse_date(payment[DBPaymentsColumns.PAYMENT_DATE.value]) if payment else None)
-                # Recupera le scadenze dalle fatture
+
                 scadenze = [
                     ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_1.value]),
                     ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_2.value]),
                     ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_3.value])
                 ]
+
                 count_paid = sum(1 for p in pagamenti if p is not None)
                 count_overdue = sum(
                     1 for i in range(3) if pagamenti[i] is None and scadenze[i] is not None and oggi > scadenze[i]
@@ -2481,9 +2341,6 @@ class InvoiceController:
                 if count_paid == 3:
                     nuovo_stato = InvoiceController.InvoiceRateizzSatus.PAGATA.value
                 elif count_paid == 0:
-                    # Se nessun pagamento: se tutte le scadenze (definite) sono passate → SCADUTA,
-                    # altrimenti se almeno una rata non pagata è scaduta (ma non tutte) → CRITICA,
-                    # altrimenti EMESSA.
                     if all(s is not None and oggi > s for s in scadenze):
                         nuovo_stato = InvoiceController.InvoiceRateizzSatus.SCADUTA.value
                     elif count_overdue > 0 and count_overdue < 3:
@@ -2491,7 +2348,6 @@ class InvoiceController:
                     else:
                         nuovo_stato = InvoiceController.InvoiceRateizzSatus.EMESSA.value
                 else:
-                    # Se alcune rate sono pagate (1 o 2):
                     if count_overdue > 0:
                         nuovo_stato = InvoiceController.InvoiceRateizzSatus.CRITICA.value
                     else:
@@ -2501,7 +2357,7 @@ class InvoiceController:
                     f"Invoice id {invoice_id}: numero rate non riconosciuto (valore: {num_rate}). Nessuna azione effettuata.")
                 continue
 
-            # Aggiorna lo stato della fattura se è cambiato
+            # Aggiornamento se lo stato è cambiato
             if nuovo_stato != stato_attuale:
                 self.db_model.modify_invoice_datum(invoice_id, DBInvoicesColumns.STATUS.value, nuovo_stato)
                 print(f"Invoice id {invoice_id}: stato aggiornato da '{stato_attuale}' a '{nuovo_stato}'.")

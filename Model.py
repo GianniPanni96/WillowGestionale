@@ -930,6 +930,30 @@ class DatabaseModel:
             result = cur.fetchone()[0]
             return result if result is not None else 0.0
 
+    #@staticmethod
+    @staticmethod
+    def _fetch_recent_payments(db_model, months=12):
+        """
+        Funzione statica per recuperare i pagamenti recenti.
+        Simula il metodo del model ma è completamente autonoma.
+        """
+        # Calcola la data limite
+        date_limit = (datetime.now() - timedelta(days=months * 30)).strftime("%Y-%m-%d")
+
+        # Costruisci la query
+        columns = [column.value for column in DBPaymentsColumns]
+        query = f"""
+        SELECT {', '.join(columns)} 
+        FROM payments 
+        WHERE DATE({DBPaymentsColumns.PAYMENT_DATE.value}) >= ?
+        """
+
+        # Esegui la query usando il db_model fornito
+        with db_model._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (date_limit,))
+            return cursor.fetchall()
+
 
 
 

@@ -115,7 +115,20 @@ class ProductionsView(ctk.CTk):
                                          command=self.open_add_production_window)
         self.save_button.pack()
 
-        for production in self.production_controller.retrieve_productions_map_list(True):
+        #aggiungo una tab per ogni fattura presente nel database
+        production_map_list = self.production_controller.retrieve_productions_map_list(True)
+        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
+        production_map_list.sort(
+            key=lambda x: datetime.strptime(
+                x[DBProductionsColumns.UPDATED_AT.value],
+                "%Y-%m-%d %H:%M:%S"
+            ) if " " in x[DBProductionsColumns.UPDATED_AT.value] else datetime.strptime(
+                x[DBProductionsColumns.UPDATED_AT.value],
+                "%Y-%m-%d"
+            ),
+            reverse=True
+        )
+        for production in production_map_list:
             production_id = production[DBProductionsColumns.ID.value]
             production_name = production[DBProductionsColumns.NAME.value]
             client_id = production[DBProductionsColumns.CLIENT_ID.value]

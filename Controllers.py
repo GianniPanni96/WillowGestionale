@@ -138,11 +138,15 @@ class ControllerUtils:
                 continue
         return None
 
-    # Filtri specifici per tipo di dato
     @staticmethod
     def filter_invoices(invoices, db_model, current_year=True):
         """
-        Filtra le fatture per l'anno corrente o mantenendo quelle con rate non pagate.
+        Filtra le fatture mantenendo:
+          - Tutte le fatture emesse nell'anno corrente
+          - Fatture di anni precedenti solo se:
+              a) Hanno ancora rate non saldate
+              b) Hanno almeno una rata pagata nell'anno corrente
+
         Funziona sia con liste che con singole fatture.
 
         :param invoices: Singola fattura o lista di fatture (tuple)
@@ -158,19 +162,9 @@ class ControllerUtils:
         if not current_year or not invoices:
             return invoices[0] if single_item else invoices
 
-        # Recupera i pagamenti recenti (ultimi 12 mesi)
-        recent_payments = DatabaseModel._fetch_recent_payments(db_model)
-        recent_payments_map = [ValidationUtils._row_to_map(p, DBPaymentsColumns) for p in recent_payments]
-
-        # Mappatura delle rate pagate per fattura
-        paid_rates = {}
-        for payment in recent_payments_map:
-            invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
-            rata = payment[DBPaymentsColumns.LINKED_RATA.value]
-
-            if invoice_id not in paid_rates:
-                paid_rates[invoice_id] = set()
-            paid_rates[invoice_id].add(rata)
+        # Recupera TUTTI i pagamenti (non solo recenti)
+        all_payments = db_model.fetch_payments()
+        payments_map = [ValidationUtils._row_to_map(p, DBPaymentsColumns) for p in all_payments]
 
         # Preparazione per l'accesso alle colonne
         columns = [col.value for col in DBInvoicesColumns]
@@ -181,32 +175,57 @@ class ControllerUtils:
         current_year_value = datetime.now().year
         filtered_rows = []
 
+        # Creiamo strutture per tracciare i pagamenti
+        invoice_payments = {}
+        for payment in payments_map:
+            invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
+            if invoice_id not in invoice_payments:
+                invoice_payments[invoice_id] = []
+            invoice_payments[invoice_id].append(payment)
+
         for row in invoices:
             invoice_id = row[id_index]
             num_rate = row[rate_index] if row[rate_index] is not None else 1
 
-            # Verifica se ci sono rate non pagate
-            has_unpaid_rates = False
-            if invoice_id in paid_rates:
-                paid_count = len(paid_rates[invoice_id])
-                if paid_count < num_rate:
-                    has_unpaid_rates = True
-            else:
-                has_unpaid_rates = num_rate > 0
+            # Estrai l'anno di creazione della fattura
+            date_str = row[creation_index]
+            try:
+                creation_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                creation_dt = datetime.strptime(date_str, "%Y-%m-%d")
 
-            # Mantieni le fatture con rate non pagate
-            if has_unpaid_rates:
+            # Fatture dell'anno corrente: sempre incluse
+            if creation_dt.year == current_year_value:
                 filtered_rows.append(row)
                 continue
 
-            # Per le altre, applica il filtro dell'anno corrente
-            date_str = row[creation_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
+            # Fatture di anni precedenti: verifica le condizioni
+            has_unpaid_rates = False
+            has_current_year_payment = False
 
-            if dt.year == current_year_value:
+            # Controlla se ci sono pagamenti per questa fattura
+            payments = invoice_payments.get(invoice_id, [])
+
+            # Verifica se ci sono rate non pagate
+            paid_rates = set()
+            for payment in payments:
+                paid_rates.add(payment[DBPaymentsColumns.LINKED_RATA.value])
+
+                # Verifica se il pagamento è nell'anno corrente
+                payment_date_str = payment[DBPaymentsColumns.PAYMENT_DATE.value]
+                try:
+                    payment_dt = datetime.strptime(payment_date_str, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    payment_dt = datetime.strptime(payment_date_str, "%Y-%m-%d")
+
+                if payment_dt.year == current_year_value:
+                    has_current_year_payment = True
+
+            if len(paid_rates) < num_rate:
+                has_unpaid_rates = True
+
+            # Mantieni le fatture di anni precedenti che soddisfano le condizioni
+            if has_unpaid_rates or has_current_year_payment:
                 filtered_rows.append(row)
 
         return filtered_rows[0] if single_item and filtered_rows else filtered_rows
@@ -239,29 +258,74 @@ class ControllerUtils:
 
     @staticmethod
     def filter_productions(productions, current_year=True):
+        """
+        Filtra le produzioni mantenendo solo quelle create nell'anno corrente.
+        Gestisce sia liste che singole produzioni.
+
+        :param productions: Singola produzione o lista di produzioni (dizionari)
+        :param current_year: Se True, applica il filtro dell'anno corrente
+        :return: Lista filtrata o singola produzione
+        """
+        # Gestione del caso di singolo elemento
+        single_item = not isinstance(productions, list)
+        if single_item:
+            productions = [productions]
+
         if not current_year or not productions:
-            return productions
+            return productions[0] if single_item else productions
 
         current_year_value = datetime.now().year
-        return [
-            prod for prod in productions
-            if (date_str := prod.get(DBProductionsColumns.CREATED_AT.value)) and
-               (dt := ControllerUtils._parse_date(date_str)) and
-               dt.year == current_year_value
-        ]
+        filtered = []
+
+        for prod in productions:
+            date_str = prod.get(DBProductionsColumns.CREATED_AT.value)
+            if not date_str:
+                continue
+
+            try:
+                # Utilizza il metodo di parsing esistente
+                dt = ControllerUtils._parse_date(date_str)
+                if dt.year == current_year_value:
+                    filtered.append(prod)
+            except Exception as e:
+                print(f"Errore durante il parsing della data '{date_str}': {e}")
+
+        return filtered[0] if single_item and filtered else filtered
 
     @staticmethod
     def filter_salaries(salaries, current_year=True):
+        """
+        Filtra i versamenti mantenendo solo quelli effettuati nell'anno corrente.
+        Gestisce sia liste che singoli versamenti.
+
+        :param salaries: Singolo versamento o lista di versamenti (dizionari)
+        :param current_year: Se True, applica il filtro dell'anno corrente
+        :return: Lista filtrata o singolo versamento
+        """
+        # Gestione del caso di singolo elemento
+        single_item = not isinstance(salaries, list)
+        if single_item:
+            salaries = [salaries]
+
         if not current_year or not salaries:
-            return salaries
+            return salaries[0] if single_item else salaries
 
         current_year_value = datetime.now().year
-        return [
-            sal for sal in salaries
-            if (date_str := sal.get(DBSalariesColumns.DATE.value)) and
-               (dt := ControllerUtils._parse_date(date_str)) and
-               dt.year == current_year_value
-        ]
+        filtered = []
+
+        for sal in salaries:
+            date_str = sal.get(DBSalariesColumns.DATE.value)
+            if not date_str:
+                continue
+
+            try:
+                dt = ControllerUtils._parse_date(date_str)
+                if dt.year == current_year_value:
+                    filtered.append(sal)
+            except Exception as e:
+                print(f"Errore durante il parsing della data '{date_str}': {e}")
+
+        return filtered[0] if single_item and filtered else filtered
 
     @staticmethod
     def filter_transfers(transfers, current_year=True):
@@ -3104,13 +3168,15 @@ class TransfersController:
         row = self.db_model.fetch_transfer_by_id(transfer_id)
         return ValidationUtils._row_to_map(row, DBTransfersColumns)
 
-    def retrieve_transfers_map_list(self):
+    def retrieve_transfers_map_list(self, current_year=True):
         """
         Recupera tutti i trasferimenti come lista di dizionari.
+        :param current_year: Se True, filtra per l'anno corrente
         :return: Lista di dizionari con i dati dei trasferimenti.
         """
         rows = self.db_model.fetch_all_transfers()
-        return [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
+        transfers = [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
+        return ControllerUtils.filter_transfers(transfers, current_year)
 
     def retrieve_last_transfer_insert_map(self):
         """
@@ -3120,44 +3186,60 @@ class TransfersController:
         row = self.db_model.fetch_last_transfer_insert()
         return ValidationUtils._row_to_map(row, DBTransfersColumns)
 
-    def retrieve_sent_transfers_map_by_account(self, account_id):
+    def retrieve_sent_transfers_map_by_account(self, account_id, current_year=True):
         """
         Recupera i trasferimenti inviati da un conto come lista di dizionari
+        :param account_id: ID del conto mittente
+        :param current_year: Se True, filtra per l'anno corrente
         """
         transfers = self.db_model.fetch_sent_transfers_by_account(account_id)
         if not transfers:
             return []
-        return [ValidationUtils._row_to_map(transfer, DBTransfersColumns) for transfer in transfers]
+        transfers_map = [ValidationUtils._row_to_map(transfer, DBTransfersColumns) for transfer in transfers]
+        return ControllerUtils.filter_transfers(transfers_map, current_year)
 
-    def retrieve_received_transfers_map_by_account(self, account_id):
+    def retrieve_received_transfers_map_by_account(self, account_id, current_year=True):
         """
         Recupera i trasferimenti ricevuti da un conto come lista di dizionari
+        :param account_id: ID del conto destinatario
+        :param current_year: Se True, filtra per l'anno corrente
         """
         transfers = self.db_model.fetch_received_transfers_by_account(account_id)
         if not transfers:
             return []
-        return [ValidationUtils._row_to_map(transfer, DBTransfersColumns) for transfer in transfers]
+        transfers_map = [ValidationUtils._row_to_map(transfer, DBTransfersColumns) for transfer in transfers]
+        return ControllerUtils.filter_transfers(transfers_map, current_year)
 
-    def retrieve_received_transfers_map(self, account_id):
+    def retrieve_received_transfers_map(self, account_id, current_year=True):
         """
         Recupera i trasferimenti ricevuti da un conto come lista di dizionari.
         :param account_id: ID del conto ricevente
+        :param current_year: Se True, filtra per l'anno corrente
         :return: Lista di dizionari
         """
         rows = self.db_model.fetch_received_transfers_by_account(account_id)
-        return [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
+        transfers = [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
+        return ControllerUtils.filter_transfers(transfers, current_year)
 
-    def retrieve_sent_transfers_map(self, account_id):
+    def retrieve_sent_transfers_map(self, account_id, current_year=True):
         """
         Recupera i trasferimenti inviati da un conto come lista di dizionari.
         :param account_id: ID del conto mittente
+        :param current_year: Se True, filtra per l'anno corrente
         :return: Lista di dizionari
         """
         rows = self.db_model.fetch_sended_transfers_by_account(account_id)
-        return [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
+        transfers = [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
+        return ControllerUtils.filter_transfers(transfers, current_year)
 
-    def calculate_tot_amount_sent_transfers_by_account(self, account_id):
-        sent_transfers = self.retrieve_sent_transfers_map_by_account(account_id)
+    def calculate_tot_amount_sent_transfers_by_account(self, account_id, current_year=True):
+        """
+        Calcola il totale dei trasferimenti inviati da un conto.
+        :param account_id: ID del conto mittente
+        :param current_year: Se True, considera solo l'anno corrente
+        :return: Importo totale inviato
+        """
+        sent_transfers = self.retrieve_sent_transfers_map_by_account(account_id, current_year)
         amount = 0.0
 
         for transfer in sent_transfers:
@@ -3165,8 +3247,14 @@ class TransfersController:
 
         return amount
 
-    def calculate_tot_amount_received_transfers_by_account(self, account_id):
-        received_transfers = self.retrieve_received_transfers_map_by_account(account_id)
+    def calculate_tot_amount_received_transfers_by_account(self, account_id, current_year=True):
+        """
+        Calcola il totale dei trasferimenti ricevuti da un conto.
+        :param account_id: ID del conto destinatario
+        :param current_year: Se True, considera solo l'anno corrente
+        :return: Importo totale ricevuto
+        """
+        received_transfers = self.retrieve_received_transfers_map_by_account(account_id, current_year)
         amount = 0.0
 
         for transfer in received_transfers:
@@ -3346,7 +3434,7 @@ class ProductionController:
             rows = filtered_rows
         return rows
 
-    def retrieve_production_by_id(self, production_id, current_year=True):
+    def retrieve_production_by_id(self, production_id):
         """
         Recupera una production specifica per ID, opzionalmente filtrando per l'anno corrente.
 
@@ -3355,17 +3443,6 @@ class ProductionController:
         :return: Una tupla con i dati della production oppure None.
         """
         row = self.db_model.fetch_production_by_id(production_id)
-        if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBProductionsColumns]
-            date_index = columns.index(DBProductionsColumns.CREATED_AT.value)
-            date_str = row[date_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt.year != current_year_value:
-                return None
         return row
 
     def retrieve_production_map_by_name(self, production_name, current_year=True):
@@ -3419,26 +3496,11 @@ class ProductionController:
         filtrandole per l'anno corrente se specificato.
         """
         rows = self.db_model.fetch_productions()
-        columns = [column.value for column in DBProductionsColumns]
+        # Converti subito le tuple in dizionari
+        productions = [ValidationUtils._row_to_map(row, DBProductionsColumns) for row in rows]
 
-        if current_year:
-            current_year_value = datetime.now().year
-            date_index = columns.index(DBProductionsColumns.CREATED_AT.value)
-            filtered_rows = []
-            for row in rows:
-                try:
-                    date_str = row[date_index]
-                    try:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d")
-                    if dt.year == current_year_value:
-                        filtered_rows.append(row)
-                except Exception as e:
-                    print(f"Errore durante il parsing della data '{date_str}': {e}")
-            rows = filtered_rows
-
-        return [ValidationUtils._row_to_map(row, DBProductionsColumns) for row in rows]
+        # Applica il filtro usando il metodo statico
+        return ControllerUtils.filter_productions(productions, current_year)
 
     def retrieve_last_production_insert_map(self):
         """
@@ -3449,27 +3511,19 @@ class ProductionController:
 
     def retrieve_productions_map_list_by_client_id(self, client_id, current_year=True):
         """
-        Recupera tutte le produzioni di un certo cliente e le restituisce come lista di dizionari, filtrandole per l'anno corrente se specificato.
+        Recupera tutte le produzioni di un certo cliente e le restituisce come lista di dizionari,
+        filtrandole per l'anno corrente se specificato.
+
         :param client_id: ID del cliente.
-        :param current_year: Se True, ritorna solo le fatture dell'anno corrente.
+        :param current_year: Se True, filtra le produzioni per l'anno corrente.
         :return: Lista di dizionari contenenti i dati delle produzioni.
         """
         rows = self.db_model.fetch_productions_by_client_id(client_id)
-        if current_year and rows:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBProductionsColumns]
-            creation_index = columns.index(DBProductionsColumns.CREATED_AT.value)
-            filtered_rows = []
-            for row in rows:
-                date_str = row[creation_index]
-                try:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                if dt.year == current_year_value:
-                    filtered_rows.append(row)
-            rows = filtered_rows
-        return [ValidationUtils._row_to_map(row, DBProductionsColumns) for row in rows]
+        # Converti le tuple in dizionari
+        productions = [ValidationUtils._row_to_map(row, DBProductionsColumns) for row in rows]
+
+        # Applica il filtro usando il metodo statico
+        return ControllerUtils.filter_productions(productions, current_year)
 
     def calculate_production_cost_per_hour(self, production_id):
         production_map = self.retrieve_production_map_by_id(production_id)
@@ -3685,7 +3739,7 @@ class ExpenseController:
             rows = filtered_rows
         return rows
 
-    def retrieve_expense_by_id(self, expense_id, current_year=True):
+    def retrieve_expense_by_id(self, expense_id):
         """
         Recupera una expense specifica per ID, opzionalmente filtrando per l'anno corrente.
         :param expense_id: ID della expense.
@@ -3693,24 +3747,9 @@ class ExpenseController:
         :return: Una tupla con i dati della expense oppure None.
         """
         row = self.db_model.fetch_expense_by_id(expense_id)
-        if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBExpensesColumns]
-            date_index = columns.index(DBExpensesColumns.DATE.value)
-            date_str = row[date_index]
-            try:
-                try:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                if dt.year != current_year_value:
-                    return None
-            except Exception as e:
-                print(f"Errore durante il parsing della data '{date_str}': {e}")
-                return None
         return row
 
-    def retrieve_expense_map_by_id(self, expense_id, current_year=True):
+    def retrieve_expense_map_by_id(self, expense_id):
         """
         Recupera una expense specifica e la restituisce come dizionario,
         filtrando per l'anno corrente se specificato.
@@ -3719,21 +3758,6 @@ class ExpenseController:
         :return: Dizionario con i dati della expense oppure None.
         """
         row = self.db_model.fetch_expense_by_id(expense_id)
-        if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBExpensesColumns]
-            date_index = columns.index(DBExpensesColumns.DATE.value)
-            date_str = row[date_index]
-            try:
-                try:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                if dt.year != current_year_value:
-                    return None
-            except Exception as e:
-                print(f"Errore nel parsing della data '{date_str}': {e}")
-                return None
         return ValidationUtils._row_to_map(row, DBExpensesColumns)
 
     def retrieve_expenses_map_list(self, current_year=True):
@@ -3742,26 +3766,11 @@ class ExpenseController:
         filtrandole per l'anno corrente se specificato.
         """
         rows = self.db_model.fetch_expenses()
-        columns = [col.value for col in DBExpensesColumns]
+        # Converti le tuple in dizionari
+        expenses = [ValidationUtils._row_to_map(row, DBExpensesColumns) for row in rows]
 
-        if current_year:
-            current_year_value = datetime.now().year
-            date_index = columns.index(DBExpensesColumns.DATE.value)
-            filtered_rows = []
-            for row in rows:
-                try:
-                    date_str = row[date_index]
-                    try:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d")
-                    if dt.year == current_year_value:
-                        filtered_rows.append(row)
-                except Exception as e:
-                    print(f"Errore durante il parsing della data '{date_str}': {e}")
-            rows = filtered_rows
-
-        return [ValidationUtils._row_to_map(row, DBExpensesColumns) for row in rows]
+        # Applica il filtro usando il metodo statico
+        return ControllerUtils.filter_expenses(expenses, current_year)
 
     def retrieve_last_expense_insert_map(self):
         """
@@ -4266,11 +4275,18 @@ class SalaryController:
 
     def retrieve_salaries_map_list(self, current_year: bool = True) -> list[dict]:
         """
-        Recupera tutti i versamenti come lista di dizionari.
-        :return: Lista di dizionari con i dati dei versamenti.
+        Recupera tutti i versamenti come lista di dizionari,
+        filtrandoli per l'anno corrente se specificato.
+
+        :param current_year: Se True, filtra i versamenti per l'anno corrente
+        :return: Lista di dizionari con i dati dei versamenti
         """
         rows = self.db_model.fetch_all_salaries()
-        return [ValidationUtils._row_to_map(row, DBSalariesColumns) for row in rows]
+        # Converti le tuple in dizionari
+        salaries = [ValidationUtils._row_to_map(row, DBSalariesColumns) for row in rows]
+
+        # Applica il filtro usando il metodo statico
+        return ControllerUtils.filter_salaries(salaries, current_year)
 
     def retrieve_last_salary_insert_map(self) -> dict | None:
         """

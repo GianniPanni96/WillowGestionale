@@ -103,7 +103,21 @@ class PaymentsView(ctk.CTk):
                                          command=self.open_add_payment_window)
         self.save_button.pack()
 
-        for payment in self.payment_controller.retrieve_payments_map_list(current_year=True):
+        #aggiungo una tab per ogni fattura presente nel database
+        payments_map_list = self.payment_controller.retrieve_payments_map_list(current_year=True)
+        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
+        payments_map_list.sort(
+            key=lambda x: datetime.strptime(
+                x[DBPaymentsColumns.UPDATED_AT.value],
+                "%Y-%m-%d %H:%M:%S"
+            ) if " " in x[DBPaymentsColumns.UPDATED_AT.value] else datetime.strptime(
+                x[DBPaymentsColumns.UPDATED_AT.value],
+                "%Y-%m-%d"
+            ),
+            reverse=True
+        )
+
+        for payment in payments_map_list:
             if payment:
                 payment_id = payment[DBPaymentsColumns.ID.value]
                 name = payment[DBPaymentsColumns.PAYMENT_NAME.value]

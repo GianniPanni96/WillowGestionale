@@ -167,7 +167,19 @@ class InvoicesView(ctk.CTk):
         self.suggest_user.pack(padx=20)
 
         #aggiungo una tab per ogni fattura presente nel database
-        for invoice in self.invoice_controller.retrieve_invoices_map_list(True):
+        invoice_map_list = self.invoice_controller.retrieve_invoices_map_list(True)
+        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
+        invoice_map_list.sort(
+            key=lambda x: datetime.strptime(
+                x[DBInvoicesColumns.UPDATED_AT.value],
+                "%Y-%m-%d %H:%M:%S"
+            ) if " " in x[DBInvoicesColumns.UPDATED_AT.value] else datetime.strptime(
+                x[DBInvoicesColumns.UPDATED_AT.value],
+                "%Y-%m-%d"
+            ),
+            reverse=True
+        )
+        for invoice in invoice_map_list:
             invoice_id = invoice[DBInvoicesColumns.ID.value]
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
             invoice_client_ID = invoice[DBInvoicesColumns.ID_CLIENTE.value]
@@ -298,6 +310,12 @@ class InvoicesView(ctk.CTk):
                 widget = widget_class(self.invoice_window_scrollableFrame,
                                       values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.production_controller.retrieve_productions_map_list(True)],
                                       command=lambda selected_value : self.prod_already_invoiced_control(selected_value))
+            elif label_text == DBInvoicesColumns.NUMERO_FATTURA.value:
+                self.name_frame = ctk.CTkFrame(self.invoice_window_scrollableFrame)
+                self.name_frame.pack(pady=0, padx=0, fill="x", expand=True)
+                last_part_name_label = ctk.CTkLabel(self.name_frame, text=f"{datetime.today().date().year}")
+                last_part_name_label.pack(side=tk.RIGHT, pady=5, padx=(0, 40))
+                widget = widget_class(self.name_frame)
             elif label_text == DBInvoicesColumns.DATA_CREAZIONE.value:
                 widget = widget_class(self.invoice_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
             elif label_text == DBInvoicesColumns.METODO_PAGAMENTO.value:
@@ -508,6 +526,8 @@ class InvoicesView(ctk.CTk):
                 invoice_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):
                 invoice_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+
+        invoice_data[DBInvoicesColumns.NUMERO_FATTURA.value] = invoice_data[DBInvoicesColumns.NUMERO_FATTURA.value] + " - " + str(datetime.today().date().year)
 
         if invoice_data[DBInvoicesColumns.TIPO.value] == InvoiceController.Tipologia.FATTURA.value: #se non è una nota di credito non serve prendere la fattura associata
             invoice_data.pop(DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value)

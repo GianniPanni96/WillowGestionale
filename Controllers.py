@@ -2697,22 +2697,16 @@ class PaymentsController:
         :return: Lista di tuple (righe) con i dati dei pagamenti.
         """
         rows = self.db_model.fetch_payments()
-        if current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBPaymentsColumns]
-            # Supponiamo che il campo della data di pagamento si chiami PAYMENT_DATE
-            date_index = columns.index(DBPaymentsColumns.PAYMENT_DATE.value)
-            filtered_rows = []
-            for row in rows:
-                date_str = row[date_index]
-                try:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                if dt.year == current_year_value:
-                    filtered_rows.append(row)
-            rows = filtered_rows
-        return rows
+        if not current_year or not rows:
+            return rows
+
+        columns = [col.value for col in DBPaymentsColumns]
+        # Converti le righe in dizionari
+        payments_dicts = [dict(zip(columns, row)) for row in rows]
+        # Applica il filtro utilizzando ControllerUtils
+        filtered_dicts = ControllerUtils.filter_payments(payments_dicts, current_year)
+        # Converti i dizionari filtrati nuovamente in tuple
+        return [tuple(d[col] for col in columns) for d in filtered_dicts]
 
     def retrieve_payment_by_id(self, payment_id, current_year=True):
         """
@@ -2722,18 +2716,15 @@ class PaymentsController:
         :return: Una tupla con i dati del pagamento oppure None.
         """
         row = self.db_model.fetch_payment_by_id(payment_id)
-        if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBPaymentsColumns]
-            date_index = columns.index(DBPaymentsColumns.PAYMENT_DATE.value)
-            date_str = row[date_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt.year != current_year_value:
-                return None
-        return row
+        if not row or not current_year:
+            return row
+
+        columns = [col.value for col in DBPaymentsColumns]
+        payment_dict = dict(zip(columns, row))
+        # Applica il filtro utilizzando ControllerUtils
+        if ControllerUtils.filter_payments([payment_dict], current_year):
+            return row
+        return None
 
     def retrieve_payment_map_by_id(self, payment_id, current_year=True):
         """
@@ -2744,18 +2735,17 @@ class PaymentsController:
         :return: Dizionario con i dati del pagamento oppure None.
         """
         row = self.db_model.fetch_payment_by_id(payment_id)
-        if row and current_year:
-            current_year_value = datetime.now().year
-            columns = [col.value for col in DBPaymentsColumns]
-            date_index = columns.index(DBPaymentsColumns.PAYMENT_DATE.value)
-            date_str = row[date_index]
-            try:
-                dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt.year != current_year_value:
-                return None
-        return ValidationUtils._row_to_map(row, DBPaymentsColumns)
+        if not row:
+            return None
+
+        columns = [col.value for col in DBPaymentsColumns]
+        payment_dict = dict(zip(columns, row))
+
+        # Applica il filtro se necessario
+        if current_year and not ControllerUtils.filter_payments([payment_dict], current_year):
+            return None
+
+        return payment_dict
 
     def retrieve_payments_map_list(self, current_year=True):
         """
@@ -2763,58 +2753,25 @@ class PaymentsController:
         filtrandoli per l'anno corrente se specificato.
         """
         rows = self.db_model.fetch_payments()
-        # Costruisci la lista dei nomi delle colonne in base all'enum (l'ordine è importante)
-        columns = [column.value for column in DBPaymentsColumns]
+        # Converti le righe in dizionari
+        payments = [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
 
+        # Applica il filtro utilizzando ControllerUtils
         if current_year:
-            current_year_value = datetime.now().year
-            # Trova l'indice della colonna PAYMENT_DATE
-            date_index = columns.index(DBPaymentsColumns.PAYMENT_DATE.value)
-            filtered_rows = []
-            for row in rows:
-                try:
-                    date_str = row[date_index]
-                    # Prova prima con l'orario; se fallisce, usa solo la data
-                    try:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d")
-                    if dt.year == current_year_value:
-                        filtered_rows.append(row)
-                except Exception as e:
-                    print(f"Errore durante il parsing della data '{date_str}': {e}")
-            rows = filtered_rows
+            payments = ControllerUtils.filter_payments(payments, current_year)
 
-        # Converte ogni riga in un dizionario usando la funzione _row_to_map
-        return [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
+        return payments
 
     def retrieve_payments_map_list_by_invoice_id(self, invoice_id, current_year=True):
         rows = self.db_model.fetch_payments_by_invoice_id(invoice_id)
+        # Converti le righe in dizionari
+        payments = [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
 
-        # Costruisci la lista dei nomi delle colonne in base all'enum (l'ordine è importante)
-        columns = [column.value for column in DBPaymentsColumns]
-
+        # Applica il filtro utilizzando ControllerUtils
         if current_year:
-            current_year_value = datetime.now().year
-            # Trova l'indice della colonna PAYMENT_DATE
-            date_index = columns.index(DBPaymentsColumns.PAYMENT_DATE.value)
-            filtered_rows = []
-            for row in rows:
-                try:
-                    date_str = row[date_index]
-                    # Prova prima con l'orario; se fallisce, usa solo la data
-                    try:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        dt = datetime.strptime(date_str, "%Y-%m-%d")
-                    if dt.year == current_year_value:
-                        filtered_rows.append(row)
-                except Exception as e:
-                    print(f"Errore durante il parsing della data '{date_str}': {e}")
-            rows = filtered_rows
+            payments = ControllerUtils.filter_payments(payments, current_year)
 
-        # Converte ogni riga in un dizionario usando la funzione _row_to_map
-        return [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
+        return payments
 
     def retrieve_last_payment_insert_map(self):
         """
@@ -2830,20 +2787,16 @@ class PaymentsController:
         :param current_year: Booleano. Se True, conta solo i pagamenti dell'anno corrente.
         :return: Numero di pagamenti (int)
         """
-        if current_year:
-            # Recupera e filtra la lista dei pagamenti per l'anno corrente
-            payments = self.retrieve_payments_map_list(current_year=True)
-        else:
-            payments = self.retrieve_payments_map_list(current_year=False)
-
+        # Usa retrieve_payments_map_list già modificata
+        payments = self.retrieve_payments_map_list(current_year)
         return len(payments)
 
     def calculate_tot_payments(self, current_year=True):
-        tot = 0.0
+        # Usa retrieve_payments_map_list già modificata
         payment_list = self.retrieve_payments_map_list(current_year)
+        tot = 0.0
         for payment in payment_list:
             tot = tot + float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
-
         return tot
 
     def update_payment(self, payment_id, payment_data):

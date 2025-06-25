@@ -1172,7 +1172,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
         self.back_button = ctk.CTkButton(
             self.head_frame,
-            text="Indietro",
+            text="Elenco Fatture",
             command=self._cleanup_and_go_back
         )
         self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))

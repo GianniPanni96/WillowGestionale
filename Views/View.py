@@ -18,6 +18,7 @@ from Views.Expenses_view import ExpensesView
 from Views.Suppliers_view import SuppliersView
 from Views.Accounts_view import AccountsView
 from Views.Salaries_view import SalariesView
+from Views.Iva_trimes_view import IvaTrimesView
 
 
 class MainWindow(ctk.CTk):
@@ -97,7 +98,7 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Fatture")
         self.tabview.add("Pagamenti")
         self.tabview.add("Spese")
-        #self.tabview.add("Iva")
+        self.tabview.add("Iva")
         self.tabview.add("Salario")
         self.tabview.add("Tasse")
         self.tabview.add("Report")
@@ -127,6 +128,7 @@ class MainWindow(ctk.CTk):
         self.account_tab.create_accounts_tab()
         self.salary_tab = SalariesView(self.db_model, self.salary_controller, self.user_controller, self.account_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, config_manager, self.tabview.tab("Salario"), self.event_bus)
         self.salary_tab.create_salaries_tab()
+        self.iva_trimes_tab = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller, self.expense_controller, self.update_controller, self.analyzer, self.tabview, self.event_bus)
 
         self.update_idletasks()
         self.after(100, lambda: self.state("zoomed"))

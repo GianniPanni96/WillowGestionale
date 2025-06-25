@@ -4435,3 +4435,14 @@ class Analyzer:
 
         return output_dict
 
+    def calculate_tot_trimestral_iva(self):
+        output_map = {}
+
+        for user in self.user_controller.retrieve_users_map_list():
+            if user[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value:
+                user_name = user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
+                user_id = user[DBUsersColumns.ID.value]
+                output_map[user_name] = self.calculate_trimestral_iva_by_account_id(user_id)
+
+        return output_map
+

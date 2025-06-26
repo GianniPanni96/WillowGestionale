@@ -454,7 +454,7 @@ class PaymentsView(ctk.CTk):
         # prendo la fattura di riferimento del pagamento
         VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
         invoice_name_array = VF_invoice_name.split(" - ")
-        invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1]
+        invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1] + " - " + invoice_name_array[2] if len(invoice_name_array) == 4 else invoice_name_array[0] + " - " + invoice_name_array[1]
         invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
         invoice_amount = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
         invoice_rateiz = invoice[DBInvoicesColumns.NUMERO_RATE.value]

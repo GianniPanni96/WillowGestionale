@@ -42,6 +42,8 @@ class InvoicesView(ctk.CTk):
         self.invoice_card_rate_frames = {}
         self.amount_aggregate_labels = {}
 
+        self.cards_warnings = {}
+
         self.global_infos_lordi = {}
         self.global_infos_netti = {}
         self.lordo_netto_switch_var = tk.BooleanVar(value=False)  # false è Lordo
@@ -57,6 +59,8 @@ class InvoicesView(ctk.CTk):
         # Container principale
         self.main_container = ctk.CTkFrame(self.tab)
         self.detail_container = ctk.CTkFrame(self.tab)
+
+        self.update_controller.register_on_delete_production_view_cllbks(self.attach_warning_on_a_card)
 
         # Vista dettaglio
         self.invoice_detail_view = InvoiceDetailView(
@@ -193,11 +197,20 @@ class InvoicesView(ctk.CTk):
             invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
             invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
             production = self.production_controller.retrieve_production_map_by_id(invoice_production_id)
-            invoice_production_name = production[DBProductionsColumns.NAME.value] if production else "Produzione non trovata"
+            if production:
+                invoice_production_name = production[DBProductionsColumns.NAME.value]
+            else:
+                invoice_production_name = "Produzione non trovata"
+                self.cards_warnings[invoice_name] = "La produzione associata a questa fattura non esiste nel database.\n"\
+                                                     "Provvedere alla modifica o allo storno di questa fattura."
 
             self.add_invoice_card(invoice_id, invoice_name, invoice_client_name, invoice_user_name, invoice_production_name, invoice_creation_date, invoice_state, invoice_rate, invoice_tot_documento, invoice_tipologia)
             self.toggle_specific_invoice_rate_color_2(invoice_id)
             self.toggle_specific_invoice_status_color(invoice_id)
+
+        #warnings launch
+        for card in self.invoices_card_list.values():
+            ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -1151,6 +1164,21 @@ class InvoicesView(ctk.CTk):
         except ValueError as ve:
             ViewUtils.show_error_popup(self.suggest_invoicer_window, "Errore", f"Predizione non possibile: {str(ve)}")
 
+    # funzione da passare all'updater come callback
+    def attach_warning_on_a_card(self, invoice_name, warning):
+        #cerco tra le cards quella che mi interessa
+        for card in self.invoices_card_list.values():
+            children = card.winfo_children()
+            for child in children:
+                if isinstance(child, ctk.CTkButton):
+                    button_text = child.cget("text")  # oppure child["text"]
+                    if button_text == invoice_name:
+                        self.cards_warnings[invoice_name] = warning
+                        card = card
+                        continue
+
+        ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
+
 
 class InvoiceDetailView(ctk.CTkFrame):
     def __init__(self, parent, back_callback, invoice_controller, user_controller, client_controller, account_controller, production_controller, update_controller, db_model, fiscal_settings, historical_financial_data_settings, event_bus):
@@ -1194,6 +1222,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         self._setup_base_layout()
 
         self.update_controller.register_on_adding_payment_view_cllbks(self.toggle_warning_global_info_payments)
+
 
     def _setup_base_layout(self):
         """Inizializza la struttura base del layout"""
@@ -1920,6 +1949,8 @@ class InvoiceDetailView(ctk.CTkFrame):
                 id_spesa = expense[DBExpensesColumns.ID.value]
                 spesa_button = ctk.CTkButton(expenses_frame, text=f"{nome_spesa}")
                 spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+
 
 
     def _clear_content(self):

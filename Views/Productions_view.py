@@ -237,13 +237,24 @@ class ProductionsView(ctk.CTk):
                 error_label.pack(pady=(0,15))
                 self.error_labels[label_text] = error_label
 
+        button_frame = ctk.CTkFrame(self.production_window_scrollableFrame, bg_color="transparent")
+        button_frame.pack()
+
         # Bottone per salvare
         self.save_button = ctk.CTkButton(
-            self.production_window_scrollableFrame,
+            button_frame,
             text="Salva Produzione",
             command=self.save_production_data
         )
         self.save_button.pack(pady=(35, 15))
+
+        self.delete_button = ctk.CTkButton(
+            button_frame,
+            text="Elimina Produzione",
+            fg_color="red",
+            command=self.delete_production
+        )
+        #self.delete_button.pack_forget()
 
         self.name_frame.winfo_children()[0].configure(text=f"{self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value]} - ")
         #self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{self.client_controller.clients_list[0][DBClientsColumns.NAME.value]}-")
@@ -429,6 +440,9 @@ class ProductionsView(ctk.CTk):
         #self.add_production_window.configure(title=f"Modifica i dati della produzione {production[DBProductionsColumns.NAME.value]}")
         self.add_production_window.title(f"Modifica i dati della produzione {production[DBProductionsColumns.NAME.value]}")
         self.save_button.configure(text="Salva Modifiche", command=self.modify_production_data)
+        self.save_button.pack_forget()
+        self.save_button.pack(side="left", pady=(35, 15), padx=10)
+        self.delete_button.pack(pady=(35, 15), padx=10, side="right")
         self.production_widgets[self.nome_cliente_string].set(client_name)
         self.production_widgets[DBProductionsColumns.NAME.value].delete(0, tk.END)
         self.production_widgets[DBProductionsColumns.NAME.value].insert(0, production_name)
@@ -538,6 +552,9 @@ class ProductionsView(ctk.CTk):
     def clear_class_variable(self):  #potrebbe non servire in quanto vengono inizializzate all'apertura della funzione
         self.production_widgets.clear()
         self.production_labels.clear()
+
+    def delete_production(self):
+        return
 
     # da implementare
     def modify_production_data(self):

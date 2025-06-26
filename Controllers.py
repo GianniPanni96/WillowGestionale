@@ -681,11 +681,11 @@ class UserController:
 
     def calcola_tot_fatturato_utente(self, user_id):
         """
-        Calcola il reddito di un utente come somma delle fatture
+        Calcola il fatturato di un utente come somma delle fatture
         emesse nell'anno corrente, sfruttando il join user‑invoices.
 
         :param user_id: ID dell'utente
-        :return: il reddito (float)
+        :return: il fatturato (float)
         """
         # Recupera l'utente + tutte le sue fatture
         rows = self.retrieve_user_with_invoices_map_list(user_id)
@@ -698,7 +698,7 @@ class UserController:
         # Calcolo l'anno corrente
         current_year = datetime.now().year
 
-        reddito = 0.0
+        fatturato = 0.0
         for row in rows:
             # Se la fattura non c'è (outer join), salto
             data_str = row.get(DBInvoicesColumns.DATA_CREAZIONE.value)
@@ -715,9 +715,9 @@ class UserController:
             if anno == current_year:
                 # Sommo il totale del documento
                 tot = row.get(DBInvoicesColumns.TOT_DOCUMENTO.value) or 0.0
-                reddito += float(tot)
+                fatturato += float(tot)
 
-        return reddito
+        return fatturato
 
     def calcola_tot_spese_utente_anticipate(self, user_id):
         """
@@ -838,9 +838,6 @@ class UserController:
                 tot_salary += float(tot)
 
         return tot_salary
-
-    def reset_reddito_esterno(self):
-        return
 
     def get_regime_fiscale_by_id(self, user_id):
         user_map = self.retrieve_user_map_by_id(user_id)
@@ -4102,6 +4099,7 @@ class UpdatesController:
         self.on_adding_expense_view_cllbks = []
         self.on_adding_transfer_view_cllbks = []
         self.on_modify_invoice_view_cllbks = []
+        self.on_delete_production_view_cllbks = []
 
     def update_invoices(self, invoice_id):
         #richiedo di updatare le liste in back
@@ -4151,6 +4149,9 @@ class UpdatesController:
 
     def register_on_modify_invoice_view_cllbks(self, *callbacks):
         self.on_modify_invoice_view_cllbks = list(callbacks)
+
+    def register_on_delete_production_view_cllbks(self, *callbacks):
+        self.on_delete_production_view_cllbks = list(callbacks)
 
     def on_adding_payment(self):
         for callback in self.on_adding_payment_view_cllbks:
@@ -4445,4 +4446,30 @@ class Analyzer:
                 output_map[user_name] = self.calculate_trimestral_iva_by_account_id(user_id)
 
         return output_map
+
+    def calculate_previsione_tasse_forfettaria(self, user_id):
+        user = self.user_controller.retrieve_user_map_by_id(user_id)
+        reddito_esterno = 0.0
+        fatturato_willow = 0.0
+        if user:
+            reddito_esterno = float(user[DBUsersColumns.REDDITO_ESTERNO.value])
+            fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id)
+            anno_apertura = int(user[DBUsersColumns.ANNO_APERTURA_PIVA.value])
+        else: return
+
+        reddito_willow = fatturato_willow * float(self.fiscal_settings.partita_iva_forfettaria.imponibile)
+        reddito_tot = reddito_willow + reddito_esterno
+        aliquota_irpef = self.user_controller.calcola_aliquota_tax_forfettaria(int(datetime.today().date().year) - anno_apertura)
+        irpef = reddito_tot * aliquota_irpef
+        inps = reddito_tot * float(self.fiscal_settings.partita_iva_forfettaria.aliquota_inps)
+        quota_willow = reddito_tot / reddito_willow if reddito_willow > 0 else 0
+        irpef_w = irpef*quota_willow
+        inps_w = inps*quota_willow
+
+        return {
+            "INPS" : inps,
+            "IRPEF" : irpef,
+            "IRPEF WILLOW" : irpef_w,
+            "INPS WILLOW" : inps_w
+        }
 

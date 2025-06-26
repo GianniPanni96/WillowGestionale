@@ -23,9 +23,9 @@ class IvaTrimesView(ctk.CTk):
         self.tab = tabview.tab("Iva")
         self.event_bus = event_bus
 
-        self.header_font = ("Arial", 16)
+        self.header_font = ("Arial", 14)
         self.text_large = ("Arial", 14)
-        self.text_med = ("Arial", 12)
+        self.text_med = ("Arial", 14)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self.tab)
@@ -40,8 +40,8 @@ class IvaTrimesView(ctk.CTk):
         tab_frame.pack(fill="both", expand=True, pady=0, padx=(10, 0), ipady=20, side="left")
 
         # Frame per l'header
-        self.iva_header_frame = ctk.CTkFrame(tab_frame, fg_color="#333333")
-        self.iva_header_frame.pack(fill="x", expand=True, side="top", padx=(10, 10), pady=(25, 0))
+        self.iva_header_frame = ctk.CTkFrame(tab_frame) ##333333
+        self.iva_header_frame.pack(fill="x", anchor="n", padx=(15), pady=(25, 0))
 
         # Configurazione header
         headers = [
@@ -53,17 +53,17 @@ class IvaTrimesView(ctk.CTk):
 
         for i, (text, col) in enumerate(headers):
             header = ctk.CTkFrame(self.iva_header_frame, fg_color="#3773b8")
-            header.grid(row=0, column=col, sticky="nsew", padx=(0, 5) if col < 3 else (0, 0), pady=5)
+            header.grid(row=0, column=col, sticky="nsew", padx=(2, 5) if col < 3 else (0, 0), pady=5)
             self.iva_header_frame.grid_columnconfigure(col, weight=1, uniform="col")
             ctk.CTkLabel(header, text=text, font=self.header_font).pack(fill="x", expand=True, padx=5, pady=15)
 
         # Frame principale per la lista trimestrale + totale annuale
         main_list_frame = ctk.CTkFrame(tab_frame)
-        main_list_frame.pack(fill="x", expand=True, padx=15, pady=(0, 25))
+        main_list_frame.pack(fill="x", anchor="n", padx=15, pady=(0, 25))
 
         # Frame per i trimestri (dove verranno aggiunti i container dei trimestri)
         self.trimestral_container = ctk.CTkFrame(main_list_frame)
-        self.trimestral_container.pack(fill="x", expand=True, padx=15)
+        self.trimestral_container.pack(fill="x", expand=True)
 
         # Ottieni i dati IVA trimestrali
         iva_data = self.analyzer.calculate_tot_trimestral_iva()
@@ -95,12 +95,12 @@ class IvaTrimesView(ctk.CTk):
             data = quarter_totals[quarter]
 
             # Container principale per il trimestre (contiene riga + dettagli)
-            quarter_container = ctk.CTkFrame(self.trimestral_container, fg_color="transparent")
-            quarter_container.pack(fill="x", pady=(0, 5))
+            quarter_container = ctk.CTkFrame(self.trimestral_container, border_width=2, border_color="#3773b8")
+            quarter_container.pack(fill="x", padx=5, pady=5)
 
             # Riga di riepilogo del trimestre
             row_frame = ctk.CTkFrame(quarter_container)
-            row_frame.pack(fill="x")
+            row_frame.pack(fill="x", padx=5, pady=5)
 
             # Configurazione colonne
             for col in range(4):
@@ -108,34 +108,33 @@ class IvaTrimesView(ctk.CTk):
 
             # Colonna 1: Nome trimestre + pulsante
             quarter_frame = ctk.CTkFrame(row_frame)
-            quarter_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+            quarter_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-            quarter_header = ctk.CTkFrame(quarter_frame, fg_color="transparent")
+            quarter_header = ctk.CTkFrame(quarter_frame)
             quarter_header.pack(fill="x", expand=True)
 
             ctk.CTkLabel(
                 quarter_header,
                 text=quarter,
                 font=self.text_large
-            ).pack(side="left", padx=(0, 10))
+            ).pack(side="left", padx=10, pady=15)
 
             # Pulsante dropdown
             dropdown_btn = ctk.CTkButton(
                 quarter_header,
-                text="giù",
+                text=">",
                 width=20,
                 height=20,
-                fg_color="transparent",
-                hover_color="#444444",
                 command=lambda q=quarter: self.toggle_quarter_details(q)
             )
-            dropdown_btn.pack(side="left")
+            dropdown_btn.pack(side="right", padx=15, pady=15)
 
             # Colonna 2: Credito IVA
             credito_frame = ctk.CTkFrame(row_frame)
             credito_frame.grid(row=0, column=1, sticky="nsew", padx=(0, 5))
             ctk.CTkLabel(
                 credito_frame,
+                font=self.text_med,
                 text=f"{data['credito']:.2f} €"
             ).pack(padx=5, pady=5)
 
@@ -144,8 +143,9 @@ class IvaTrimesView(ctk.CTk):
             debito_frame.grid(row=0, column=2, sticky="nsew", padx=(0, 5))
             ctk.CTkLabel(
                 debito_frame,
+                font=self.text_med,
                 text=f"{data['debito']:.2f} €"
-            ).pack(padx=5, pady=5)
+            ).pack(padx=5, pady=5, anchor="center")
 
             # Colonna 4: Saldo da pagare
             saldo_frame = ctk.CTkFrame(row_frame)
@@ -299,8 +299,8 @@ class IvaTrimesView(ctk.CTk):
 
         if details_frame.winfo_ismapped():
             details_frame.pack_forget()
-            dropdown_btn.configure(text="giù")
+            dropdown_btn.configure(text=">")
         else:
             # Mostra i dettagli esattamente sotto la riga del trimestre
             details_frame.pack(fill="x", pady=(0, 5))
-            dropdown_btn.configure(text="su")
+            dropdown_btn.configure(text="<")

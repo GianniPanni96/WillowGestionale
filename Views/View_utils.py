@@ -251,6 +251,55 @@ class ViewUtils(ctk.CTk):
         return cards
 
     @staticmethod
+    def construct_tasse_infos_cards(frame, infos_dict) -> dict:
+        """
+        Costruisce delle "cards" per ogni elemento di infos_dict e le inserisce nel frame fornito.
+
+        :param frame: ctk.CTkFrame in cui inserire le cards
+        :param infos_dict: dizionario con struttura:
+            {
+              nome_info: {"value": valore (int|float), "uom": unità di misura (str)},
+              ...
+            }
+        :return: dizionario di cards {nome_info: {"card": frame, "label": ctk.CTkLabel}}
+        """
+        cards = {}
+        cards_container = ctk.CTkFrame(frame, fg_color="#2b2b2b")
+        cards_container.pack(fill="x", expand=True, padx=5, pady=5, anchor="n")
+        i = 0
+        for name, info in infos_dict.items():
+            # crea la card container
+            color = "#2659ab" if i > 1 else "gray"
+            card = ctk.CTkFrame(cards_container, border_width=2, border_color=color)
+            card.pack(anchor="w", padx=10, pady=(5, 5), side="left", fill="both", expand=True)
+
+            # titolo
+            title = ctk.CTkLabel(
+                card,
+                text=ViewUtils.split_string_by_length(str(name), 8),
+                font=("Arial", 14, "bold"),
+                bg_color=color
+            )
+            title.pack(anchor="n", padx=10, pady=(10, 25), ipadx = 10, ipady = 10, fill="x")
+
+            # valore con unità di misura
+            value = info.get("value", 0)
+            uom = info.get("uom", "")
+            amount = ctk.CTkLabel(
+                card,
+                text=f"{value} {uom}",
+                font=("Arial", 16)
+            )
+            amount.pack(anchor="s", padx=10, pady=(0, 10))
+
+            # conserva la card e la label in output per aggiornamenti futuri
+            cards[name] = {"card": card, "label": amount}
+
+            i = i + 1
+
+        return cards
+
+    @staticmethod
     def hide_widgets(keys, labels_dict, widgets_dict, save_button):
         """Nasconde i widget e le label specificate."""
         for key in reversed(keys):
@@ -296,9 +345,8 @@ class ViewUtils(ctk.CTk):
 
             tooltip = tk.Toplevel(widget)
             tooltip.wm_overrideredirect(True)
-            tooltip.configure(bg="#2a2a2a")  # sfondo dark
+            tooltip.configure(bg="#2a2a2a")
 
-            # Cornice per "simulare" bordo arrotondato
             frame = tk.Frame(tooltip, bg="#2a2a2a", bd=0, highlightthickness=1, highlightbackground="#3a3a3a")
             frame.pack()
 
@@ -306,17 +354,36 @@ class ViewUtils(ctk.CTk):
                              text=text,
                              justify="left",
                              bg="#2a2a2a",
-                             fg="#f2f2f2",  # testo chiaro
+                             fg="#f2f2f2",
                              wraplength=300,
                              font=("Segoe UI", 10, "normal"),
                              padx=10,
                              pady=6)
             label.pack()
 
-            # Posiziona tooltip vicino al mouse
+            # Calcola dimensioni del tooltip
+            tooltip.update_idletasks()  # Forza il calcolo delle dimensioni
+
+            # Offset personalizzabile (regola questo valore in base alle tue esigenze)
+            vertical_offset = -170  # Sposta il tooltip 100px sopra il puntatore
+
+            # Calcola posizione finale
             x = event.x_root + 15
-            y = event.y_root + 10
-            tooltip.wm_geometry(f"+{x}+{y}")
+            y = event.y_root + vertical_offset
+
+            # Controllo per evitare che il tooltip esca dallo schermo in alto
+            screen_height = widget.winfo_screenheight()
+            if y < 0:
+                # Se il tooltip andrebbe sopra lo schermo, mostralo sotto il puntatore
+                y = event.y_root + 20
+
+            # Controllo per evitare che il tooltip esca dallo schermo a destra
+            tooltip_width = tooltip.winfo_width()
+            screen_width = widget.winfo_screenwidth()
+            if (x + tooltip_width) > screen_width:
+                x = screen_width - tooltip_width - 10  # 10px di margine
+
+            tooltip.wm_geometry(f"+{int(x)}+{int(y)}")
 
         def hide_tooltip(event):
             nonlocal tooltip

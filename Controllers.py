@@ -340,6 +340,13 @@ class ControllerUtils:
                dt.year == current_year_value
         ]
 
+    @staticmethod
+    def clear_invoices_list_from_NDC_and_stornate(invoices_list_of_maps):
+
+        return [inv for inv in invoices_list_of_maps if
+                inv[DBInvoicesColumns.TIPO.value] != InvoiceController.Tipologia.NOTA_DI_CREDITO.value and inv[
+                    DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceRateizzSatus.STORNATA.value]
+
 
 
 
@@ -838,6 +845,18 @@ class UserController:
                 tot_salary += float(tot)
 
         return tot_salary
+
+    def calcola_tot_ritenuta_acconto_ordinaria(self, user_id):
+        invoices = self.retrieve_user_with_invoices_map_list(user_id)
+        invoices = ControllerUtils.clear_invoices_list_from_NDC_and_stornate(invoices)
+
+        tot = 0.0
+
+        for i in invoices:
+            tot = tot + float(i[DBInvoicesColumns.RITENUTA.value])
+
+        return tot
+
 
     def get_regime_fiscale_by_id(self, user_id):
         user_map = self.retrieve_user_map_by_id(user_id)
@@ -4459,17 +4478,160 @@ class Analyzer:
 
         reddito_willow = fatturato_willow * float(self.fiscal_settings.partita_iva_forfettaria.imponibile)
         reddito_tot = reddito_willow + reddito_esterno
-        aliquota_irpef = self.user_controller.calcola_aliquota_tax_forfettaria(int(datetime.today().date().year) - anno_apertura)
+        aliquota_irpef = float(self.user_controller.calcola_aliquota_tax_forfettaria(int(datetime.today().date().year) - anno_apertura))
         irpef = reddito_tot * aliquota_irpef
         inps = reddito_tot * float(self.fiscal_settings.partita_iva_forfettaria.aliquota_inps)
-        quota_willow = reddito_tot / reddito_willow if reddito_willow > 0 else 0
+        quota_willow = reddito_willow/reddito_tot if reddito_tot > 0 else 0
         irpef_w = irpef*quota_willow
         inps_w = inps*quota_willow
 
         return {
-            "INPS" : inps,
-            "IRPEF" : irpef,
-            "IRPEF WILLOW" : irpef_w,
-            "INPS WILLOW" : inps_w
+            "INPS" : round(inps, 2),
+            "IRPEF" : round(irpef, 2),
+            "IRPEF WILLOW" : round(irpef_w, 2),
+            "INPS WILLOW" : round(inps_w, 2)
         }
+
+    def calculate_previsione_tasse_ordinaria(self, user_id):
+        user = self.user_controller.retrieve_user_map_by_id(user_id)
+        if not user:
+            return {}
+
+        # Recupero dati utente
+        reddito_esterno = float(user.get(DBUsersColumns.REDDITO_ESTERNO.value, 0.0))
+        spese_esterne = float(user.get(DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value, 0.0))
+        fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id)
+        spese_willow = self.user_controller.calcola_tot_spese_utente_dedotte(user_id)
+        tot_ritenuta = self.user_controller.calcola_tot_ritenuta_acconto_ordinaria(user_id)
+
+        # Recupero impostazioni fiscali
+        ordinaria_settings = self.fiscal_settings.partita_iva_ordinaria
+        aliquota_inps = float(ordinaria_settings.aliquota_inps)
+        scaglioni = ordinaria_settings.scaglioni_irpef
+
+        # 1. Calcolo scenario completo (con Willow)
+        ricavi_totali = fatturato_willow + reddito_esterno
+        spese_totali = spese_willow + spese_esterne
+        reddito_netto_completo = ricavi_totali - spese_totali
+        inps_completo = reddito_netto_completo * aliquota_inps
+        base_irpef_completo = reddito_netto_completo - inps_completo
+        irpef_lorda_completo = self._calcola_irpef(base_irpef_completo, scaglioni)
+        irpef_netta_completo = irpef_lorda_completo - tot_ritenuta
+
+        # 2. Calcolo scenario senza Willow
+        reddito_netto_senza_willow = reddito_esterno - spese_esterne
+        inps_senza_willow = reddito_netto_senza_willow * aliquota_inps
+        base_irpef_senza_willow = reddito_netto_senza_willow - inps_senza_willow
+        irpef_lorda_senza_willow = self._calcola_irpef(base_irpef_senza_willow, scaglioni)
+
+        # 3. Calcolo della differenza di scaglione
+        # Troviamo lo scaglione massimo raggiungibile senza Willow
+        scaglione_max_senza_willow = 0
+        for scaglione in sorted(scaglioni, key=lambda x: float(x.reddito_min)):
+            if base_irpef_senza_willow > float(scaglione.reddito_min):
+                scaglione_max_senza_willow = float(scaglione.reddito_min)
+
+        # 4. Calcolo IRPEF attribuibile a Willow
+        # Parte 1: Tasse per la fascia che sarebbe stata raggiunta comunque (proporzionale)
+        if base_irpef_senza_willow > 0:
+            base_comune = min(base_irpef_completo, base_irpef_senza_willow)
+            irpef_comune = self._calcola_irpef(base_comune, scaglioni)
+            proporzione_comune = base_irpef_senza_willow / base_irpef_completo if base_irpef_completo > 0 else 0
+        else:
+            irpef_comune = 0
+            proporzione_comune = 0
+
+        # Parte 2: Tasse per la fascia aggiuntiva dovuta a Willow (interamente attribuita)
+        base_aggiuntiva = max(0, base_irpef_completo - base_irpef_senza_willow)
+        irpef_aggiuntiva = irpef_lorda_completo - irpef_lorda_senza_willow
+
+        # 5. Ripartizione tasse
+        # Quota proporzionale di Willow nella parte comune
+        quota_willow_base = (fatturato_willow - spese_willow) / (ricavi_totali - spese_totali) if (ricavi_totali - spese_totali) > 0 else 0
+
+        # Calcolo finale IRPEF attribuibile a Willow
+        irpef_willow = (irpef_comune * quota_willow_base) + irpef_aggiuntiva
+
+        # 6. Calcolo INPS attribuibile a Willow
+        # Basato sul reddito netto generato da Willow
+        reddito_netto_willow = fatturato_willow - spese_willow
+        inps_willow = (reddito_netto_willow / reddito_netto_completo) * inps_completo if reddito_netto_completo > 0 else 0
+
+        output_map = {
+            # Valori complessivi
+            "REDDITO_NETTO": round(reddito_netto_completo, 2),
+            "INPS": round(inps_completo, 2),
+            "BASE_IRPEF": round(base_irpef_completo, 2),
+            "IRPEF_LORDA": round(irpef_lorda_completo, 2),
+            "RITENUTA": round(tot_ritenuta, 2),
+            "IRPEF_NETTA": round(irpef_netta_completo, 2),
+            "TOTALE_TASSE": round(inps_completo + max(0, irpef_netta_completo), 2),
+            "ALIQUOTA_INPS" : round(aliquota_inps, 2),
+
+            # Valori senza Willow
+            "SENZA_WILLOW_REDDITO": round(reddito_netto_senza_willow, 2),
+            "SENZA_WILLOW_BASE_IRPEF": round(base_irpef_senza_willow, 2),
+            "SENZA_WILLOW_IRPEF": round(irpef_lorda_senza_willow, 2),
+
+            # Ripartizione per Willow
+            "WILLOW_IRPEF_BASE": round(irpef_comune * quota_willow_base, 2),
+            "WILLOW_IRPEF_AGGIUNTIVA": round(irpef_aggiuntiva, 2),
+            "WILLOW_IRPEF_TOT": round(irpef_willow, 2),
+            "WILLOW_INPS": round(inps_willow, 2),
+            "WILLOW_RITENUTA": round(tot_ritenuta, 2),
+            "WILLOW_TASSE_TOT": round(inps_willow + max(0, irpef_willow - tot_ritenuta), 2),
+
+            # Coefficienti
+            "SCAGLIONE_MAX_SENZA_WILLOW": scaglione_max_senza_willow,
+            "PROPORZIONE_COMUNE": round(proporzione_comune, 4),
+            "QUOTA_WILLOW_BASE": round(quota_willow_base, 4),
+
+            "REDDITO_ESTERNO": round(reddito_esterno, 2),
+            "RICAVI_TOTALI": round(ricavi_totali, 2),
+            "SPESE_ESTERNE": round(spese_esterne, 2),
+            "SPESE_TOTALI": round(spese_totali, 2),
+            "REDDITO_NETTO_WILLOW": round(reddito_netto_willow, 2),
+            "IRPEF_COMUNE": round(irpef_comune, 2),
+            "BASE_AGGIUNTIVA": round(base_aggiuntiva, 2),
+            "WILLOW_IRPEF_NETTA": round(max(0, irpef_willow - tot_ritenuta), 2),
+            "FATTURATO_WILLOW": round(fatturato_willow, 2),
+            "SPESE_WILLOW": round(spese_willow, 2)
+        }
+
+        # 7. Preparazione risultati
+        return {
+            "INPS": round(inps_completo, 2),
+            "IRPEF NETTA": round(irpef_netta_completo, 2),
+            "WILLOW INPS": round(inps_willow, 2),
+            "WILLOW IRPEF": round(max(0, irpef_willow - tot_ritenuta), 2)
+          }, output_map
+
+    def _calcola_irpef(self, imponibile, scaglioni):
+        """Calcola l'IRPEF in base agli scaglioni di reddito"""
+        if imponibile <= 0:
+            return 0.0
+
+        scaglioni_ordinati = sorted(scaglioni, key=lambda x: x.reddito_min)
+        irpef = 0.0
+        reddito_residuo = imponibile
+
+        for scaglione in scaglioni_ordinati:
+            if reddito_residuo <= 0:
+                break
+
+            # Calcola la parte di reddito nello scaglione
+            if scaglione.reddito_max == float('inf'):
+                parte_scaglione = reddito_residuo
+            else:
+                ammontare_scaglione = float(scaglione.reddito_max) - float(scaglione.reddito_min)
+                parte_scaglione = min(reddito_residuo, ammontare_scaglione)
+
+            # Applica l'aliquota marginale
+            irpef += parte_scaglione * (float(scaglione.value))
+            reddito_residuo -= parte_scaglione
+
+        return irpef
+
+
+
 

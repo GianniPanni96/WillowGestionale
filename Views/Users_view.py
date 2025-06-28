@@ -4,6 +4,9 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 from datetime import datetime
 import os, re
+
+from customtkinter import CTkFrame
+
 from Views.View_utils import ViewUtils
 
 from Controllers import AccountController, ValidationUtils, UserController
@@ -1118,6 +1121,7 @@ class UserDetailView(ctk.CTkFrame):
             ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
             self.switch_modify.deselect()
             self.toggle_edit(self.content_frame)
+            self.toggle_taxes()
         else:
             # Mostra il messaggio d'errore
             print(message)
@@ -1285,12 +1289,117 @@ class UserDetailView(ctk.CTkFrame):
 
     def _create_taxes_section(self):
         # Creazione frame principale
-        tax_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
-        tax_frame.pack(fill="both", expand=True, pady=0, padx=(10, 10), ipady=20, side="left")
+        self.tax_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
+        self.tax_frame.pack(fill="both", expand=True, pady=0, padx=(10, 10), ipady=20, side="left")
 
-        ctk.CTkLabel(tax_frame, text="PREVISIONE TASSE", font=("Arial", 14, "bold")).pack(anchor="w",
+        ctk.CTkLabel(self.tax_frame, text="PREVISIONE TASSE", font=("Arial", 14, "bold")).pack(anchor="w",
                                                                                                pady=(10, 10),
                                                                                                padx=10)
+
+        regime_fiscale = self.user_controller.get_regime_fiscale_by_id(self.current_user_id)
+        if str(regime_fiscale) == str(self.user_controller.RegimeFiscale.FORFETTARIO.value):
+            tasse = self.analyzer.calculate_previsione_tasse_forfettaria(self.current_user_id)
+            global_infos = {}
+            for k, v in tasse.items():
+                global_infos[k] = {
+                    "value": v,
+                    "uom": "€"
+                }
+
+            self.tasse_infos_user_widgets = ViewUtils.construct_tasse_infos_cards(self.tax_frame, global_infos)
+        elif str(regime_fiscale) == str(self.user_controller.RegimeFiscale.ORDINARIO.value):
+            tasse_view, tasse_total = self.analyzer.calculate_previsione_tasse_ordinaria(self.current_user_id)
+            global_infos = {}
+            for k, v in tasse_view.items():
+                global_infos[k] = {
+                    "value": v,
+                    "uom": "€"
+                }
+
+            self.tasse_infos_user_widgets = ViewUtils.construct_tasse_infos_cards(self.tax_frame, global_infos)
+
+            for key, widget_info in self.tasse_infos_user_widgets.items():
+                card = widget_info["card"]
+
+                if key == "INPS":
+                    tooltip_text = (
+                        f"Calcolo contributi INPS complessivi:\n\n"
+                        f"1. Ricavi totali = Fatturato Willow + Reddito esterno\n"
+                        f"   = {tasse_total['FATTURATO_WILLOW']} + {tasse_total['REDDITO_ESTERNO']}\n"
+                        f"   = {tasse_total['RICAVI_TOTALI']} €\n\n"
+                        f"2. Spese totali = Spese Willow + Spese esterne\n"
+                        f"   = {tasse_total['SPESE_WILLOW']} + {tasse_total['SPESE_ESTERNE']}\n"
+                        f"   = {tasse_total['SPESE_TOTALI']} €\n\n"
+                        f"3. Reddito netto imponibile = Ricavi totali - Spese totali\n"
+                        f"   = {tasse_total['RICAVI_TOTALI']} - {tasse_total['SPESE_TOTALI']}\n"
+                        f"   = {tasse_total['REDDITO_NETTO']} €\n\n"
+                        f"4. Contributi INPS = Reddito netto × Aliquota INPS ({tasse_total['ALIQUOTA_INPS']}%)\n"
+                        f"   = {tasse_total['REDDITO_NETTO']} × {tasse_total['ALIQUOTA_INPS']}%\n"
+                        f"   = {tasse_total['INPS']} €"
+                    )
+
+                elif key == "IRPEF NETTA":
+                    tooltip_text = (
+                        f"Calcolo IRPEF netta dovuta:\n\n"
+                        f"1. Base imponibile IRPEF = Reddito netto - Contributi INPS\n"
+                        f"   = {tasse_total['REDDITO_NETTO']} - {tasse_total['INPS']}\n"
+                        f"   = {tasse_total['BASE_IRPEF']} €\n\n"
+                        f"2. IRPEF lorda (calcolata a scaglioni)\n"
+                        f"   = {tasse_total['IRPEF_LORDA']} €\n\n"
+                        f"3. Ritenuta d'acconto versata\n"
+                        f"   = {tasse_total['RITENUTA']} €\n\n"
+                        f"4. IRPEF netta = IRPEF lorda - Ritenuta\n"
+                        f"   = {tasse_total['IRPEF_LORDA']} - {tasse_total['RITENUTA']}\n"
+                        f"   = {tasse_total['IRPEF_NETTA']} €"
+                    )
+
+                elif key == "WILLOW INPS":
+                    tooltip_text = (
+                        f"Quota INPS attribuibile a Willow:\n\n"
+                        f"1. Reddito netto Willow = Fatturato Willow - Spese Willow\n"
+                        f"   = {tasse_total['FATTURATO_WILLOW']} - {tasse_total['SPESE_WILLOW']}\n"
+                        f"   = {tasse_total['REDDITO_NETTO_WILLOW']} €\n\n"
+                        f"2. Quota proporzionale = Reddito Willow / Reddito totale\n"
+                        f"   = {tasse_total['REDDITO_NETTO_WILLOW']} / {tasse_total['REDDITO_NETTO']}\n"
+                        f"   = {tasse_total['QUOTA_WILLOW_BASE']}\n\n"
+                        f"3. INPS Willow = INPS totale × Quota proporzionale\n"
+                        f"   = {tasse_total['INPS']} × {tasse_total['QUOTA_WILLOW_BASE']}\n"
+                        f"   = {tasse_total['WILLOW_INPS']} €"
+                    )
+
+                elif key == "WILLOW IRPEF":
+                    tooltip_text = (
+                        f"IRPEF netta attribuibile a Willow:\n\n"
+                        f"A. PARTE NELLO SCAGLIONE BASE:\n"
+                        f"1. Reddito netto senza Willow\n"
+                        f"   = {tasse_total['SENZA_WILLOW_REDDITO']} €\n\n"
+                        f"2. Quota Willow nella base comune\n"
+                        f"   = (Reddito Willow / Reddito totale)\n"
+                        f"   = {tasse_total['QUOTA_WILLOW_BASE']}\n\n"
+                        f"3. IRPEF base Willow = IRPEF comune × Quota\n"
+                        f"   = {tasse_total['IRPEF_COMUNE']} × {tasse_total['QUOTA_WILLOW_BASE']}\n"
+                        f"   = {tasse_total['WILLOW_IRPEF_BASE']} €\n\n"
+                        f"B. PARTE PER SCAGLIONE AGGIUNTIVO:\n"
+                        f"1. Base IRPEF aggiuntiva = Base totale - Base senza Willow\n"
+                        f"   = {tasse_total['BASE_IRPEF']} - {tasse_total['SENZA_WILLOW_BASE_IRPEF']}\n"
+                        f"   = {tasse_total['BASE_AGGIUNTIVA']} €\n\n"
+                        f"2. IRPEF aggiuntiva = IRPEF totale - IRPEF senza Willow\n"
+                        f"   = {tasse_total['IRPEF_LORDA']} - {tasse_total['SENZA_WILLOW_IRPEF']}\n"
+                        f"   = {tasse_total['WILLOW_IRPEF_AGGIUNTIVA']} €\n\n"
+                        f"C. TOTALE LORDO:\n"
+                        f"IRPEF lorda Willow = Parte base + Parte aggiuntiva\n"
+                        f"= {tasse_total['WILLOW_IRPEF_BASE']} + {tasse_total['WILLOW_IRPEF_AGGIUNTIVA']}\n"
+                        f"= {tasse_total['WILLOW_IRPEF_TOT']} €\n\n"
+                        f"D. NETTO DOPO RITENUTA:\n"
+                        f"IRPEF netta Willow = Lordo - Ritenuta\n"
+                        f"= {tasse_total['WILLOW_IRPEF_TOT']} - {tasse_total['WILLOW_RITENUTA']}\n"
+                        f"= {tasse_total['WILLOW_IRPEF_NETTA']} €"
+                    )
+
+                else:
+                    tooltip_text = "Informazioni non disponibili"
+
+                ViewUtils.add_tooltip(card.winfo_children()[0], tooltip_text)
 
     def _create_iva_section(self):
         # Creazione frame principale
@@ -1376,6 +1485,21 @@ class UserDetailView(ctk.CTkFrame):
                 fg_color=fg_color,
                 corner_radius=4
             ).pack(padx=5, pady=5, fill="both", expand=True)
+
+    def toggle_taxes(self):
+        """Ricalcola e aggiorna i valori delle tasse visualizzate nelle cards"""
+        # Ricalcola le tasse con i nuovi parametri
+        tasse = self.analyzer.calculate_previsione_tasse_forfettaria(self.current_user_id)
+
+        # Aggiorna le labels nelle cards esistenti
+        for name, value in tasse.items():
+            if name in self.tasse_infos_user_widgets:
+                # Formatta il nuovo valore con l'unità di misura
+                new_text = f"{value} €"
+
+                # Aggiorna il testo della label
+                self.tasse_infos_user_widgets[name]["label"].configure(text=new_text)
+
 
 
 

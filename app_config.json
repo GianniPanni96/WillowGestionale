@@ -5,7 +5,7 @@
             "description": "Percorso dove verranno salvati i backup del database gestionale."
         },
         "interval_minutes": {
-            "value": 15,
+            "value": 5,
             "description": "Intervallo in minuti tra l'esecuzione dei backup."
         },
         "max_backups": {
@@ -19,7 +19,7 @@
     },
     "fiscal_settings": {
         "iva": {
-			"no_iva": {
+            "no_iva": {
                 "value": "0.00",
                 "description": "Assenza di IVA"
             },
@@ -64,7 +64,23 @@
             "imponibile": {
                 "value": "0.78",
                 "description": "Percentuale dell'imponibile considerata per il calcolo fiscale nel regime forfettario."
-            }
+            },
+			"percentuale_acconto_imposta_primo": {
+			  "value": "0.40",
+			  "description": "Quota (%) del primo acconto dell’imposta sostitutiva da versare al 30 giugno (saldo+acconto)"
+			},
+			"percentuale_acconto_imposta_secondo": {
+			  "value": "0.60",
+			  "description": "Quota (%) del secondo acconto dell’imposta sostitutiva da versare al 30 novembre"
+			},
+			"percentuale_acconto_inps_forfettario": {
+			  "value": "1.00",
+			  "description": "Percentuale dei contributi INPS forfettari su cui calcolare gli acconti (sempre 100% del contributo dovuto)"
+			},
+			"percentuale_rata_acconto_inps_forfettario": {
+			  "value": "0.50",
+			  "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre) in regime forfettario"
+			}
         },
         "partita_iva_ordinaria": {
             "aliquota_irpef_1": {
@@ -116,6 +132,22 @@
             "imponibile_irpef": {
                 "value": "1",
                 "description": "Coefficiente per il calcolo dell'imponibile per l'IRPEF"
+            },
+            "percentuale_acconto_irpef_primo": {
+                "value": "0.40",
+                "description": "Quota (%) del primo acconto IRPEF da versare a saldo+acconto al 30 giugno"
+            },
+            "percentuale_acconto_irpef_secondo": {
+                "value": "0.60",
+                "description": "Quota (%) del secondo acconto IRPEF da versare al 30 novembre"
+            },
+            "percentuale_acconto_inps": {
+                "value": "0.80",
+                "description": "Percentuale degli ultimi contributi INPS su cui calcolare gli acconti per l'anno in corso"
+            },
+            "percentuale_rata_acconto_inps": {
+                "value": "0.50",
+                "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre)"
             }
         }
     },
@@ -220,18 +252,18 @@
             }
         }
     },
-	"historical_financial_data": {
-		"revenues" : {
-			"2024" : {
-				"Stefano Brenna" : 7500,
-				"Marco Sarsini" : 7500,
-				"Samuele Venticinque" : 7500,
-				"Tommaso Zanoni" : 7500,
-				"Andrea Evangelista" : 30000
-			}
-		},
-		"deducted_expenses" : {
-			"2024" : 30000
-		}
-	}
+    "historical_financial_data": {
+        "revenues": {
+            "2024": {
+                "Stefano Brenna": 7500,
+                "Marco Sarsini": 7500,
+                "Samuele Venticinque": 7500,
+                "Tommaso Zanoni": 7500,
+                "Andrea Evangelista": 30000
+            }
+        },
+        "deducted_expenses": {
+            "2024": 30000
+        }
+    }
 }

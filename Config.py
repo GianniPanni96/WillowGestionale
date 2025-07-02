@@ -569,6 +569,10 @@ class PartitaIVAForfettaria:
     aliquota_inps: float
     imponibile: float
     aliquota_rivalsa_inps : float
+    percentuale_acconto_imposta_primo : float
+    percentuale_acconto_imposta_secondo : float
+    percentuale_acconto_inps_forfettario : float
+    percentuale_rata_acconto_inps_forfettario : float
 
     @staticmethod
     def from_dict(data: dict):
@@ -578,7 +582,11 @@ class PartitaIVAForfettaria:
             anni_agevolazione=data.get("anni_agevolazione", {}).get("value", 0),
             aliquota_inps=data.get("aliquota_inps", {}).get("value", 0.0),
             imponibile=data.get("imponibile", {}).get("value", 0.0),
-            aliquota_rivalsa_inps = data.get("aliquota_rivalsa_inps", {}).get("value", 0.0)
+            aliquota_rivalsa_inps = data.get("aliquota_rivalsa_inps", {}).get("value", 0.0),
+            percentuale_acconto_imposta_primo=data.get("percentuale_acconto_imposta_primo", {}).get("value", 0.0),
+            percentuale_acconto_imposta_secondo=data.get("percentuale_acconto_imposta_secondo", {}).get("value", 0.0),
+            percentuale_acconto_inps_forfettario=data.get("percentuale_acconto_inps_forfettario", {}).get("value", 0.0),
+            percentuale_rata_acconto_inps_forfettario=data.get("percentuale_rata_acconto_inps_forfettario", {}).get("value", 0.0)
         )
 
 @dataclass
@@ -626,6 +634,10 @@ class PartitaIVAOrdinaria:
     imponibile_cassa_inps: float = 0.0
     imponibile_inps: float = 0.0
     imponibile_irpef: float = 0.0
+    percentuale_acconto_irpef_primo: float = 0.0
+    percentuale_acconto_irpef_secondo: float = 0.0
+    percentuale_acconto_inps: float = 0.0
+    percentuale_rata_acconto_inps: float = 0.0
 
     @staticmethod
     def from_dict(data: dict) -> 'PartitaIVAOrdinaria':
@@ -651,7 +663,11 @@ class PartitaIVAOrdinaria:
             imponibile_ritenuta_acconto=data.get("imponibile_ritenuta_acconto", {}).get("value", 0.0),
             imponibile_cassa_inps=data.get("imponibile_cassa_inps", {}).get("value", 0.0),
             imponibile_inps=data.get("imponibile_inps", {}).get("value", 0.0),
-            imponibile_irpef = data.get("imponibile_irpef", {}).get("value", 0.0)
+            imponibile_irpef = data.get("imponibile_irpef", {}).get("value", 0.0),
+            percentuale_acconto_irpef_primo = data.get("percentuale_acconto_irpef_primo", {}).get("value", 0.0),
+            percentuale_acconto_irpef_secondo=data.get("percentuale_acconto_irpef_secondo", {}).get("value", 0.0),
+            percentuale_acconto_inps=data.get("percentuale_acconto_inps", {}).get("value", 0.0),
+            percentuale_rata_acconto_inps=data.get("percentuale_rata_acconto_inps", {}).get("value", 0.0)
         )
 
 @dataclass
@@ -711,6 +727,8 @@ class RecurringExpense:
     descr_supplier : ""
     deductible: bool
     descr_deductible : ""
+    deductor: int
+    descr_deductor : ""
     category: str
     descr_category : ""
     iva: float
@@ -732,6 +750,8 @@ class RecurringExpense:
             descr_supplier=data.get("supplier", {}).get("description", ""),
             deductible=data.get("deductible", {}).get("value", "No") == "Sì",
             descr_deductible=data.get("deductible", {}).get("description", ""),
+            deductor=int(data.get("deductor", {}).get("value", 0)),
+            descr_deductor=data.get("deductor", {}).get("description", ""),
             category=data.get("category", {}).get("value", ""),
             descr_category=data.get("category", {}).get("description", ""),
             iva=float(data.get("iva", {}).get("value", 0)),

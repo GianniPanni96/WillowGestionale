@@ -20,6 +20,8 @@ columns = [
     f"{DBUsersColumns.USERNAME_PROVIDER.value} TEXT",
     f"{DBUsersColumns.PASSWORD_PROVIDER.value} TEXT",
     f"{DBUsersColumns.STATUS.value} INTEGER NOT NULL DEFAULT active",
+    f"{DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value} REAL NOT NULL DEFAULT 0",
+    f"{DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value} REAL NOT NULL DEFAULT 0",
     f"{DBUsersColumns.PHOTO_PATH.value} TEXT",
     f"{DBUsersColumns.CREATED_AT.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"{DBUsersColumns.UPDATED_AT.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",

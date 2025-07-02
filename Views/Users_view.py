@@ -900,6 +900,16 @@ class UserDetailView(ctk.CTkFrame):
                 "label": "Spese Dedotte Esterne",
                 "section": "Dati Fiscali"
             },
+            DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value: {
+                "type": ctk.CTkEntry,
+                "label": "Acconto IRPEF anno scorso",
+                "section": "Dati Fiscali"
+            },
+            DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value: {
+                "type": ctk.CTkEntry,
+                "label": "Acconto INPS anno scorso",
+                "section": "Dati Fiscali"
+            },
 
             # Sezione Provider
             DBUsersColumns.PROVIDER_FATTURE.value: {
@@ -952,6 +962,8 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.PARTITA_IVA.value: "Partita IVA non valida (11 cifre)",
             DBUsersColumns.REDDITO_ESTERNO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
             DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
+            DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
+            DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
             DBUsersColumns.EMAIL.value: "Formato email non valido"
         }
 
@@ -971,6 +983,14 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.EMAIL.value: (
                 lambda val: re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", val),
                 "Formato email non valido"
+            ),
+            DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
+                "Inserire cifra numerica con due cifre decimali seprate da \".\" "
+            ),
+            DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
+                "Inserire cifra numerica con due cifre decimali seprate da \".\" "
             ),
             DBUsersColumns.REDDITO_ESTERNO.value: (
                 lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
@@ -1024,6 +1044,9 @@ class UserDetailView(ctk.CTkFrame):
 
         # Popolamento delle sezioni
         for field, config in self.entry_fields.items():
+            if (str(user_data[DBUsersColumns.REGIME_FISCALE.value]) == str(self.user_controller.RegimeFiscale.FORFETTARIO.value) and field == DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value):
+                continue
+
             section = sections[config["section"]]
             frame = section["frame"]
             row = section["row"]
@@ -1293,8 +1316,8 @@ class UserDetailView(ctk.CTkFrame):
         self.tax_frame.pack(fill="both", expand=True, pady=0, padx=(10, 10), ipady=20, side="left")
 
         ctk.CTkLabel(self.tax_frame, text="PREVISIONE TASSE", font=("Arial", 14, "bold")).pack(anchor="w",
-                                                                                               pady=(10, 10),
-                                                                                               padx=10)
+                                                                                               pady=(10, 5),
+                                                                                               padx=15)
 
         regime_fiscale = self.user_controller.get_regime_fiscale_by_id(self.current_user_id)
         if str(regime_fiscale) == str(self.user_controller.RegimeFiscale.FORFETTARIO.value):
@@ -1308,15 +1331,27 @@ class UserDetailView(ctk.CTkFrame):
 
             self.tasse_infos_user_widgets = ViewUtils.construct_tasse_infos_cards(self.tax_frame, global_infos)
         elif str(regime_fiscale) == str(self.user_controller.RegimeFiscale.ORDINARIO.value):
-            tasse_view, tasse_total = self.analyzer.calculate_previsione_tasse_ordinaria(self.current_user_id)
+            tasse_view, versamenti, tasse_total = self.analyzer.calculate_previsione_tasse_ordinaria(self.current_user_id)
             global_infos = {}
+            versamenti_infos = {}
             for k, v in tasse_view.items():
                 global_infos[k] = {
                     "value": v,
                     "uom": "€"
                 }
-
+            for k, v in versamenti.items():
+                versamenti_infos[ViewUtils.split_string_by_length(k, 8)] = {
+                    "value": v,
+                    "uom": "€"
+                }
+            ctk.CTkLabel(self.tax_frame, text="TOTALI", font=("Arial", 12)).pack(anchor="w",
+                                                                                                   pady=(0, 10),
+                                                                                                   padx=15)
             self.tasse_infos_user_widgets = ViewUtils.construct_tasse_infos_cards(self.tax_frame, global_infos)
+            ctk.CTkLabel(self.tax_frame, text="VERSAMENTI", font=("Arial", 12)).pack(anchor="w",
+                                                                                                   pady=(10, 0),
+                                                                                                   padx=15)
+            self.versamenti_infos_user_widgets = ViewUtils.construct_tasse_infos_cards(self.tax_frame, versamenti_infos)
 
             for key, widget_info in self.tasse_infos_user_widgets.items():
                 card = widget_info["card"]
@@ -1400,6 +1435,63 @@ class UserDetailView(ctk.CTkFrame):
                     tooltip_text = "Informazioni non disponibili"
 
                 ViewUtils.add_tooltip(card.winfo_children()[0], tooltip_text)
+
+                # Tooltip per le carte dei versamenti
+            for key, widget_info in self.versamenti_infos_user_widgets.items():
+                card = widget_info["card"]
+                title_label = card.winfo_children()[0]  # La label del titolo è il primo figlio
+
+                if key == "SALDO\nTOTALE":
+                    tooltip_text = (
+                        f"Saldo tasse correnti:\n\n"
+                        f"1. Tasse totali (INPS + IRPEF netta) = {tasse_total['TOTALE_TASSE']} €\n"
+                        f"2. Acconto versato per l'anno precedente = {tasse_total['ACCONTO_ANNO_PRECEDENTE']} €\n"
+                        f"3. Saldo = Tasse totali - Acconto anno precedente\n"
+                        f"   = {tasse_total['TOTALE_TASSE']} - {tasse_total['ACCONTO_ANNO_PRECEDENTE']}\n"
+                        f"   = {tasse_total['SALDO_TOTALE']} €"
+                    )
+
+                elif key == "ACCONTO\nTOTALE":
+                    tooltip_text = (
+                        f"Acconto totale per l'anno successivo:\n\n"
+                        f"1. Acconto INPS = INPS totale × {tasse_total['PERC_ACCONTO_INPS'] * 100}%\n"
+                        f"   = {tasse_total['INPS']} × {tasse_total['PERC_ACCONTO_INPS']}\n"
+                        f"   = {tasse_total['INPS'] * tasse_total['PERC_ACCONTO_INPS']} €\n"
+                        f"2. Acconto IRPEF = IRPEF netta × 100%\n"
+                        f"   = {tasse_total['IRPEF_NETTA']} × 1.00\n"
+                        f"   = {tasse_total['IRPEF_NETTA']} €\n\n"
+                        f"Totale acconto = Acconto INPS + Acconto IRPEF\n"
+                        f"   = {tasse_total['INPS'] * tasse_total['PERC_ACCONTO_INPS']} + {tasse_total['IRPEF_NETTA']}\n"
+                        f"   = {tasse_total['ACCONTO_TOTALE']} €"
+                    )
+
+                elif key == "SALDO\nWILLOW":
+                    tooltip_text = (
+                        f"Quota del saldo corrente attribuita a Willow:\n\n"
+                        f"1. Saldo totale = {tasse_total['SALDO_TOTALE']} €\n"
+                        f"2. Proporzione Willow = Tasse Willow / Tasse totali\n"
+                        f"   = {tasse_total['WILLOW_TASSE_TOT']} / {tasse_total['TOTALE_TASSE']}\n"
+                        f"   = {tasse_total['PROP_WILLOW']}\n"
+                        f"3. Saldo Willow = Saldo totale × Proporzione Willow\n"
+                        f"   = {tasse_total['SALDO_TOTALE']} × {tasse_total['PROP_WILLOW']}\n"
+                        f"   = {tasse_total['SALDO_WILLOW']} €"
+                    )
+
+                elif key == "ACCONTO\nWILLOW":
+                    tooltip_text = (
+                        f"Quota dell'acconto per l'anno successivo attribuita a Willow:\n\n"
+                        f"1. Acconto totale = {tasse_total['ACCONTO_TOTALE']} €\n"
+                        f"2. Proporzione Willow = {tasse_total['PROP_WILLOW']}\n"
+                        f"3. Acconto Willow = Acconto totale × Proporzione Willow\n"
+                        f"   = {tasse_total['ACCONTO_TOTALE']} × {tasse_total['PROP_WILLOW']}\n"
+                        f"   = {tasse_total['ACCONTO_WILLOW']} €"
+                    )
+
+                else:
+                    tooltip_text = "Informazioni non disponibili"
+
+                ViewUtils.add_tooltip(title_label, tooltip_text)
+
 
     def _create_iva_section(self):
         # Creazione frame principale

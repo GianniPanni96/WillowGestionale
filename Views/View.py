@@ -7,7 +7,7 @@ from Views.View_utils import ViewUtils
 from Controllers import UserController, AccountController, ClientController, InvoiceController, \
     PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
     Analyzer, TransfersController, SalaryController
-from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns, DBExpensesColumns
+from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns, DBExpensesColumns, DBUsersColumns
 
 from Views.Users_view import UsersView
 from Views.Clients_view import ClientsView
@@ -317,6 +317,8 @@ class MainWindow(ctk.CTk):
         self.ordinaria_entries = {}
         self.ordinaria_irpef_entries = {}  # per gli scaglioni dinamici "aliquota_irpef_..."
         self.ordinaria_imponibili_entries = {}
+        self.ordinaria_rateizzazione_entries = {}
+        self.forfettaria_rateizzazione_entries = {}
         self.scaglioni_containers = {}
         self.title_frames = {}
 
@@ -425,6 +427,30 @@ class MainWindow(ctk.CTk):
         self.forfettaria_entries["imponibile"] = ctk.CTkEntry(frame_forf_imponibili)
         self.forfettaria_entries["imponibile"].insert(0, str(value))
         self.forfettaria_entries["imponibile"].pack(anchor="w", fill="x", pady=(5, 15), padx=10)
+
+
+        # Sottosezione: versamenti
+        frame_forf_rateizzazione = ctk.CTkFrame(section_forf, corner_radius=2)
+        frame_forf_rateizzazione.pack(fill="x", pady=(35, 5), padx=(0, 10))
+        self.forfettaria_labels["rateizzazione_title"] = ctk.CTkLabel(frame_forf_rateizzazione, text="Rateizzazione Tasse",
+                                                                 font=("Arial", 16, "bold"))
+        self.forfettaria_labels["rateizzazione_title"].pack(anchor="w", pady=(5, 15), padx=10)
+        for key in ["percentuale_acconto_imposta_primo", "percentuale_acconto_imposta_secondo", "percentuale_acconto_inps_forfettario", "percentuale_rata_acconto_inps_forfettario"]:
+            if key in piva_forf_data:
+                data = piva_forf_data.get(key, {})
+                value = data.get("value", "")
+                description = data.get("description", key)
+                lbl = ctk.CTkLabel(frame_forf_rateizzazione, text=description, font=("Arial", 14))
+                lbl.pack(anchor="w", padx=10, pady=5)
+                self.forfettaria_labels[key] = lbl
+                ent = ctk.CTkEntry(frame_forf_rateizzazione)
+                ent.insert(0, str(value))
+                ent.pack(anchor="w", fill="x", pady=(5, 15), padx=10)
+                self.forfettaria_rateizzazione_entries[key] = ent
+
+
+
+
 
         # --- Sezione Ordinaria ---
         piva_ord_data = fiscal_settings.get("partita_iva_ordinaria", {})
@@ -547,6 +573,26 @@ class MainWindow(ctk.CTk):
                 ent.insert(0, str(value))
                 ent.pack(anchor="w", fill="x", pady=(5, 15), padx=10)
                 self.ordinaria_imponibili_entries[key] = ent
+
+
+        # Sottosezione: Rateizzazione tasse
+        frame_ord_rateizzazione = ctk.CTkFrame(section_ord, corner_radius=2)
+        frame_ord_rateizzazione.pack(fill="x", pady=(35, 5), padx=(0, 10))
+        self.ordinaria_labels["rateizzazione_title"] = ctk.CTkLabel(frame_ord_rateizzazione, text="Rateizzazione Tasse",
+                                                                 font=("Arial", 16, "bold"))
+        self.ordinaria_labels["rateizzazione_title"].pack(anchor="w", pady=(5, 15), padx=10)
+        for key in ["percentuale_acconto_irpef_primo", "percentuale_acconto_irpef_secondo", "percentuale_acconto_inps", "percentuale_rata_acconto_inps"]:
+            if key in piva_ord_data:
+                data = piva_ord_data.get(key, {})
+                value = data.get("value", "")
+                description = data.get("description", key)
+                lbl = ctk.CTkLabel(frame_ord_rateizzazione, text=description, font=("Arial", 16))
+                lbl.pack(anchor="w", padx=10, pady=5)
+                self.ordinaria_labels[key] = lbl
+                ent = ctk.CTkEntry(frame_ord_rateizzazione)
+                ent.insert(0, str(value))
+                ent.pack(anchor="w", fill="x", pady=(5, 15), padx=10)
+                self.ordinaria_rateizzazione_entries[key] = ent
 
         # Pulsante per salvare (command vuoto per ora)
         self.save_button = ctk.CTkButton(self.fiscal_settings_window, text="Salva Dati Fiscali", command=lambda: self.save_fiscal_settings())
@@ -701,7 +747,9 @@ class MainWindow(ctk.CTk):
         # --- Sezione Partita IVA Forfettaria ---
         forf_data = {}
         for key in ["aliquota_irpef_min", "aliquota_irpef_max", "anni_agevolazione", "aliquota_inps",
-                    "aliquota_rivalsa_inps", "imponibile"]:
+                    "aliquota_rivalsa_inps", "imponibile", "percentuale_acconto_imposta_primo",
+                    "percentuale_acconto_imposta_secondo", "percentuale_acconto_inps_forfettario",
+                    "percentuale_rata_acconto_inps_forfettario"]:
             if key in self.forfettaria_entries:
                 forf_data[key] = {"value": self.forfettaria_entries[key].get()}
             else:
@@ -723,6 +771,10 @@ class MainWindow(ctk.CTk):
             ord_data[key] = {"value": widget.get()}
         # Imponibili
         for key, widget in self.ordinaria_imponibili_entries.items():
+            ord_data[key] = {"value": widget.get()}
+        fiscal_data["partita_iva_ordinaria"] = ord_data
+        # Rateizzazione
+        for key, widget in self.ordinaria_rateizzazione_entries.items():
             ord_data[key] = {"value": widget.get()}
         fiscal_data["partita_iva_ordinaria"] = ord_data
 
@@ -793,12 +845,15 @@ class MainWindow(ctk.CTk):
 
             accounts = self.account_controller.retrieve_accounts_map_list()
 
+            users = self.user_controller.retrieve_users_map_list()
+
             # Campi modificabili
             fields = [
                 ('amount', 'Importo:', 'entry', float),
                 ('supplier', 'Fornitore:', 'dropdown', [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]),
                 ('category', 'Categoria:', 'dropdown', [value for key, value in self.catalogo_elenchi["expenses_category"]]),
                 ('iva', 'IVA:', 'dropdown', [str(aliquota) for aliquota in aliquote_list]),
+                ('deductor', 'Deduzione a\ncarico di:', 'dropdown', [user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users]),
                 ('account', 'Conto:', 'dropdown', [account[DBAccountsColumns.NAME.value] for account in accounts]),
                 ('frequency', 'Frequenza:', 'dropdown', [freq.value for freq in ExpenseController.RecurringExpensesFrequencies])
             ]
@@ -826,6 +881,16 @@ class MainWindow(ctk.CTk):
                         # imposto valore corrente
                         current = getattr(expense, field)
                         widget.set(current if current in options else options[0])
+                    elif field == "deductor":
+                        current_id = getattr(expense, field)
+                        current_deductor = self.user_controller.retrieve_user_map_by_id(current_id)
+                        widget = ctk.CTkOptionMenu(
+                            master=frame,
+                            values=options,
+                            font=self.entry_font,
+                            dropdown_font=self.entry_font
+                        )
+                        widget.set(current_deductor[DBUsersColumns.FIRST_NAME.value] + " " + current_deductor[DBUsersColumns.LAST_NAME.value])
                     else:
                         widget = ctk.CTkOptionMenu(
                             master=frame,
@@ -903,6 +968,11 @@ class MainWindow(ctk.CTk):
         new_data = {}
 
         for expense_key, widgets in self.expense_widgets.items():
+
+            deductor_name = widgets["deductor"].get()
+            deductor = self.user_controller.retrieve_user_map_by_extended_name(deductor_name)
+            deductor_id = deductor[DBUsersColumns.ID.value]
+
             # Se è la tab “Nuova Spesa”, creo un nuovo key
             if expense_key == "Nuova Spesa":
                 raw_name = widgets["name"].get().strip()
@@ -922,6 +992,7 @@ class MainWindow(ctk.CTk):
                     "supplier": widgets["supplier"].get(),
                     "deductible": widgets["deductible"].get(),
                     "category": widgets["category"].get(),
+                    "deductor": deductor_id,
                     "iva": widgets["iva"].get(),
                     "account": widgets["account"].get(),
                     "frequency": widgets["frequency"].get(),
@@ -938,6 +1009,7 @@ class MainWindow(ctk.CTk):
                     "supplier": widgets["supplier"].get(),
                     "deductible": widgets["deductible"].get(),
                     "category": widgets["category"].get(),
+                    "deductor": deductor_id,
                     "iva": widgets["iva"].get(),
                     "account": widgets["account"].get(),
                     "frequency": widgets["frequency"].get(),

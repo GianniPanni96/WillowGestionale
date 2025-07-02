@@ -853,7 +853,8 @@ class UserController:
         tot = 0.0
 
         for i in invoices:
-            tot = tot + float(i[DBInvoicesColumns.RITENUTA.value])
+            if i[DBInvoicesColumns.ID_CLIENTE.value]:
+                tot = tot + float(i[DBInvoicesColumns.RITENUTA.value])
 
         return tot
 
@@ -3916,10 +3917,10 @@ class ExpenseController:
                 DBExpensesColumns.NET_AMOUNT.value: netto,
                 DBExpensesColumns.IVA_AMOUNT.value: iva_amt,
                 DBExpensesColumns.TOT_AMOUNT.value: gross,
+                DBExpensesColumns.USER_ID_DEDUZIONE.value: exp.deductor,
                 DBExpensesColumns.DATE.value: today.isoformat(),
                 DBExpensesColumns.DEDUCIBILE.value: "Sì" if exp.deductible else "No",
                 DBExpensesColumns.ACCOUNT_ID.value: acct_id
-            # USER_ID e LINKED_INVOICE_ID non inclusi => rimangono NULL
             }
             try:
                 self.db_model.add_expense(**new_exp)
@@ -4503,11 +4504,18 @@ class Analyzer:
         fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id)
         spese_willow = self.user_controller.calcola_tot_spese_utente_dedotte(user_id)
         tot_ritenuta = self.user_controller.calcola_tot_ritenuta_acconto_ordinaria(user_id)
+        acconto_anno_precedente_IRPEF = float(user.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value, 0.0))
+        acconto_anno_precedente_INPS = float(user.get(DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value, 0.0))
+        acconto_anno_precedente = acconto_anno_precedente_IRPEF + acconto_anno_precedente_INPS
 
         # Recupero impostazioni fiscali
         ordinaria_settings = self.fiscal_settings.partita_iva_ordinaria
         aliquota_inps = float(ordinaria_settings.aliquota_inps)
         scaglioni = ordinaria_settings.scaglioni_irpef
+        perc_acc_irpef_primo = float(ordinaria_settings.percentuale_acconto_irpef_primo)
+        perc_acc_irpef_secondo = float(ordinaria_settings.percentuale_acconto_irpef_secondo)
+        perc_acc_inps = float(ordinaria_settings.percentuale_acconto_inps)
+        perc_rata_inps = float(ordinaria_settings.percentuale_rata_acconto_inps)
 
         # 1. Calcolo scenario completo (con Willow)
         ricavi_totali = fatturato_willow + reddito_esterno
@@ -4525,14 +4533,12 @@ class Analyzer:
         irpef_lorda_senza_willow = self._calcola_irpef(base_irpef_senza_willow, scaglioni)
 
         # 3. Calcolo della differenza di scaglione
-        # Troviamo lo scaglione massimo raggiungibile senza Willow
         scaglione_max_senza_willow = 0
         for scaglione in sorted(scaglioni, key=lambda x: float(x.reddito_min)):
             if base_irpef_senza_willow > float(scaglione.reddito_min):
                 scaglione_max_senza_willow = float(scaglione.reddito_min)
 
         # 4. Calcolo IRPEF attribuibile a Willow
-        # Parte 1: Tasse per la fascia che sarebbe stata raggiunta comunque (proporzionale)
         if base_irpef_senza_willow > 0:
             base_comune = min(base_irpef_completo, base_irpef_senza_willow)
             irpef_comune = self._calcola_irpef(base_comune, scaglioni)
@@ -4541,22 +4547,73 @@ class Analyzer:
             irpef_comune = 0
             proporzione_comune = 0
 
-        # Parte 2: Tasse per la fascia aggiuntiva dovuta a Willow (interamente attribuita)
         base_aggiuntiva = max(0, base_irpef_completo - base_irpef_senza_willow)
         irpef_aggiuntiva = irpef_lorda_completo - irpef_lorda_senza_willow
 
-        # 5. Ripartizione tasse
-        # Quota proporzionale di Willow nella parte comune
         quota_willow_base = (fatturato_willow - spese_willow) / (ricavi_totali - spese_totali) if (ricavi_totali - spese_totali) > 0 else 0
-
-        # Calcolo finale IRPEF attribuibile a Willow
         irpef_willow = (irpef_comune * quota_willow_base) + irpef_aggiuntiva
-
-        # 6. Calcolo INPS attribuibile a Willow
-        # Basato sul reddito netto generato da Willow
         reddito_netto_willow = fatturato_willow - spese_willow
         inps_willow = (reddito_netto_willow / reddito_netto_completo) * inps_completo if reddito_netto_completo > 0 else 0
 
+        # 5. Calcolo tasse totali
+        totale_tasse = inps_completo + max(0, irpef_netta_completo)
+        tasse_willow = inps_willow + max(0, irpef_willow - tot_ritenuta)
+        tasse_non_willow = totale_tasse - tasse_willow
+
+        # 6. Calcolo versamenti (saldo e acconti)
+        # Ripartizione proporzionale acconto precedente
+        if totale_tasse > 0:
+            prop_willow = tasse_willow / totale_tasse
+            prop_non_willow = tasse_non_willow / totale_tasse
+        else:
+            prop_willow = prop_non_willow = 0.0
+
+        # Calcolo saldo corrente
+        saldo_corrente = max(0, totale_tasse - acconto_anno_precedente)
+        saldo_willow = saldo_corrente * prop_willow
+        saldo_non_willow = saldo_corrente * prop_non_willow
+
+        # Calcolo nuovo acconto per l'anno successivo
+        acconto_inps = inps_completo * perc_acc_inps
+        acconto_irpef = max(0, irpef_netta_completo) * 1.0  # 100% per IRPEF
+
+        # Ripartizione proporzionale acconto
+        acconto_totale = acconto_inps + acconto_irpef
+        acconto_willow = acconto_totale * prop_willow
+        acconto_non_willow = acconto_totale * prop_non_willow
+
+        # Rate acconto INPS
+        rata_inps = acconto_inps * perc_rata_inps
+        rata_inps_willow = rata_inps * prop_willow
+        rata_inps_non_willow = rata_inps * prop_non_willow
+
+        # Rate acconto IRPEF
+        rata_irpef_primo = acconto_irpef * perc_acc_irpef_primo
+        rata_irpef_secondo = acconto_irpef * perc_acc_irpef_secondo
+
+        rata_irpef_primo_willow = rata_irpef_primo * prop_willow
+        rata_irpef_primo_non_willow = rata_irpef_primo * prop_non_willow
+        rata_irpef_secondo_willow = rata_irpef_secondo * prop_willow
+        rata_irpef_secondo_non_willow = rata_irpef_secondo * prop_non_willow
+
+        # Calcolo totale per scadenza (giugno e novembre)
+        totale_giugno = saldo_corrente + rata_inps + rata_irpef_primo
+        totale_giugno_willow = saldo_willow + rata_inps_willow + rata_irpef_primo_willow
+        totale_giugno_non_willow = saldo_non_willow + rata_inps_non_willow + rata_irpef_primo_non_willow
+
+        totale_novembre = rata_irpef_secondo
+        totale_novembre_willow = rata_irpef_secondo_willow
+        totale_novembre_non_willow = rata_irpef_secondo_non_willow
+
+        # 7. Mappa versamenti (saldo e acconti)
+        versamenti_map = {
+            "SALDO TOTALE": round(saldo_corrente, 2),
+            "ACCONTO TOTALE": round(acconto_totale, 2),
+            "SALDO WILLOW": round(saldo_willow, 2),
+            "ACCONTO WILLOW": round(acconto_willow, 2)
+        }
+
+        # 8. Output map per tooltip e dettagli
         output_map = {
             # Valori complessivi
             "REDDITO_NETTO": round(reddito_netto_completo, 2),
@@ -4565,8 +4622,18 @@ class Analyzer:
             "IRPEF_LORDA": round(irpef_lorda_completo, 2),
             "RITENUTA": round(tot_ritenuta, 2),
             "IRPEF_NETTA": round(irpef_netta_completo, 2),
-            "TOTALE_TASSE": round(inps_completo + max(0, irpef_netta_completo), 2),
-            "ALIQUOTA_INPS" : round(aliquota_inps, 2),
+            "TOTALE_TASSE": round(totale_tasse, 2),
+            "ALIQUOTA_INPS": round(aliquota_inps, 4),
+            "PERC_ACCONTO_INPS": round(perc_acc_inps, 4),
+            "PERC_RATA_INPS": round(perc_rata_inps, 4),
+            "PERC_ACCONTO_IRPEF_PRIMO": round(perc_acc_irpef_primo, 4),
+            "PERC_ACCONTO_IRPEF_SECONDO": round(perc_acc_irpef_secondo, 4),
+            "ACCONTO_ANNO_PRECEDENTE": round(acconto_anno_precedente, 2),
+            "SALDO_CORRENTE": round(saldo_corrente, 2),
+            "ACCONTO_ANNO_SUCCESSIVO": round(acconto_totale, 2),
+            "RATA_IRPEF_PRIMO": round(rata_irpef_primo, 2),
+            "RATA_IRPEF_SECONDO": round(rata_irpef_secondo, 2),
+            "RATA_INPS": round(rata_inps, 2),
 
             # Valori senza Willow
             "SENZA_WILLOW_REDDITO": round(reddito_netto_senza_willow, 2),
@@ -4579,12 +4646,15 @@ class Analyzer:
             "WILLOW_IRPEF_TOT": round(irpef_willow, 2),
             "WILLOW_INPS": round(inps_willow, 2),
             "WILLOW_RITENUTA": round(tot_ritenuta, 2),
-            "WILLOW_TASSE_TOT": round(inps_willow + max(0, irpef_willow - tot_ritenuta), 2),
+            "WILLOW_TASSE_TOT": round(tasse_willow, 2),
+            "NON_WILLOW_TASSE_TOT": round(tasse_non_willow, 2),
 
             # Coefficienti
             "SCAGLIONE_MAX_SENZA_WILLOW": scaglione_max_senza_willow,
             "PROPORZIONE_COMUNE": round(proporzione_comune, 4),
             "QUOTA_WILLOW_BASE": round(quota_willow_base, 4),
+            "PROP_WILLOW": round(prop_willow, 4),
+            "PROP_NON_WILLOW": round(prop_non_willow, 4),
 
             "REDDITO_ESTERNO": round(reddito_esterno, 2),
             "RICAVI_TOTALI": round(ricavi_totali, 2),
@@ -4595,16 +4665,48 @@ class Analyzer:
             "BASE_AGGIUNTIVA": round(base_aggiuntiva, 2),
             "WILLOW_IRPEF_NETTA": round(max(0, irpef_willow - tot_ritenuta), 2),
             "FATTURATO_WILLOW": round(fatturato_willow, 2),
-            "SPESE_WILLOW": round(spese_willow, 2)
+            "SPESE_WILLOW": round(spese_willow, 2),
+
+            # Saldi
+            "SALDO_TOTALE": round(saldo_corrente, 2),
+            "SALDO_WILLOW": round(saldo_willow, 2),
+            "SALDO_NON_WILLOW": round(saldo_non_willow, 2),
+
+            # Acconti totali
+            "ACCONTO_TOTALE": round(acconto_totale, 2),
+            "ACCONTO_WILLOW": round(acconto_willow, 2),
+            "ACCONTO_NON_WILLOW": round(acconto_non_willow, 2),
+
+            # Rate INPS
+            "RATA_INPS_WILLOW": round(rata_inps_willow, 2),
+            "RATA_INPS_NON_WILLOW": round(rata_inps_non_willow, 2),
+
+            # Rate IRPEF
+            "RATA_IRPEF_PRIMO_WILLOW": round(rata_irpef_primo_willow, 2),
+            "RATA_IRPEF_PRIMO_NON_WILLOW": round(rata_irpef_primo_non_willow, 2),
+            "RATA_IRPEF_SECONDO_WILLOW": round(rata_irpef_secondo_willow, 2),
+            "RATA_IRPEF_SECONDO_NON_WILLOW": round(rata_irpef_secondo_non_willow, 2),
+
+            # Totali per scadenza
+            "TOTALE_GIUGNO": round(totale_giugno, 2),
+            "TOTALE_GIUGNO_WILLOW": round(totale_giugno_willow, 2),
+            "TOTALE_GIUGNO_NON_WILLOW": round(totale_giugno_non_willow, 2),
+            "TOTALE_NOVEMBRE": round(totale_novembre, 2),
+            "TOTALE_NOVEMBRE_WILLOW": round(totale_novembre_willow, 2),
+            "TOTALE_NOVEMBRE_NON_WILLOW": round(totale_novembre_non_willow, 2),
+
+            # Date di scadenza
+            "SCADENZA_GIUGNO": "30/06",
+            "SCADENZA_NOVEMBRE": "30/11"
         }
 
-        # 7. Preparazione risultati
+        # 9. Preparazione risultati
         return {
             "INPS": round(inps_completo, 2),
             "IRPEF NETTA": round(irpef_netta_completo, 2),
             "WILLOW INPS": round(inps_willow, 2),
             "WILLOW IRPEF": round(max(0, irpef_willow - tot_ritenuta), 2)
-          }, output_map
+        }, versamenti_map, output_map
 
     def _calcola_irpef(self, imponibile, scaglioni):
         """Calcola l'IRPEF in base agli scaglioni di reddito"""

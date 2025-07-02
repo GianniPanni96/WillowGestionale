@@ -277,7 +277,7 @@ class ViewUtils(ctk.CTk):
             title = ctk.CTkLabel(
                 card,
                 text=ViewUtils.split_string_by_length(str(name), 8),
-                font=("Arial", 14, "bold"),
+                font=("Arial", 12, "bold"),
                 bg_color=color
             )
             title.pack(anchor="n", padx=10, pady=(10, 25), ipadx = 10, ipady = 10, fill="x")
@@ -288,7 +288,7 @@ class ViewUtils(ctk.CTk):
             amount = ctk.CTkLabel(
                 card,
                 text=f"{value} {uom}",
-                font=("Arial", 16)
+                font=("Arial", 14)
             )
             amount.pack(anchor="s", padx=10, pady=(0, 10))
 

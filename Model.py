@@ -35,6 +35,8 @@ class DBUsersColumns(Enum):
     USERNAME_PROVIDER = "username_provider"
     PASSWORD_PROVIDER = "password_provider"
     STATUS = "status"
+    LAST_YEAR_IRPEF_ACCONTO = "acconto_irpef"
+    LAST_YEAR_INPS_ACCONTO = "acconto_inps"
     PHOTO_PATH = "photo_path"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"

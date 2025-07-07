@@ -167,6 +167,16 @@ class DBSalariesColumns(Enum):
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 
+class DBRefundsColumns(Enum):
+    ID = "ID"
+    REFUND_NAME = "REFUND_NAME"
+    REFUND_AMOUNT = "REFUND_AMOUNT"
+    REFUND_DATE = "REFUND_DATE"
+    CLIENT_ID = "CLIENT_ID"
+    CONTO_ID = "CONTO_ID"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
 
 
 
@@ -951,6 +961,158 @@ class DatabaseModel:
         """
 
         # Esegui la query usando il db_model fornito
+        with db_model._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (date_limit,))
+            return cursor.fetchall()
+
+
+
+
+
+
+
+
+
+
+    # Funzioni per i rimborsi (refunds)
+    def fetch_refunds(self):
+        """ Recupera tutti i rimborsi """
+        query = "SELECT * FROM refunds"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_refund(self, **kwargs):
+        """
+        Aggiungi un nuovo rimborso.
+        I campi da aggiungere devono essere passati come keyword arguments.
+        """
+        valid_columns = {column.value for column in DBRefundsColumns}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO refunds ({columns}) VALUES ({placeholders})"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def fetch_refund_by_id(self, refund_id):
+        """
+        Recupera un rimborso specifico in modo dinamico.
+        """
+        columns = [column.value for column in DBRefundsColumns]
+        query = f"SELECT {', '.join(columns)} FROM refunds WHERE {DBRefundsColumns.ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (refund_id,))
+            return cursor.fetchone()
+
+    def fetch_refunds_by_client_id(self, client_id):
+        """
+        Recupera i rimborsi per un specifico cliente.
+        """
+        columns = [column.value for column in DBRefundsColumns]
+        query = f"SELECT {', '.join(columns)} FROM refunds WHERE {DBRefundsColumns.CLIENT_ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (client_id,))
+            return cursor.fetchall()
+
+    def fetch_last_refund_insert(self):
+        """
+        Recupera l'ultimo rimborso inserito nel database.
+        """
+        columns = [column.value for column in DBRefundsColumns]
+        query = f"SELECT {', '.join(columns)} FROM refunds ORDER BY {DBRefundsColumns.UPDATED_AT.value} DESC LIMIT 1"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+    def update_refund(self, refund_id, **kwargs):
+        """
+        Aggiorna i valori di un rimborso esistente.
+        """
+        valid_columns = {column.value for column in DBRefundsColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE refunds SET {set_clause} WHERE {DBRefundsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), refund_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento del rimborso: {str(e)}")
+
+    def fetch_refunds_with_client(self):
+        """
+        Recupera i rimborsi uniti ai dati dei clienti.
+        """
+        refund_columns = [f"r.{col.value}" for col in DBRefundsColumns]
+        client_columns = [f"c.{col.value}" for col in DBClientsColumns]  # Assumendo che DBClientsColumns esista
+        all_columns = refund_columns + client_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM refunds r
+        JOIN clients c ON r.{DBRefundsColumns.CLIENT_ID.value} = c.{DBClientsColumns.ID.value}
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def sum_refunds_by_account(self, account_id: int) -> float:
+        """
+        Restituisce la somma degli importi dei rimborsi effettuati su uno specifico conto.
+        """
+        amt_col = DBRefundsColumns.REFUND_AMOUNT.value
+        conto_col = DBRefundsColumns.CONTO_ID.value
+
+        query = f"""
+        SELECT SUM({amt_col})
+        FROM refunds
+        WHERE {conto_col} = ?
+        """
+
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (account_id,))
+            result = cur.fetchone()[0]
+            return result if result is not None else 0.0
+
+    @staticmethod
+    def _fetch_recent_refunds(db_model, months=12):
+        """
+        Recupera i rimborsi recenti (ultimi N mesi).
+        """
+        date_limit = (datetime.now() - timedelta(days=months * 30)).strftime("%Y-%m-%d")
+        columns = [column.value for column in DBRefundsColumns]
+
+        query = f"""
+        SELECT {', '.join(columns)} 
+        FROM refunds 
+        WHERE DATE({DBRefundsColumns.REFUND_DATE.value}) >= ?
+        """
+
         with db_model._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(query, (date_limit,))

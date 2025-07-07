@@ -6,7 +6,7 @@ from Views.View_utils import ViewUtils
 
 from Controllers import UserController, AccountController, ClientController, InvoiceController, \
     PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
-    Analyzer, TransfersController, SalaryController
+    Analyzer, TransfersController, SalaryController, RefundController
 from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns, DBExpensesColumns, DBUsersColumns
 
 from Views.Users_view import UsersView
@@ -19,7 +19,7 @@ from Views.Suppliers_view import SuppliersView
 from Views.Accounts_view import AccountsView
 from Views.Salaries_view import SalariesView
 from Views.Iva_trimes_view import IvaTrimesView
-
+from Views.Refunds_view import RefundsView
 
 class MainWindow(ctk.CTk):
     def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings):
@@ -51,6 +51,7 @@ class MainWindow(ctk.CTk):
         self.production_controller = ProductionController(self.db_model, self.client_controller)
         self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, fiscal_settings, self.historical_financial_data_settings)
         self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller, self.recurring_expenses_settings, self.catalogo_elenchi)
+        self.refund_controller = RefundController(self.db_model, self.client_controller, self.account_controller)
         self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
         self.analyzer = Analyzer(self.user_controller,
                  self.client_controller,
@@ -62,6 +63,7 @@ class MainWindow(ctk.CTk):
                  self.payment_controller,
                  self.expense_controller,
                  self.salary_controller,
+                 self.refund_controller,
                  fiscal_settings,
                  self.recurring_expenses_settings)
 
@@ -97,6 +99,7 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Conti")
         self.tabview.add("Fatture")
         self.tabview.add("Pagamenti")
+        self.tabview.add("Rimborsi")
         self.tabview.add("Spese")
         self.tabview.add("Iva")
         self.tabview.add("Salario")
@@ -118,6 +121,7 @@ class MainWindow(ctk.CTk):
         #self.invoice_tab.create_invoices_tab()
         self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"), self.event_bus)
         self.payment_tab.create_payments_tab()
+        self.refund_tab = RefundsView(self.db_model, self.refund_controller, self.client_controller, self.account_controller, self.update_controller, self.tabview, self.analyzer, self.event_bus)
         self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Produzioni"), self.event_bus)
         self.production_tab.create_productions_tab()
         self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller, self.account_controller, self.supplier_controller, self.invoice_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, self.config_manager, self.tabview.tab("Spese"), self.event_bus)

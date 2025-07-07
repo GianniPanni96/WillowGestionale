@@ -5,7 +5,7 @@
             "description": "Percorso dove verranno salvati i backup del database gestionale."
         },
         "interval_minutes": {
-            "value": 5,
+            "value": 10,
             "description": "Intervallo in minuti tra l'esecuzione dei backup."
         },
         "max_backups": {
@@ -65,22 +65,22 @@
                 "value": "0.78",
                 "description": "Percentuale dell'imponibile considerata per il calcolo fiscale nel regime forfettario."
             },
-			"percentuale_acconto_imposta_primo": {
-			  "value": "0.40",
-			  "description": "Quota (%) del primo acconto dell’imposta sostitutiva da versare al 30 giugno (saldo+acconto)"
-			},
-			"percentuale_acconto_imposta_secondo": {
-			  "value": "0.60",
-			  "description": "Quota (%) del secondo acconto dell’imposta sostitutiva da versare al 30 novembre"
-			},
-			"percentuale_acconto_inps_forfettario": {
-			  "value": "1.00",
-			  "description": "Percentuale dei contributi INPS forfettari su cui calcolare gli acconti (sempre 100% del contributo dovuto)"
-			},
-			"percentuale_rata_acconto_inps_forfettario": {
-			  "value": "0.50",
-			  "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre) in regime forfettario"
-			}
+            "percentuale_acconto_imposta_primo": {
+                "value": "0.40",
+                "description": "Quota (%) del primo acconto dell\u2019imposta sostitutiva da versare al 30 giugno (saldo+acconto)"
+            },
+            "percentuale_acconto_imposta_secondo": {
+                "value": "0.60",
+                "description": "Quota (%) del secondo acconto dell\u2019imposta sostitutiva da versare al 30 novembre"
+            },
+            "percentuale_acconto_inps_forfettario": {
+                "value": "1.00",
+                "description": "Percentuale dei contributi INPS forfettari su cui calcolare gli acconti (sempre 100% del contributo dovuto)"
+            },
+            "percentuale_rata_acconto_inps_forfettario": {
+                "value": "0.50",
+                "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre) in regime forfettario"
+            }
         },
         "partita_iva_ordinaria": {
             "aliquota_irpef_1": {

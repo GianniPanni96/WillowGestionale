@@ -14,7 +14,7 @@ import numpy as np
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, \
 DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, \
-DBSuppliersColumns, DBTransfersColumns, DBSalariesColumns
+DBSuppliersColumns, DBTransfersColumns, DBSalariesColumns, DBRefundsColumns
 
 from Views.View_utils import ViewUtils
 
@@ -252,6 +252,19 @@ class ControllerUtils:
         return [
             p for p in payments
             if (date_str := p.get(DBPaymentsColumns.PAYMENT_DATE.value)) and
+               (dt := ControllerUtils._parse_date(date_str)) and
+               dt.year == current_year_value
+        ]
+
+    @staticmethod
+    def filter_refunds(refunds, current_year=True):
+        if not current_year or not refunds:
+            return refunds
+
+        current_year_value = datetime.now().year
+        return [
+            r for r in refunds
+            if (date_str := r.get(DBRefundsColumns.REFUND_DATE.value)) and
                (dt := ControllerUtils._parse_date(date_str)) and
                dt.year == current_year_value
         ]
@@ -4344,6 +4357,226 @@ class SalaryController:
         return self.db_model.sum_salaries_by_account(account_id)
 
 
+class RefundController:
+
+    class RefundsAggregateData(Enum):
+        NUMERO_RIMBORSI = "#RIMBORSI"
+        TOT_RIMBORSI = "TOT. RIMBORSI"
+
+    def __init__(self, db_model, client_controller, account_controller):
+        self.db_model = db_model
+        self.client_controller = client_controller
+        self.account_controller = account_controller
+
+    def  save_refund(self, refund_data):
+        """
+        Gestisce il salvataggio di un rimborso, con validazioni di primo livello.
+        :param refund_data: Dizionario contenente i dati del rimborso
+        :return: Tuple (success, message), dove success è True/False
+        """
+
+        # Campi obbligatori (solo quelli modellati tramite entry)
+        self.required_fields = {DBRefundsColumns.REFUND_NAME.value, DBRefundsColumns.REFUND_AMOUNT.value}
+
+        # Validazione dei campi obbligatori
+        missing_fields = [field for field in self.required_fields if not refund_data.get(field)]
+        if missing_fields:
+            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+        # Validazione importi
+        tot_refund = refund_data.get(DBRefundsColumns.REFUND_AMOUNT.value)
+        if not ValidationUtils.validate_amount(tot_refund):
+            return False, "L'importo del preventivo non è valido"
+
+        # prendo i dati necessari del conto
+        nome_conto = refund_data.get("NOME CONTO")
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        id_conto = conto[DBAccountsColumns.ID.value]
+
+        # prendo i dati necessari del cliente
+        nome_cliente = refund_data.get("NOME CLIENTE")
+        cliente = self.client_controller.retrieve_client_map_by_name(nome_cliente)
+        id_cliente = cliente[DBClientsColumns.ID.value]
+
+
+        refund_data_prepared = {
+            DBRefundsColumns.REFUND_NAME.value : refund_data.get(DBRefundsColumns.REFUND_NAME.value),
+            DBRefundsColumns.REFUND_AMOUNT.value: refund_data.get(DBRefundsColumns.REFUND_AMOUNT.value),
+            DBRefundsColumns.REFUND_DATE.value: refund_data.get(DBRefundsColumns.REFUND_DATE.value),
+            DBRefundsColumns.CLIENT_ID.value : id_cliente,
+            DBPaymentsColumns.CONTO_ID.value: id_conto,
+        }
+
+        try:
+            self.db_model.add_refund(**refund_data_prepared)
+            return True, "Rimborso salvato con successo!"
+        except Exception as e:
+            return False, f"Errore durante il salvataggio: {str(e)}"
+
+    def retrieve_refunds(self, current_year=True):
+        """
+        Recupera tutti i rimborsi, filtrandoli per l'anno corrente se specificato.
+        :param current_year: Booleano. Se True, ritorna solo i rimborsi effettuati nell'anno corrente.
+        :return: Lista di tuple (righe) con i dati dei rimborsi.
+        """
+        rows = self.db_model.fetch_refunds()
+        if not current_year or not rows:
+            return rows
+
+        columns = [col.value for col in DBRefundsColumns]
+        # Converti le righe in dizionari
+        refunds_dicts = [dict(zip(columns, row)) for row in rows]
+        # Applica il filtro utilizzando ControllerUtils
+        filtered_dicts = ControllerUtils.filter_refunds(refunds_dicts, current_year)
+        # Converti i dizionari filtrati nuovamente in tuple
+        return [tuple(d[col] for col in columns) for d in filtered_dicts]
+
+    def retrieve_refund_by_id(self, refund_id, current_year=True):
+        """
+        Recupera un rimborso specifico per ID, opzionalmente filtrando per l'anno corrente.
+        :param refund_id: ID del rimborso.
+        :param current_year: Se True, ritorna None se il rimborso non è dell'anno corrente.
+        :return: Una tupla con i dati del rimborso oppure None.
+        """
+        row = self.db_model.fetch_refund_by_id(refund_id)
+        if not row or not current_year:
+            return row
+
+        columns = [col.value for col in DBRefundsColumns]
+        refund_dict = dict(zip(columns, row))
+        # Applica il filtro utilizzando ControllerUtils
+        if ControllerUtils.filter_refunds([refund_dict], current_year):
+            return row
+        return None
+
+    def retrieve_refund_map_by_id(self, refund_id, current_year=True):
+        """
+        Recupera un rimborso specifico e lo restituisce come dizionario,
+        filtrando per l'anno corrente se specificato.
+        :param refund_id: ID del rimborso.
+        :param current_year: Se True, ritorna None se il rimborso non è dell'anno corrente.
+        :return: Dizionario con i dati del rimborso oppure None.
+        """
+        row = self.db_model.fetch_refund_by_id(refund_id)
+        if not row:
+            return None
+
+        columns = [col.value for col in DBRefundsColumns]
+        refund_dict = dict(zip(columns, row))
+
+        # Applica il filtro se necessario
+        if current_year and not ControllerUtils.filter_refunds([refund_dict], current_year):
+            return None
+
+        return refund_dict
+
+    def retrieve_refunds_map_list(self, current_year=True):
+        """
+        Recupera tutti i rimborsi e li restituisce come lista di dizionari,
+        filtrandoli per l'anno corrente se specificato.
+        """
+        rows = self.db_model.fetch_refunds()
+        # Converti le righe in dizionari
+        refunds = [ValidationUtils._row_to_map(row, DBRefundsColumns) for row in rows]
+
+        # Applica il filtro utilizzando ControllerUtils
+        if current_year:
+            refunds = ControllerUtils.filter_refunds(refunds, current_year)
+
+        return refunds
+
+    def retrieve_refunds_map_list_by_client_id(self, client_id, current_year=True):
+        """
+        Recupera i rimborsi per un specifico cliente, opzionalmente filtrati per anno corrente.
+        """
+        rows = self.db_model.fetch_refunds_by_client_id(client_id)
+        # Converti le righe in dizionari
+        refunds = [ValidationUtils._row_to_map(row, DBRefundsColumns) for row in rows]
+
+        # Applica il filtro utilizzando ControllerUtils
+        if current_year:
+            refunds = ControllerUtils.filter_refunds(refunds, current_year)
+
+        return refunds
+
+    def retrieve_last_refund_insert_map(self):
+        """
+        Recupera l'ultimo rimborso inserito e lo restituisce come dizionario.
+        """
+        row = self.db_model.fetch_last_refund_insert()
+        return ValidationUtils._row_to_map(row, DBRefundsColumns)
+
+    def count_refunds(self, current_year=True):
+        """
+        Conta il numero di rimborsi, applicando il filtro per l'anno corrente se specificato.
+
+        :param current_year: Booleano. Se True, conta solo i rimborsi dell'anno corrente.
+        :return: Numero di rimborsi (int)
+        """
+        # Usa retrieve_refunds_map_list già modificata
+        refunds = self.retrieve_refunds_map_list(current_year)
+        return len(refunds)
+
+    def calculate_tot_refunds(self, current_year=True):
+        """
+        Calcola il totale degli importi dei rimborsi.
+        """
+        refund_list = self.retrieve_refunds_map_list(current_year)
+        tot = 0.0
+        for refund in refund_list:
+            tot = tot + float(refund[DBRefundsColumns.REFUND_AMOUNT.value])
+        return tot
+
+    def update_refund(self, refund_id, refund_data):
+        """
+        Aggiorna i dati di un rimborso esistente.
+        :param refund_id: ID del rimborso da aggiornare
+        :param refund_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità refund_id
+            if not refund_id or not isinstance(refund_id, int):
+                return False, "ID rimborso non valido. Deve essere un intero positivo."
+
+            # Validazione campi obbligatori (da definire in base ai requisiti)
+            required_fields = [
+                DBRefundsColumns.REFUND_NAME.value,
+                DBRefundsColumns.REFUND_AMOUNT.value,
+                DBRefundsColumns.REFUND_DATE.value,
+                DBRefundsColumns.CLIENT_ID.value,
+                DBRefundsColumns.CONTO_ID.value
+            ]
+
+            missing_fields = [field for field in required_fields if not refund_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Validazione Importo
+            if DBRefundsColumns.REFUND_AMOUNT.value in refund_data:
+                amount = refund_data[DBRefundsColumns.REFUND_AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo inserito non è valido."
+
+            # Invoca il metodo del model per aggiornare il rimborso
+            self.db_model.update_refund(refund_id, **refund_data)
+            return True, "Rimborso aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del rimborso: {str(e)}"
+
+    def sum_refunds_for_account(self, account_id):
+        """
+        Restituisce la somma totale dei rimborsi associati a un conto specifico.
+
+        :param account_id: ID del conto
+        :return: Somma degli importi dei rimborsi (float)
+        """
+        return self.db_model.sum_refunds_by_account(account_id)
+
+
 
 
 class Analyzer:
@@ -4358,6 +4591,7 @@ class Analyzer:
                  payment_controller,
                  expenses_controller,
                  salary_controller,
+                 refunds_controller,
                  fiscal_settings,
                  recurring_expenses_settings
                  ):
@@ -4371,6 +4605,7 @@ class Analyzer:
         self.payment_controller = payment_controller
         self.expenses_controller = expenses_controller
         self.salary_controller = salary_controller
+        self.refunds_controller = refunds_controller
         self.fiscal_settings = fiscal_settings
         self.recurring_expenses_settings = recurring_expenses_settings
 
@@ -4385,8 +4620,9 @@ class Analyzer:
             tot_rec_transf = self.transfer_controller.calculate_tot_amount_received_transfers_by_account(account_id)
             tot_sent_transf = self.transfer_controller.calculate_tot_amount_sent_transfers_by_account(account_id)
             tot_salaries = self.salary_controller.sum_salaries_for_account(account_id)
+            tot_refunds = self.refunds_controller.sum_refunds_for_account(account_id)
 
-            tot_entrate = tot_payments + tot_rec_transf
+            tot_entrate = tot_payments + tot_rec_transf + tot_refunds
             tot_uscite = tot_expenses + tot_sent_transf + tot_salaries
 
             balance = init_balance + float(tot_entrate) - float(tot_uscite)

@@ -369,7 +369,7 @@ class PaymentsView(ctk.CTk):
 
         #sistemo il nome della fattura che è ViewFriendly:
         nome_fattura_array = payment_data[self.nome_fattura_string].strip().split(" - ")
-        nome_fattura_ricostruito = nome_fattura_array[0] + " - " + nome_fattura_array[1]
+        nome_fattura_ricostruito = nome_fattura_array[0] + " - " + nome_fattura_array[1] + " - " + nome_fattura_array[2]
         invoice_id = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura_ricostruito)[DBInvoicesColumns.ID.value]
         payment_data[DBPaymentsColumns.INVOICE_ID.value] = invoice_id
 
@@ -432,7 +432,7 @@ class PaymentsView(ctk.CTk):
 
     def toggle_linked_rata(self, selected_value):
         invoice_name = selected_value.split(" - ")
-        invoice_name_reconstructed = invoice_name[0] + " - " + invoice_name[1]
+        invoice_name_reconstructed = invoice_name[0] + " - " + invoice_name[1] + " - " + invoice_name[2]
         invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name_reconstructed)
         rateizzazione = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
         widget = self.payment_widgets[DBPaymentsColumns.LINKED_RATA.value]
@@ -470,7 +470,7 @@ class PaymentsView(ctk.CTk):
         # prendo la fattura di riferimento del pagamento
         VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
         invoice_name_array = VF_invoice_name.split(" - ")
-        invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1]
+        invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1] + " - " + invoice_name_array[2]
         invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
 
         netto_rate_fattura = {

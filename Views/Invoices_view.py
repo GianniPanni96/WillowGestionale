@@ -762,7 +762,8 @@ class InvoicesView(ctk.CTk):
         user_invoice_numbers = []
         for invoice in user_invoices:
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
-            invoice_number = invoice_name.split("FPR")[1]
+            invoice_name_splitted = invoice_name.split(" - ")
+            invoice_number = invoice_name_splitted[1].split("FPR")[1]
             user_invoice_numbers.append(int(invoice_number))
 
         last_invoice_number = max(user_invoice_numbers) + 1 if len(user_invoice_numbers) != 0 else 0

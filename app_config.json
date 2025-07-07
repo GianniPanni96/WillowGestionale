@@ -5,7 +5,7 @@
             "description": "Percorso dove verranno salvati i backup del database gestionale."
         },
         "interval_minutes": {
-            "value": 10,
+            "value": 5,
             "description": "Intervallo in minuti tra l'esecuzione dei backup."
         },
         "max_backups": {
@@ -219,7 +219,7 @@
         "affitto_studio": {
             "description": "AFFITTO STUDIO",
             "amount": {
-                "value": "1600",
+                "value": "1600.0",
                 "description": ""
             },
             "supplier": {
@@ -230,8 +230,51 @@
                 "value": "S\u00ec",
                 "description": ""
             },
+            "deductor": {
+                "value": 2,
+                "description": ""
+            },
             "category": {
                 "value": "Affitto Ufficio",
+                "description": ""
+            },
+            "iva": {
+                "value": 0.22,
+                "description": ""
+            },
+            "account": {
+                "value": "WeBank",
+                "description": ""
+            },
+            "frequency": {
+                "value": "MENSILE",
+                "description": ""
+            },
+            "status": {
+                "value": "Attiva",
+                "description": ""
+            }
+        },
+        "artlist": {
+            "description": "ARTLIST",
+            "amount": {
+                "value": "250",
+                "description": ""
+            },
+            "supplier": {
+                "value": "Artlist",
+                "description": ""
+            },
+            "deductible": {
+                "value": "S\u00ec",
+                "description": ""
+            },
+            "category": {
+                "value": "Abbonamento",
+                "description": ""
+            },
+            "deductor": {
+                "value": 1,
                 "description": ""
             },
             "iva": {
@@ -243,7 +286,7 @@
                 "description": ""
             },
             "frequency": {
-                "value": "MENSILE",
+                "value": "ANNUALE",
                 "description": ""
             },
             "status": {

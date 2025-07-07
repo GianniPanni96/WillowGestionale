@@ -4,6 +4,7 @@ import os, re, json
 from typing import List
 from dataclasses import dataclass, field
 from Controllers import ExpenseController
+from typing import Optional, Union
 
 from typing import Dict
 from dataclasses import dataclass
@@ -727,7 +728,7 @@ class RecurringExpense:
     descr_supplier : ""
     deductible: bool
     descr_deductible : ""
-    deductor: int
+    deductor:Optional[int]
     descr_deductor : ""
     category: str
     descr_category : ""
@@ -742,6 +743,18 @@ class RecurringExpense:
 
     @staticmethod
     def from_dict(data: dict):
+        deductor_value = data.get("deductor", {}).get("value")
+
+        # Gestione del caso nullo
+        if deductor_value is None:
+            deductor = None
+        else:
+            # Gestione sia di stringhe che di numeri
+            try:
+                deductor = int(deductor_value)
+            except (TypeError, ValueError):
+                deductor = None
+
         return RecurringExpense(
             description=data.get("description", ""),
             amount=float(data.get("amount", {}).get("value", 0)),
@@ -750,7 +763,7 @@ class RecurringExpense:
             descr_supplier=data.get("supplier", {}).get("description", ""),
             deductible=data.get("deductible", {}).get("value", "No") == "Sì",
             descr_deductible=data.get("deductible", {}).get("description", ""),
-            deductor=int(data.get("deductor", {}).get("value", 0)),
+            deductor=deductor,
             descr_deductor=data.get("deductor", {}).get("description", ""),
             category=data.get("category", {}).get("value", ""),
             descr_category=data.get("category", {}).get("description", ""),

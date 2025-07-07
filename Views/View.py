@@ -894,7 +894,11 @@ class MainWindow(ctk.CTk):
                             font=self.entry_font,
                             dropdown_font=self.entry_font
                         )
-                        widget.set(current_deductor[DBUsersColumns.FIRST_NAME.value] + " " + current_deductor[DBUsersColumns.LAST_NAME.value])
+                        if expense.deductible:
+                            deductor_name = current_deductor[DBUsersColumns.FIRST_NAME.value] + " " + current_deductor[DBUsersColumns.LAST_NAME.value]
+                        else:
+                            deductor_name = "Nessuno"
+                        widget.set(deductor_name)
                     else:
                         widget = ctk.CTkOptionMenu(
                             master=frame,
@@ -973,6 +977,8 @@ class MainWindow(ctk.CTk):
 
         for expense_key, widgets in self.expense_widgets.items():
 
+            deductible = widgets["deductible"].get()
+
             deductor_name = widgets["deductor"].get()
             deductor = self.user_controller.retrieve_user_map_by_extended_name(deductor_name)
             deductor_id = deductor[DBUsersColumns.ID.value]
@@ -996,7 +1002,7 @@ class MainWindow(ctk.CTk):
                     "supplier": widgets["supplier"].get(),
                     "deductible": widgets["deductible"].get(),
                     "category": widgets["category"].get(),
-                    "deductor": deductor_id,
+                    "deductor": deductor_id if deductible == "Sì" else None,
                     "iva": widgets["iva"].get(),
                     "account": widgets["account"].get(),
                     "frequency": widgets["frequency"].get(),
@@ -1013,7 +1019,7 @@ class MainWindow(ctk.CTk):
                     "supplier": widgets["supplier"].get(),
                     "deductible": widgets["deductible"].get(),
                     "category": widgets["category"].get(),
-                    "deductor": deductor_id,
+                    "deductor": deductor_id if deductible == "Sì" else None,
                     "iva": widgets["iva"].get(),
                     "account": widgets["account"].get(),
                     "frequency": widgets["frequency"].get(),
@@ -1106,6 +1112,8 @@ class MainWindow(ctk.CTk):
         category_opts = [v for _, v in self.catalogo_elenchi["expenses_category"]]
         freq_opts = [f.value for f in ExpenseController.RecurringExpensesFrequencies]
 
+        users = self.user_controller.retrieve_users_map_list()
+
         # Definizione dei campi, con type e options
         fields = [
             ('name', 'Nome Spesa:', 'entry', None),
@@ -1113,6 +1121,8 @@ class MainWindow(ctk.CTk):
             ('supplier', 'Fornitore:', 'dropdown', suppliers_opts),
             ('category', 'Categoria:', 'dropdown', category_opts),
             ('iva', 'IVA:', 'dropdown', iva_opts),
+            ('deductor', 'Deduzione a\ncarico di:', 'dropdown',
+             [user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users]),
             ('account', 'Conto:', 'dropdown', account_opts),
             ('frequency', 'Frequenza:', 'dropdown', freq_opts),
             ('deductible', 'Deducibile:', 'radio', ["Sì", "No"]),

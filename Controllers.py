@@ -3923,6 +3923,11 @@ class ExpenseController:
             netto = round(gross / (1 + iva_rate), 2)
             iva_amt = round(gross - netto, 2)
 
+            if exp.deductible:
+                deductor_id = exp.deductor
+            else:
+                deductor_id = None
+
             new_exp = {
                 DBExpensesColumns.NAME.value: nominal,
                 DBExpensesColumns.SUPPLIER_ID.value: self.supplier_controller.retrieve_supplier_map_by_name(exp.supplier)[DBSuppliersColumns.ID.value],
@@ -3930,7 +3935,7 @@ class ExpenseController:
                 DBExpensesColumns.NET_AMOUNT.value: netto,
                 DBExpensesColumns.IVA_AMOUNT.value: iva_amt,
                 DBExpensesColumns.TOT_AMOUNT.value: gross,
-                DBExpensesColumns.USER_ID_DEDUZIONE.value: exp.deductor,
+                DBExpensesColumns.USER_ID_DEDUZIONE.value: deductor_id,
                 DBExpensesColumns.DATE.value: today.isoformat(),
                 DBExpensesColumns.DEDUCIBILE.value: "Sì" if exp.deductible else "No",
                 DBExpensesColumns.ACCOUNT_ID.value: acct_id

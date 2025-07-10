@@ -28,7 +28,7 @@ class IvaTrimesView(ctk.CTkFrame):
         self.text_med = ("Arial", 14)
 
         # Container principale
-        self.main_container = ctk.CTkFrame(self)
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
         self.main_container.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Inizializza la vista principale
@@ -36,11 +36,11 @@ class IvaTrimesView(ctk.CTkFrame):
 
     def create_iva_trimes_tab(self):
         # Creazione frame principale
-        tab_frame = ctk.CTkFrame(self.main_container)
+        tab_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         tab_frame.pack(fill="both", expand=True, pady=0, padx=(10, 0), ipady=20, side="left")
 
         # Frame per l'header
-        self.iva_header_frame = ctk.CTkFrame(tab_frame) ##333333
+        self.iva_header_frame = ctk.CTkFrame(tab_frame, fg_color="transparent") ##333333
         self.iva_header_frame.pack(fill="x", anchor="n", padx=(15), pady=(25, 0))
 
         # Configurazione header
@@ -58,11 +58,11 @@ class IvaTrimesView(ctk.CTkFrame):
             ctk.CTkLabel(header, text=text, font=self.header_font).pack(fill="x", expand=True, padx=5, pady=15)
 
         # Frame principale per la lista trimestrale + totale annuale
-        main_list_frame = ctk.CTkFrame(tab_frame)
+        main_list_frame = ctk.CTkFrame(tab_frame, fg_color="transparent")
         main_list_frame.pack(fill="x", anchor="n", padx=15, pady=(0, 25))
 
         # Frame per i trimestri (dove verranno aggiunti i container dei trimestri)
-        self.trimestral_container = ctk.CTkFrame(main_list_frame)
+        self.trimestral_container = ctk.CTkFrame(main_list_frame, fg_color="transparent")
         self.trimestral_container.pack(fill="x", expand=True)
 
         # Ottieni i dati IVA trimestrali
@@ -107,10 +107,10 @@ class IvaTrimesView(ctk.CTkFrame):
                 row_frame.grid_columnconfigure(col, weight=1, uniform="col")
 
             # Colonna 1: Nome trimestre + pulsante
-            quarter_frame = ctk.CTkFrame(row_frame)
+            quarter_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
             quarter_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
 
-            quarter_header = ctk.CTkFrame(quarter_frame)
+            quarter_header = ctk.CTkFrame(quarter_frame, fg_color="transparent")
             quarter_header.pack(fill="x", expand=True)
 
             ctk.CTkLabel(
@@ -239,11 +239,11 @@ class IvaTrimesView(ctk.CTkFrame):
     def add_annual_total_row(self, parent_frame, annual_totals):
         """Aggiunge la riga con i totali annuali"""
         # Separatore prima del totale annuale
-        separator = ctk.CTkFrame(parent_frame, height=2, fg_color="#444444")
-        separator.pack(fill="x", pady=(10, 5))
+        separator = ctk.CTkFrame(parent_frame, height=3, fg_color="#555555")
+        separator.pack(fill="x", pady=(10, 10))
 
         # Frame per la riga annuale
-        annual_row = ctk.CTkFrame(parent_frame)
+        annual_row = ctk.CTkFrame(parent_frame, border_width=2, border_color="#3773b8")
         annual_row.pack(fill="x", pady=(0, 5))
 
         # Configurazione colonne
@@ -252,7 +252,7 @@ class IvaTrimesView(ctk.CTkFrame):
 
         # Colonna 1: Etichetta
         label_frame = ctk.CTkFrame(annual_row)
-        label_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        label_frame.grid(row=0, column=0, sticky="nsew", padx=(5, 5), pady=5)
         ctk.CTkLabel(
             label_frame,
             text="TOTALE ANNUALE",
@@ -261,7 +261,7 @@ class IvaTrimesView(ctk.CTkFrame):
 
         # Colonna 2: Credito totale
         credito_frame = ctk.CTkFrame(annual_row)
-        credito_frame.grid(row=0, column=1, sticky="nsew", padx=(0, 5))
+        credito_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 5), pady=5)
         ctk.CTkLabel(
             credito_frame,
             text=f"{annual_totals['credito']:.2f} €",
@@ -270,7 +270,7 @@ class IvaTrimesView(ctk.CTkFrame):
 
         # Colonna 3: Debito totale
         debito_frame = ctk.CTkFrame(annual_row)
-        debito_frame.grid(row=0, column=2, sticky="nsew", padx=(0, 5))
+        debito_frame.grid(row=0, column=2, sticky="nsew", padx=(5, 5), pady=5)
         ctk.CTkLabel(
             debito_frame,
             text=f"{annual_totals['debito']:.2f} €",
@@ -279,7 +279,7 @@ class IvaTrimesView(ctk.CTkFrame):
 
         # Colonna 4: Saldo annuale
         saldo_frame = ctk.CTkFrame(annual_row)
-        saldo_frame.grid(row=0, column=3, sticky="nsew")
+        saldo_frame.grid(row=0, column=3, sticky="nsew", padx=(5, 5), pady=5)
 
         saldo = annual_totals['da_pagare']
         fg_color = "#f52f2f" if saldo > 0 else "#2ca31c" if saldo < 0 else "#b0b0b0"

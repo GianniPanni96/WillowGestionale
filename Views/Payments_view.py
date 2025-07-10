@@ -40,7 +40,7 @@ class PaymentsView(ctk.CTkFrame):
 
     def create_payments_tab(self):
 
-        self.search_bar_frame = ctk.CTkFrame(self)
+        self.search_bar_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
@@ -58,7 +58,7 @@ class PaymentsView(ctk.CTkFrame):
         self.populate_global_infos()
 
         for (key, info) in self.global_infos.items():
-            card = ctk.CTkFrame(self.search_bar_frame)
+            card = ctk.CTkFrame(self.search_bar_frame, fg_color="#333333")
 
             if key == PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value:
                 global_info_unità_di_misura = ""
@@ -75,14 +75,14 @@ class PaymentsView(ctk.CTkFrame):
             #salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.payments_table_frame = ctk.CTkFrame(self)
+        self.payments_table_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.payments_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "CLIENTE", "PRODUZIONE", "FATTURA", "TOTALE", "DATA", "RATA", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
             # crea il container
-            column = ctk.CTkFrame(self.payments_table_frame)
+            column = ctk.CTkFrame(self.payments_table_frame, fg_color="#333333")
             column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
 
             # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
@@ -95,10 +95,10 @@ class PaymentsView(ctk.CTkFrame):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.payments_cards_frame = ctk.CTkScrollableFrame(self)
+        self.payments_cards_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.payments_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_payment_frame = ctk.CTkFrame(self)
+        self.add_payment_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.add_payment_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_payment_frame, text="Aggiungi un pagamento",

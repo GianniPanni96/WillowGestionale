@@ -45,8 +45,8 @@ class UsersView(ctk.CTkFrame):
             self.accounts_list = list(self.accounts_mapping.keys())
 
         # Container principale
-        self.main_container = ctk.CTkFrame(self)
-        self.detail_container = ctk.CTkFrame(self)
+        self.main_container = ctk.CTkFrame(self, fg_color="#2b2b2b")
+        self.detail_container = ctk.CTkFrame(self, fg_color="#2b2b2b")
 
         # Vista dettaglio
         self.user_detail_view = UserDetailView(

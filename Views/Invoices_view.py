@@ -57,8 +57,8 @@ class InvoicesView(ctk.CTkFrame):
         self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color_2, self.toggle_aggregate_data)
 
         # Container principale
-        self.main_container = ctk.CTkFrame(self)
-        self.detail_container = ctk.CTkFrame(self)
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.detail_container = ctk.CTkFrame(self, fg_color="transparent")
 
         self.update_controller.register_on_delete_production_view_cllbks(self.attach_warning_on_a_card)
 
@@ -1197,6 +1197,8 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.event_bus = event_bus
         self.current_invoice_id = None
 
+        self.configure(fg_color="transparent")
+
         # Widgets persistenti (vanno creati una volta sola)
         self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
         self.back_button = ctk.CTkButton(
@@ -1281,10 +1283,10 @@ class InvoiceDetailView(ctk.CTkFrame):
         self._create_invoice_info_section(invoice)
         self.toggle_edit(self.content_frame)
 
-        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="#333333")
-        self.wrapper_frame.pack(padx=25, pady=(90, 0), fill="both", expand=True)
-        self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="#333333")
-        self.wrapper_frame2.pack(padx=25, pady=(90, 90), fill="both", expand=True)
+        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame.pack(padx=15, pady=(90, 0), fill="both", expand=True)
+        self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame2.pack(padx=15, pady=(90, 90), fill="both", expand=True)
 
         self._create_payments_history()
         self._create_production_expenses_history()

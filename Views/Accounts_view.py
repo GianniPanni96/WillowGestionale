@@ -46,10 +46,10 @@ class AccountsView(ctk.CTkFrame):
         self.account_description.pack(pady=(70, 45))
 
         # Area per le cards degli utenti (simulata qui per ora)
-        self.account_card_area = ctk.CTkFrame(self)
+        self.account_card_area = ctk.CTkFrame(self, fg_color="#2b2b2b")
         self.account_card_area.pack(fill= "y", expand=True, pady=20)
 
-        self.account_card_area1 = ctk.CTkFrame(self)
+        self.account_card_area1 = ctk.CTkFrame(self, fg_color="#2b2b2b")
         self.account_card_area1.pack(fill= "y", expand=True, pady=20)
 
         # Bottone per aggiungere un nuovo utente
@@ -142,7 +142,7 @@ class AccountsView(ctk.CTkFrame):
     def add_account_card(self, id, name, balance):
         """Aggiungi una card per un conto alla lista"""
 
-        account_card = ctk.CTkFrame(self.account_card_area if self.number_of_account_cards < 4 else self.account_card_area1)
+        account_card = ctk.CTkFrame(self.account_card_area if self.number_of_account_cards < 4 else self.account_card_area1, fg_color="#333333")
         account_card.pack(side="left", pady=5, padx=25)
         self.account_cards[id] = account_card
 

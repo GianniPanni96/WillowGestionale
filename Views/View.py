@@ -146,7 +146,7 @@ class MainWindow(ctk.CTk):
         self.tab_instances["Fatture"] = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
                                         self.client_controller, self.production_controller, self.payment_controller,
                                         self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
-                                        self.historical_financial_data_settings, self.event_bus)
+                                        self.historical_financial_data_settings, self.event_bus, self.analyzer)
         self.tab_instances["Pagamenti"] = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller,
                                         self.user_controller, self.client_controller, self.production_controller,
                                         self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"),

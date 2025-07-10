@@ -855,6 +855,26 @@ class DatabaseModel:
             cursor.execute(query, (invoice_id,))
             return cursor.fetchall()
 
+    def fetch_payments_with_invoice_for_client(self, client_id):
+        """
+        Recupera i pagamenti con i dati delle fatture associate per un cliente specifico.
+        """
+        payment_columns = [f"p.{col.value}" for col in DBPaymentsColumns]
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = payment_columns + invoice_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM payments p
+        JOIN invoices i ON p.{DBPaymentsColumns.INVOICE_ID.value} = i.{DBInvoicesColumns.ID.value}
+        WHERE i.{DBInvoicesColumns.ID_CLIENTE.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (client_id,))
+            return cursor.fetchall()
+
     def fetch_last_payment_insert(self):
         """
         Recupera l'ultimo pagamento inserito nel database, ordinando in base alla colonna PAYMENT_DATE.

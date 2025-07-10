@@ -18,7 +18,7 @@ class InvoicesView(ctk.CTkFrame):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tabview, fiscal_settings, historical_financial_data_settings, event_bus):
+    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tabview, fiscal_settings, historical_financial_data_settings, event_bus, analyzer):
         super().__init__(tabview.tab("Fatture"))
 
         self.db_model = db_model
@@ -34,6 +34,7 @@ class InvoicesView(ctk.CTkFrame):
         self.fiscal_settings = fiscal_settings
         self.historical_financial_data_settings = historical_financial_data_settings
         self.event_bus = event_bus
+        self.analyzer = analyzer
 
         self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self.handle_show_invoice_detail)
 
@@ -232,8 +233,7 @@ class InvoicesView(ctk.CTkFrame):
             InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
         self.global_infos_lordi["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.FATT_LORDO.value]
-        self.global_infos_lordi["CREDITI"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.CREDITI_LORDO.value]
+        self.global_infos_lordi["CREDITI"] = self.analyzer.calculate_totale_crediti()
         self.global_infos_lordi["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_LORDO.value]
         #self.global_infos_lordi["PAGAMENTO \n ORARIO"] = 0
@@ -242,8 +242,7 @@ class InvoicesView(ctk.CTkFrame):
             InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
         self.global_infos_netti["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.FATT_NETTO.value]
-        self.global_infos_netti["CREDITI"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.CREDITI_NETTO.value]
+        self.global_infos_netti["CREDITI"] = self.analyzer.calculate_totale_crediti()
         self.global_infos_netti["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_NETTO.value]
         #self.global_infos_netti["PAGAMENTO \n ORARIO"] = 0

@@ -8,7 +8,7 @@ from datetime import datetime
 import re
 from enum import Enum
 
-class InvoicesView(ctk.CTk):
+class InvoicesView(ctk.CTkFrame):
 
     class InvoicesStatusColors(Enum):
         CRITICAL = "#f52f2f"
@@ -19,7 +19,7 @@ class InvoicesView(ctk.CTk):
         NOT_EXISTING = "#424242"
 
     def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tabview, fiscal_settings, historical_financial_data_settings, event_bus):
-        super().__init__()
+        super().__init__(tabview.tab("Fatture"))
 
         self.db_model = db_model
         self.invoice_controller = invoice_controller
@@ -57,14 +57,14 @@ class InvoicesView(ctk.CTk):
         self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color_2, self.toggle_aggregate_data)
 
         # Container principale
-        self.main_container = ctk.CTkFrame(self.tab)
-        self.detail_container = ctk.CTkFrame(self.tab)
+        self.main_container = ctk.CTkFrame(self)
+        self.detail_container = ctk.CTkFrame(self)
 
         self.update_controller.register_on_delete_production_view_cllbks(self.attach_warning_on_a_card)
 
         # Vista dettaglio
         self.invoice_detail_view = InvoiceDetailView(
-            parent=self.tab,
+            parent=self,
             invoice_controller=self.invoice_controller,
             back_callback=self.show_main_view,
             user_controller=user_controller,

@@ -8,10 +8,10 @@ import re
 from enum import Enum
 from dataclasses import fields
 
-class ExpensesView(ctk.CTk):
+class ExpensesView(ctk.CTkFrame):
 
     def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab, event_bus):
-        super().__init__()
+        super().__init__(tab)
 
         self.db_model = db_model
         self.expense_controller = expense_controller
@@ -40,7 +40,7 @@ class ExpensesView(ctk.CTk):
         self.create_expenses_tab()
 
     def create_expenses_tab(self):
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self)
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
@@ -75,7 +75,7 @@ class ExpensesView(ctk.CTk):
             # salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.expenses_table_frame = ctk.CTkFrame(self.tab)
+        self.expenses_table_frame = ctk.CTkFrame(self)
         self.expenses_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "FORNITORE", "NETTO", "LORDO", "CATEGORIA", "DATA", "DEDUCIBILE", "DEDUZIONE A\nCARICO DI", "CONTO\nCORRENTE"]
@@ -95,10 +95,10 @@ class ExpensesView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.cards_frame = ctk.CTkScrollableFrame(self)
         self.cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_expense_frame = ctk.CTkFrame(self.tab)
+        self.add_expense_frame = ctk.CTkFrame(self)
         self.add_expense_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_expense_frame, text="Aggiungi una spesa",

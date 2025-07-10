@@ -11,9 +11,9 @@ from Controllers import ControllerUtils, ClientController
 from Model import DBClientsColumns
 
 
-class ClientsView(ctk.CTk):
+class ClientsView(ctk.CTkFrame):
     def __init__(self, db_model, client_controller, catalogo_elenchi, config_manager, tab, event_bus):
-        super().__init__()
+        super().__init__(tab)
 
         self.db_model = db_model
         self.client_controller = client_controller
@@ -29,7 +29,7 @@ class ClientsView(ctk.CTk):
 
     def create_client_tab(self):
 
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self)
         self.search_bar_frame.pack(pady=10, fill="x", anchor="n")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5,35), anchor="e", side="right")
@@ -41,7 +41,7 @@ class ClientsView(ctk.CTk):
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
 
-        self.clients_table_frame = ctk.CTkFrame(self.tab)
+        self.clients_table_frame = ctk.CTkFrame(self)
         self.clients_table_frame.pack(pady=(20, 0), padx=(10,15), fill="x", anchor="n")
 
         self.headers = ["NOME", "TOT. ENTRATE", "# FATTURE", "FATTURA MEDIA", "TOT. CREDITI",
@@ -62,10 +62,10 @@ class ClientsView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.clients_cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.clients_cards_frame = ctk.CTkScrollableFrame(self)
         self.clients_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_client_frame = ctk.CTkFrame(self.tab)
+        self.add_client_frame = ctk.CTkFrame(self)
         self.add_client_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_client_frame, text="Aggiungi Cliente", command=self.open_add_client_window)

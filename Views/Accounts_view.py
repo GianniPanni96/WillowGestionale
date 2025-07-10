@@ -8,10 +8,10 @@ from datetime import datetime
 import re
 from enum import Enum
 
-class AccountsView(ctk.CTk):
+class AccountsView(ctk.CTkFrame):
 
     def __init__(self, db_model, account_controller, update_controller, transfer_controller, config_manager, catalogo_elenchi, analyzer, tab, event_bus):
-        super().__init__()
+        super().__init__(tab)
 
         self.db_model = db_model
         self.account_controller = account_controller
@@ -42,18 +42,18 @@ class AccountsView(ctk.CTk):
 
     def create_accounts_tab(self):
         """Crea la UI per la gestione dei conti bancari"""
-        self.account_description = ctk.CTkLabel(self.tab, text="Gestisci i conti correnti", font=("Arial", 14))
+        self.account_description = ctk.CTkLabel(self, text="Gestisci i conti correnti", font=("Arial", 14))
         self.account_description.pack(pady=(70, 45))
 
         # Area per le cards degli utenti (simulata qui per ora)
-        self.account_card_area = ctk.CTkFrame(self.tab)
+        self.account_card_area = ctk.CTkFrame(self)
         self.account_card_area.pack(fill= "y", expand=True, pady=20)
 
-        self.account_card_area1 = ctk.CTkFrame(self.tab)
+        self.account_card_area1 = ctk.CTkFrame(self)
         self.account_card_area1.pack(fill= "y", expand=True, pady=20)
 
         # Bottone per aggiungere un nuovo utente
-        self.add_account_button = ctk.CTkButton(self.tab, text="Aggiungi Nuovo Conto", font=("Arial", 15, "bold"),
+        self.add_account_button = ctk.CTkButton(self, text="Aggiungi Nuovo Conto", font=("Arial", 15, "bold"),
                                              command=self.open_add_account_window)
         self.add_account_button.configure(width=200, height=50)
         self.add_account_button.pack(anchor="s", pady=20)

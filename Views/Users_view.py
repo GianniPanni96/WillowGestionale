@@ -14,9 +14,9 @@ from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpens
     DBSalariesColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
-class UsersView(ctk.CTk):
+class UsersView(ctk.CTkFrame):
     def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab, analyzer, event_bus):
-        super().__init__()
+        super().__init__(tab)
 
         self.db_model = db_model
         self.user_controller = user_controller
@@ -45,12 +45,12 @@ class UsersView(ctk.CTk):
             self.accounts_list = list(self.accounts_mapping.keys())
 
         # Container principale
-        self.main_container = ctk.CTkFrame(self.tab)
-        self.detail_container = ctk.CTkFrame(self.tab)
+        self.main_container = ctk.CTkFrame(self)
+        self.detail_container = ctk.CTkFrame(self)
 
         # Vista dettaglio
         self.user_detail_view = UserDetailView(
-            parent=self.tab,
+            parent=self,
             back_callback=self.show_main_view,
             user_controller=user_controller,
             account_controller=account_controller,
@@ -60,6 +60,8 @@ class UsersView(ctk.CTk):
             analyzer=self.analyzer,
             event_bus = self.event_bus
         )
+
+        self.configure(fg_color="#333333")
 
         # Inizializza la vista principale
         self.create_user_tab()

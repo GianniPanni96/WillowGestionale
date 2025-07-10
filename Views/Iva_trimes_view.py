@@ -9,9 +9,9 @@ import re
 from enum import Enum
 
 
-class IvaTrimesView(ctk.CTk):
+class IvaTrimesView(ctk.CTkFrame):
     def __init__(self, db_model, invoice_controller, user_controller, expense_controller, update_controller, analyzer, tabview, event_bus):
-        super().__init__()
+        super().__init__(tabview.tab("Iva"))
 
         self.db_model = db_model
         self.invoice_controller = invoice_controller
@@ -28,7 +28,7 @@ class IvaTrimesView(ctk.CTk):
         self.text_med = ("Arial", 14)
 
         # Container principale
-        self.main_container = ctk.CTkFrame(self.tab)
+        self.main_container = ctk.CTkFrame(self)
         self.main_container.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Inizializza la vista principale

@@ -8,10 +8,10 @@ from datetime import datetime
 import re
 from enum import Enum
 
-class RefundsView(ctk.CTk):
+class RefundsView(ctk.CTkFrame):
 
     def __init__(self, db_model, refunds_controller, client_controller, account_controller, update_controller, tab_view, analyzer, event_bus):
-        super().__init__()
+        super().__init__(tab_view.tab("Rimborsi"))
 
         self.db_model = db_model
         self.refunds_controller = refunds_controller
@@ -34,7 +34,7 @@ class RefundsView(ctk.CTk):
 
     def create_refunds_tab(self):
 
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self)
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
@@ -69,7 +69,7 @@ class RefundsView(ctk.CTk):
             # salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.refunds_table_frame = ctk.CTkFrame(self.tab)
+        self.refunds_table_frame = ctk.CTkFrame(self)
         self.refunds_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "CLIENTE", "TOTALE", "DATA", "CONTO\nCORRENTE"]
@@ -89,10 +89,10 @@ class RefundsView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.refunds_cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.refunds_cards_frame = ctk.CTkScrollableFrame(self)
         self.refunds_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_refund_frame = ctk.CTkFrame(self.tab)
+        self.add_refund_frame = ctk.CTkFrame(self)
         self.add_refund_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_refund_frame, text="Aggiungi un rimborso",

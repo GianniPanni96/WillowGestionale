@@ -8,10 +8,10 @@ from datetime import datetime
 import re
 from enum import Enum
 
-class PaymentsView(ctk.CTk):
+class PaymentsView(ctk.CTkFrame):
 
     def __init__(self, db_model, payment_controller, invoice_controller, user_controller, client_controller, production_controller, account_controller, update_controller, tab, event_bus):
-        super().__init__()
+        super().__init__(tab)
 
         self.db_model = db_model
         self.invoice_controller = invoice_controller
@@ -40,7 +40,7 @@ class PaymentsView(ctk.CTk):
 
     def create_payments_tab(self):
 
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self)
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
@@ -75,7 +75,7 @@ class PaymentsView(ctk.CTk):
             #salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.payments_table_frame = ctk.CTkFrame(self.tab)
+        self.payments_table_frame = ctk.CTkFrame(self)
         self.payments_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "CLIENTE", "PRODUZIONE", "FATTURA", "TOTALE", "DATA", "RATA", "CONTO\nCORRENTE"]
@@ -95,10 +95,10 @@ class PaymentsView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.payments_cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.payments_cards_frame = ctk.CTkScrollableFrame(self)
         self.payments_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_payment_frame = ctk.CTkFrame(self.tab)
+        self.add_payment_frame = ctk.CTkFrame(self)
         self.add_payment_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_payment_frame, text="Aggiungi un pagamento",

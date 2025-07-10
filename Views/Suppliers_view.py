@@ -8,10 +8,10 @@ from datetime import datetime
 import re
 from enum import Enum
 
-class SuppliersView(ctk.CTk):
+class SuppliersView(ctk.CTkFrame):
 
     def __init__(self, db_model, supplier_controller, update_controller,  config_manager, catalogo_elenchi, tab, event_bus):
-        super().__init__()
+        super().__init__(tab)
 
         self.db_model = db_model
         self.update_controller = update_controller
@@ -31,7 +31,7 @@ class SuppliersView(ctk.CTk):
 
     def create_suppliers_tab(self):
 
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self)
         self.search_bar_frame.pack(pady=10, fill="x", anchor="n")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5,35), anchor="e", side="right")
@@ -43,7 +43,7 @@ class SuppliersView(ctk.CTk):
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
 
-        self.suppliers_table_frame = ctk.CTkFrame(self.tab)
+        self.suppliers_table_frame = ctk.CTkFrame(self)
         self.suppliers_table_frame.pack(pady=(20, 0), padx=(10,15), fill="x", anchor="n")
 
         self.headers = ["NOME", "PARTITA IVA", "TOT. SPESE", "# SPESE", "SPESA MEDIA", "NOTE", "CONTATTO"]
@@ -63,10 +63,10 @@ class SuppliersView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.suppliers_cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.suppliers_cards_frame = ctk.CTkScrollableFrame(self)
         self.suppliers_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_supplier_frame = ctk.CTkFrame(self.tab)
+        self.add_supplier_frame = ctk.CTkFrame(self)
         self.add_supplier_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_supplier_frame, text="Aggiungi Fornitore", command=self.open_add_supplier_window)

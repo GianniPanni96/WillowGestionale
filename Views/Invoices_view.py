@@ -340,7 +340,7 @@ class InvoicesView(ctk.CTkFrame):
             elif label_text == DBInvoicesColumns.TIPO.value:
                 widget = widget_class(self.invoice_window_scrollableFrame,
                                       values=[item.value for item in InvoiceController.Tipologia],
-                                      command = lambda selected_value: self.toggle_id_fattura_associata(selected_value))
+                                      command = lambda selected_value, user_name=self.invoice_widgets[self.nome_utente_string].get(): self.toggle_id_fattura_associata(user_name, selected_value))
                 widget.set(InvoiceController.Tipologia.FATTURA.value)
             elif label_text == DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value:
                 widget = widget_class(self.invoice_window_scrollableFrame,
@@ -408,7 +408,7 @@ class InvoicesView(ctk.CTkFrame):
         ))
 
         self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].bind(
-            "<FocusOut>",
+            "<KeyRelease>",
             lambda event: self.populate_rivalsa_INPS(),
             add="+"
         )
@@ -675,11 +675,13 @@ class InvoicesView(ctk.CTkFrame):
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].insert(0, formatted_rivalsa)
 
-    def toggle_id_fattura_associata(self, selected_value=None):
+    def toggle_id_fattura_associata(self,  user_name, selected_value=None):
         if selected_value == InvoiceController.Tipologia.FATTURA.value:
             self.invoice_widgets[DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value].pack_forget()
             self.invoice_labels[DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value].pack_forget()
 
+            self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].delete(0, tk.END)
+            self.auto_compile_invoice_name(user_name)
             self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].delete(0, tk.END)
             self.invoice_widgets[DBInvoicesColumns.RIMBORSI.value].delete(0, tk.END)
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
@@ -706,7 +708,9 @@ class InvoicesView(ctk.CTkFrame):
         user = self.user_controller.retrieve_user_by_fullname(user_first, user_last)
         user_id = user[0]
 
-        nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value] + " - NDC"
+        nome_fattura_array = invoice[DBInvoicesColumns.NUMERO_FATTURA.value].split(" - ")
+
+        nome_fattura = nome_fattura_array[0] + " - " + nome_fattura_array[1] + " - NDC"
         servizi = invoice[DBInvoicesColumns.SERVIZI.value]
         id_cliente = invoice[DBInvoicesColumns.ID_CLIENTE.value]
         nome_cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)[DBClientsColumns.NAME.value]
@@ -774,7 +778,12 @@ class InvoicesView(ctk.CTkFrame):
             last_invoice_number_str = "01"
 
         self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].delete(0, tk.END)
-        self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].insert(0, f"{user_full_name[1]} - FPR" + last_invoice_number_str)
+        #check if it is a NDC
+        if self.invoice_widgets[DBInvoicesColumns.TIPO.value].get() == self.invoice_controller.Tipologia.FATTURA.value:
+            self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].insert(0, f"{user_full_name[1]} - FPR" + last_invoice_number_str)
+        else:
+            nome_fattura_array = self.invoice_widgets[DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value].get().split(" - ")
+            self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].insert(0, nome_fattura_array[0] + " - " + nome_fattura_array[1] + " - NDC")
 
     def select_correct_invoice(self, invoice):
         servizi = invoice[DBInvoicesColumns.SERVIZI.value]

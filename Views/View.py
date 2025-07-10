@@ -86,7 +86,7 @@ class MainWindow(ctk.CTk):
         self.recurring_expenses_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Spese Ricorrenti", command=self.open_recurring_expenses_window)
         self.recurring_expenses_menu_button.pack(side="left", padx=15, pady=15)
 
-        self.refresh_view_button = ctk.CTkButton(self.toolbar_frame, text="Refresh", command=self.refresh_tabviews)
+        self.refresh_view_button = ctk.CTkButton(self.toolbar_frame, text="🔄", font=("Segoe UI Emoji", 20), command=self.refresh_tabviews, width=30)
         self.refresh_view_button.pack(side="right", padx=15, pady=15)
 
         # Creazione di un popup menu simulato

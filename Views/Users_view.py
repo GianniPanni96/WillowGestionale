@@ -4,6 +4,9 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 from datetime import datetime
 import os, re
+
+from customtkinter import CTkFrame
+
 from Views.View_utils import ViewUtils
 
 from Controllers import AccountController, ValidationUtils, UserController
@@ -12,7 +15,7 @@ from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpens
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 class UsersView(ctk.CTk):
-    def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab):
+    def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab, analyzer, event_bus):
         super().__init__()
 
         self.db_model = db_model
@@ -21,6 +24,8 @@ class UsersView(ctk.CTk):
         self.production_controller = production_controller
         self.tab = tab
         self.fiscal_settings = fiscal_settings
+        self.analyzer = analyzer
+        self.event_bus = event_bus
 
         #tool variables
         self.no_data_string = "no data"
@@ -51,7 +56,9 @@ class UsersView(ctk.CTk):
             account_controller=account_controller,
             production_controller=production_controller,
             db_model=db_model,
-            fiscal_settings=self.fiscal_settings
+            fiscal_settings=self.fiscal_settings,
+            analyzer=self.analyzer,
+            event_bus = self.event_bus
         )
 
         # Inizializza la vista principale
@@ -746,7 +753,7 @@ class UsersView(ctk.CTk):
 
 
 class UserDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, user_controller, account_controller, production_controller, db_model, fiscal_settings):
+    def __init__(self, parent, back_callback, user_controller, account_controller, production_controller, db_model, fiscal_settings, analyzer, event_bus):
         super().__init__(parent)
         self.user_controller = user_controller
         self.account_controller = account_controller
@@ -754,13 +761,15 @@ class UserDetailView(ctk.CTkFrame):
         self.back_callback = back_callback
         self.production_controller = production_controller
         self.fiscal_settings = fiscal_settings
+        self.event_bus = event_bus
         self.current_user_id = None
+        self.analyzer = analyzer
 
         # Widgets persistenti (vanno creati una volta sola)
-        self.head_frame = ctk.CTkFrame(self)
+        self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
         self.back_button = ctk.CTkButton(
             self.head_frame,
-            text="Indietro",
+            text="Elenco Utenti",
             command=self._cleanup_and_go_back
         )
         self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
@@ -886,6 +895,21 @@ class UserDetailView(ctk.CTkFrame):
                 "label": "Reddito Esterno",
                 "section": "Dati Fiscali"
             },
+            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: {
+                "type": ctk.CTkEntry,
+                "label": "Spese Dedotte Esterne",
+                "section": "Dati Fiscali"
+            },
+            DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value: {
+                "type": ctk.CTkEntry,
+                "label": "Acconto IRPEF anno scorso",
+                "section": "Dati Fiscali"
+            },
+            DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value: {
+                "type": ctk.CTkEntry,
+                "label": "Acconto INPS anno scorso",
+                "section": "Dati Fiscali"
+            },
 
             # Sezione Provider
             DBUsersColumns.PROVIDER_FATTURE.value: {
@@ -937,6 +961,9 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.LAST_NAME.value: "Il cognome non può essere vuoto",
             DBUsersColumns.PARTITA_IVA.value: "Partita IVA non valida (11 cifre)",
             DBUsersColumns.REDDITO_ESTERNO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
+            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
+            DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
+            DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
             DBUsersColumns.EMAIL.value: "Formato email non valido"
         }
 
@@ -957,7 +984,19 @@ class UserDetailView(ctk.CTkFrame):
                 lambda val: re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", val),
                 "Formato email non valido"
             ),
+            DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
+                "Inserire cifra numerica con due cifre decimali seprate da \".\" "
+            ),
+            DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
+                "Inserire cifra numerica con due cifre decimali seprate da \".\" "
+            ),
             DBUsersColumns.REDDITO_ESTERNO.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
+                "Inserire cifra numerica con due cifre decimali seprate da \".\" "
+            ),
+            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: (
                 lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
                 "Inserire cifra numerica con due cifre decimali seprate da \".\" "
             )
@@ -1005,6 +1044,9 @@ class UserDetailView(ctk.CTkFrame):
 
         # Popolamento delle sezioni
         for field, config in self.entry_fields.items():
+            if (str(user_data[DBUsersColumns.REGIME_FISCALE.value]) == str(self.user_controller.RegimeFiscale.FORFETTARIO.value) and field == DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value):
+                continue
+
             section = sections[config["section"]]
             frame = section["frame"]
             row = section["row"]
@@ -1084,6 +1126,7 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.TELEFONO.value: self.user_info_widgets[DBUsersColumns.TELEFONO.value].get().strip(),
             DBUsersColumns.EMAIL.value: self.user_info_widgets[DBUsersColumns.EMAIL.value].get().strip(),
             DBUsersColumns.REDDITO_ESTERNO.value: self.user_info_widgets[DBUsersColumns.REDDITO_ESTERNO.value].get().strip(),
+            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: self.user_info_widgets[DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value].get().strip(),
             DBUsersColumns.PROVIDER_FATTURE.value: self.user_info_widgets[DBUsersColumns.PROVIDER_FATTURE.value].get(),
             DBUsersColumns.USERNAME_PROVIDER.value: self.user_info_widgets[DBUsersColumns.USERNAME_PROVIDER.value].get().strip(),
             DBUsersColumns.PASSWORD_PROVIDER.value: self.user_info_widgets[DBUsersColumns.PASSWORD_PROVIDER.value].get().strip(),
@@ -1101,6 +1144,7 @@ class UserDetailView(ctk.CTkFrame):
             ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
             self.switch_modify.deselect()
             self.toggle_edit(self.content_frame)
+            self.toggle_taxes()
         else:
             # Mostra il messaggio d'errore
             print(message)
@@ -1135,8 +1179,13 @@ class UserDetailView(ctk.CTkFrame):
                 id_produzione = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
                 produzione = self.production_controller.retrieve_production_map_by_id(id_produzione)
                 nome_prod = produzione[DBProductionsColumns.NAME.value] if produzione else "Produzione non trovata"
-                fattura_button = ctk.CTkButton(invoices_frame, text=f"{nome_fattura} - {nome_prod}")
+                fattura_button = ctk.CTkButton(invoices_frame,
+                                               text=f"{nome_fattura} - {nome_prod}",
+                                               command=lambda id=id_fattura: self.show_invoice_detail(id))
                 fattura_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def show_invoice_detail(self, invoice_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, invoice_id)
 
     def _create_anticipated_expenses_history(self):
         """Crea la sezione storico delle spese anticipate"""
@@ -1263,21 +1312,288 @@ class UserDetailView(ctk.CTkFrame):
 
     def _create_taxes_section(self):
         # Creazione frame principale
-        tax_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
-        tax_frame.pack(fill="both", expand=True, pady=0, padx=(10, 10), ipady=20, side="left")
+        self.tax_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
+        self.tax_frame.pack(fill="both", expand=True, pady=0, padx=(10, 10), ipady=20, side="left")
 
-        ctk.CTkLabel(tax_frame, text="PREVISIONE TASSE", font=("Arial", 14, "bold")).pack(anchor="w",
-                                                                                               pady=(10, 10),
-                                                                                               padx=10)
+        ctk.CTkLabel(self.tax_frame, text="PREVISIONE TASSE", font=("Arial", 14, "bold")).pack(anchor="w",
+                                                                                               pady=(10, 5),
+                                                                                               padx=15)
+
+        regime_fiscale = self.user_controller.get_regime_fiscale_by_id(self.current_user_id)
+        if str(regime_fiscale) == str(self.user_controller.RegimeFiscale.FORFETTARIO.value):
+            tasse = self.analyzer.calculate_previsione_tasse_forfettaria(self.current_user_id)
+            global_infos = {}
+            for k, v in tasse.items():
+                global_infos[k] = {
+                    "value": v,
+                    "uom": "€"
+                }
+
+            self.tasse_infos_user_widgets = ViewUtils.construct_tasse_infos_cards(self.tax_frame, global_infos)
+        elif str(regime_fiscale) == str(self.user_controller.RegimeFiscale.ORDINARIO.value):
+            tasse_view, versamenti, tasse_total = self.analyzer.calculate_previsione_tasse_ordinaria(self.current_user_id)
+            global_infos = {}
+            versamenti_infos = {}
+            for k, v in tasse_view.items():
+                global_infos[k] = {
+                    "value": v,
+                    "uom": "€"
+                }
+            for k, v in versamenti.items():
+                versamenti_infos[ViewUtils.split_string_by_length(k, 8)] = {
+                    "value": v,
+                    "uom": "€"
+                }
+            ctk.CTkLabel(self.tax_frame, text="TOTALI", font=("Arial", 12)).pack(anchor="w",
+                                                                                                   pady=(0, 10),
+                                                                                                   padx=15)
+            self.tasse_infos_user_widgets = ViewUtils.construct_tasse_infos_cards(self.tax_frame, global_infos)
+            ctk.CTkLabel(self.tax_frame, text="VERSAMENTI", font=("Arial", 12)).pack(anchor="w",
+                                                                                                   pady=(10, 0),
+                                                                                                   padx=15)
+            self.versamenti_infos_user_widgets = ViewUtils.construct_tasse_infos_cards(self.tax_frame, versamenti_infos)
+
+            for key, widget_info in self.tasse_infos_user_widgets.items():
+                card = widget_info["card"]
+
+                if key == "INPS":
+                    tooltip_text = (
+                        f"Calcolo contributi INPS complessivi:\n\n"
+                        f"1. Ricavi totali = Fatturato Willow + Reddito esterno\n"
+                        f"   = {tasse_total['FATTURATO_WILLOW']} + {tasse_total['REDDITO_ESTERNO']}\n"
+                        f"   = {tasse_total['RICAVI_TOTALI']} €\n\n"
+                        f"2. Spese totali = Spese Willow + Spese esterne\n"
+                        f"   = {tasse_total['SPESE_WILLOW']} + {tasse_total['SPESE_ESTERNE']}\n"
+                        f"   = {tasse_total['SPESE_TOTALI']} €\n\n"
+                        f"3. Reddito netto imponibile = Ricavi totali - Spese totali\n"
+                        f"   = {tasse_total['RICAVI_TOTALI']} - {tasse_total['SPESE_TOTALI']}\n"
+                        f"   = {tasse_total['REDDITO_NETTO']} €\n\n"
+                        f"4. Contributi INPS = Reddito netto × Aliquota INPS ({tasse_total['ALIQUOTA_INPS']}%)\n"
+                        f"   = {tasse_total['REDDITO_NETTO']} × {tasse_total['ALIQUOTA_INPS']}%\n"
+                        f"   = {tasse_total['INPS']} €"
+                    )
+
+                elif key == "IRPEF NETTA":
+                    tooltip_text = (
+                        f"Calcolo IRPEF netta dovuta:\n\n"
+                        f"1. Base imponibile IRPEF = Reddito netto - Contributi INPS\n"
+                        f"   = {tasse_total['REDDITO_NETTO']} - {tasse_total['INPS']}\n"
+                        f"   = {tasse_total['BASE_IRPEF']} €\n\n"
+                        f"2. IRPEF lorda (calcolata a scaglioni)\n"
+                        f"   = {tasse_total['IRPEF_LORDA']} €\n\n"
+                        f"3. Ritenuta d'acconto versata\n"
+                        f"   = {tasse_total['RITENUTA']} €\n\n"
+                        f"4. IRPEF netta = IRPEF lorda - Ritenuta\n"
+                        f"   = {tasse_total['IRPEF_LORDA']} - {tasse_total['RITENUTA']}\n"
+                        f"   = {tasse_total['IRPEF_NETTA']} €"
+                    )
+
+                elif key == "WILLOW INPS":
+                    tooltip_text = (
+                        f"Quota INPS attribuibile a Willow:\n\n"
+                        f"1. Reddito netto Willow = Fatturato Willow - Spese Willow\n"
+                        f"   = {tasse_total['FATTURATO_WILLOW']} - {tasse_total['SPESE_WILLOW']}\n"
+                        f"   = {tasse_total['REDDITO_NETTO_WILLOW']} €\n\n"
+                        f"2. Quota proporzionale = Reddito Willow / Reddito totale\n"
+                        f"   = {tasse_total['REDDITO_NETTO_WILLOW']} / {tasse_total['REDDITO_NETTO']}\n"
+                        f"   = {tasse_total['QUOTA_WILLOW_BASE']}\n\n"
+                        f"3. INPS Willow = INPS totale × Quota proporzionale\n"
+                        f"   = {tasse_total['INPS']} × {tasse_total['QUOTA_WILLOW_BASE']}\n"
+                        f"   = {tasse_total['WILLOW_INPS']} €"
+                    )
+
+                elif key == "WILLOW IRPEF":
+                    tooltip_text = (
+                        f"IRPEF netta attribuibile a Willow:\n\n"
+                        f"A. PARTE NELLO SCAGLIONE BASE:\n"
+                        f"1. Reddito netto senza Willow\n"
+                        f"   = {tasse_total['SENZA_WILLOW_REDDITO']} €\n\n"
+                        f"2. Quota Willow nella base comune\n"
+                        f"   = (Reddito Willow / Reddito totale)\n"
+                        f"   = {tasse_total['QUOTA_WILLOW_BASE']}\n\n"
+                        f"3. IRPEF base Willow = IRPEF comune × Quota\n"
+                        f"   = {tasse_total['IRPEF_COMUNE']} × {tasse_total['QUOTA_WILLOW_BASE']}\n"
+                        f"   = {tasse_total['WILLOW_IRPEF_BASE']} €\n\n"
+                        f"B. PARTE PER SCAGLIONE AGGIUNTIVO:\n"
+                        f"1. Base IRPEF aggiuntiva = Base totale - Base senza Willow\n"
+                        f"   = {tasse_total['BASE_IRPEF']} - {tasse_total['SENZA_WILLOW_BASE_IRPEF']}\n"
+                        f"   = {tasse_total['BASE_AGGIUNTIVA']} €\n\n"
+                        f"2. IRPEF aggiuntiva = IRPEF totale - IRPEF senza Willow\n"
+                        f"   = {tasse_total['IRPEF_LORDA']} - {tasse_total['SENZA_WILLOW_IRPEF']}\n"
+                        f"   = {tasse_total['WILLOW_IRPEF_AGGIUNTIVA']} €\n\n"
+                        f"C. TOTALE LORDO:\n"
+                        f"IRPEF lorda Willow = Parte base + Parte aggiuntiva\n"
+                        f"= {tasse_total['WILLOW_IRPEF_BASE']} + {tasse_total['WILLOW_IRPEF_AGGIUNTIVA']}\n"
+                        f"= {tasse_total['WILLOW_IRPEF_TOT']} €\n\n"
+                        f"D. NETTO DOPO RITENUTA:\n"
+                        f"IRPEF netta Willow = Lordo - Ritenuta\n"
+                        f"= {tasse_total['WILLOW_IRPEF_TOT']} - {tasse_total['WILLOW_RITENUTA']}\n"
+                        f"= {tasse_total['WILLOW_IRPEF_NETTA']} €"
+                    )
+
+                else:
+                    tooltip_text = "Informazioni non disponibili"
+
+                ViewUtils.add_tooltip(card.winfo_children()[0], tooltip_text)
+
+                # Tooltip per le carte dei versamenti
+            for key, widget_info in self.versamenti_infos_user_widgets.items():
+                card = widget_info["card"]
+                title_label = card.winfo_children()[0]  # La label del titolo è il primo figlio
+
+                if key == "SALDO\nTOTALE":
+                    tooltip_text = (
+                        f"Saldo tasse correnti:\n\n"
+                        f"1. Tasse totali (INPS + IRPEF netta) = {tasse_total['TOTALE_TASSE']} €\n"
+                        f"2. Acconto versato per l'anno precedente = {tasse_total['ACCONTO_ANNO_PRECEDENTE']} €\n"
+                        f"3. Saldo = Tasse totali - Acconto anno precedente\n"
+                        f"   = {tasse_total['TOTALE_TASSE']} - {tasse_total['ACCONTO_ANNO_PRECEDENTE']}\n"
+                        f"   = {tasse_total['SALDO_TOTALE']} €"
+                    )
+
+                elif key == "ACCONTO\nTOTALE":
+                    tooltip_text = (
+                        f"Acconto totale per l'anno successivo:\n\n"
+                        f"1. Acconto INPS = INPS totale × {tasse_total['PERC_ACCONTO_INPS'] * 100}%\n"
+                        f"   = {tasse_total['INPS']} × {tasse_total['PERC_ACCONTO_INPS']}\n"
+                        f"   = {tasse_total['INPS'] * tasse_total['PERC_ACCONTO_INPS']} €\n"
+                        f"2. Acconto IRPEF = IRPEF netta × 100%\n"
+                        f"   = {tasse_total['IRPEF_NETTA']} × 1.00\n"
+                        f"   = {tasse_total['IRPEF_NETTA']} €\n\n"
+                        f"Totale acconto = Acconto INPS + Acconto IRPEF\n"
+                        f"   = {tasse_total['INPS'] * tasse_total['PERC_ACCONTO_INPS']} + {tasse_total['IRPEF_NETTA']}\n"
+                        f"   = {tasse_total['ACCONTO_TOTALE']} €"
+                    )
+
+                elif key == "SALDO\nWILLOW":
+                    tooltip_text = (
+                        f"Quota del saldo corrente attribuita a Willow:\n\n"
+                        f"1. Saldo totale = {tasse_total['SALDO_TOTALE']} €\n"
+                        f"2. Proporzione Willow = Tasse Willow / Tasse totali\n"
+                        f"   = {tasse_total['WILLOW_TASSE_TOT']} / {tasse_total['TOTALE_TASSE']}\n"
+                        f"   = {tasse_total['PROP_WILLOW']}\n"
+                        f"3. Saldo Willow = Saldo totale × Proporzione Willow\n"
+                        f"   = {tasse_total['SALDO_TOTALE']} × {tasse_total['PROP_WILLOW']}\n"
+                        f"   = {tasse_total['SALDO_WILLOW']} €"
+                    )
+
+                elif key == "ACCONTO\nWILLOW":
+                    tooltip_text = (
+                        f"Quota dell'acconto per l'anno successivo attribuita a Willow:\n\n"
+                        f"1. Acconto totale = {tasse_total['ACCONTO_TOTALE']} €\n"
+                        f"2. Proporzione Willow = {tasse_total['PROP_WILLOW']}\n"
+                        f"3. Acconto Willow = Acconto totale × Proporzione Willow\n"
+                        f"   = {tasse_total['ACCONTO_TOTALE']} × {tasse_total['PROP_WILLOW']}\n"
+                        f"   = {tasse_total['ACCONTO_WILLOW']} €"
+                    )
+
+                else:
+                    tooltip_text = "Informazioni non disponibili"
+
+                ViewUtils.add_tooltip(title_label, tooltip_text)
+
 
     def _create_iva_section(self):
         # Creazione frame principale
         iva_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
         iva_frame.pack(fill="both", expand=True, pady=0, padx=(10, 0), ipady=20, side="left")
 
-        ctk.CTkLabel(iva_frame, text="IVA TRIMESTRALE", font=("Arial", 14, "bold")).pack(anchor="w",
-                                                                                               pady=(10, 10),
-                                                                                               padx=10)
+        ctk.CTkLabel(iva_frame, text="IVA TRIMESTRALE", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        self.iva_header_frame = ctk.CTkFrame(iva_frame, fg_color="#2b2b2b")
+        self.iva_header_frame.pack(fill="x", expand=True, padx=(10, 10), pady=(15, 0))
+
+        header0 = ctk.CTkFrame(self.iva_header_frame, fg_color="#333333")
+        header0.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=5)
+        header1 = ctk.CTkFrame(self.iva_header_frame, fg_color="#333333")
+        header1.grid(row=0, column=1, sticky="nsew", padx=(0, 5), pady=5)
+        header2 = ctk.CTkFrame(self.iva_header_frame, fg_color="#333333")
+        header2.grid(row=0, column=2, sticky="nsew", padx=(0, 5), pady=5)
+        header3 = ctk.CTkFrame(self.iva_header_frame, fg_color="#333333")
+        header3.grid(row=0, column=3, sticky="nsew", padx=(0, 5), pady=5)
+
+        self.iva_header_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        self.iva_header_frame.grid_columnconfigure(1, weight=1, uniform="col")
+        self.iva_header_frame.grid_columnconfigure(2, weight=1, uniform="col")
+        self.iva_header_frame.grid_columnconfigure(3, weight=1, uniform="col")
+
+        ctk.CTkLabel(header0, text="TRIMESTRE", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
+        ctk.CTkLabel(header1, text="CREDITO", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
+        ctk.CTkLabel(header2, text="DEBITO", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
+        ctk.CTkLabel(header3, text="DA PAGARE", font=("Arial", 12)).pack(fill="x", expand=True, padx=5, pady=15)
+
+        self.trimestral_list_frame = ctk.CTkFrame(iva_frame)
+        self.trimestral_list_frame.pack(fill="x", expand=True, padx=10, pady=(0, 25))
+
+        # Ottieni i dati IVA trimestrali
+        iva_data = self.analyzer.calculate_trimestral_iva_by_account_id(self.current_user_id)
+
+        # Ordina i trimestri nell'ordine corretto
+        quarters_order = ["Gen-Marz", "Apr-Giu", "Lug-Sett", "Ott-Dic"]
+
+        for quarter in quarters_order:
+            data = iva_data.get(quarter, {"debito": 0.0, "credito": 0.0, "da_pagare": 0.0})
+
+            # Crea il frame per la riga
+            row_frame = ctk.CTkFrame(self.trimestral_list_frame)
+            row_frame.pack(fill="x", pady=(0, 5))
+
+            # Configura le colonne con peso uniforme
+            for col in range(4):
+                row_frame.grid_columnconfigure(col, weight=1, uniform="col")
+
+            # Colonna 1: Nome trimestre
+            quarter_frame = ctk.CTkFrame(row_frame)
+            quarter_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+            ctk.CTkLabel(quarter_frame, text=quarter).pack(padx=5, pady=5)
+
+            # Colonna 2: Credito IVA
+            credito_frame = ctk.CTkFrame(row_frame)
+            credito_frame.grid(row=0, column=1, sticky="nsew", padx=(0, 5))
+            ctk.CTkLabel(credito_frame, text=f"{data['credito']:.2f} €").pack(padx=5, pady=5)
+
+            # Colonna 3: Debito IVA
+            debito_frame = ctk.CTkFrame(row_frame)
+            debito_frame.grid(row=0, column=2, sticky="nsew", padx=(0, 5))
+            ctk.CTkLabel(debito_frame, text=f"{data['debito']:.2f} €").pack(padx=5, pady=5)
+
+            # Colonna 4: Saldo da pagare (con colorazione condizionale)
+            saldo_frame = ctk.CTkFrame(row_frame)
+            saldo_frame.grid(row=0, column=3, sticky="nsew")
+
+            # Determina il colore in base al saldo
+            saldo = data['da_pagare']
+            if saldo > 0:
+                fg_color = "#f52f2f"  # rosso per importi positivi (da pagare)
+            elif saldo < 0:
+                fg_color = "#2ca31c"  # verde per crediti
+            else:
+                fg_color = "#b0b0b0"  # grigio per saldo zero
+
+            # Crea label con colore di sfondo appropriato
+            ctk.CTkLabel(
+                saldo_frame,
+                text=f"{saldo:.2f} €",
+                fg_color=fg_color,
+                corner_radius=4
+            ).pack(padx=5, pady=5, fill="both", expand=True)
+
+    def toggle_taxes(self):
+        """Ricalcola e aggiorna i valori delle tasse visualizzate nelle cards"""
+        # Ricalcola le tasse con i nuovi parametri
+        tasse = self.analyzer.calculate_previsione_tasse_forfettaria(self.current_user_id)
+
+        # Aggiorna le labels nelle cards esistenti
+        for name, value in tasse.items():
+            if name in self.tasse_infos_user_widgets:
+                # Formatta il nuovo valore con l'unità di misura
+                new_text = f"{value} €"
+
+                # Aggiorna il testo della label
+                self.tasse_infos_user_widgets[name]["label"].configure(text=new_text)
+
+
+
 
 
     def _cleanup_and_go_back(self):

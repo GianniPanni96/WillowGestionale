@@ -1,7 +1,7 @@
 import threading
 from Views.View import MainWindow
 import os
-from Config import BackupScheduler, ConfigManager, RecurringExpense, FiscalSettings, PartitaIVAOrdinaria, PartitaIVAForfettaria, AliquotaIva, ScaglioneIrpef
+from Config import BackupScheduler, ConfigManager, RecurringExpense, FiscalSettings, PartitaIVAOrdinaria, PartitaIVAForfettaria, AliquotaIva, ScaglioneIrpef, HistoricalFinancialData
 
 
 # Avvia l'applicazione
@@ -43,6 +43,9 @@ if __name__ == "__main__":
         for expense_key, expense_data in recurring_expenses_config.items()
     }
 
+    historical_financial_data_config = config.get("historical_financial_data", {})
+    historical_financial_data_settings = HistoricalFinancialData.from_dict(historical_financial_data_config)
+
     #creo il dizionario degli elenchi
     # Trasforma le sezioni in liste di tuple (chiave, valore)
     clients_business_sectors = [
@@ -70,6 +73,7 @@ if __name__ == "__main__":
         "expenses_category": expenses_category
     }
 
+
     # Inizializza il gestore del backup con i parametri dalla configurazione
     scheduler = BackupScheduler(
         interval_minutes=interval_minutes,
@@ -83,7 +87,7 @@ if __name__ == "__main__":
     backup_thread.start()
 
     # Avvia il frontend
-    app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings)
+    app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings)
 
 
     # Definisci cosa fare alla chiusura della finestra principale

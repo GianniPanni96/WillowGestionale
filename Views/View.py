@@ -6,9 +6,8 @@ from Views.View_utils import ViewUtils
 
 from Controllers import UserController, AccountController, ClientController, InvoiceController, \
     PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
-    Analyzer, TransfersController, SalaryController
-from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns
-
+    Analyzer, TransfersController, SalaryController, RefundController
+from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns, DBExpensesColumns, DBUsersColumns
 
 from Views.Users_view import UsersView
 from Views.Clients_view import ClientsView
@@ -19,10 +18,11 @@ from Views.Expenses_view import ExpensesView
 from Views.Suppliers_view import SuppliersView
 from Views.Accounts_view import AccountsView
 from Views.Salaries_view import SalariesView
-
+from Views.Iva_trimes_view import IvaTrimesView
+from Views.Refunds_view import RefundsView
 
 class MainWindow(ctk.CTk):
-    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings):
+    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings):
         super().__init__()
 
         self._after_ids = set()
@@ -37,10 +37,12 @@ class MainWindow(ctk.CTk):
         self.fiscal_settings = fiscal_settings
         self.catalogo_elenchi = catalogo_elenchi
         self.recurring_expenses_settings = recurring_expenses_settings
+        self.historical_financial_data_settings = historical_financial_data_settings
 
         # inizializzatori oggetti controllers e model
         self.db_model = DatabaseModel(db_path)  # Istanzia il modello
-        self.user_controller = UserController(self.db_model, fiscal_settings)  # Crea il controller per gli utenti
+        self.fiscal_settings = fiscal_settings
+        self.user_controller = UserController(self.db_model, self.fiscal_settings)  # Crea il controller per gli utenti
         self.account_controller = AccountController(self.db_model, self.user_controller)
         self.salary_controller = SalaryController(self.db_model, self.user_controller, self.account_controller)
         self.transfer_controller = TransfersController(self.db_model, self.account_controller)
@@ -48,19 +50,22 @@ class MainWindow(ctk.CTk):
         self.supplier_controller = SupplierController(self.db_model)
         self.payment_controller = PaymentsController(self.db_model, self.account_controller)
         self.production_controller = ProductionController(self.db_model, self.client_controller)
-        self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, fiscal_settings)
-        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller, self.recurring_expenses_settings)
+        self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, fiscal_settings, self.historical_financial_data_settings)
+        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller, self.recurring_expenses_settings, self.catalogo_elenchi)
+        self.refund_controller = RefundController(self.db_model, self.client_controller, self.account_controller)
         self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
         self.analyzer = Analyzer(self.user_controller,
                  self.client_controller,
                  self.account_controller,
+                 self.invoice_controller,
                  self.transfer_controller,
                  self.supplier_controller,
                  self.production_controller,
                  self.payment_controller,
                  self.expense_controller,
                  self.salary_controller,
-                 fiscal_settings,
+                 self.refund_controller,
+                 self.fiscal_settings,
                  self.recurring_expenses_settings)
 
         self.title("Gestionale Willow")
@@ -81,6 +86,9 @@ class MainWindow(ctk.CTk):
         self.recurring_expenses_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Spese Ricorrenti", command=self.open_recurring_expenses_window)
         self.recurring_expenses_menu_button.pack(side="left", padx=15, pady=15)
 
+        self.refresh_view_button = ctk.CTkButton(self.toolbar_frame, text="Refresh", command=self.refresh_tabviews)
+        self.refresh_view_button.pack(side="right", padx=15, pady=15)
+
         # Creazione di un popup menu simulato
         self.file_menu_frame = None
 
@@ -95,6 +103,7 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Conti")
         self.tabview.add("Fatture")
         self.tabview.add("Pagamenti")
+        self.tabview.add("Rimborsi")
         self.tabview.add("Spese")
         self.tabview.add("Iva")
         self.tabview.add("Salario")
@@ -105,26 +114,9 @@ class MainWindow(ctk.CTk):
         self.custom_font = ctk.CTkFont("Arial", 20)
         self.tabview._segmented_button.configure(font=self.custom_font)
 
+        self.event_bus = EventBus()
 
-        #Aggiungi widget alla tab clienti tramite la classe ClientsView
-        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller, self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"))
-        #self.user_tab.create_user_tab()
-        self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Clienti"))
-        self.client_tab.create_client_tab()
-        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, self.tabview.tab("Fatture"), fiscal_settings)
-        self.invoice_tab.create_invoices_tab()
-        self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"))
-        self.payment_tab.create_payments_tab()
-        self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Produzioni"))
-        self.production_tab.create_productions_tab()
-        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller, self.account_controller, self.supplier_controller, self.invoice_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, self.config_manager, self.tabview.tab("Spese"))
-        self.expense_tab.create_expenses_tab()
-        self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller, self.config_manager, catalogo_elenchi, self.tabview.tab("Fornitori"))
-        self.supplier_tab.create_suppliers_tab()
-        self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller, self.transfer_controller, self.config_manager, self.catalogo_elenchi, self.analyzer, self.tabview.tab("Conti"))
-        self.account_tab.create_accounts_tab()
-        self.salary_tab = SalariesView(self.db_model, self.salary_controller, self.user_controller, self.account_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, config_manager, self.tabview.tab("Salario"))
-        self.salary_tab.create_salaries_tab()
+        self.construct_tabviews()
 
         self.update_idletasks()
         self.after(100, lambda: self.state("zoomed"))
@@ -142,10 +134,61 @@ class MainWindow(ctk.CTk):
                 pass
         self._after_ids.clear()
 
-    def close(self):
-        # annullo i timer interni
-        self._cancel_all_after()
-        self.destroy()
+    def construct_tabviews(self):
+        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller,
+                                  self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"),
+                                  self.analyzer, self.event_bus)
+        self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager,
+                                      self.tabview.tab("Clienti"), self.event_bus)
+        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
+                                        self.client_controller, self.production_controller, self.payment_controller,
+                                        self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
+                                        self.historical_financial_data_settings, self.event_bus)
+        self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller,
+                                        self.user_controller, self.client_controller, self.production_controller,
+                                        self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"),
+                                        self.event_bus)
+        self.refund_tab = RefundsView(self.db_model, self.refund_controller, self.client_controller,
+                                      self.account_controller, self.update_controller, self.tabview, self.analyzer,
+                                      self.event_bus)
+        self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller,
+                                              self.invoice_controller, self.user_controller, self.client_controller,
+                                              self.catalogo_elenchi, self.config_manager,
+                                              self.tabview.tab("Produzioni"), self.event_bus)
+        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
+                                        self.account_controller, self.supplier_controller, self.invoice_controller,
+                                        self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
+                                        self.config_manager, self.tabview.tab("Spese"), self.event_bus)
+        self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller,
+                                          self.config_manager, self.catalogo_elenchi, self.tabview.tab("Fornitori"),
+                                          self.event_bus)
+        self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller,
+                                        self.transfer_controller, self.config_manager, self.catalogo_elenchi,
+                                        self.analyzer, self.tabview.tab("Conti"), self.event_bus)
+        self.salary_tab = SalariesView(self.db_model, self.salary_controller, self.user_controller,
+                                       self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
+                                       self.catalogo_elenchi, self.config_manager, self.tabview.tab("Salario"), self.event_bus)
+        self.iva_trimes_tab = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller,
+                                            self.expense_controller, self.update_controller, self.analyzer,
+                                            self.tabview, self.event_bus)
+
+    def destroy_tabviews(self):
+        self.user_tab.destroy()
+        self.client_tab.destroy()
+        self.invoice_tab.destroy()
+        self.payment_tab.destroy()
+        self.refund_tab.destroy()
+        self.production_tab.destroy()
+        self.expense_tab.destroy()
+        self.supplier_tab.destroy()
+        self.account_tab.destroy()
+        self.salary_tab.destroy()
+        self.iva_trimes_tab.destroy()
+
+    def refresh_tabviews(self):
+        self.destroy_tabviews()
+        self.construct_tabviews()
+
 
 
     # Funzioni per la gestione dei backups
@@ -313,6 +356,8 @@ class MainWindow(ctk.CTk):
         self.ordinaria_entries = {}
         self.ordinaria_irpef_entries = {}  # per gli scaglioni dinamici "aliquota_irpef_..."
         self.ordinaria_imponibili_entries = {}
+        self.ordinaria_rateizzazione_entries = {}
+        self.forfettaria_rateizzazione_entries = {}
         self.scaglioni_containers = {}
         self.title_frames = {}
 
@@ -355,6 +400,7 @@ class MainWindow(ctk.CTk):
 
         # Lista delle chiavi in ordine desiderato
         iva_keys = [
+            "no_iva",
             "aliquota_iva_ordinaria",
             "aliquota_iva_ridotta_1",
             "aliquota_iva_ridotta_2",
@@ -420,6 +466,30 @@ class MainWindow(ctk.CTk):
         self.forfettaria_entries["imponibile"] = ctk.CTkEntry(frame_forf_imponibili)
         self.forfettaria_entries["imponibile"].insert(0, str(value))
         self.forfettaria_entries["imponibile"].pack(anchor="w", fill="x", pady=(5, 15), padx=10)
+
+
+        # Sottosezione: versamenti
+        frame_forf_rateizzazione = ctk.CTkFrame(section_forf, corner_radius=2)
+        frame_forf_rateizzazione.pack(fill="x", pady=(35, 5), padx=(0, 10))
+        self.forfettaria_labels["rateizzazione_title"] = ctk.CTkLabel(frame_forf_rateizzazione, text="Rateizzazione Tasse",
+                                                                 font=("Arial", 16, "bold"))
+        self.forfettaria_labels["rateizzazione_title"].pack(anchor="w", pady=(5, 15), padx=10)
+        for key in ["percentuale_acconto_imposta_primo", "percentuale_acconto_imposta_secondo", "percentuale_acconto_inps_forfettario", "percentuale_rata_acconto_inps_forfettario"]:
+            if key in piva_forf_data:
+                data = piva_forf_data.get(key, {})
+                value = data.get("value", "")
+                description = data.get("description", key)
+                lbl = ctk.CTkLabel(frame_forf_rateizzazione, text=description, font=("Arial", 14))
+                lbl.pack(anchor="w", padx=10, pady=5)
+                self.forfettaria_labels[key] = lbl
+                ent = ctk.CTkEntry(frame_forf_rateizzazione)
+                ent.insert(0, str(value))
+                ent.pack(anchor="w", fill="x", pady=(5, 15), padx=10)
+                self.forfettaria_rateizzazione_entries[key] = ent
+
+
+
+
 
         # --- Sezione Ordinaria ---
         piva_ord_data = fiscal_settings.get("partita_iva_ordinaria", {})
@@ -542,6 +612,26 @@ class MainWindow(ctk.CTk):
                 ent.insert(0, str(value))
                 ent.pack(anchor="w", fill="x", pady=(5, 15), padx=10)
                 self.ordinaria_imponibili_entries[key] = ent
+
+
+        # Sottosezione: Rateizzazione tasse
+        frame_ord_rateizzazione = ctk.CTkFrame(section_ord, corner_radius=2)
+        frame_ord_rateizzazione.pack(fill="x", pady=(35, 5), padx=(0, 10))
+        self.ordinaria_labels["rateizzazione_title"] = ctk.CTkLabel(frame_ord_rateizzazione, text="Rateizzazione Tasse",
+                                                                 font=("Arial", 16, "bold"))
+        self.ordinaria_labels["rateizzazione_title"].pack(anchor="w", pady=(5, 15), padx=10)
+        for key in ["percentuale_acconto_irpef_primo", "percentuale_acconto_irpef_secondo", "percentuale_acconto_inps", "percentuale_rata_acconto_inps"]:
+            if key in piva_ord_data:
+                data = piva_ord_data.get(key, {})
+                value = data.get("value", "")
+                description = data.get("description", key)
+                lbl = ctk.CTkLabel(frame_ord_rateizzazione, text=description, font=("Arial", 16))
+                lbl.pack(anchor="w", padx=10, pady=5)
+                self.ordinaria_labels[key] = lbl
+                ent = ctk.CTkEntry(frame_ord_rateizzazione)
+                ent.insert(0, str(value))
+                ent.pack(anchor="w", fill="x", pady=(5, 15), padx=10)
+                self.ordinaria_rateizzazione_entries[key] = ent
 
         # Pulsante per salvare (command vuoto per ora)
         self.save_button = ctk.CTkButton(self.fiscal_settings_window, text="Salva Dati Fiscali", command=lambda: self.save_fiscal_settings())
@@ -696,7 +786,9 @@ class MainWindow(ctk.CTk):
         # --- Sezione Partita IVA Forfettaria ---
         forf_data = {}
         for key in ["aliquota_irpef_min", "aliquota_irpef_max", "anni_agevolazione", "aliquota_inps",
-                    "aliquota_rivalsa_inps", "imponibile"]:
+                    "aliquota_rivalsa_inps", "imponibile", "percentuale_acconto_imposta_primo",
+                    "percentuale_acconto_imposta_secondo", "percentuale_acconto_inps_forfettario",
+                    "percentuale_rata_acconto_inps_forfettario"]:
             if key in self.forfettaria_entries:
                 forf_data[key] = {"value": self.forfettaria_entries[key].get()}
             else:
@@ -718,6 +810,10 @@ class MainWindow(ctk.CTk):
             ord_data[key] = {"value": widget.get()}
         # Imponibili
         for key, widget in self.ordinaria_imponibili_entries.items():
+            ord_data[key] = {"value": widget.get()}
+        fiscal_data["partita_iva_ordinaria"] = ord_data
+        # Rateizzazione
+        for key, widget in self.ordinaria_rateizzazione_entries.items():
             ord_data[key] = {"value": widget.get()}
         fiscal_data["partita_iva_ordinaria"] = ord_data
 
@@ -779,6 +875,7 @@ class MainWindow(ctk.CTk):
             suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
 
             aliquote_list = [
+                self.fiscal_settings.aliquota_iva.no_iva,
                 self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
                 self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
                 self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
@@ -787,12 +884,15 @@ class MainWindow(ctk.CTk):
 
             accounts = self.account_controller.retrieve_accounts_map_list()
 
+            users = self.user_controller.retrieve_users_map_list()
+
             # Campi modificabili
             fields = [
                 ('amount', 'Importo:', 'entry', float),
                 ('supplier', 'Fornitore:', 'dropdown', [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]),
                 ('category', 'Categoria:', 'dropdown', [value for key, value in self.catalogo_elenchi["expenses_category"]]),
                 ('iva', 'IVA:', 'dropdown', [str(aliquota) for aliquota in aliquote_list]),
+                ('deductor', 'Deduzione a\ncarico di:', 'dropdown', [user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users]),
                 ('account', 'Conto:', 'dropdown', [account[DBAccountsColumns.NAME.value] for account in accounts]),
                 ('frequency', 'Frequenza:', 'dropdown', [freq.value for freq in ExpenseController.RecurringExpensesFrequencies])
             ]
@@ -820,6 +920,20 @@ class MainWindow(ctk.CTk):
                         # imposto valore corrente
                         current = getattr(expense, field)
                         widget.set(current if current in options else options[0])
+                    elif field == "deductor":
+                        current_id = getattr(expense, field)
+                        current_deductor = self.user_controller.retrieve_user_map_by_id(current_id)
+                        widget = ctk.CTkOptionMenu(
+                            master=frame,
+                            values=options,
+                            font=self.entry_font,
+                            dropdown_font=self.entry_font
+                        )
+                        if expense.deductible:
+                            deductor_name = current_deductor[DBUsersColumns.FIRST_NAME.value] + " " + current_deductor[DBUsersColumns.LAST_NAME.value]
+                        else:
+                            deductor_name = "Nessuno"
+                        widget.set(deductor_name)
                     else:
                         widget = ctk.CTkOptionMenu(
                             master=frame,
@@ -828,7 +942,7 @@ class MainWindow(ctk.CTk):
                             dropdown_font=self.entry_font
                         )
                         current = getattr(expense, field)
-                        widget.set(current if current in options else options[0])
+                        widget.set(current)
 
                 widget.pack(fill="x", expand=True, padx=5)
                 self.expense_widgets[expense_key][field] = widget
@@ -897,6 +1011,13 @@ class MainWindow(ctk.CTk):
         new_data = {}
 
         for expense_key, widgets in self.expense_widgets.items():
+
+            deductible = widgets["deductible"].get()
+
+            deductor_name = widgets["deductor"].get()
+            deductor = self.user_controller.retrieve_user_map_by_extended_name(deductor_name)
+            deductor_id = deductor[DBUsersColumns.ID.value]
+
             # Se è la tab “Nuova Spesa”, creo un nuovo key
             if expense_key == "Nuova Spesa":
                 raw_name = widgets["name"].get().strip()
@@ -916,6 +1037,7 @@ class MainWindow(ctk.CTk):
                     "supplier": widgets["supplier"].get(),
                     "deductible": widgets["deductible"].get(),
                     "category": widgets["category"].get(),
+                    "deductor": deductor_id if deductible == "Sì" else None,
                     "iva": widgets["iva"].get(),
                     "account": widgets["account"].get(),
                     "frequency": widgets["frequency"].get(),
@@ -932,6 +1054,7 @@ class MainWindow(ctk.CTk):
                     "supplier": widgets["supplier"].get(),
                     "deductible": widgets["deductible"].get(),
                     "category": widgets["category"].get(),
+                    "deductor": deductor_id if deductible == "Sì" else None,
                     "iva": widgets["iva"].get(),
                     "account": widgets["account"].get(),
                     "frequency": widgets["frequency"].get(),
@@ -1024,6 +1147,8 @@ class MainWindow(ctk.CTk):
         category_opts = [v for _, v in self.catalogo_elenchi["expenses_category"]]
         freq_opts = [f.value for f in ExpenseController.RecurringExpensesFrequencies]
 
+        users = self.user_controller.retrieve_users_map_list()
+
         # Definizione dei campi, con type e options
         fields = [
             ('name', 'Nome Spesa:', 'entry', None),
@@ -1031,6 +1156,8 @@ class MainWindow(ctk.CTk):
             ('supplier', 'Fornitore:', 'dropdown', suppliers_opts),
             ('category', 'Categoria:', 'dropdown', category_opts),
             ('iva', 'IVA:', 'dropdown', iva_opts),
+            ('deductor', 'Deduzione a\ncarico di:', 'dropdown',
+             [user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users]),
             ('account', 'Conto:', 'dropdown', account_opts),
             ('frequency', 'Frequenza:', 'dropdown', freq_opts),
             ('deductible', 'Deducibile:', 'radio', ["Sì", "No"]),
@@ -1076,3 +1203,19 @@ class MainWindow(ctk.CTk):
                 widget.pack(fill="x", expand=True, padx=5)
 
             self.expense_widgets[expense_key][field] = widget
+
+
+
+class EventBus:
+    def __init__(self):
+        self.subscribers = {}
+
+    def subscribe(self, event_type, handler):
+        if event_type not in self.subscribers:
+            self.subscribers[event_type] = []
+        self.subscribers[event_type].append(handler)
+
+    def publish(self, event_type, data):
+        if event_type in self.subscribers:
+            for handler in self.subscribers[event_type]:
+                handler(data)

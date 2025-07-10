@@ -1,5 +1,6 @@
 from enum import Enum
 import customtkinter as ctk
+import tkinter as tk
 
 
 class ViewUtils(ctk.CTk):
@@ -16,6 +17,9 @@ class ViewUtils(ctk.CTk):
         AGGIUNTA_FATTURA = "AGGIUNTA FATTURA"
         ELIMINAZIONE_FATTURA = "ELIMINAZIONE FATTURA"
         MODIFICA_FATTURA = "MODIFICA FATTURA"
+
+    class EventBusKeys(Enum):
+        SHOW_INVOICE_DETAIL = "SHOW_INVOICE_DETAIL"
 
     date_pattern = "yyyy-mm-dd"
 
@@ -72,7 +76,7 @@ class ViewUtils(ctk.CTk):
         """
         confirm_popup = ctk.CTkToplevel(parent)
         confirm_popup.title(title)
-        confirm_popup.geometry("300x150")
+        confirm_popup.geometry("350x190")
 
         # Assicurati che il pop-up sia modale
         confirm_popup.grab_set()
@@ -100,7 +104,7 @@ class ViewUtils(ctk.CTk):
         """
         confirm_popup = ctk.CTkToplevel(parent)
         confirm_popup.title(title)
-        confirm_popup.geometry("300x150")
+        confirm_popup.geometry("350x190")
 
         # Assicurati che il pop-up sia modale
         confirm_popup.grab_set()
@@ -134,7 +138,7 @@ class ViewUtils(ctk.CTk):
         # Creazione del Toplevel e impostazioni iniziali
         popup = ctk.CTkToplevel(parent)
         popup.title(title)
-        popup.geometry("300x150")
+        popup.geometry("350x190")
         popup.grab_set()  # Rende il pop-up modale
         popup.lift()  # Porta il pop-up in primo piano
 
@@ -215,10 +219,12 @@ class ViewUtils(ctk.CTk):
         :return: dizionario di cards {nome_info: {"card": frame, "label": ctk.CTkLabel}}
         """
         cards = {}
+        cards_container = ctk.CTkFrame(frame, fg_color="#2b2b2b")
+        cards_container.pack(fill="x", expand=True, padx=5, pady=5)
         for name, info in infos_dict.items():
             # crea la card container
-            card = ctk.CTkFrame(frame, border_width=2, border_color="#2659ab")
-            card.pack(anchor="w", padx=10, pady=(5, 5))
+            card = ctk.CTkFrame(cards_container, border_width=2, border_color="#2659ab")
+            card.pack(anchor="w", padx=10, pady=(5, 5), side="left")
 
             # titolo
             title = ctk.CTkLabel(
@@ -245,6 +251,55 @@ class ViewUtils(ctk.CTk):
         return cards
 
     @staticmethod
+    def construct_tasse_infos_cards(frame, infos_dict) -> dict:
+        """
+        Costruisce delle "cards" per ogni elemento di infos_dict e le inserisce nel frame fornito.
+
+        :param frame: ctk.CTkFrame in cui inserire le cards
+        :param infos_dict: dizionario con struttura:
+            {
+              nome_info: {"value": valore (int|float), "uom": unità di misura (str)},
+              ...
+            }
+        :return: dizionario di cards {nome_info: {"card": frame, "label": ctk.CTkLabel}}
+        """
+        cards = {}
+        cards_container = ctk.CTkFrame(frame, fg_color="#2b2b2b")
+        cards_container.pack(fill="x", expand=True, padx=5, pady=5, anchor="n")
+        i = 0
+        for name, info in infos_dict.items():
+            # crea la card container
+            color = "#2659ab" if i > 1 else "gray"
+            card = ctk.CTkFrame(cards_container, border_width=2, border_color=color)
+            card.pack(anchor="w", padx=10, pady=(5, 5), side="left", fill="both", expand=True)
+
+            # titolo
+            title = ctk.CTkLabel(
+                card,
+                text=ViewUtils.split_string_by_length(str(name), 8),
+                font=("Arial", 12, "bold"),
+                bg_color=color
+            )
+            title.pack(anchor="n", padx=10, pady=(10, 25), ipadx = 10, ipady = 10, fill="x")
+
+            # valore con unità di misura
+            value = info.get("value", 0)
+            uom = info.get("uom", "")
+            amount = ctk.CTkLabel(
+                card,
+                text=f"{value} {uom}",
+                font=("Arial", 14)
+            )
+            amount.pack(anchor="s", padx=10, pady=(0, 10))
+
+            # conserva la card e la label in output per aggiornamenti futuri
+            cards[name] = {"card": card, "label": amount}
+
+            i = i + 1
+
+        return cards
+
+    @staticmethod
     def hide_widgets(keys, labels_dict, widgets_dict, save_button):
         """Nasconde i widget e le label specificate."""
         for key in reversed(keys):
@@ -259,3 +314,82 @@ class ViewUtils(ctk.CTk):
             labels_dict[key].pack(pady=label_pady)
             widgets_dict[key].pack(pady=widget_pady, padx=10, fill="x", expand=True)
         save_button.pack(pady=(50, 15))
+
+    @staticmethod
+    def toggle_warning_on_card(card: ctk.CTkFrame, cards_warnings: dict):
+        # Cerca il bottone figlio del frame
+        button = next((child for child in card.winfo_children() if isinstance(child, ctk.CTkButton)), None)
+
+        if not button:
+            return  # Nessun bottone trovato, esce silenziosamente
+
+        button_text = button.cget("text").replace(" ⚠️", "")  # Rimuove warning se già presente
+
+        if button_text in cards_warnings:
+            # Applica il warning
+            button.configure(text=f"{button_text} ⚠️")
+            card.configure(border_width=2, border_color="#e6c719")
+        else:
+            # Ripristina lo stato normale
+            button.configure(text=button_text)
+            card.configure(border_width=0)
+
+    @staticmethod
+    def add_tooltip(widget, text):
+        tooltip = None
+
+        def show_tooltip(event):
+            nonlocal tooltip
+            if tooltip or not text:
+                return
+
+            tooltip = tk.Toplevel(widget)
+            tooltip.wm_overrideredirect(True)
+            tooltip.configure(bg="#2a2a2a")
+
+            frame = tk.Frame(tooltip, bg="#2a2a2a", bd=0, highlightthickness=1, highlightbackground="#3a3a3a")
+            frame.pack()
+
+            label = tk.Label(frame,
+                             text=text,
+                             justify="left",
+                             bg="#2a2a2a",
+                             fg="#f2f2f2",
+                             wraplength=300,
+                             font=("Segoe UI", 10, "normal"),
+                             padx=10,
+                             pady=6)
+            label.pack()
+
+            # Calcola dimensioni del tooltip
+            tooltip.update_idletasks()  # Forza il calcolo delle dimensioni
+
+            # Offset personalizzabile (regola questo valore in base alle tue esigenze)
+            vertical_offset = -170  # Sposta il tooltip 100px sopra il puntatore
+
+            # Calcola posizione finale
+            x = event.x_root + 15
+            y = event.y_root + vertical_offset
+
+            # Controllo per evitare che il tooltip esca dallo schermo in alto
+            screen_height = widget.winfo_screenheight()
+            if y < 0:
+                # Se il tooltip andrebbe sopra lo schermo, mostralo sotto il puntatore
+                y = event.y_root + 20
+
+            # Controllo per evitare che il tooltip esca dallo schermo a destra
+            tooltip_width = tooltip.winfo_width()
+            screen_width = widget.winfo_screenwidth()
+            if (x + tooltip_width) > screen_width:
+                x = screen_width - tooltip_width - 10  # 10px di margine
+
+            tooltip.wm_geometry(f"+{int(x)}+{int(y)}")
+
+        def hide_tooltip(event):
+            nonlocal tooltip
+            if tooltip:
+                tooltip.destroy()
+                tooltip = None
+
+        widget.bind("<Enter>", show_tooltip)
+        widget.bind("<Leave>", hide_tooltip)

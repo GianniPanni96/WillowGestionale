@@ -29,11 +29,14 @@ class DBUsersColumns(Enum):
     REGIME_FISCALE = "regime_fiscale"
     ANNO_APERTURA_PIVA = "anno_apertura_piva"
     REDDITO_ESTERNO = "reddito_esterno"
+    SPESE_DEDOTTE_ESTERNE = "spese_dedotte_esterne" #totale iva inclusa delle spese non attribuibili a willow
     CONTO_CORRENTE_ID = "conto_corrente_id"
     PROVIDER_FATTURE = "provider_fatture"
     USERNAME_PROVIDER = "username_provider"
     PASSWORD_PROVIDER = "password_provider"
     STATUS = "status"
+    LAST_YEAR_IRPEF_ACCONTO = "acconto_irpef"
+    LAST_YEAR_INPS_ACCONTO = "acconto_inps"
     PHOTO_PATH = "photo_path"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
@@ -57,32 +60,32 @@ class DBInvoicesColumns(Enum):
     """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE INVOICE DELLA VIEW"""
 
     ID = "id" #db
-    NUMERO_FATTURA = "numero_fattura" #view
-    DATA_CREAZIONE = "creation_date" #view
-    DATA_SCADENZA_1 = "expiration_date_1" #controller -> funzione di rate
+    NUMERO_FATTURA = "numero_fattura"
+    DATA_CREAZIONE = "creation_date"
+    DATA_SCADENZA_1 = "expiration_date_1"
     DATA_SCADENZA_2 = "expiration_date_2"
     DATA_SCADENZA_3 = "expiration_date_3"
-    ID_UTENTE = "invoicer_id" #controller(view)
-    ID_CLIENTE = "client_id" #controller(view)
+    ID_UTENTE = "invoicer_id"
+    ID_CLIENTE = "client_id"
     ID_CONTO = "ID_CONTO"
-    NOTE = "note" #view
-    SERVIZI = "importo_servizi" #view (comprensivo di rivalsa)
-    CASSA_INPS = "cassa_inps" #controller -> servizi*coeff redditività*aliquota INPS
-    IMPONIBILE = "imponibile" #controller -> servizi*coeff redditività
-    IVA = "iva" #controller = 0
-    RIMBORSI = "rimborsi" #view
+    NOTE = "note"
+    SERVIZI = "importo_servizi"
+    CASSA_INPS = "cassa_inps"
+    IMPONIBILE = "imponibile"
+    IVA = "iva"
+    RIMBORSI = "rimborsi"
     RIVALSA_INPS = "rivalsa_inps"
     TOT_DOCUMENTO = "tot_documento"
-    RITENUTA = "ritenuta" #controller = 0
-    NETTO_A_PAGARE = "netto_a_pagare" #controller = 0
-    STATUS = "status" #controller -> default: emessa
-    METODO_PAGAMENTO = "metodo_pagamento" #view
-    NUMERO_RATE = "rate_totali" #view
-    TIPO = "tipo"  # se è nota di credito #view
-    ID_FATTURA_ASSOCIATA = "id_fattura_associata"  #view (a comparsa)
+    RITENUTA = "ritenuta"
+    NETTO_A_PAGARE = "netto_a_pagare"
+    STATUS = "status"
+    METODO_PAGAMENTO = "metodo_pagamento"
+    NUMERO_RATE = "rate_totali"
+    TIPO = "tipo"
+    ID_FATTURA_ASSOCIATA = "id_fattura_associata"
     ID_PRODUZIONE_ASSOCIATA = "id_produzione_associata"
-    CREATED_AT = "created_at" #db
-    UPDATED_AT = "updated_at" #db
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
 
 class DBPaymentsColumns(Enum):
     """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE PAYMENT DELLA VIEW"""
@@ -161,6 +164,16 @@ class DBSalariesColumns(Enum):
     DATE = "DATE"
     ACCOUNT_ID = "ID_CONTO"
     USER_ID = "ID_UTENTE"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
+class DBRefundsColumns(Enum):
+    ID = "ID"
+    REFUND_NAME = "REFUND_NAME"
+    REFUND_AMOUNT = "REFUND_AMOUNT"
+    REFUND_DATE = "REFUND_DATE"
+    CLIENT_ID = "CLIENT_ID"
+    CONTO_ID = "CONTO_ID"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 
@@ -618,6 +631,35 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchone()
 
+    def update_invoice(self, invoice_id, **kwargs):
+        """
+        Aggiorna i valori di un utente esistente nella tabella `invoices`.
+        I campi da aggiornare devono essere passati come keyword arguments.
+
+        :param invoice_id: ID della fattura da aggiornare
+        :param kwargs: Campi da aggiornare (anche `None` per settare `NULL`)
+        :raises ValueError: Se non vengono specificati campi validi per l'aggiornamento
+        """
+        # Controllo che i campi passati siano validi
+        valid_columns = {column.value for column in DBInvoicesColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        # Creazione dinamica della query SQL senza COALESCE per permettere valori NULL
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE invoices SET {set_clause} WHERE {DBInvoicesColumns.ID.value} = ?"
+
+        # Esecuzione della query
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), invoice_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento della fattura: {str(e)}")
+
     def modify_invoice_datum(self, invoice_id, column, datum):
         """
         Modifica la specifica fattura inserendo il dato nella colonna passata come argomento.
@@ -899,6 +941,182 @@ class DatabaseModel:
             cur.execute(query, (account_id,))
             result = cur.fetchone()[0]
             return result if result is not None else 0.0
+
+    #@staticmethod
+    @staticmethod
+    def _fetch_recent_payments(db_model, months=12):
+        """
+        Funzione statica per recuperare i pagamenti recenti.
+        Simula il metodo del model ma è completamente autonoma.
+        """
+        # Calcola la data limite
+        date_limit = (datetime.now() - timedelta(days=months * 30)).strftime("%Y-%m-%d")
+
+        # Costruisci la query
+        columns = [column.value for column in DBPaymentsColumns]
+        query = f"""
+        SELECT {', '.join(columns)} 
+        FROM payments 
+        WHERE DATE({DBPaymentsColumns.PAYMENT_DATE.value}) >= ?
+        """
+
+        # Esegui la query usando il db_model fornito
+        with db_model._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (date_limit,))
+            return cursor.fetchall()
+
+
+
+
+
+
+
+
+
+
+    # Funzioni per i rimborsi (refunds)
+    def fetch_refunds(self):
+        """ Recupera tutti i rimborsi """
+        query = "SELECT * FROM refunds"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def add_refund(self, **kwargs):
+        """
+        Aggiungi un nuovo rimborso.
+        I campi da aggiungere devono essere passati come keyword arguments.
+        """
+        valid_columns = {column.value for column in DBRefundsColumns}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento.")
+
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO refunds ({columns}) VALUES ({placeholders})"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def fetch_refund_by_id(self, refund_id):
+        """
+        Recupera un rimborso specifico in modo dinamico.
+        """
+        columns = [column.value for column in DBRefundsColumns]
+        query = f"SELECT {', '.join(columns)} FROM refunds WHERE {DBRefundsColumns.ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (refund_id,))
+            return cursor.fetchone()
+
+    def fetch_refunds_by_client_id(self, client_id):
+        """
+        Recupera i rimborsi per un specifico cliente.
+        """
+        columns = [column.value for column in DBRefundsColumns]
+        query = f"SELECT {', '.join(columns)} FROM refunds WHERE {DBRefundsColumns.CLIENT_ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (client_id,))
+            return cursor.fetchall()
+
+    def fetch_last_refund_insert(self):
+        """
+        Recupera l'ultimo rimborso inserito nel database.
+        """
+        columns = [column.value for column in DBRefundsColumns]
+        query = f"SELECT {', '.join(columns)} FROM refunds ORDER BY {DBRefundsColumns.UPDATED_AT.value} DESC LIMIT 1"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+    def update_refund(self, refund_id, **kwargs):
+        """
+        Aggiorna i valori di un rimborso esistente.
+        """
+        valid_columns = {column.value for column in DBRefundsColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE refunds SET {set_clause} WHERE {DBRefundsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), refund_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento del rimborso: {str(e)}")
+
+    def fetch_refunds_with_client(self):
+        """
+        Recupera i rimborsi uniti ai dati dei clienti.
+        """
+        refund_columns = [f"r.{col.value}" for col in DBRefundsColumns]
+        client_columns = [f"c.{col.value}" for col in DBClientsColumns]  # Assumendo che DBClientsColumns esista
+        all_columns = refund_columns + client_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM refunds r
+        JOIN clients c ON r.{DBRefundsColumns.CLIENT_ID.value} = c.{DBClientsColumns.ID.value}
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def sum_refunds_by_account(self, account_id: int) -> float:
+        """
+        Restituisce la somma degli importi dei rimborsi effettuati su uno specifico conto.
+        """
+        amt_col = DBRefundsColumns.REFUND_AMOUNT.value
+        conto_col = DBRefundsColumns.CONTO_ID.value
+
+        query = f"""
+        SELECT SUM({amt_col})
+        FROM refunds
+        WHERE {conto_col} = ?
+        """
+
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (account_id,))
+            result = cur.fetchone()[0]
+            return result if result is not None else 0.0
+
+    @staticmethod
+    def _fetch_recent_refunds(db_model, months=12):
+        """
+        Recupera i rimborsi recenti (ultimi N mesi).
+        """
+        date_limit = (datetime.now() - timedelta(days=months * 30)).strftime("%Y-%m-%d")
+        columns = [column.value for column in DBRefundsColumns]
+
+        query = f"""
+        SELECT {', '.join(columns)} 
+        FROM refunds 
+        WHERE DATE({DBRefundsColumns.REFUND_DATE.value}) >= ?
+        """
+
+        with db_model._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (date_limit,))
+            return cursor.fetchall()
 
 
 
@@ -1507,6 +1725,29 @@ class DatabaseModel:
             cur = conn.cursor()
             cur.execute(query, (user_id,))
             return cur.fetchall()
+
+    def sum_salaries_by_account(self, account_id: int) -> float:
+        """
+        Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
+
+        :param account_id: l'ID del conto (DBAccountsColumns.ID)
+        :return: somma (float), 0.0 se non ci sono pagamenti
+        """
+        # Nome colonna importo e colonna conto
+        amt_col = DBSalariesColumns.AMOUNT.value
+        conto_col = DBSalariesColumns.ACCOUNT_ID.value
+
+        query = f"""
+        SELECT SUM({amt_col})
+        FROM salaries
+        WHERE {conto_col} = ?
+        """
+
+        with self._connect() as conn:
+            cur = conn.cursor()
+            cur.execute(query, (account_id,))
+            result = cur.fetchone()[0]
+            return result if result is not None else 0.0
 
 
 

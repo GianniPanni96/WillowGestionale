@@ -4,6 +4,7 @@ import os, re, json
 from typing import List
 from dataclasses import dataclass, field
 from Controllers import ExpenseController
+from typing import Optional, Union
 
 from typing import Dict
 from dataclasses import dataclass
@@ -569,6 +570,10 @@ class PartitaIVAForfettaria:
     aliquota_inps: float
     imponibile: float
     aliquota_rivalsa_inps : float
+    percentuale_acconto_imposta_primo : float
+    percentuale_acconto_imposta_secondo : float
+    percentuale_acconto_inps_forfettario : float
+    percentuale_rata_acconto_inps_forfettario : float
 
     @staticmethod
     def from_dict(data: dict):
@@ -578,7 +583,11 @@ class PartitaIVAForfettaria:
             anni_agevolazione=data.get("anni_agevolazione", {}).get("value", 0),
             aliquota_inps=data.get("aliquota_inps", {}).get("value", 0.0),
             imponibile=data.get("imponibile", {}).get("value", 0.0),
-            aliquota_rivalsa_inps = data.get("aliquota_rivalsa_inps", {}).get("value", 0.0)
+            aliquota_rivalsa_inps = data.get("aliquota_rivalsa_inps", {}).get("value", 0.0),
+            percentuale_acconto_imposta_primo=data.get("percentuale_acconto_imposta_primo", {}).get("value", 0.0),
+            percentuale_acconto_imposta_secondo=data.get("percentuale_acconto_imposta_secondo", {}).get("value", 0.0),
+            percentuale_acconto_inps_forfettario=data.get("percentuale_acconto_inps_forfettario", {}).get("value", 0.0),
+            percentuale_rata_acconto_inps_forfettario=data.get("percentuale_rata_acconto_inps_forfettario", {}).get("value", 0.0)
         )
 
 @dataclass
@@ -626,6 +635,10 @@ class PartitaIVAOrdinaria:
     imponibile_cassa_inps: float = 0.0
     imponibile_inps: float = 0.0
     imponibile_irpef: float = 0.0
+    percentuale_acconto_irpef_primo: float = 0.0
+    percentuale_acconto_irpef_secondo: float = 0.0
+    percentuale_acconto_inps: float = 0.0
+    percentuale_rata_acconto_inps: float = 0.0
 
     @staticmethod
     def from_dict(data: dict) -> 'PartitaIVAOrdinaria':
@@ -651,11 +664,17 @@ class PartitaIVAOrdinaria:
             imponibile_ritenuta_acconto=data.get("imponibile_ritenuta_acconto", {}).get("value", 0.0),
             imponibile_cassa_inps=data.get("imponibile_cassa_inps", {}).get("value", 0.0),
             imponibile_inps=data.get("imponibile_inps", {}).get("value", 0.0),
-            imponibile_irpef = data.get("imponibile_irpef", {}).get("value", 0.0)
+            imponibile_irpef = data.get("imponibile_irpef", {}).get("value", 0.0),
+            percentuale_acconto_irpef_primo = data.get("percentuale_acconto_irpef_primo", {}).get("value", 0.0),
+            percentuale_acconto_irpef_secondo=data.get("percentuale_acconto_irpef_secondo", {}).get("value", 0.0),
+            percentuale_acconto_inps=data.get("percentuale_acconto_inps", {}).get("value", 0.0),
+            percentuale_rata_acconto_inps=data.get("percentuale_rata_acconto_inps", {}).get("value", 0.0)
         )
 
 @dataclass
 class AliquotaIva:
+    no_iva: float = 0.0
+    desc_no_iva: str = ""
     aliquota_iva_ordinaria: float = 0.0
     desc_iva_ordinaria: str = ""
     aliquota_iva_ridotta_1: float = 0.0
@@ -668,7 +687,8 @@ class AliquotaIva:
     @staticmethod
     def from_dict(data: dict) -> 'AliquotaIva':
         return AliquotaIva(
-            aliquota_iva_ordinaria = float(data.get("aliquota_iva_ordinaria", {}).get("value", 0.0)),
+            no_iva                  = float(data.get("no_iva", {}).get("value", 0.0)),
+            aliquota_iva_ordinaria  = float(data.get("aliquota_iva_ordinaria", {}).get("value", 0.0)),
             desc_iva_ordinaria      = data.get("aliquota_iva_ordinaria", {}).get("description", ""),
             aliquota_iva_ridotta_1  = float(data.get("aliquota_iva_ridotta_1", {}).get("value", 0.0)),
             desc_iva_ridotta_1      = data.get("aliquota_iva_ridotta_1", {}).get("description", ""),
@@ -708,6 +728,8 @@ class RecurringExpense:
     descr_supplier : ""
     deductible: bool
     descr_deductible : ""
+    deductor:Optional[int]
+    descr_deductor : ""
     category: str
     descr_category : ""
     iva: float
@@ -721,6 +743,18 @@ class RecurringExpense:
 
     @staticmethod
     def from_dict(data: dict):
+        deductor_value = data.get("deductor", {}).get("value")
+
+        # Gestione del caso nullo
+        if deductor_value is None:
+            deductor = None
+        else:
+            # Gestione sia di stringhe che di numeri
+            try:
+                deductor = int(deductor_value)
+            except (TypeError, ValueError):
+                deductor = None
+
         return RecurringExpense(
             description=data.get("description", ""),
             amount=float(data.get("amount", {}).get("value", 0)),
@@ -729,6 +763,8 @@ class RecurringExpense:
             descr_supplier=data.get("supplier", {}).get("description", ""),
             deductible=data.get("deductible", {}).get("value", "No") == "Sì",
             descr_deductible=data.get("deductible", {}).get("description", ""),
+            deductor=deductor,
+            descr_deductor=data.get("deductor", {}).get("description", ""),
             category=data.get("category", {}).get("value", ""),
             descr_category=data.get("category", {}).get("description", ""),
             iva=float(data.get("iva", {}).get("value", 0)),
@@ -739,4 +775,24 @@ class RecurringExpense:
             descr_frequency=data.get("frequency", {}).get("description", ""),
             status=data.get("status", {}).get("value", ExpenseController.RecurringExpensesStatus.SOSPESA.value) == ExpenseController.RecurringExpensesStatus.ATTIVA.value,
             descr_status=data.get("status", {}).get("description", ""),
+        )
+
+@dataclass
+class HistoricalFinancialData:
+    revenues: Dict[str, Dict[str, float]]           # anno → nome persona → fatturato
+    deducted_expenses: Dict[str, float]             # anno → spese dedotte totali
+
+    @staticmethod
+    def from_dict(data: dict) -> 'HistoricalFinancialData':
+        return HistoricalFinancialData(
+            revenues={
+                year: {
+                    name: float(amount)
+                    for name, amount in names.items()
+                } for year, names in data.get("revenues", {}).items()
+            },
+            deducted_expenses={
+                year: float(amount)
+                for year, amount in data.get("deducted_expenses", {}).items()
+            }
         )

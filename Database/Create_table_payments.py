@@ -14,7 +14,7 @@ columns = [
     f"{DBPaymentsColumns.CREATED_AT.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"{DBPaymentsColumns.UPDATED_AT.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"FOREIGN KEY ({DBPaymentsColumns.INVOICE_ID.value}) REFERENCES invoices({DBInvoicesColumns.ID.value})"
-    f"FOREIGN KEY ({DBPaymentsColumns.CONTO_ID.value}) REFERENCES productions({DBAccountsColumns.ID.value})"
+    f"FOREIGN KEY ({DBPaymentsColumns.CONTO_ID.value}) REFERENCES accounts({DBAccountsColumns.ID.value})"
 ]
 
 create_table_query = f"CREATE TABLE payments ({', '.join(columns)})"

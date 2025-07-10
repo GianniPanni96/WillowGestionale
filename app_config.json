@@ -5,7 +5,7 @@
             "description": "Percorso dove verranno salvati i backup del database gestionale."
         },
         "interval_minutes": {
-            "value": 15,
+            "value": 5,
             "description": "Intervallo in minuti tra l'esecuzione dei backup."
         },
         "max_backups": {
@@ -19,6 +19,10 @@
     },
     "fiscal_settings": {
         "iva": {
+            "no_iva": {
+                "value": "0.00",
+                "description": "Assenza di IVA"
+            },
             "aliquota_iva_ordinaria": {
                 "value": "0.22",
                 "description": "Aliquota IVA standard"
@@ -60,6 +64,22 @@
             "imponibile": {
                 "value": "0.78",
                 "description": "Percentuale dell'imponibile considerata per il calcolo fiscale nel regime forfettario."
+            },
+            "percentuale_acconto_imposta_primo": {
+                "value": "0.40",
+                "description": "Quota (%) del primo acconto dell\u2019imposta sostitutiva da versare al 30 giugno (saldo+acconto)"
+            },
+            "percentuale_acconto_imposta_secondo": {
+                "value": "0.60",
+                "description": "Quota (%) del secondo acconto dell\u2019imposta sostitutiva da versare al 30 novembre"
+            },
+            "percentuale_acconto_inps_forfettario": {
+                "value": "1.00",
+                "description": "Percentuale dei contributi INPS forfettari su cui calcolare gli acconti (sempre 100% del contributo dovuto)"
+            },
+            "percentuale_rata_acconto_inps_forfettario": {
+                "value": "0.50",
+                "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre) in regime forfettario"
             }
         },
         "partita_iva_ordinaria": {
@@ -112,6 +132,22 @@
             "imponibile_irpef": {
                 "value": "1",
                 "description": "Coefficiente per il calcolo dell'imponibile per l'IRPEF"
+            },
+            "percentuale_acconto_irpef_primo": {
+                "value": "0.40",
+                "description": "Quota (%) del primo acconto IRPEF da versare a saldo+acconto al 30 giugno"
+            },
+            "percentuale_acconto_irpef_secondo": {
+                "value": "0.60",
+                "description": "Quota (%) del secondo acconto IRPEF da versare al 30 novembre"
+            },
+            "percentuale_acconto_inps": {
+                "value": "0.80",
+                "description": "Percentuale degli ultimi contributi INPS su cui calcolare gli acconti per l'anno in corso"
+            },
+            "percentuale_rata_acconto_inps": {
+                "value": "0.50",
+                "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre)"
             }
         }
     },
@@ -176,114 +212,101 @@
         "INSURANCE": "Assicurazionee",
         "PRODUCTION_EXPENSE": "Spesa di produzione",
         "USER_SALARY": "Salario",
-		"TRIMESTRAL_IVA": "Iva trimestrale",
+        "TRIMESTRAL_IVA": "Iva trimestrale",
         "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
     },
     "recurring_expenses": {
-        "office_rental": {
+        "affitto_studio": {
             "description": "AFFITTO STUDIO",
             "amount": {
                 "value": "1600.0",
-                "description": "IMPORTO_LORDO"
+                "description": ""
             },
             "supplier": {
-                "value": "MAURIZIO",
-                "description": "FORNITORE"
+                "value": "Maurizio",
+                "description": ""
             },
             "deductible": {
                 "value": "S\u00ec",
-                "description": "DEDUCIBILE"
+                "description": ""
+            },
+            "deductor": {
+                "value": 2,
+                "description": ""
             },
             "category": {
                 "value": "Affitto Ufficio",
-                "description": "CATEGORIA"
+                "description": ""
             },
             "iva": {
-                "value": "0.22",
-                "description": "ALIQUOTA IVA"
+                "value": 0.22,
+                "description": ""
             },
             "account": {
                 "value": "WeBank",
-                "description": "CONTO"
+                "description": ""
             },
             "frequency": {
                 "value": "MENSILE",
-                "description": "CADENZA"
+                "description": ""
             },
             "status": {
                 "value": "Attiva",
-                "description": "STATO"
+                "description": ""
             }
         },
-        "internet_bill": {
-            "description": "INTERNET",
-            "amount": {
-                "value": "28.0",
-                "description": "IMPORTO_LORDO"
-            },
-            "supplier": {
-                "value": "Tiscali",
-                "description": "FORNITORE"
-            },
-            "deductible": {
-                "value": "S\u00ec",
-                "description": "DEDUCIBILE"
-            },
-            "category": {
-                "value": "Abbonamento Internet",
-                "description": "CATEGORIA"
-            },
-            "iva": {
-                "value": "0.22",
-                "description": "ALIQUOTA IVA"
-            },
-            "account": {
-                "value": "WeBank",
-                "description": "CONTO"
-            },
-            "frequency": {
-                "value": "SETTIMANALE",
-                "description": "CADENZA"
-            },
-            "status": {
-                "value": "Attiva",
-                "description": "STATO"
-            }
-        },
-        "art_list": {
+        "artlist": {
             "description": "ARTLIST",
             "amount": {
-                "value": "250.0",
-                "description": "IMPORTO_LORDO"
+                "value": "250",
+                "description": ""
             },
             "supplier": {
-                "value": "Tiscali",
-                "description": "FORNITORE"
+                "value": "Artlist",
+                "description": ""
             },
             "deductible": {
                 "value": "S\u00ec",
-                "description": "DEDUCIBILE"
+                "description": ""
             },
             "category": {
                 "value": "Abbonamento",
-                "description": "CATEGORIA"
+                "description": ""
+            },
+            "deductor": {
+                "value": 1,
+                "description": ""
             },
             "iva": {
                 "value": "0.22",
-                "description": "ALIQUOTA IVA"
+                "description": ""
             },
             "account": {
                 "value": "WeBank",
-                "description": "CONTO"
+                "description": ""
             },
             "frequency": {
-                "value": "SETTIMANALE",
-                "description": "CADENZA"
+                "value": "ANNUALE",
+                "description": ""
             },
             "status": {
-                "value": "Sospesa",
-                "description": "STATO"
+                "value": "Attiva",
+                "description": ""
             }
+        }
+    },
+    "historical_financial_data": {
+        "revenues": {
+            "2024": {
+                "Stefano Brenna": 7500,
+                "Marco Sarsini": 7500,
+                "Samuele Venticinque": 7500,
+                "Tommaso Zanoni": 7500,
+                "Andrea Evangelista": 30000
+            }
+        },
+        "deducted_expenses": {
+            "2024": 30000
         }
     }
 }

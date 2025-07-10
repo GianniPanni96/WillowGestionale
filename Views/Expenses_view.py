@@ -10,7 +10,7 @@ from dataclasses import fields
 
 class ExpensesView(ctk.CTk):
 
-    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab):
+    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab, event_bus):
         super().__init__()
 
         self.db_model = db_model
@@ -25,6 +25,7 @@ class ExpensesView(ctk.CTk):
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
         self.tab = tab
+        self.event_bus = event_bus
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -35,6 +36,8 @@ class ExpensesView(ctk.CTk):
 
         self.expenses_card_list = {}
         self.expense_card_labels_status = {}
+
+        self.create_expenses_tab()
 
     def create_expenses_tab(self):
         self.search_bar_frame = ctk.CTkFrame(self.tab)
@@ -539,6 +542,11 @@ class ExpensesView(ctk.CTk):
                 self.expenses_widgets[key].pack(pady=5, padx=10, fill="x", expand=True)
                 if key == DBExpensesColumns.TOT_AMOUNT.value:
                     self.error_labels[DBExpensesColumns.TOT_AMOUNT.value].pack(pady=(0, 15))
+                a = self.expenses_widgets[DBExpensesColumns.CATEGORY.value].get()
+                b = dict(self.catalogo_elenchi["expenses_category"])
+                if key == self.nome_fattura_string and a != b["PRODUCTION_EXPENSE"]:
+                    self.expenses_labels[key].pack_forget()
+                    self.expenses_widgets[key].pack_forget()
             self.save_button.pack(pady=(50, 15))
 
         elif selected_value == "No":

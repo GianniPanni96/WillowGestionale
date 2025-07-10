@@ -218,7 +218,7 @@ class InvoicesView(ctk.CTkFrame):
         self.invoice_detail_view.pack_forget()
         self.main_container.pack(fill='both', expand=True)
 
-    def open_user_detail_tab(self, invoice_id):
+    def open_invoice_detail_tab(self, invoice_id):
         """Mostra la vista dettaglio utente"""
         self.main_container.pack_forget()
         self.invoice_detail_view.pack(fill='both', expand=True)
@@ -226,7 +226,7 @@ class InvoicesView(ctk.CTkFrame):
 
     def handle_show_invoice_detail(self, invoice_id):
         self.tabview.set("Fatture")  # Cambia tab
-        self.open_user_detail_tab(invoice_id)  # Mostra il dettaglio
+        self.open_invoice_detail_tab(invoice_id)  # Mostra il dettaglio
 
     def populate_global_infos(self):
         self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
@@ -454,7 +454,7 @@ class InvoicesView(ctk.CTkFrame):
         # 0) Bottone "nome"
         btn = ctk.CTkButton(card,
                             text=nome,
-                            command=lambda: self.open_user_detail_tab(invoice_id))
+                            command=lambda: self.open_invoice_detail_tab(invoice_id))
         btn.grid(row=0, column=0, sticky="nsew", padx=(10,5), pady=10)
 
         # 1) CLIENTE, 2) UTENTE, 3) PRODUZIONE, 4) DATA, 5) STATO, 6) RATE, 7) NETTO, 8) TIPOLOGIA

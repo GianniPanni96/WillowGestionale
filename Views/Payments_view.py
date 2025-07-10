@@ -36,11 +36,41 @@ class PaymentsView(ctk.CTkFrame):
 
         self.update_controller.register_on_modify_invoice_view_cllbks(self.attach_warning_on_a_card)
 
+        # Container principale
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.detail_container = ctk.CTkFrame(self, fg_color="transparent")
+
+        # Vista dettaglio
+        self.payment_detail_view = PaymentDetailView(
+            parent=self,
+            invoice_controller=self.invoice_controller,
+            payment_controller=self.payment_controller,
+            back_callback=self.show_main_view,
+            account_controller=account_controller,
+            client_controller=self.client_controller,
+            production_controller=self.production_controller,
+            update_controller=self.update_controller,
+            db_model=db_model,
+            event_bus = self.event_bus
+        )
+
         self.create_payments_tab()
+        self.show_main_view()
+
+    def show_main_view(self):
+        """Torna alla vista principale"""
+        self.payment_detail_view.pack_forget()
+        self.main_container.pack(fill='both', expand=True)
+
+    def open_payment_detail_tab(self, invoice_id):
+        """Mostra la vista dettaglio utente"""
+        self.main_container.pack_forget()
+        self.payment_detail_view.pack(fill='both', expand=True)
+        self.payment_detail_view.create_detail_tab(invoice_id)  # Ricrea i contenuti ogni volta
 
     def create_payments_tab(self):
 
-        self.search_bar_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
@@ -75,7 +105,7 @@ class PaymentsView(ctk.CTkFrame):
             #salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.payments_table_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.payments_table_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.payments_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "CLIENTE", "PRODUZIONE", "FATTURA", "TOTALE", "DATA", "RATA", "CONTO\nCORRENTE"]
@@ -95,10 +125,10 @@ class PaymentsView(ctk.CTkFrame):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.payments_cards_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        self.payments_cards_frame = ctk.CTkScrollableFrame(self.main_container, fg_color="transparent")
         self.payments_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_payment_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.add_payment_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.add_payment_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_payment_frame, text="Aggiungi un pagamento",
@@ -337,7 +367,7 @@ class PaymentsView(ctk.CTkFrame):
         btn = ctk.CTkButton(
             card,
             text=payment_name,
-            command=lambda pid=payment_id: self.open_modify_payment(pid)
+            command=lambda pid=payment_id: self.open_payment_detail_tab(pid)
         )
         btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
 
@@ -581,3 +611,341 @@ class PaymentsView(ctk.CTkFrame):
                         continue
 
         ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
+
+
+
+class PaymentDetailView(ctk.CTkFrame):
+    def __init__(self, parent, back_callback, invoice_controller, payment_controller, account_controller, client_controller, production_controller, update_controller, db_model, event_bus):
+        super().__init__(parent)
+        self.invoice_controller = invoice_controller
+        self.payment_controller = payment_controller
+        self.account_controller = account_controller
+        self.client_controller = client_controller
+        self.production_controller = production_controller
+        self.db_model = db_model
+        self.back_callback = back_callback
+        self.update_controller = update_controller
+        self.event_bus = event_bus
+        self.current_invoice_id = None
+
+        self.configure(fg_color="transparent")
+
+        # Widgets persistenti (vanno creati una volta sola)
+        self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
+        self.back_button = ctk.CTkButton(
+            self.head_frame,
+            text="Elenco Pagamenti",
+            command=self._cleanup_and_go_back
+        )
+        self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
+
+        self.payment_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+
+        self.nome_conto_string = "CONTO"
+        self.nome_cliente_string = "CLIENTE"
+        self.nome_user_string = "UTENTE"
+        self.nome_fattura_string = "FATTURA ASSOCIATA"
+        self.nome_produzione_associata_string = "PRODUZIONE ASSOCIATA"
+
+        # Container per i contenuti dinamici
+        self.content_frame = ctk.CTkScrollableFrame(self)
+
+        self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_edit(self.content_frame))
+
+        # Layout iniziale
+        self._setup_base_layout()
+
+        #self.update_controller.register_on_adding_payment_view_cllbks(self.toggle_warning_global_info_payments)
+
+
+
+    def _setup_base_layout(self):
+        """Inizializza la struttura base del layout"""
+        self.head_frame.pack(fill="x", pady=5, padx=5)
+        self.back_button.pack(anchor="w", side="left", pady=10, padx=10)
+        self.title_label.pack(anchor="c", side="left", fill="x", expand=True, pady=10)
+        self.switch_modify.pack(anchor="e", side="left", pady=10, padx=10)
+        self.content_frame.pack(fill="both", expand=True, pady=20, padx=20)
+
+    def create_detail_tab(self, payment_id):
+        """Ricrea la vista dettaglio per un pagamento specifico"""
+        self.current_payment_id = payment_id
+
+        # 1. Pulizia dei widget precedenti
+        self._clear_content()
+
+        # 2. Caricamento dati
+        payment = self.payment_controller.retrieve_payment_map_by_id(payment_id)
+
+        #prendo i dati della fattura associata
+        invoice = self.invoice_controller.retrieve_invoice_map_by_id(payment[DBPaymentsColumns.INVOICE_ID.ID])
+
+        # prendo il nome del conto:
+        id_conto = payment[DBPaymentsColumns.CONTO_ID.value]
+        conto = self.account_controller.retrieve_account_map_by_id(id_conto)
+        nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "Conto non trovato"
+        payment[self.nome_conto_string] = nome_conto
+
+        # prendo il nome del cliente
+        id_cliente = invoice[DBInvoicesColumns.ID_CLIENTE.value]
+        cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)
+        nome_cliente = cliente[DBClientsColumns.NAME.value] if cliente else "Cliente non trovato"
+        invoice[self.nome_cliente_string] = nome_cliente
+
+        # prendo il nome della produzione associata
+        id_prod = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+        prod = self.production_controller.retrieve_production_map_by_id(id_prod)
+        nome_produzione = prod[DBProductionsColumns.NAME.value] if prod else "Produzione non trovata"
+        invoice[self.nome_produzione_associata_string] = nome_produzione
+
+        # 3. Aggiornamento elementi persistenti
+        self.title_label.configure(
+            text=f"{payment[DBPaymentsColumns.PAYMENT_NAME.value]}")
+
+        # 4. Creazione contenuti dinamici
+        self._create_payment_info_section(payment)
+        self.toggle_edit(self.content_frame)
+
+        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame.pack(padx=15, pady=(90, 0), fill="both", expand=True)
+        self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame2.pack(padx=15, pady=(90, 90), fill="both", expand=True)
+
+        #self._create_payments_history()
+        #self._create_production_expenses_history()
+
+    def _create_payment_info_section(self, payment_data):
+        # Campi derivati per i pagamenti (se necessario)
+        self.derived_fields_payments = {
+            # Potresti aggiungere campi calcolati qui se necessario
+        }
+
+        self.entry_fields_payments = {
+            # Dati Generali
+            DBPaymentsColumns.PAYMENT_NAME.value: {
+                "type": ctk.CTkLabel,
+                "label": "Nome Pagamento",
+                "section": "Dati Generali"
+            },
+            DBPaymentsColumns.PAYMENT_DATE.value: {
+                "type": Calendar,
+                "label": "Data Pagamento",
+                "section": "Dati Generali"
+            },
+            DBPaymentsColumns.LINKED_RATA.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Rata Associata",
+                "section": "Dati Generali",
+                "values": ["1", "2", "3"]
+            },
+
+            # Dati Fiscali
+            DBPaymentsColumns.PAYMENT_AMOUNT.value: {
+                "type": ctk.CTkEntry,
+                "label": "Importo Pagato (€)",
+                "section": "Dati Fiscali"
+            },
+
+            # Collegamenti
+            self.nome_fattura_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Fattura Associata",
+                "section": "Collegamenti",
+                "values": [f"{i[DBInvoicesColumns.NUMERO_FATTURA.value]} - {i[DBInvoicesColumns.ID_CLIENTE.value]}"
+                           for i in self.invoice_controller.retrieve_invoices_map_list()]
+            },
+            self.nome_conto_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Conto",
+                "section": "Collegamenti",
+                "values": [c[DBAccountsColumns.NAME.value] for c in
+                           self.account_controller.retrieve_accounts_map_list()]
+            },
+
+            # Campi statici
+            DBPaymentsColumns.CREATED_AT.value: {
+                "type": ctk.CTkLabel,
+                "label": "Data Creazione",
+                "section": "Note"
+            },
+            DBPaymentsColumns.UPDATED_AT.value: {
+                "type": ctk.CTkLabel,
+                "label": "Ultimo Aggiornamento",
+                "section": "Note"
+            }
+        }
+
+        self.error_fields_payments = {
+            DBPaymentsColumns.PAYMENT_AMOUNT.value: "Valore numerico con massimo 2 decimali",
+            DBPaymentsColumns.PAYMENT_DATE.value: "Data obbligatoria"
+        }
+
+        validation_rules = {
+            DBPaymentsColumns.PAYMENT_AMOUNT.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            ),
+            DBPaymentsColumns.PAYMENT_DATE.value: (
+                lambda val: val.strip() != "",
+                "Campo obbligatorio"
+            )
+        }
+
+        # Inizializzazione strutture dati
+        self.payment_info_widgets = {}
+        self.payment_info_labels = {}
+        self.error_labels_payments = {}
+        sections = {}
+
+        # Creazione frame principale
+        info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
+        info_frame.pack(fill="both", expand=True, pady=10, padx=25)
+
+        # Configurazione griglia a 2 colonne (meno campi)
+        info_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        info_frame.grid_columnconfigure(1, weight=1, uniform="col")
+
+        # Sezioni organizzate per colonne
+        sections_order = [
+            "Dati Generali",
+            "Dati Fiscali",
+            "Collegamenti",
+            "Note"
+        ]
+
+        # Creazione frame sezioni
+        for i, section_name in enumerate(sections_order):
+            frame = ctk.CTkFrame(info_frame)
+            column = i % 2  # Solo 2 colonne
+            row = i // 2  # Calcola la riga in base all'indice
+
+            frame.grid(row=row, column=column, sticky="nsew", padx=15, pady=15)
+            frame.grid_columnconfigure(1, weight=1)
+
+            sections[section_name] = {
+                "frame": frame,
+                "row": 0
+            }
+
+            ctk.CTkLabel(frame, text=section_name, font=("Arial", 14, "bold")).grid(
+                row=0, column=0, columnspan=2, sticky="w", padx=15, pady=5
+            )
+            sections[section_name]["row"] += 1
+
+        # Popolamento sezioni
+        for field, config in self.entry_fields_payments.items():
+            section = sections[config["section"]]
+            frame = section["frame"]
+            row = section["row"]
+
+            # Creazione label
+            lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
+            self.payment_info_labels[field] = lbl
+
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(5, 5))
+
+            # Creazione widget
+            if config["type"] == ctk.CTkLabel:
+                value = str(payment_data.get(field, ""))
+                widget = config["type"](frame, text=value)
+            else:
+                if config["type"] == ctk.CTkOptionMenu:
+                    widget = config["type"](frame, values=config.get("values", []))
+                    widget.set(payment_data.get(field, config.get("values", [""])[0]))
+
+                elif config["type"] == Calendar:
+                    widget = config["type"](frame, date_pattern=ViewUtils.date_pattern)
+                    value = payment_data.get(field, "")
+                    widget.selection_set(str(value)) if value else widget.selection_set(datetime.today())
+                else:
+                    widget = config["type"](frame)
+                    value = str(payment_data.get(field, ""))
+                    widget.insert(0, value)
+
+            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(5, 5))
+            self.payment_info_widgets[field] = widget
+
+            # Gestione validazione
+            if field in validation_rules:
+                validation_func, error_message = validation_rules[field]
+
+                error_lbl = ctk.CTkLabel(frame, text="", text_color="#e8e5dc")
+                error_lbl.grid(row=row + 1, column=1, sticky="w", padx=5, pady=(0, 10))
+                self.error_labels_payments[field] = error_lbl
+
+                widget.bind("<FocusOut>",
+                            lambda e, w=widget, vl=validation_func, el=error_lbl, em=error_message:
+                            ViewUtils.validate_entry(w, vl, el, em))
+
+                section["row"] += 2
+            else:
+                section["row"] += 1
+
+        # Binding per calcoli automatici (se necessario)
+        # self.payment_info_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].bind("<FocusOut>", self.calcola_totale_pagamento)
+
+        buttons_frame = ctk.CTkFrame(info_frame, fg_color="#2b2b2b")
+        buttons_frame.grid(row=2, column=0, columnspan=2, pady=(5, 15), padx=20, sticky="WE")
+
+        # Bottone Salva
+        self.save_payment_btn = ctk.CTkButton(buttons_frame, text="Salva Pagamento", command=self.save_payment_mod)
+        self.save_payment_btn.pack(padx=(400, 10), pady=(20, 20), side="left")
+
+        # Bottone Elimina
+        self.delete_btn = ctk.CTkButton(buttons_frame, text="Elimina Pagamento",
+                                        fg_color="#8B0000", hover_color="#A52A2A",
+                                        command=self.delete_payment)
+        self.delete_btn.pack(padx=10, pady=(20, 20), side="right", anchor="e")
+
+
+
+    def toggle_edit(self, parent):
+        """
+        Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
+        I campi derivati e il campo RIVAlSA_INPS per utenti con regime ordinario restano disabilitati.
+        """
+        state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
+
+        # Stato del pulsante Salva
+        self.save_payment_btn.configure(state=state)
+        self.delete_btn.configure(state=state)
+
+        # Recupera il regime fiscale dell'utente corrente
+        invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)
+        user_map = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
+        is_ordinario = user_map[
+                           DBUsersColumns.REGIME_FISCALE.value] == self.user_controller.RegimeFiscale.ORDINARIO.value
+
+        for w in parent.winfo_children():
+            # Ottieni il campo associato a questo widget, se esiste
+            widget_field = next((k for k, v in self.invoice_info_widgets.items() if v == w), None)
+
+            # Verifica se campo derivato
+            is_derived = widget_field in self.derived_fields if widget_field else False
+            # Verifica se è il campo Rivalsa INPS con utente ordinario
+            is_rivalsa_locked = widget_field == DBInvoicesColumns.RIVALSA_INPS.value and is_ordinario
+
+            # Imposta stato finale
+            widget_state = ctk.DISABLED if is_derived or is_rivalsa_locked else state
+
+            if isinstance(w, ctk.CTkEntry):
+                w.configure(state=widget_state, text_color="#636363" if widget_state == ctk.DISABLED else "#c2c2c2")
+            elif isinstance(w, ctk.CTkOptionMenu):
+                w.configure(state=widget_state)
+            elif isinstance(w, Calendar):
+                w.configure(state=widget_state)
+            elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
+                self.toggle_edit(w)
+
+    def _clear_content(self):
+        """Distrugge tutti i widget dinamici"""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        self.switch_modify.deselect()
+
+    def _cleanup_and_go_back(self):
+        """Pulizia completa prima di tornare indietro"""
+        self._clear_content()
+        self.pack_forget()
+        self.back_callback()

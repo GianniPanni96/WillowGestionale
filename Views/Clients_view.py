@@ -12,7 +12,7 @@ from Model import DBClientsColumns
 
 
 class ClientsView(ctk.CTkFrame):
-    def __init__(self, db_model, client_controller, catalogo_elenchi, config_manager, tab, event_bus):
+    def __init__(self, db_model, client_controller, catalogo_elenchi, config_manager, tab, event_bus, analyzer):
         super().__init__(tab)
 
         self.db_model = db_model
@@ -21,6 +21,7 @@ class ClientsView(ctk.CTkFrame):
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
         self.event_bus = event_bus
+        self.analyzer = analyzer
 
         self.clients_card_list = {}
 
@@ -44,7 +45,7 @@ class ClientsView(ctk.CTkFrame):
         self.clients_table_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.clients_table_frame.pack(pady=(20, 0), padx=(10,15), fill="x", anchor="n")
 
-        self.headers = ["NOME", "TOT. ENTRATE", "# FATTURE", "FATTURA MEDIA", "TOT. CREDITI",
+        self.headers = ["NOME", "TOT. ENTRATE", "# FATTURE", "FATTURA MEDIA", "TOT. CREDITI", "TOT. RIMBORSI",
                    "PAGAMENTO \n ORARIO MEDIO", "TOT. GIORNI \n RITARDO", "MEDIA RITARDO"]
 
         for i, header in enumerate(self.headers):
@@ -80,11 +81,12 @@ class ClientsView(ctk.CTkFrame):
                                  aggregate_data[ClientController.Aggregate_data.NUM_FATTURE.value],
                                  round(aggregate_data[ClientController.Aggregate_data.MEDIA_FATTURE.value], 2),
                                  round(aggregate_data[ClientController.Aggregate_data.TOT_CREDITI.value], 2),
+                                 round(self.client_controller.calcola_tot_rimborsi_by_client(client[DBClientsColumns.ID.value])),
                                  round(aggregate_data[ClientController.Aggregate_data.PAGAM_ORARIO_MEDIO.value], 2),
                                  aggregate_data[ClientController.Aggregate_data.TOT_GIORNI_RIT.value],
                                  round(aggregate_data[ClientController.Aggregate_data.MEDIA_RITARDO.value], 2))
 
-    def add_client_card(self, client_id, nome, tot_entrate, num_fatture, fattura_media, tot_crediti, pagam_orario, giorni_rit, media_rit):
+    def add_client_card(self, client_id, nome, tot_entrate, num_fatture, fattura_media, tot_crediti, tot_rimborsi, pagam_orario, giorni_rit, media_rit):
         """
         Aggiunge una singola card con i dati forniti alla scrollable frame,
         disponendo i widget in colonne di ugual larghezza.
@@ -100,11 +102,12 @@ class ClientsView(ctk.CTkFrame):
             num_fatture,
             f"{fattura_media:.2f}",
             f"{tot_crediti:.2f}",
+            f"{tot_rimborsi:.2f}",
             f"{pagam_orario:.2f}",
             giorni_rit,
             f"{media_rit:.2f}"
         ]
-        units = ["", "€", "", "€", "€", "€/h", "gg", "gg"]
+        units = ["", "€", "", "€", "€", "€", "€/h", "gg", "gg"]
 
         n_cols = len(data)  # 8 colonne totali
 

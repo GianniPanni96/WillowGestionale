@@ -142,7 +142,7 @@ class MainWindow(ctk.CTk):
                                   self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"),
                                   self.analyzer, self.event_bus)
         self.tab_instances["Clienti"] = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager,
-                                      self.tabview.tab("Clienti"), self.event_bus)
+                                      self.tabview.tab("Clienti"), self.event_bus, self.analyzer)
         self.tab_instances["Fatture"] = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
                                         self.client_controller, self.production_controller, self.payment_controller,
                                         self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,

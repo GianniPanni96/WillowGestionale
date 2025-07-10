@@ -1434,7 +1434,6 @@ class ClientController:
         else:
             return 0  # Nessuna rata in ritardo
 
-
     def calcola_totale_ritardi_cliente(self, client_id):
         """
         Calcola il ritardo totale in giorni per un cliente, considerando:
@@ -1518,6 +1517,14 @@ class ClientController:
                         giorni_ritardo_totale += ritardo
 
         return giorni_ritardo_totale
+
+    def calcola_tot_rimborsi_by_client(self, client_id):
+        refunds = [ValidationUtils._row_to_map(row, DBRefundsColumns) for row in self.db_model.fetch_refunds_by_client_id(client_id)]
+        tot = 0.0
+        for r in refunds:
+            tot += float(r[DBRefundsColumns.REFUND_AMOUNT.value])
+
+        return tot
 
 
 class InvoiceController:
@@ -5017,6 +5024,8 @@ class Analyzer:
         tot_pagamenti = self.payment_controller.calculate_tot_payments(current_year)
 
         return round(tot_fatture - tot_ritenuta - tot_pagamenti, 2)
+
+
 
 
 

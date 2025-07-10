@@ -38,6 +38,8 @@ class ProductionsView(ctk.CTk):
         self.production_card_labels_status = {}
         self.production_card_list = {}
 
+        self.create_productions_tab()
+
     def create_productions_tab(self):
 
         self.search_bar_frame = ctk.CTkFrame(self.tab)

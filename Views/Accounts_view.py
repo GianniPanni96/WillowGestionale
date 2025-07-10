@@ -38,6 +38,8 @@ class AccountsView(ctk.CTk):
         self.update_controller.register_on_adding_expense_view_cllbks(self.update_accounts_balances)
         self.update_controller.register_on_adding_transfer_view_cllbks(self.update_accounts_balances)
 
+        self.create_accounts_tab()
+
     def create_accounts_tab(self):
         """Crea la UI per la gestione dei conti bancari"""
         self.account_description = ctk.CTkLabel(self.tab, text="Gestisci i conti correnti", font=("Arial", 14))

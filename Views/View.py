@@ -41,7 +41,8 @@ class MainWindow(ctk.CTk):
 
         # inizializzatori oggetti controllers e model
         self.db_model = DatabaseModel(db_path)  # Istanzia il modello
-        self.user_controller = UserController(self.db_model, fiscal_settings)  # Crea il controller per gli utenti
+        self.fiscal_settings = fiscal_settings
+        self.user_controller = UserController(self.db_model, self.fiscal_settings)  # Crea il controller per gli utenti
         self.account_controller = AccountController(self.db_model, self.user_controller)
         self.salary_controller = SalaryController(self.db_model, self.user_controller, self.account_controller)
         self.transfer_controller = TransfersController(self.db_model, self.account_controller)
@@ -64,7 +65,7 @@ class MainWindow(ctk.CTk):
                  self.expense_controller,
                  self.salary_controller,
                  self.refund_controller,
-                 fiscal_settings,
+                 self.fiscal_settings,
                  self.recurring_expenses_settings)
 
         self.title("Gestionale Willow")
@@ -84,6 +85,9 @@ class MainWindow(ctk.CTk):
         # Menu "File" personalizzato
         self.recurring_expenses_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Spese Ricorrenti", command=self.open_recurring_expenses_window)
         self.recurring_expenses_menu_button.pack(side="left", padx=15, pady=15)
+
+        self.refresh_view_button = ctk.CTkButton(self.toolbar_frame, text="Refresh", command=self.refresh_tabviews)
+        self.refresh_view_button.pack(side="right", padx=15, pady=15)
 
         # Creazione di un popup menu simulato
         self.file_menu_frame = None
@@ -112,27 +116,7 @@ class MainWindow(ctk.CTk):
 
         self.event_bus = EventBus()
 
-        #Aggiungi widget alla tab clienti tramite la classe ClientsView
-        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller, self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"), self.analyzer, self.event_bus)
-        #self.user_tab.create_user_tab()
-        self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Clienti"), self.event_bus)
-        self.client_tab.create_client_tab()
-        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, self.update_controller, self.tabview, fiscal_settings, self.historical_financial_data_settings, self.event_bus)
-        #self.invoice_tab.create_invoices_tab()
-        self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.production_controller, self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"), self.event_bus)
-        self.payment_tab.create_payments_tab()
-        self.refund_tab = RefundsView(self.db_model, self.refund_controller, self.client_controller, self.account_controller, self.update_controller, self.tabview, self.analyzer, self.event_bus)
-        self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller, self.invoice_controller, self.user_controller, self.client_controller, self.catalogo_elenchi, self.config_manager, self.tabview.tab("Produzioni"), self.event_bus)
-        self.production_tab.create_productions_tab()
-        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller, self.account_controller, self.supplier_controller, self.invoice_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, self.config_manager, self.tabview.tab("Spese"), self.event_bus)
-        self.expense_tab.create_expenses_tab()
-        self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller, self.config_manager, catalogo_elenchi, self.tabview.tab("Fornitori"), self.event_bus)
-        self.supplier_tab.create_suppliers_tab()
-        self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller, self.transfer_controller, self.config_manager, self.catalogo_elenchi, self.analyzer, self.tabview.tab("Conti"), self.event_bus)
-        self.account_tab.create_accounts_tab()
-        self.salary_tab = SalariesView(self.db_model, self.salary_controller, self.user_controller, self.account_controller, self.update_controller, self.analyzer, fiscal_settings, catalogo_elenchi, config_manager, self.tabview.tab("Salario"), self.event_bus)
-        self.salary_tab.create_salaries_tab()
-        self.iva_trimes_tab = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller, self.expense_controller, self.update_controller, self.analyzer, self.tabview, self.event_bus)
+        self.construct_tabviews()
 
         self.update_idletasks()
         self.after(100, lambda: self.state("zoomed"))
@@ -150,10 +134,61 @@ class MainWindow(ctk.CTk):
                 pass
         self._after_ids.clear()
 
-    def close(self):
-        # annullo i timer interni
-        self._cancel_all_after()
-        self.destroy()
+    def construct_tabviews(self):
+        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller,
+                                  self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"),
+                                  self.analyzer, self.event_bus)
+        self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager,
+                                      self.tabview.tab("Clienti"), self.event_bus)
+        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
+                                        self.client_controller, self.production_controller, self.payment_controller,
+                                        self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
+                                        self.historical_financial_data_settings, self.event_bus)
+        self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller,
+                                        self.user_controller, self.client_controller, self.production_controller,
+                                        self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"),
+                                        self.event_bus)
+        self.refund_tab = RefundsView(self.db_model, self.refund_controller, self.client_controller,
+                                      self.account_controller, self.update_controller, self.tabview, self.analyzer,
+                                      self.event_bus)
+        self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller,
+                                              self.invoice_controller, self.user_controller, self.client_controller,
+                                              self.catalogo_elenchi, self.config_manager,
+                                              self.tabview.tab("Produzioni"), self.event_bus)
+        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
+                                        self.account_controller, self.supplier_controller, self.invoice_controller,
+                                        self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
+                                        self.config_manager, self.tabview.tab("Spese"), self.event_bus)
+        self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller,
+                                          self.config_manager, self.catalogo_elenchi, self.tabview.tab("Fornitori"),
+                                          self.event_bus)
+        self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller,
+                                        self.transfer_controller, self.config_manager, self.catalogo_elenchi,
+                                        self.analyzer, self.tabview.tab("Conti"), self.event_bus)
+        self.salary_tab = SalariesView(self.db_model, self.salary_controller, self.user_controller,
+                                       self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
+                                       self.catalogo_elenchi, self.config_manager, self.tabview.tab("Salario"), self.event_bus)
+        self.iva_trimes_tab = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller,
+                                            self.expense_controller, self.update_controller, self.analyzer,
+                                            self.tabview, self.event_bus)
+
+    def destroy_tabviews(self):
+        self.user_tab.destroy()
+        self.client_tab.destroy()
+        self.invoice_tab.destroy()
+        self.payment_tab.destroy()
+        self.refund_tab.destroy()
+        self.production_tab.destroy()
+        self.expense_tab.destroy()
+        self.supplier_tab.destroy()
+        self.account_tab.destroy()
+        self.salary_tab.destroy()
+        self.iva_trimes_tab.destroy()
+
+    def refresh_tabviews(self):
+        self.destroy_tabviews()
+        self.construct_tabviews()
+
 
 
     # Funzioni per la gestione dei backups

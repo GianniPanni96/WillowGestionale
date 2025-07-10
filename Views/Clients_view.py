@@ -24,6 +24,8 @@ class ClientsView(ctk.CTk):
 
         self.clients_card_list = {}
 
+        self.create_client_tab()
+
 
     def create_client_tab(self):
 

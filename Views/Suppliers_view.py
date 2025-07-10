@@ -27,6 +27,8 @@ class SuppliersView(ctk.CTk):
         self.suppliers_card_list = {}
         self.supplier_card_labels_status = {}
 
+        self.create_suppliers_tab()
+
     def create_suppliers_tab(self):
 
         self.search_bar_frame = ctk.CTkFrame(self.tab)

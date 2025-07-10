@@ -38,6 +38,8 @@ class SalariesView(ctk.CTk):
         self.salaries_card_list = {}
         self.salary_card_labels_status = {}
 
+        self.create_salaries_tab()
+
     def create_salaries_tab(self):
         self.search_bar_frame = ctk.CTkFrame(self.tab)
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")

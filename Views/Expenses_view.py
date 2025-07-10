@@ -37,6 +37,8 @@ class ExpensesView(ctk.CTk):
         self.expenses_card_list = {}
         self.expense_card_labels_status = {}
 
+        self.create_expenses_tab()
+
     def create_expenses_tab(self):
         self.search_bar_frame = ctk.CTkFrame(self.tab)
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")

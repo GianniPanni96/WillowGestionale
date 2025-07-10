@@ -36,6 +36,8 @@ class PaymentsView(ctk.CTk):
 
         self.update_controller.register_on_modify_invoice_view_cllbks(self.attach_warning_on_a_card)
 
+        self.create_payments_tab()
+
     def create_payments_tab(self):
 
         self.search_bar_frame = ctk.CTkFrame(self.tab)

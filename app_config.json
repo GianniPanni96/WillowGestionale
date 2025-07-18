@@ -65,22 +65,22 @@
                 "value": "0.78",
                 "description": "Percentuale dell'imponibile considerata per il calcolo fiscale nel regime forfettario."
             },
-            "percentuale_acconto_imposta_primo": {
-                "value": "0.40",
-                "description": "Quota (%) del primo acconto dell\u2019imposta sostitutiva da versare al 30 giugno (saldo+acconto)"
-            },
-            "percentuale_acconto_imposta_secondo": {
-                "value": "0.60",
-                "description": "Quota (%) del secondo acconto dell\u2019imposta sostitutiva da versare al 30 novembre"
-            },
-            "percentuale_acconto_inps_forfettario": {
-                "value": "1.00",
-                "description": "Percentuale dei contributi INPS forfettari su cui calcolare gli acconti (sempre 100% del contributo dovuto)"
-            },
-            "percentuale_rata_acconto_inps_forfettario": {
-                "value": "0.50",
-                "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre) in regime forfettario"
-            }
+			"percentuale_acconto_imposta_primo": {
+			  "value": "0.40",
+			  "description": "Quota (%) del primo acconto dell’imposta sostitutiva da versare al 30 giugno (saldo+acconto)"
+			},
+			"percentuale_acconto_imposta_secondo": {
+			  "value": "0.60",
+			  "description": "Quota (%) del secondo acconto dell’imposta sostitutiva da versare al 30 novembre"
+			},
+			"percentuale_acconto_inps_forfettario": {
+			  "value": "1.00",
+			  "description": "Percentuale dei contributi INPS forfettari su cui calcolare gli acconti (sempre 100% del contributo dovuto)"
+			},
+			"percentuale_rata_acconto_inps_forfettario": {
+			  "value": "0.50",
+			  "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre) in regime forfettario"
+			}
         },
         "partita_iva_ordinaria": {
             "aliquota_irpef_1": {
@@ -219,7 +219,7 @@
         "affitto_studio": {
             "description": "AFFITTO STUDIO",
             "amount": {
-                "value": "1600.0",
+                "value": "1600",
                 "description": ""
             },
             "supplier": {
@@ -230,51 +230,8 @@
                 "value": "S\u00ec",
                 "description": ""
             },
-            "deductor": {
-                "value": 2,
-                "description": ""
-            },
             "category": {
                 "value": "Affitto Ufficio",
-                "description": ""
-            },
-            "iva": {
-                "value": 0.22,
-                "description": ""
-            },
-            "account": {
-                "value": "WeBank",
-                "description": ""
-            },
-            "frequency": {
-                "value": "MENSILE",
-                "description": ""
-            },
-            "status": {
-                "value": "Attiva",
-                "description": ""
-            }
-        },
-        "artlist": {
-            "description": "ARTLIST",
-            "amount": {
-                "value": "250",
-                "description": ""
-            },
-            "supplier": {
-                "value": "Artlist",
-                "description": ""
-            },
-            "deductible": {
-                "value": "S\u00ec",
-                "description": ""
-            },
-            "category": {
-                "value": "Abbonamento",
-                "description": ""
-            },
-            "deductor": {
-                "value": 1,
                 "description": ""
             },
             "iva": {
@@ -286,7 +243,7 @@
                 "description": ""
             },
             "frequency": {
-                "value": "ANNUALE",
+                "value": "MENSILE",
                 "description": ""
             },
             "status": {

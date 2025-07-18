@@ -627,6 +627,7 @@ class PaymentDetailView(ctk.CTkFrame):
         self.update_controller = update_controller
         self.event_bus = event_bus
         self.current_invoice_id = None
+        self.parent = parent
 
         self.configure(fg_color="transparent")
 
@@ -675,16 +676,16 @@ class PaymentDetailView(ctk.CTkFrame):
         self._clear_content()
 
         # 2. Caricamento dati
-        payment = self.payment_controller.retrieve_payment_map_by_id(payment_id)
+        self.payment = self.payment_controller.retrieve_payment_map_by_id(payment_id)
 
         #prendo i dati della fattura associata
-        invoice = self.invoice_controller.retrieve_invoice_map_by_id(payment[DBPaymentsColumns.INVOICE_ID.ID])
+        invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.payment[DBPaymentsColumns.INVOICE_ID.value])
 
         # prendo il nome del conto:
-        id_conto = payment[DBPaymentsColumns.CONTO_ID.value]
+        id_conto = self.payment[DBPaymentsColumns.CONTO_ID.value]
         conto = self.account_controller.retrieve_account_map_by_id(id_conto)
         nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "Conto non trovato"
-        payment[self.nome_conto_string] = nome_conto
+        self.payment[self.nome_conto_string] = nome_conto
 
         # prendo il nome del cliente
         id_cliente = invoice[DBInvoicesColumns.ID_CLIENTE.value]
@@ -700,10 +701,10 @@ class PaymentDetailView(ctk.CTkFrame):
 
         # 3. Aggiornamento elementi persistenti
         self.title_label.configure(
-            text=f"{payment[DBPaymentsColumns.PAYMENT_NAME.value]}")
+            text=f"{self.payment[DBPaymentsColumns.PAYMENT_NAME.value]}")
 
         # 4. Creazione contenuti dinamici
-        self._create_payment_info_section(payment)
+        self._create_payment_info_section(self.payment)
         self.toggle_edit(self.content_frame)
 
         self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
@@ -721,22 +722,10 @@ class PaymentDetailView(ctk.CTkFrame):
         }
 
         self.entry_fields_payments = {
-            # Dati Generali
-            DBPaymentsColumns.PAYMENT_NAME.value: {
-                "type": ctk.CTkLabel,
-                "label": "Nome Pagamento",
-                "section": "Dati Generali"
-            },
             DBPaymentsColumns.PAYMENT_DATE.value: {
                 "type": Calendar,
                 "label": "Data Pagamento",
                 "section": "Dati Generali"
-            },
-            DBPaymentsColumns.LINKED_RATA.value: {
-                "type": ctk.CTkOptionMenu,
-                "label": "Rata Associata",
-                "section": "Dati Generali",
-                "values": ["1", "2", "3"]
             },
 
             # Dati Fiscali
@@ -751,8 +740,14 @@ class PaymentDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Fattura Associata",
                 "section": "Collegamenti",
-                "values": [f"{i[DBInvoicesColumns.NUMERO_FATTURA.value]} - {i[DBInvoicesColumns.ID_CLIENTE.value]}"
+                "values": [f"{i[DBInvoicesColumns.NUMERO_FATTURA.value]}"
                            for i in self.invoice_controller.retrieve_invoices_map_list()]
+            },
+            DBPaymentsColumns.LINKED_RATA.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Rata Associata",
+                "section": "Collegamenti",
+                "values": ["1", "2", "3"]
             },
             self.nome_conto_string: {
                 "type": ctk.CTkOptionMenu,
@@ -797,8 +792,10 @@ class PaymentDetailView(ctk.CTkFrame):
         self.error_labels_payments = {}
         sections = {}
 
+        border_color = "#2659ab" if self.parent.cards_warnings.get(payment_data[DBPaymentsColumns.PAYMENT_NAME.value]) is None else "#fcba03"
+
         # Creazione frame principale
-        info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
+        info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color=border_color)
         info_frame.pack(fill="both", expand=True, pady=10, padx=25)
 
         # Configurazione griglia a 2 colonne (meno campi)
@@ -897,43 +894,74 @@ class PaymentDetailView(ctk.CTkFrame):
                                         command=self.delete_payment)
         self.delete_btn.pack(padx=10, pady=(20, 20), side="right", anchor="e")
 
+    def save_payment_mod(self):
+        nome_conto = self.payment_info_widgets[self.nome_conto_string].get()
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        id_conto = conto[DBAccountsColumns.ID.value] if conto else None
 
+        nome_fattura = self.payment_info_widgets[self.nome_fattura_string].get()
+        fattura = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura)
+        id_fattura = fattura[DBInvoicesColumns.ID.value]
+
+        payment_data = {
+            DBPaymentsColumns.PAYMENT_NAME.value: self.payment[
+                DBPaymentsColumns.PAYMENT_NAME.value],
+            DBPaymentsColumns.PAYMENT_AMOUNT.value: self.payment_info_widgets[
+                DBPaymentsColumns.PAYMENT_AMOUNT.value].get().strip(),
+            DBPaymentsColumns.PAYMENT_DATE.value: self.payment_info_widgets[
+                DBPaymentsColumns.PAYMENT_DATE.value].get_date(),
+            DBPaymentsColumns.LINKED_RATA.value: self.payment_info_widgets[
+                DBPaymentsColumns.LINKED_RATA.value].get(),
+            DBPaymentsColumns.INVOICE_ID.value: id_fattura,
+            DBPaymentsColumns.CONTO_ID.value: id_conto,
+        }
+
+        # Chiamata al controller per salvare i dati
+        success, message = self.payment_controller.update_payment(self.current_payment_id, payment_data)
+        if success:
+            print(
+                f"Pagamento {self.payment_controller.retrieve_payment_map_by_id(self.current_payment_id)[DBPaymentsColumns.PAYMENT_NAME.value]} salvato con successo")
+            ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+            self.switch_modify.deselect()
+            self.toggle_edit(self.content_frame)
+
+        else:
+            # Mostra il messaggio d'errore
+            print(message)
+            ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
+
+    def delete_payment(self):
+        confirmation = ViewUtils.ask_confirmation_popup(self.content_frame, "Stai per eliminare questo pagamento.\nDesideri continuare ?", "ELIMINAZIONE PAGAMENTO" )
+        if confirmation:
+            success, message = self.payment_controller.delete_payment(self.current_payment_id)
+            if success:
+                print(f"Pagamento {self.payment[DBPaymentsColumns.PAYMENT_NAME.value]} eliminato correttamente")
+            else:
+                # Mostra il messaggio d'errore
+                print(message)
+                ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
 
     def toggle_edit(self, parent):
         """
         Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
-        I campi derivati e il campo RIVAlSA_INPS per utenti con regime ordinario restano disabilitati.
         """
+        # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
         state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
 
-        # Stato del pulsante Salva
+        # Cambia anche lo stato del pulsante Salva
         self.save_payment_btn.configure(state=state)
         self.delete_btn.configure(state=state)
 
-        # Recupera il regime fiscale dell'utente corrente
-        invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)
-        user_map = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
-        is_ordinario = user_map[
-                           DBUsersColumns.REGIME_FISCALE.value] == self.user_controller.RegimeFiscale.ORDINARIO.value
-
         for w in parent.winfo_children():
-            # Ottieni il campo associato a questo widget, se esiste
-            widget_field = next((k for k, v in self.invoice_info_widgets.items() if v == w), None)
-
-            # Verifica se campo derivato
-            is_derived = widget_field in self.derived_fields if widget_field else False
-            # Verifica se è il campo Rivalsa INPS con utente ordinario
-            is_rivalsa_locked = widget_field == DBInvoicesColumns.RIVALSA_INPS.value and is_ordinario
-
-            # Imposta stato finale
-            widget_state = ctk.DISABLED if is_derived or is_rivalsa_locked else state
-
+            # se è un Entry
             if isinstance(w, ctk.CTkEntry):
-                w.configure(state=widget_state, text_color="#636363" if widget_state == ctk.DISABLED else "#c2c2c2")
+                w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            # se è un OptionMenu
             elif isinstance(w, ctk.CTkOptionMenu):
-                w.configure(state=widget_state)
+                w.configure(state=state)
             elif isinstance(w, Calendar):
-                w.configure(state=widget_state)
+                w.configure(state=state)
+            # se è un Frame/container, scendi ricorsivamente
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)
 

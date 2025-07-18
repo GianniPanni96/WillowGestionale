@@ -2948,9 +2948,10 @@ class PaymentsController:
             if not payment_id or not isinstance(payment_id, int):
                 return False, "ID pagamento non valido. Deve essere un intero positivo."
 
+            required_fields = {DBPaymentsColumns.PAYMENT_AMOUNT.value}
 
             # Validazione campi obbligatori
-            missing_fields = [field for field in self.required_fields if not payment_data.get(field)]
+            missing_fields = [field for field in required_fields if not payment_data.get(field)]
             if missing_fields:
                 return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
 
@@ -2962,7 +2963,7 @@ class PaymentsController:
                     return False, "L'importo inserito non è valido."
 
             # Invoca il metodo del model per aggiornare l'utente
-            self.db_model.update_user(payment_id, **payment_data)
+            self.db_model.update_payment(payment_id, **payment_data)
             return True, "Pagamento aggiornato con successo!"
 
         except ValueError as ve:
@@ -2975,6 +2976,18 @@ class PaymentsController:
 
     def sum_payments_for_account(self, account_id):
         return self.db_model.sum_payments_by_account(account_id)
+
+    # Controller corretto
+    def delete_payment(self, payment_id):
+        try:
+            # Ottieni il risultato dal model
+            result = self.db_model.delete_payment(payment_id)
+            if result:
+                return True, "Pagamento eliminato con successo."  # Successo
+            else:
+                return False, "Pagamento non trovato o errore durante l'eliminazione."  # Fallimento
+        except Exception as e:
+            return False, f"Errore durante l'eliminazione del pagamento: {str(e)}"  # Eccezione
 
 
 class AccountController:

@@ -962,6 +962,30 @@ class DatabaseModel:
             result = cur.fetchone()[0]
             return result if result is not None else 0.0
 
+    def delete_payment(self, payment_id):
+        """
+        Elimina un pagamento dal database dato il suo ID.
+
+        :param payment_id: ID del pagamento da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM payments WHERE {DBPaymentsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (payment_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True
+                return False
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione del pagamento: {e}")
+            return False
+
+
     #@staticmethod
     @staticmethod
     def _fetch_recent_payments(db_model, months=12):

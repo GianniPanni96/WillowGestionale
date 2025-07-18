@@ -27,9 +27,6 @@ class PaymentsView(ctk.CTkFrame):
         self.global_infos = {}
         self.amount_aggregate_labels = {}
 
-        #self.VF_invoice_list = {}
-        #self.construct_invoices_list_view_friendly()
-
         self.payment_card_list = {}
         self.payment_card_labels_status = {}
         self.cards_warnings = {}
@@ -792,15 +789,24 @@ class PaymentDetailView(ctk.CTkFrame):
         self.error_labels_payments = {}
         sections = {}
 
-        border_color = "#2659ab" if self.parent.cards_warnings.get(payment_data[DBPaymentsColumns.PAYMENT_NAME.value]) is None else "#fcba03"
+        payment_name = payment_data[DBPaymentsColumns.PAYMENT_NAME.value]
+        warning = self.parent.cards_warnings.get(payment_name)
+        border_color = "#2659ab" if warning is None else "#fcba03"
+
+        #warning frame
+        self.warning_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color=border_color)
+        self.toggle_warning_frame(payment_data[DBPaymentsColumns.PAYMENT_NAME.value])
+        ctk.CTkLabel(self.warning_frame, text=warning if warning is not None else "", font=("Arial", 16)).pack(padx=30, pady=(20, 20), side="left")
+        self.remove_warning_btn = ctk.CTkButton(self.warning_frame, text="OK, è tutto in ordine", command=lambda: self.remove_warning(payment_name))
+        self.remove_warning_btn.pack(padx=30, pady=(20, 20), side="right")
 
         # Creazione frame principale
-        info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color=border_color)
-        info_frame.pack(fill="both", expand=True, pady=10, padx=25)
+        self.info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color=border_color)
+        self.info_frame.pack(fill="both", expand=True, pady=(5, 10), padx=(5, 25))
 
         # Configurazione griglia a 2 colonne (meno campi)
-        info_frame.grid_columnconfigure(0, weight=1, uniform="col")
-        info_frame.grid_columnconfigure(1, weight=1, uniform="col")
+        self.info_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        self.info_frame.grid_columnconfigure(1, weight=1, uniform="col")
 
         # Sezioni organizzate per colonne
         sections_order = [
@@ -812,7 +818,7 @@ class PaymentDetailView(ctk.CTkFrame):
 
         # Creazione frame sezioni
         for i, section_name in enumerate(sections_order):
-            frame = ctk.CTkFrame(info_frame)
+            frame = ctk.CTkFrame(self.info_frame)
             column = i % 2  # Solo 2 colonne
             row = i // 2  # Calcola la riga in base all'indice
 
@@ -878,10 +884,8 @@ class PaymentDetailView(ctk.CTkFrame):
             else:
                 section["row"] += 1
 
-        # Binding per calcoli automatici (se necessario)
-        # self.payment_info_widgets[DBPaymentsColumns.PAYMENT_AMOUNT.value].bind("<FocusOut>", self.calcola_totale_pagamento)
 
-        buttons_frame = ctk.CTkFrame(info_frame, fg_color="#2b2b2b")
+        buttons_frame = ctk.CTkFrame(self.info_frame, fg_color="#2b2b2b")
         buttons_frame.grid(row=2, column=0, columnspan=2, pady=(5, 15), padx=20, sticky="WE")
 
         # Bottone Salva
@@ -951,6 +955,7 @@ class PaymentDetailView(ctk.CTkFrame):
         # Cambia anche lo stato del pulsante Salva
         self.save_payment_btn.configure(state=state)
         self.delete_btn.configure(state=state)
+        self.remove_warning_btn.configure(state=state)
 
         for w in parent.winfo_children():
             # se è un Entry
@@ -964,6 +969,24 @@ class PaymentDetailView(ctk.CTkFrame):
             # se è un Frame/container, scendi ricorsivamente
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)
+
+    def toggle_warning_frame(self, payment_name):
+        warning = self.parent.cards_warnings.get(payment_name)
+        if warning is not None:
+            self.warning_frame.pack(fill="both", expand=True, pady=10, padx=(5, 25))
+        else:
+            self.warning_frame.pack_forget()
+
+
+    def remove_warning(self, payment_name):
+        self.save_payment_mod()
+        self.parent.cards_warnings.pop(payment_name)
+        self.info_frame.configure(border_color="#2659ab")
+        #retrieve the card
+        card = self.parent.payment_card_list[payment_name]
+        ViewUtils.toggle_warning_on_card(card, self.parent.cards_warnings)
+        self.toggle_warning_frame(payment_name)
+        self.remove_warning_btn.configure(state=ctk.DISABLED)
 
     def _clear_content(self):
         """Distrugge tutti i widget dinamici"""

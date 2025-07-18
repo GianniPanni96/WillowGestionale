@@ -1801,7 +1801,7 @@ class InvoiceController:
 
         invoice_data_prepared[DBInvoicesColumns.CREATED_AT.value] = invoice[DBInvoicesColumns.CREATED_AT.value]
 
-        invoice_data_prepared[DBInvoicesColumns.UPDATED_AT.value] = datetime.now().replace(microsecond=0)
+        invoice_data_prepared[DBInvoicesColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
             # Invoca il metodo del model per aggiornare l'utente
@@ -2961,6 +2961,8 @@ class PaymentsController:
                 amount = payment_data[DBPaymentsColumns.PAYMENT_AMOUNT.value]
                 if amount and not ValidationUtils.validate_amount(amount):
                     return False, "L'importo inserito non è valido."
+
+            payment_data[DBPaymentsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # Invoca il metodo del model per aggiornare l'utente
             self.db_model.update_payment(payment_id, **payment_data)

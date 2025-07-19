@@ -105,7 +105,7 @@ class PaymentsView(ctk.CTkFrame):
         self.payments_table_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.payments_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
-        self.table_headers = ["NOME", "CLIENTE", "PRODUZIONE", "FATTURA", "TOTALE", "DATA", "RATA", "CONTO\nCORRENTE"]
+        self.table_headers = ["NOME", "CLIENTE", "PRODUZIONE", "FATTURA", "TOTALE", "DATA", "RATA\nFATTURA", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
             # crea il container
@@ -655,8 +655,6 @@ class PaymentDetailView(ctk.CTkFrame):
 
         #self.update_controller.register_on_adding_payment_view_cllbks(self.toggle_warning_global_info_payments)
 
-
-
     def _setup_base_layout(self):
         """Inizializza la struttura base del layout"""
         self.head_frame.pack(fill="x", pady=5, padx=5)
@@ -976,7 +974,6 @@ class PaymentDetailView(ctk.CTkFrame):
             self.warning_frame.pack(fill="both", expand=True, pady=10, padx=(5, 25))
         else:
             self.warning_frame.pack_forget()
-
 
     def remove_warning(self, payment_name):
         self.save_payment_mod()

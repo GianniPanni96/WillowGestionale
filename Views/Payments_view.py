@@ -653,8 +653,6 @@ class PaymentDetailView(ctk.CTkFrame):
         # Layout iniziale
         self._setup_base_layout()
 
-        #self.update_controller.register_on_adding_payment_view_cllbks(self.toggle_warning_global_info_payments)
-
     def _setup_base_layout(self):
         """Inizializza la struttura base del layout"""
         self.head_frame.pack(fill="x", pady=5, padx=5)
@@ -741,6 +739,11 @@ class PaymentDetailView(ctk.CTkFrame):
             DBPaymentsColumns.LINKED_RATA.value: {
                 "type": ctk.CTkOptionMenu,
                 "label": "Rata Associata",
+                "section": "Collegamenti"
+            },
+            self.nome_produzione_associata_string: {
+                "type": ctk.CTkLabel,
+                "label": "Produzione Associata",
                 "section": "Collegamenti",
                 "values": ["1", "2", "3"]
             },
@@ -849,6 +852,7 @@ class PaymentDetailView(ctk.CTkFrame):
             if config["type"] == ctk.CTkLabel:
                 value = str(payment_data.get(field, ""))
                 widget = config["type"](frame, text=value)
+                widget.grid(row=row, column=1, sticky="w", padx=(5, 15), pady=(5, 5))
             else:
                 if config["type"] == ctk.CTkOptionMenu:
                     widget = config["type"](frame, values=config.get("values", []))
@@ -863,7 +867,8 @@ class PaymentDetailView(ctk.CTkFrame):
                     value = str(payment_data.get(field, ""))
                     widget.insert(0, value)
 
-            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(5, 5))
+                widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(5, 5))
+
             self.payment_info_widgets[field] = widget
 
             # Gestione validazione
@@ -882,6 +887,13 @@ class PaymentDetailView(ctk.CTkFrame):
             else:
                 section["row"] += 1
 
+
+        invoice_id = self.payment[DBPaymentsColumns.INVOICE_ID.value]
+        invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+        prod_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+        production = self.production_controller.retrieve_production_map_by_id(prod_id)
+        self.payment_info_widgets[self.nome_produzione_associata_string].configure(
+            text=production[DBProductionsColumns.NAME.value])
 
         buttons_frame = ctk.CTkFrame(self.info_frame, fg_color="#2b2b2b")
         buttons_frame.grid(row=2, column=0, columnspan=2, pady=(5, 15), padx=20, sticky="WE")

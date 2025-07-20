@@ -3458,9 +3458,10 @@ class ProductionController:
             if not production_id or not isinstance(production_id, int):
                 return False, "ID pagamento non valido. Deve essere un intero positivo."
 
+            required_fields = {DBProductionsColumns.NAME.value, DBProductionsColumns.HOURS.value, DBProductionsColumns.TOTALE_PREVENTIVO.value}
 
             # Validazione campi obbligatori
-            missing_fields = [field for field in self.required_fields if not production_data.get(field)]
+            missing_fields = [field for field in required_fields if not production_data.get(field)]
             if missing_fields:
                 return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
 
@@ -3468,14 +3469,16 @@ class ProductionController:
             # Validazione ore di lavoro
             if DBProductionsColumns.HOURS.value in production_data:
                 hours = production_data[DBProductionsColumns.HOURS.value]
-                if hours and not ValidationUtils.validate_integers(hours):
-                    return False, "L'importo orario inserito non è valido, inserire un numero intero."
+                if hours and not ValidationUtils.validate_amount(hours):
+                    return False, "L'importo orario inserito non è valido, inserire un valore numerico"
 
             # Validazione Importo
             if DBProductionsColumns.TOTALE_PREVENTIVO.value in production_data:
                 amount = production_data[DBProductionsColumns.TOTALE_PREVENTIVO.value]
                 if amount and not ValidationUtils.validate_amount(amount):
                     return False, "L'importo del preventivo inserito non è valido."
+
+            production_data[DBProductionsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # Invoca il metodo del model per aggiornare l'utente
             self.db_model.update_production(production_id, **production_data)

@@ -157,7 +157,7 @@ class MainWindow(ctk.CTk):
         self.tab_instances["Produzioni"] = ProductionsView(self.db_model, self.production_controller, self.payment_controller,
                                               self.invoice_controller, self.user_controller, self.client_controller,
                                               self.catalogo_elenchi, self.config_manager,
-                                              self.tabview.tab("Produzioni"), self.event_bus)
+                                              self.tabview.tab("Produzioni"), self.event_bus, self.update_controller)
         self.tab_instances["Spese"] = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
                                         self.account_controller, self.supplier_controller, self.invoice_controller,
                                         self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,

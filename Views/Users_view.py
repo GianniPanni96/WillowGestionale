@@ -1189,6 +1189,9 @@ class UserDetailView(ctk.CTkFrame):
     def show_invoice_detail(self, invoice_id):
         self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, invoice_id)
 
+    def show_salary_detail(self, invoice_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, invoice_id)
+
     def _create_anticipated_expenses_history(self):
         """Crea la sezione storico delle spese anticipate"""
         section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
@@ -1273,7 +1276,9 @@ class UserDetailView(ctk.CTkFrame):
             if salary[DBSalariesColumns.NAME.value] is not None:
                 nome_salario = salary[DBSalariesColumns.NAME.value]
                 id_salario = salary[DBSalariesColumns.ID.value]
-                spesa_button = ctk.CTkButton(salary_frame, text=f"{nome_salario}")
+                spesa_button = ctk.CTkButton(salary_frame,
+                                             text=f"{nome_salario}",
+                                             command=lambda id=id_salario: self.show_salary_detail(id))
                 spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
 
     def _create_fiscal_data_section(self):

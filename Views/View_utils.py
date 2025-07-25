@@ -20,6 +20,7 @@ class ViewUtils(ctk.CTk):
 
     class EventBusKeys(Enum):
         SHOW_INVOICE_DETAIL = "SHOW_INVOICE_DETAIL"
+        SHOW_SALARY_DETAIL = "SHOW_SALARY_DETAIL"
 
     date_pattern = "yyyy-mm-dd"
 

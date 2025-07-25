@@ -26,6 +26,8 @@ class SalariesView(ctk.CTkFrame):
         self.tab = tab
         self.event_bus = event_bus
 
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, self.handle_show_salary_detail)
+
         self.global_infos = {}
         self.amount_aggregate_labels = {}
         self.aggregate_UOM = {
@@ -368,6 +370,11 @@ class SalariesView(ctk.CTkFrame):
             ViewUtils.show_error_popup(self.add_salary_window, "ERRORE", message)
 
     def open_modify_salary(self, salary_id):
+        return
+
+    def handle_show_salary_detail(self, salary_id):
+        #self.tabview.set("Salario")  # Cambia tab
+        #self.open_salary_detail_tab(salary_id)  # Mostra il dettaglio
         return
 
     def clear_class_variable(self):

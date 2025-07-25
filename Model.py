@@ -1359,6 +1359,8 @@ class DatabaseModel:
 
 
 
+
+
     def fetch_productions(self):
         """Recupera tutte le produzioni"""
         query = "SELECT * FROM productions"
@@ -1389,6 +1391,29 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query, tuple(insert_fields.values()))
             conn.commit()
+
+    def remove_production(self, production_id):
+        """
+        Elimina una produzione dal database dato il suo ID.
+
+        :param production_id: ID della produzione da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM productions WHERE {DBProductionsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (production_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True
+                return False
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione della produzione: {e}")
+            return False
 
     def fetch_production_by_id(self, production_id):
         """
@@ -1444,6 +1469,54 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query)
             return cursor.fetchone()
+
+    def fetch_all_productions_with_invoices(self):
+        """
+        Recupera tutte le produzioni unite alle rispettive fatture associate.
+        Utilizza un LEFT JOIN per includere anche le produzioni senza fatture collegate.
+        Ritorna una lista di tuple con le colonne di productions seguite da quelle di invoices (NULL se non presenti).
+        """
+        # Colonne per productions (prefisso 'p')
+        production_columns = [f"p.{col.value}" for col in DBProductionsColumns]
+        # Colonne per invoices (prefisso 'i')
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = production_columns + invoice_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM productions p
+        LEFT JOIN invoices i ON i.{DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value} = p.{DBProductionsColumns.ID.value}
+        ORDER BY p.{DBProductionsColumns.ID.value} ASC
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def fetch_production_with_invoices(self, production_id):
+        """
+        Recupera una produzione specifica unita a tutte le sue fatture associate.
+        Utilizza un LEFT JOIN per includere la produzione anche se non ha fatture collegate.
+        Ritorna una lista di tuple con le colonne di productions seguite da quelle di invoices (NULL se non presenti).
+        """
+        # Colonne per productions (prefisso 'p')
+        production_columns = [f"p.{col.value}" for col in DBProductionsColumns]
+        # Colonne per invoices (prefisso 'i')
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = production_columns + invoice_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM productions p
+        LEFT JOIN invoices i ON i.{DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value} = p.{DBProductionsColumns.ID.value}
+        WHERE p.{DBProductionsColumns.ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (production_id,))
+            return cursor.fetchall()
 
     def update_production(self, production_id, **kwargs):
         """

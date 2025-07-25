@@ -3490,6 +3490,9 @@ class ProductionController:
         except Exception as e:
             return False, f"Errore durante l'aggiornamento della produzione: {str(e)}"
 
+    def delete_production(self, production_id):
+        return self.db_model.remove_production(production_id)
+
     def update_specific_production_data(self, production_id, production_data):
         try:
             self.db_model.update_production(production_id, **production_data)
@@ -3593,6 +3596,13 @@ class ProductionController:
         # Applica il filtro usando il metodo statico
         return ControllerUtils.filter_productions(productions, current_year)
 
+    def retrieve_production_with_invoices_map_list(self, production_id):
+        invoices = self.db_model.fetch_production_with_invoices(production_id)
+        all_columns = list(DBProductionsColumns) + list(DBInvoicesColumns)
+        invoices_map = [ValidationUtils._row_to_map(invoice, all_columns) for invoice in invoices]
+
+        return invoices_map
+
     def retrieve_last_production_insert_map(self):
         """
         Recupera l'ultima production inserita e la restituisce come dizionario.
@@ -3682,6 +3692,15 @@ class ProductionController:
         self.CY_productions_aggregated_data[ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value] = self.count_active_productions(True)
         self.CY_productions_aggregated_data[ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value] = self.count_closed_productions(True)
 
+    def calcola_totale_servizi_rimborsi_per_produzione(self, production_id):
+
+        invoices_map = self.retrieve_production_with_invoices_map_list(production_id)
+
+        tot = 0.0
+        for invoice in invoices_map:
+            tot += invoice[DBInvoicesColumns.SERVIZI.value] + invoice[DBInvoicesColumns.RIMBORSI.value] if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None else 0
+
+        return tot
 
 class ExpenseController:
 

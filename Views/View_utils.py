@@ -138,7 +138,7 @@ class ViewUtils(ctk.CTk):
         # Creazione del Toplevel e impostazioni iniziali
         popup = ctk.CTkToplevel(parent)
         popup.title(title)
-        popup.geometry("350x190")
+        #popup.geometry("350x190")
         popup.grab_set()  # Rende il pop-up modale
         popup.lift()  # Porta il pop-up in primo piano
 

@@ -3,7 +3,7 @@ import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
 from Controllers import ProductionController, PaymentsController, InvoiceController, UserController, ControllerUtils
-from Model import DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns
+from Model import DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBInvoicesColumns
 from datetime import datetime
 import re
 from enum import Enum
@@ -949,10 +949,63 @@ class ProductionDetailView(ctk.CTkFrame):
                 ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
 
     def delete_production(self):
-        return
+
+        invoices_map_list = self.invoice_controller.retrieve_invoice_map_list_by_production(self.current_production_id)
+        invoices_presence = False
+        if len(invoices_map_list) > 0:
+            invoices_presence = True
+
+        message = "Sei sicuro di voler eliminare questa produzione?" if not invoices_presence else ("Sei sicuro di voler eliminare questa produzione?\n"
+                                                                                                    "Essa presenta delle fatture associate. Controlla eventualmente la consistenza dei dati\n"
+                                                                                                    "di tali fatture a seguito dell'eliminazione")
+        confirmation = ViewUtils.ask_confirmation_popup(self.info_frame, message, "ELIMINAZIONE PRODUZIONE")
+        if confirmation:
+            success = self.production_controller.delete_production(self.current_production_id)
+            if success:
+                ViewUtils.show_confirm_popup(self.info_frame)
+            else:
+                ViewUtils.show_error_popup(self.info_frame)
+
 
     def _create_invoices_history(self):
-        return
+        """Crea la sezione fatture associate"""
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
+
+        ctk.CTkLabel(section_frame, text="FATTURE ASSOCIATE", font=("Arial", 14, "bold")).pack(anchor="w",
+                                                                                               pady=(10, 10), padx=10)
+
+        global_infos = {
+            "TOTALE SERVIZI + RIMBORSI\nFATTURE": {
+                "value": self.production_controller.calcola_totale_servizi_rimborsi_per_produzione(self.current_production_id),
+                "uom": "€"
+            },
+            "TOTALE PREVENTIVO": {
+                "value": self.production_controller.retrieve_production_map_by_id(self.current_production_id)[DBProductionsColumns.TOTALE_PREVENTIVO.value],
+                "uom": "€"
+            }
+        }
+
+        self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+
+        invoice_frame = ctk.CTkScrollableFrame(section_frame, height=300)
+        invoice_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
+
+        # popolo gli invoices
+        invoices = self.production_controller.retrieve_production_with_invoices_map_list(self.current_production_id)
+        for invoice in invoices:
+            if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None:
+                nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
+                id_fattura = invoice[DBInvoicesColumns.ID.value]
+                fattura_button = ctk.CTkButton(invoice_frame,
+                                               text=f"{nome_fattura}",
+                                               command=lambda id=id_fattura: self.show_invoice_detail(id))
+                fattura_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def show_invoice_detail(self, invoice_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, invoice_id)
+
 
     def auto_compile_name(self, event):
         client_name = self.production_info_widgets[self.nome_cliente_string].get()

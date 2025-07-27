@@ -1499,7 +1499,6 @@ class UserDetailView(ctk.CTkFrame):
 
                 ViewUtils.add_tooltip(title_label, tooltip_text)
 
-
     def _create_iva_section(self):
         # Creazione frame principale
         iva_frame = ctk.CTkFrame(self.wrapper_frame2, border_width=2, border_color="#2659ab")
@@ -1598,10 +1597,6 @@ class UserDetailView(ctk.CTkFrame):
 
                 # Aggiorna il testo della label
                 self.tasse_infos_user_widgets[name]["label"].configure(text=new_text)
-
-
-
-
 
     def _cleanup_and_go_back(self):
         """Pulizia completa prima di tornare indietro"""

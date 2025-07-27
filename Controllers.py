@@ -1190,6 +1190,37 @@ class ClientController:
         except Exception as e:
             return False, f"Errore durante il salvataggio del cliente: {str(e)}"
 
+    def delete_client(self, client_id):
+        return self.db_model.remove_client(client_id)
+
+    def update_client(self, client_id, client_data):
+        """
+        Aggiorna i dati di un cliente esistente.
+        :param client_id: ID del cliente da aggiornare
+        :param client_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità
+            if not client_id or not isinstance(client_id, int):
+                return False, "ID cliente non valido. Deve essere un intero positivo."
+
+            required_fields = {DBClientsColumns.NAME.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not client_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_client(client_id, **client_data)
+            return True, "Cliente aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del cliente: {str(e)}"
+
     def retrieve_clients(self):
         """Recupera tutti i clienti."""
         return self.db_model.fetch_clients()
@@ -1250,16 +1281,6 @@ class ClientController:
         }
 
         return client_aggregate_data
-
-    def delete_client_by_id(self, client_id):
-        """Elimina un cliente dato il suo ID."""
-        table = "clients"
-        try:
-            self.db_model.delete_row(table, DBClientsColumns.ID.value, client_id)
-            print(f"Cliente {client_id} rimosso con successo")
-            return True, f"Cliente {client_id} rimosso con successo"
-        except Exception as e:
-            return False, f"Errore durante l'eliminazione del cliente: {str(e)}"
 
     def print_cliente(self, client):
         """
@@ -1930,6 +1951,22 @@ class InvoiceController:
         :return: Lista di dizionari contenenti i dati delle fatture.
         """
         rows = self.db_model.fetch_invoices_by_prod_id(prod_id)
+
+        if current_year and rows:
+            rows = ControllerUtils.filter_invoices(rows, self.db_model, current_year)
+
+        return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
+
+    def retrieve_invoice_map_list_by_client(self, client_id, current_year=True):
+        """
+        Recupera tutte le fatture di un cliente e le restituisce come lista di dizionari,
+        filtrandole per l'anno corrente o mantenendo quelle con rate non pagate.
+
+        :param client_id: ID del cliente.
+        :param current_year: Se True, ritorna solo le fatture dell'anno corrente o con rate non pagate.
+        :return: Lista di dizionari contenenti i dati delle fatture.
+        """
+        rows = self.db_model.fetch_invoices_by_client_id(client_id)
 
         if current_year and rows:
             rows = ControllerUtils.filter_invoices(rows, self.db_model, current_year)
@@ -3647,6 +3684,10 @@ class ProductionController:
             productions = self.retrieve_productions_map_list(current_year=False)
         return len(productions)
 
+    def count_productions_of_client(self, client_id, current_year=True):
+        productions_map = self.retrieve_productions_map_list_by_client_id(client_id, current_year=True)
+        return(len(productions_map))
+
     def count_active_productions(self, current_year=True):
         """
         Conta il numero di productions attive, applicando il filtro per l'anno corrente se specificato.
@@ -3701,6 +3742,7 @@ class ProductionController:
             tot += invoice[DBInvoicesColumns.SERVIZI.value] + invoice[DBInvoicesColumns.RIMBORSI.value] if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None else 0
 
         return tot
+
 
 class ExpenseController:
 
@@ -4611,6 +4653,17 @@ class RefundController:
         for refund in refund_list:
             tot = tot + float(refund[DBRefundsColumns.REFUND_AMOUNT.value])
         return tot
+
+    def calculate_tot_refunds_of_client(self, client_id, current_year=True):
+        """
+        Calcola il totale degli importi dei rimborsi.
+        """
+        refund_list = self.retrieve_refunds_map_list_by_client_id(current_year, client_id)
+        tot = 0.0
+        for refund in refund_list:
+            tot = tot + float(refund[DBRefundsColumns.REFUND_AMOUNT.value])
+        return tot
+
 
     def update_refund(self, refund_id, refund_data):
         """

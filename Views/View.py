@@ -141,8 +141,9 @@ class MainWindow(ctk.CTk):
         self.tab_instances["Utenti"] = UsersView(self.db_model, self.user_controller, self.account_controller,
                                   self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"),
                                   self.analyzer, self.event_bus)
-        self.tab_instances["Clienti"] = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager,
-                                      self.tabview.tab("Clienti"), self.event_bus, self.analyzer)
+        self.tab_instances["Clienti"] = ClientsView(self.db_model, self.client_controller, self.production_controller,
+                                                    self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
+                                                    self.config_manager, self.tabview.tab("Clienti"), self.event_bus, self.analyzer)
         self.tab_instances["Fatture"] = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
                                         self.client_controller, self.production_controller, self.payment_controller,
                                         self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
@@ -157,7 +158,7 @@ class MainWindow(ctk.CTk):
         self.tab_instances["Produzioni"] = ProductionsView(self.db_model, self.production_controller, self.payment_controller,
                                               self.invoice_controller, self.user_controller, self.client_controller,
                                               self.catalogo_elenchi, self.config_manager,
-                                              self.tabview.tab("Produzioni"), self.event_bus, self.update_controller)
+                                              self.tabview, self.event_bus, self.update_controller)
         self.tab_instances["Spese"] = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
                                         self.account_controller, self.supplier_controller, self.invoice_controller,
                                         self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,

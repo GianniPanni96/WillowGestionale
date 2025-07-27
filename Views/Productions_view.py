@@ -10,8 +10,8 @@ from enum import Enum
 
 class ProductionsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, production_controller, payment_controller, invoice_controller, user_controller, client_controller, catalogo_elenchi, config_manager, tab, event_bus, update_controller):
-        super().__init__(tab)
+    def __init__(self, db_model, production_controller, payment_controller, invoice_controller, user_controller, client_controller, catalogo_elenchi, config_manager, tabview, event_bus, update_controller):
+        super().__init__(tabview.tab("Produzioni"))
 
         self.db_model = db_model
         self.production_controller = production_controller
@@ -21,9 +21,12 @@ class ProductionsView(ctk.CTkFrame):
         self.payment_controller = payment_controller
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
-        self.tab = tab
+        self.tabview = tabview
+        self.tab = self.tabview.tab("Produzioni")
         self.event_bus = event_bus
         self.update_controller = update_controller
+
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self.handle_show_production_detail)
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -63,6 +66,10 @@ class ProductionsView(ctk.CTkFrame):
         """Torna alla vista principale"""
         self.production_detail_view.pack_forget()
         self.main_container.pack(fill='both', expand=True)
+
+    def handle_show_production_detail(self, production_id):
+        self.tabview.set("Produzioni")  # Cambia tab
+        self.open_production_detail_tab(production_id)  # Mostra il dettaglio
 
     def open_production_detail_tab(self, production_id):
         """Mostra la vista dettaglio utente"""
@@ -619,7 +626,7 @@ class ProductionDetailView(ctk.CTkFrame):
         self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
         self.back_button = ctk.CTkButton(
             self.head_frame,
-            text="Elenco Pagamenti",
+            text="Elenco Produzioni",
             command=self._cleanup_and_go_back
         )
         self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))

@@ -4495,7 +4495,7 @@ class RefundController:
         self.client_controller = client_controller
         self.account_controller = account_controller
 
-    def  save_refund(self, refund_data):
+    def save_refund(self, refund_data):
         """
         Gestisce il salvataggio di un rimborso, con validazioni di primo livello.
         :param refund_data: Dizionario contenente i dati del rimborso
@@ -4539,6 +4539,45 @@ class RefundController:
             return True, "Rimborso salvato con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
+
+    def update_refund(self, refund_id, refund_data):
+        """
+        Aggiorna i dati di un rimborso esistente.
+        :param refund_id: ID del rimborso da aggiornare
+        :param refund_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità refund_id
+            if not refund_id or not isinstance(refund_id, int):
+                return False, "ID rimborso non valido. Deve essere un intero positivo."
+
+            required_fields = {DBRefundsColumns.REFUND_NAME.value, DBRefundsColumns.REFUND_AMOUNT.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not refund_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Validazione Importo
+            if DBRefundsColumns.REFUND_AMOUNT.value in refund_data:
+                amount = refund_data[DBRefundsColumns.REFUND_AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo inserito non è valido."
+
+            refund_data[DBRefundsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_refund(refund_id, **refund_data)
+            return True, "Produzione aggiornata con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del rimborso: {str(e)}"
+
+    def delete_refund(self, refund_id):
+        return self.db_model.remove_refund(refund_id)
 
     def retrieve_refunds(self, current_year=True):
         """

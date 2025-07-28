@@ -1099,6 +1099,29 @@ class DatabaseModel:
             cursor.execute(query, tuple(insert_fields.values()))
             conn.commit()
 
+    def remove_refund(self, refund_id):
+        """
+        Elimina un rimborso dal database dato il suo ID.
+
+        :param refund_id: ID del rimborso da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM refunds WHERE {DBRefundsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (refund_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True, "Rimborso eliminato con successo dal database"
+                return False, "Qualcosa è andato storto, il rimborso non è stato eliminato"
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione del rimborso: {e}")
+            return False, f"Errore durante l'eliminazione del rimborso: {e}"
+
     def fetch_refund_by_id(self, refund_id):
         """
         Recupera un rimborso specifico in modo dinamico.

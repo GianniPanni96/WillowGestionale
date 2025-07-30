@@ -3806,7 +3806,7 @@ class ExpenseController:
         #prendo ID Utente per la deduzione
         user_id_deduzione = None
         user_name = expense_data.get("DEDUZIONE A CARICO")
-        if len(user_name.split(" ")) >= 2: #se è un nome di un utente vero allora è Nome Cognome
+        if user_name is not None and len(user_name.split(" ")) >= 2: #se è un nome di un utente vero allora è Nome Cognome
             user_first = user_name.split(" ")[0]
             user_last = user_name.split(" ")[1]
             user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
@@ -3816,14 +3816,16 @@ class ExpenseController:
         invoice_id = None
         #la view si occupa di non mandare tra i dati la fattura associata se la categoria non è "SPESA DI PRODUZIONE"
         invoice_name = expense_data.get("FATTURA ASSOCIATA")
-        if invoice_name:
+        if invoice_name is not None:
             invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name, True)
-            invoice_id = invoice[DBInvoicesColumns.ID.value]
+            if invoice != {}:
+                invoice_id = invoice[DBInvoicesColumns.ID.value]
 
         #calcolo importo netto
         aliquota_iva = float(expense_data.get("ALIQUOTA IVA"))
-        spesa_netta = float(spesa_lorda)/( 1 + aliquota_iva)
-        iva = spesa_netta * aliquota_iva
+        iva = float(spesa_lorda)*aliquota_iva
+        spesa_netta = float(spesa_lorda)-iva
+
 
         #prendo ID supplier
         supplier_id = None
@@ -3839,9 +3841,11 @@ class ExpenseController:
             conto = self.account_controller.retrieve_account_map_by_name(conto_name)
             conto_id = conto[DBAccountsColumns.ID.value]
 
+        nome_spesa = supplier_name + " - " + expense_data.get(DBExpensesColumns.NAME.value)
+
 
         expense_data_prepared = {
-            DBExpensesColumns.NAME.value: expense_data.get(DBExpensesColumns.NAME.value),
+            DBExpensesColumns.NAME.value: nome_spesa,
             DBExpensesColumns.USER_ID_ANTICIPO.value: user_id_anticipo,
             DBExpensesColumns.USER_ID_DEDUZIONE.value: user_id_deduzione,
             DBExpensesColumns.SUPPLIER_ID.value: supplier_id,
@@ -4060,7 +4064,8 @@ class ExpenseController:
                 DBExpensesColumns.USER_ID_DEDUZIONE.value: deductor_id,
                 DBExpensesColumns.DATE.value: today.isoformat(),
                 DBExpensesColumns.DEDUCIBILE.value: "Sì" if exp.deductible else "No",
-                DBExpensesColumns.ACCOUNT_ID.value: acct_id
+                DBExpensesColumns.ACCOUNT_ID.value: acct_id,
+                DBExpensesColumns.RICORRENTE.value: 1
             }
             try:
                 self.db_model.add_expense(**new_exp)

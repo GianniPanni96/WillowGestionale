@@ -768,6 +768,7 @@ class RefundDetailView(ctk.CTkFrame):
         if confirmation:
             success, message = self.refund_controller.delete_refund(self.current_refund_id)
             if success:
+                ViewUtils.show_confirm_popup_2(self.content_frame, "RIMBORSO ELIMINATO CON SUCCESSO", message)
                 print(f"Rimborso {self.refund[DBRefundsColumns.REFUND_NAME.value]} eliminato correttamente")
             else:
                 # Mostra il messaggio d'errore

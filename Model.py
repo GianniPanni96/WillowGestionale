@@ -1276,6 +1276,50 @@ class DatabaseModel:
             cursor.execute(query, tuple(insert_fields.values()))
             conn.commit()
 
+    def remove_expense(self, expense_id):
+        """
+        Elimina una spesa dal database dato il suo ID.
+
+        :param expense_id: ID della spesa da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM expenses WHERE {DBExpensesColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (expense_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True, "Spesa eliminata con successo dal database"
+                return False, "Qualcosa è andato storto, la spesa non è stata eliminata"
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione della spesa: {e}")
+            return False, f"Errore durante l'eliminazione della spesa: {e}"
+
+    def update_expense(self, expense_id, **kwargs):
+        """
+        Aggiorna i valori di una spesa esistente.
+        """
+        valid_columns = {column.value for column in DBExpensesColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE expenses SET {set_clause} WHERE {DBExpensesColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), expense_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento della spesa: {str(e)}")
+
     def fetch_expense_by_id(self, expense_id):
         """
         Recupera una expense specifica dato il suo id.

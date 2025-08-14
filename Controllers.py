@@ -3867,6 +3867,61 @@ class ExpenseController:
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
 
+    def update_expense(self, expense_id, expense_data):
+        """
+        Aggiorna i dati di unaa spesa esistente.
+        :param expense_id: ID dellla spesa da aggiornare
+        :param expense_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità refund_id
+            if not expense_id or not isinstance(expense_id, int):
+                return False, "ID rimborso non valido. Deve essere un intero positivo."
+
+            required_fields = {DBExpensesColumns.NET_AMOUNT.value, DBExpensesColumns.TOT_AMOUNT.value, DBExpensesColumns.IVA_AMOUNT.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not expense_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Validazione Importi
+            if DBExpensesColumns.NET_AMOUNT.value in expense_data:
+                amount = expense_data[DBExpensesColumns.NET_AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo netto inserito non è valido."
+
+            if DBExpensesColumns.TOT_AMOUNT.value in expense_data:
+                amount = expense_data[DBExpensesColumns.TOT_AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo lordo inserito non è valido."
+
+            if DBExpensesColumns.IVA_AMOUNT.value in expense_data:
+                amount = expense_data[DBExpensesColumns.IVA_AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo iva inserito non è valido."
+
+            if expense_data[DBExpensesColumns.CATEGORY.value] != dict(self.catalogo_elenchi["expenses_category"]).get("PRODUCTION_EXPENSE"):
+                expense_data.pop(DBExpensesColumns.LINKED_INVOICE_ID.value)
+
+            if expense_data[DBExpensesColumns.DEDUCIBILE.value] == "No":
+                expense_data.pop(DBExpensesColumns.USER_ID_DEDUZIONE.value)
+
+            expense_data[DBExpensesColumns.updated_at.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_expense(expense_id, **expense_data)
+            return True, "Spesa aggiornata con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento della spesa: {str(e)}"
+
+    def delete_expense(self, expense_id):
+        return self.db_model.remove_expense(expense_id)
+
     def retrieve_expenses(self, current_year=True):
         """
         Recupera tutte le expenses, filtrandole per l'anno corrente se specificato.
@@ -4574,7 +4629,7 @@ class RefundController:
 
             # Invoca il metodo del model per aggiornare l'utente
             self.db_model.update_refund(refund_id, **refund_data)
-            return True, "Produzione aggiornata con successo!"
+            return True, "Rimborso aggiornato con successo!"
 
         except ValueError as ve:
             return False, str(ve)

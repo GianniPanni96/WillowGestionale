@@ -1877,8 +1877,47 @@ class InvoiceDetailView(ctk.CTkFrame):
             if payment[DBPaymentsColumns.PAYMENT_NAME.value] is not None:
                 nome_pagamento = payment[DBPaymentsColumns.PAYMENT_NAME.value]
                 id_pagamento = payment[DBPaymentsColumns.ID.value]
-                pagamento_button = ctk.CTkButton(payments_frame, text=f"{nome_pagamento}")
+                pagamento_button = ctk.CTkButton(payments_frame,
+                                                 text=f"{nome_pagamento}",
+                                                 command=lambda id=id_pagamento: self.show_payment_detail(id))
                 pagamento_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def show_payment_detail(self, payment_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, payment_id)
+
+    def _create_production_expenses_history(self):
+        """Crea la sezione storico delle spese di produzione"""
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
+
+        ctk.CTkLabel(section_frame, text="SPESE DI PRODUZIONE ASSOCIATE", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        global_infos = {
+            "TOTALE SPESE" : {
+                "value" : self.invoice_controller.calcola_totale_spese_produzione_fattura(self.current_invoice_id),
+                "uom" : "€"
+            }
+        }
+
+        self.global_infos_payments_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+        # tabella payments
+        expenses_frame = ctk.CTkScrollableFrame(section_frame, height=300)
+        expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
+
+        # popolo i payments
+        expenses = self.invoice_controller.retrieve_invoice_with_expenses_map_list(self.current_invoice_id)
+        for expense in expenses:
+            if expense[DBExpensesColumns.NAME.value] is not None:
+                nome_spesa = expense[DBExpensesColumns.NAME.value]
+                id_spesa = expense[DBExpensesColumns.ID.value]
+                spesa_button = ctk.CTkButton(expenses_frame,
+                                             text=f"{nome_spesa}",
+                                             command=lambda id=id_spesa: self.show_production_expense_detail(id))
+                spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def show_production_expense_detail(self, expense_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, expense_id)
 
     #da salvare come callback alla modifica/aggiunta di un pagamento
     def toggle_warning_global_info_payments(self):
@@ -1932,34 +1971,6 @@ class InvoiceDetailView(ctk.CTkFrame):
                 card.configure(border_width=2, border_color="#e6c719")
                 ViewUtils.add_tooltip(label, warning)
 
-    def _create_production_expenses_history(self):
-        """Crea la sezione storico delle spese di produzione"""
-        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
-        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
-
-        ctk.CTkLabel(section_frame, text="SPESE DI PRODUZIONE ASSOCIATE", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
-
-        global_infos = {
-            "TOTALE SPESE" : {
-                "value" : self.invoice_controller.calcola_totale_spese_produzione_fattura(self.current_invoice_id),
-                "uom" : "€"
-            }
-        }
-
-        self.global_infos_payments_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
-
-        # tabella payments
-        expenses_frame = ctk.CTkScrollableFrame(section_frame, height=300)
-        expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
-
-        # popolo i payments
-        expenses = self.invoice_controller.retrieve_invoice_with_expenses_map_list(self.current_invoice_id)
-        for expense in expenses:
-            if expense[DBExpensesColumns.NAME.value] is not None:
-                nome_spesa = expense[DBExpensesColumns.NAME.value]
-                id_spesa = expense[DBExpensesColumns.ID.value]
-                spesa_button = ctk.CTkButton(expenses_frame, text=f"{nome_spesa}")
-                spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
 
 
 

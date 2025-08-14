@@ -10,8 +10,8 @@ from enum import Enum
 
 class PaymentsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, payment_controller, invoice_controller, user_controller, client_controller, production_controller, account_controller, update_controller, tab, event_bus):
-        super().__init__(tab)
+    def __init__(self, db_model, payment_controller, invoice_controller, user_controller, client_controller, production_controller, account_controller, update_controller, tab_view, event_bus):
+        super().__init__(tab_view.tab("Pagamenti"))
 
         self.db_model = db_model
         self.invoice_controller = invoice_controller
@@ -21,7 +21,8 @@ class PaymentsView(ctk.CTkFrame):
         self.production_controller = production_controller
         self.account_controller = account_controller
         self.update_controller = update_controller
-        self.tab = tab
+        self.tab_view = tab_view
+        self.tab = tab_view.tab("Pagamenti")
         self.event_bus = event_bus
 
         self.global_infos = {}
@@ -32,6 +33,7 @@ class PaymentsView(ctk.CTkFrame):
         self.cards_warnings = {}
 
         self.update_controller.register_on_modify_invoice_view_cllbks(self.attach_warning_on_a_card)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self.handle_show_payment_detail)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -185,6 +187,11 @@ class PaymentsView(ctk.CTkFrame):
         #warnings launch
         for card in self.payment_card_list.values():
             ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
+
+    def handle_show_payment_detail(self, payment_id):
+        self.tab_view.set("Pagamenti")  # Cambia tab
+        self.open_payment_detail_tab(payment_id)  # Mostra il dettaglio
+
 
     def populate_global_infos(self):
         numero_pagamenti = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value]
@@ -949,6 +956,7 @@ class PaymentDetailView(ctk.CTkFrame):
         if confirmation:
             success, message = self.payment_controller.delete_payment(self.current_payment_id)
             if success:
+                ViewUtils.show_confirm_popup_2(self.content_frame, "PAGAMENTO ELIMINATO CON SUCCESSO", message)
                 print(f"Pagamento {self.payment[DBPaymentsColumns.PAYMENT_NAME.value]} eliminato correttamente")
             else:
                 # Mostra il messaggio d'errore

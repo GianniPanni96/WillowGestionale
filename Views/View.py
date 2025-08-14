@@ -150,7 +150,7 @@ class MainWindow(ctk.CTk):
                                         self.historical_financial_data_settings, self.event_bus, self.analyzer)
         self.tab_instances["Pagamenti"] = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller,
                                         self.user_controller, self.client_controller, self.production_controller,
-                                        self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"),
+                                        self.account_controller, self.update_controller, self.tabview,
                                         self.event_bus)
         self.tab_instances["Rimborsi"] = RefundsView(self.db_model, self.refund_controller, self.client_controller,
                                       self.account_controller, self.update_controller, self.tabview, self.analyzer,
@@ -162,7 +162,7 @@ class MainWindow(ctk.CTk):
         self.tab_instances["Spese"] = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
                                         self.account_controller, self.supplier_controller, self.invoice_controller,
                                         self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
-                                        self.config_manager, self.tabview.tab("Spese"), self.event_bus)
+                                        self.config_manager, self.tabview, self.event_bus)
         self.tab_instances["Fornitori"] = SuppliersView(self.db_model, self.supplier_controller, self.update_controller,
                                           self.config_manager, self.catalogo_elenchi, self.tabview.tab("Fornitori"),
                                           self.event_bus)

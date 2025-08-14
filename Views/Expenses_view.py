@@ -12,8 +12,8 @@ from datetime import datetime, timedelta, date
 
 class ExpensesView(ctk.CTkFrame):
 
-    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab, event_bus):
-        super().__init__(tab)
+    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab_view, event_bus):
+        super().__init__(tab_view.tab("Spese"))
 
         self.db_model = db_model
         self.expense_controller = expense_controller
@@ -26,7 +26,8 @@ class ExpensesView(ctk.CTkFrame):
         self.fiscal_settings = fiscal_settings
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
-        self.tab = tab
+        self.tab_view = tab_view
+        self.tab = tab_view.tab("Spese")
         self.event_bus = event_bus
 
         self.global_infos = {}
@@ -39,6 +40,8 @@ class ExpensesView(ctk.CTkFrame):
         self.expenses_card_list = {}
         self.expense_card_labels_status = {}
         self.cards_warnings = {}
+
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self.handle_show_expense_detail)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -340,6 +343,10 @@ class ExpensesView(ctk.CTkFrame):
                   DBExpensesColumns.TOT_AMOUNT.value],
               "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
             ))
+
+    def handle_show_expense_detail(self, expense_id):
+        self.tab_view.set("Spese")  # Cambia tab
+        self.open_expense_detail_tab(expense_id)  # Mostra il dettaglio
 
     def save_expense_data(self):
         expense_data = {}
@@ -803,7 +810,7 @@ class ExpenseDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Deducibile",
                 "section": "Dati Fiscali",
-                "values": ["Sì", "No", "Parziale"]
+                "values": ["Sì", "No"]
             },
 
             # Collegamenti
@@ -1057,10 +1064,80 @@ class ExpenseDetailView(ctk.CTkFrame):
         self.delete_btn.pack(padx=10, pady=(20, 20), side="right", anchor="e")
 
     def delete_expense(self):
-        return
+        confirmation = ViewUtils.ask_confirmation_popup(self.content_frame,
+                                                        "Stai per eliminare questa spesa.\nDesideri continuare ?",
+                                                        "ELIMINAZIONE Spesa")
+        if confirmation:
+            success, message = self.expense_controller.delete_expense(self.current_expense_id)
+            if success:
+                ViewUtils.show_confirm_popup_2(self.content_frame, "SPESA ELIMINATA CON SUCCESSO", message)
+                print(f"Spesa {self.expense[DBExpensesColumns.NAME.value]} eliminata correttamente")
+            else:
+                # Mostra il messaggio d'errore
+                print(message)
+                ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
 
     def save_expense_mod(self):
-        return
+        nome_conto = self.expense_info_widgets[self.nome_conto_string].get()
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        id_conto = conto[DBAccountsColumns.ID.value] if conto else None
+
+        nome_fornitore = self.expense_info_widgets[self.nome_fornitore_string].get()
+        fornitore = self.supplier_controller.retrieve_supplier_map_by_name(nome_fornitore)
+        id_fornitore = fornitore[DBSuppliersColumns.ID.value] if fornitore else None
+
+        nome_utente_deduzione = self.expense_info_widgets[self.nome_user_deduzione_string].get()
+        id_utente_deduzione = None
+        if nome_utente_deduzione != "":
+            utente_deduzione = self.user_controller.retrieve_user_map_by_extended_name(nome_utente_deduzione)
+            id_utente_deduzione = utente_deduzione[DBUsersColumns.ID.value] if utente_deduzione else None
+
+        nome_utente_anticipo = self.expense_info_widgets[self.nome_user_anticipo_string].get()
+        id_utente_anticipo = None
+        if nome_utente_anticipo != "":
+            utente_anticipo = self.user_controller.retrieve_user_map_by_extended_name(nome_utente_anticipo)
+            id_utente_anticipo = utente_anticipo[DBUsersColumns.ID.value] if nome_utente_anticipo else None
+
+        nome_fattura_associata = self.expense_info_widgets[self.nome_fattura_string].get()
+        fattura_associata = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura_associata)
+        id_fattura_associata = fattura_associata[DBInvoicesColumns.ID.value] if fattura_associata else None
+
+        expense_data = {
+            DBExpensesColumns.DATE.value: self.expense_info_widgets[
+                DBExpensesColumns.DATE.value].get_date(),
+            DBExpensesColumns.SUPPLIER_ID.value: id_fornitore,
+            DBExpensesColumns.USER_ID_DEDUZIONE.value: id_utente_deduzione,
+            DBExpensesColumns.USER_ID_ANTICIPO.value: id_utente_anticipo,
+            DBExpensesColumns.LINKED_INVOICE_ID.value: id_fattura_associata,
+            DBExpensesColumns.ACCOUNT_ID.value: id_conto,
+            DBExpensesColumns.CATEGORY.value: self.expense_info_widgets[
+                DBExpensesColumns.CATEGORY.value].get(),
+            DBExpensesColumns.NET_AMOUNT.value: self.expense_info_widgets[
+                DBExpensesColumns.NET_AMOUNT.value].get().strip(),
+            DBExpensesColumns.IVA_AMOUNT.value: self.expense_info_widgets[
+                DBExpensesColumns.IVA_AMOUNT.value].get().strip(),
+            DBExpensesColumns.TOT_AMOUNT.value: self.expense_info_widgets[
+                DBExpensesColumns.TOT_AMOUNT.value].get().strip(),
+            DBExpensesColumns.DEDUCIBILE.value: self.expense_info_widgets[
+                DBExpensesColumns.DEDUCIBILE.value].get()
+        }
+
+        ricorrente = self.expense[DBExpensesColumns.RICORRENTE.value]
+        if not ricorrente:
+            expense_data[DBExpensesColumns.NAME.value] = self.expense_info_widgets[DBExpensesColumns.NAME.value].get().strip()
+
+        # Chiamata al controller per salvare i dati
+        success, message = self.expense_controller.update_expense(self.current_expense_id, expense_data)
+        if success:
+            print(
+                f"Spesa {self.expense_controller.retrieve_expense_map_by_id(self.current_expense_id)[DBExpensesColumns.NAME.value]} salvata con successo")
+            ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+            self.switch_modify.deselect()
+            self.toggle_edit(self.content_frame)
+        else:
+            # Mostra il messaggio d'errore
+            print(message)
+            ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
 
     def toggle_warning_frame(self, expense_name):
         return
@@ -1090,6 +1167,8 @@ class ExpenseDetailView(ctk.CTkFrame):
             elif isinstance(w, ctk.CTkOptionMenu):
                 w.configure(state=state)
                 if w == self.expense_info_widgets[self.nome_fattura_string] and expense_category != dict(self.catalogo_elenchi["expenses_category"]).get("PRODUCTION_EXPENSE"):
+                    w.configure(state=tk.DISABLED)
+                if w == self.expense_info_widgets[self.nome_user_deduzione_string] and self.expense[DBExpensesColumns.DEDUCIBILE.value] == "No":
                     w.configure(state=tk.DISABLED)
             elif isinstance(w, Calendar):
                 w.configure(state=state)
@@ -1123,7 +1202,6 @@ class ExpenseDetailView(ctk.CTkFrame):
         elif selected_value == "No":
             self.expense_info_widgets[self.nome_user_deduzione_string].configure(state=tk.DISABLED)
             self.expense_info_widgets[self.nome_user_deduzione_string].set("")
-
 
     def open_add_expenses_category(self):
         self.add_category_window = ctk.CTkToplevel(self)

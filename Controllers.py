@@ -4948,23 +4948,104 @@ class Analyzer:
             reddito_esterno = float(user[DBUsersColumns.REDDITO_ESTERNO.value])
             fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id)
             anno_apertura = int(user[DBUsersColumns.ANNO_APERTURA_PIVA.value])
-        else: return
+        else:
+            return
 
-        reddito_willow = fatturato_willow * float(self.fiscal_settings.partita_iva_forfettaria.imponibile)
+        # Recupero impostazioni fiscali
+        forfettaria_settings = self.fiscal_settings.partita_iva_forfettaria
+        perc_acc_imp_primo = float(forfettaria_settings.percentuale_acconto_imposta_primo)
+        perc_acc_imp_secondo = float(forfettaria_settings.percentuale_acconto_imposta_secondo)
+        perc_acc_inps = float(forfettaria_settings.percentuale_acconto_inps_forfettario)
+        perc_rata_inps = float(forfettaria_settings.percentuale_rata_acconto_inps_forfettario)
+
+        # Calcolo valori base
+        coefficiente_imponibile = float(forfettaria_settings.imponibile)
+        aliquota_inps = float(forfettaria_settings.aliquota_inps)
+        aliquota_irpef = float(self.user_controller.calcola_aliquota_tax_forfettaria(
+            int(datetime.today().date().year) - anno_apertura
+        ))
+
+        reddito_willow = fatturato_willow * coefficiente_imponibile
         reddito_tot = reddito_willow + reddito_esterno
-        aliquota_irpef = float(self.user_controller.calcola_aliquota_tax_forfettaria(int(datetime.today().date().year) - anno_apertura))
         irpef = reddito_tot * aliquota_irpef
-        inps = reddito_tot * float(self.fiscal_settings.partita_iva_forfettaria.aliquota_inps)
-        quota_willow = reddito_willow/reddito_tot if reddito_tot > 0 else 0
-        irpef_w = irpef*quota_willow
-        inps_w = inps*quota_willow
+        inps = reddito_tot * aliquota_inps
 
-        return {
-            "INPS" : round(inps, 2),
-            "IRPEF" : round(irpef, 2),
-            "IRPEF WILLOW" : round(irpef_w, 2),
-            "INPS WILLOW" : round(inps_w, 2)
+        # Calcolo quote Willow
+        quota_willow = reddito_willow / reddito_tot if reddito_tot > 0 else 0
+        irpef_w = irpef * quota_willow
+        inps_w = inps * quota_willow
+
+        # Calcolo versamenti (acconti)
+        # IRPEF
+        primo_acconto_irpef = irpef * perc_acc_imp_primo
+        secondo_acconto_irpef = irpef * perc_acc_imp_secondo
+
+        # INPS (calcolato su percentuale acconto totale e ripartito per rata)
+        acconto_inps_totale = inps * perc_acc_inps
+        primo_acconto_inps = acconto_inps_totale * perc_rata_inps
+        secondo_acconto_inps = acconto_inps_totale - primo_acconto_inps
+
+        # Calcolo totale per scadenza
+        primo_acconto_totale = primo_acconto_irpef + primo_acconto_inps
+        secondo_acconto_totale = secondo_acconto_irpef + secondo_acconto_inps
+
+        # Ripartizione per Willow
+        primo_acconto_willow = primo_acconto_totale * quota_willow
+        secondo_acconto_willow = secondo_acconto_totale * quota_willow
+
+        # Dizionario versamenti completo per tooltip
+        output_map = {
+            # Informazioni di base
+            "FATTURATO_WILLOW": round(fatturato_willow, 2),
+            "REDDITO_ESTERNO": round(reddito_esterno, 2),
+            "COEFFICIENTE_IMPONIBILE": coefficiente_imponibile,
+            "ALIQUOTA_INPS": aliquota_inps,
+            "ALIQUOTA_IRPEF": aliquota_irpef,
+            "PERC_ACC_IMP_PRIMO": perc_acc_imp_primo,
+            "PERC_ACC_IMP_SECONDO": perc_acc_imp_secondo,
+            "PERC_ACC_INPS": perc_acc_inps,
+            "PERC_RATA_INPS": perc_rata_inps,
+
+            # Calcoli intermedi
+            "REDDITO_WILLOW": round(reddito_willow, 2),
+            "REDDITO_TOT": round(reddito_tot, 2),
+            "QUOTA_WILLOW": quota_willow,
+
+            # Totali tasse
+            "INPS": round(inps, 2),
+            "IRPEF": round(irpef, 2),
+            "INPS WILLOW": round(inps_w, 2),
+            "IRPEF WILLOW": round(irpef_w, 2),
+
+            # Acconti totali
+            "PRIMO_ACCONTO_TOTALE": round(primo_acconto_totale, 2),
+            "SECONDO_ACCONTO_TOTALE": round(secondo_acconto_totale, 2),
+            "PRIMO_ACCONTO_WILLOW": round(primo_acconto_willow, 2),
+            "SECONDO_ACCONTO_WILLOW": round(secondo_acconto_willow, 2),
+
+            # Componenti acconti
+            "PRIMO_ACCONTO_IRPEF": round(primo_acconto_irpef, 2),
+            "SECONDO_ACCONTO_IRPEF": round(secondo_acconto_irpef, 2),
+            "PRIMO_ACCONTO_INPS": round(primo_acconto_inps, 2),
+            "SECONDO_ACCONTO_INPS": round(secondo_acconto_inps, 2),
+            "PRIMO_ACCONTO_IRPEF_WILLOW": round(primo_acconto_irpef * quota_willow, 2),
+            "SECONDO_ACCONTO_IRPEF_WILLOW": round(secondo_acconto_irpef * quota_willow, 2),
+            "PRIMO_ACCONTO_INPS_WILLOW": round(primo_acconto_inps * quota_willow, 2),
+            "SECONDO_ACCONTO_INPS_WILLOW": round(secondo_acconto_inps * quota_willow, 2)
         }
+
+        # Output principale invariato
+        return {
+            "INPS": round(inps, 2),
+            "IRPEF": round(irpef, 2),
+            "IRPEF WILLOW": round(irpef_w, 2),
+            "INPS WILLOW": round(inps_w, 2)
+        }, {
+            "PRIMO_ACCONTO_TOTALE": round(primo_acconto_totale, 2),
+            "SECONDO_ACCONTO_TOTALE": round(secondo_acconto_totale, 2),
+            "PRIMO_ACCONTO_WILLOW": round(primo_acconto_willow, 2),
+            "SECONDO_ACCONTO_WILLOW": round(secondo_acconto_willow, 2)
+        }, output_map
 
     def calculate_previsione_tasse_ordinaria(self, user_id):
         user = self.user_controller.retrieve_user_map_by_id(user_id)

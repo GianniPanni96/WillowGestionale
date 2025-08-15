@@ -401,7 +401,7 @@ class ViewUtils(ctk.CTk):
                              justify="left",
                              bg="#2a2a2a",
                              fg="#f2f2f2",
-                             wraplength=300,
+                             wraplength=500,
                              font=("Segoe UI", 10, "normal"),
                              padx=10,
                              pady=6)

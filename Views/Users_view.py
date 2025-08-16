@@ -1341,18 +1341,9 @@ class UserDetailView(ctk.CTkFrame):
 
             # Costruzione dei dati per i versamenti
             for k, v in versamenti.items():
-                # Mappatura dei nomi per una visualizzazione più chiara
-                display_name = k
-                if k == "PRIMO_ACCONTO_TOTALE":
-                    display_name = "PRIMO ACCONTO TOT"
-                elif k == "SECONDO_ACCONTO_TOTALE":
-                    display_name = "SECONDO ACCONTO TOT"
-                elif k == "PRIMO_ACCONTO_WILLOW":
-                    display_name = "PRIMO ACCONTO WILLOW"
-                elif k == "SECONDO_ACCONTO_WILLOW":
-                    display_name = "SECONDO ACCONTO WILLOW"
-
-                versamenti_infos[ViewUtils.split_string_by_length(display_name, 8)] = {
+                # Usiamo direttamente il nome della chiave formattato per multi-riga
+                display_name = ViewUtils.split_string_by_length(k, 8)
+                versamenti_infos[display_name] = {
                     "value": v,
                     "uom": "€"
                 }
@@ -1365,55 +1356,61 @@ class UserDetailView(ctk.CTkFrame):
             ctk.CTkLabel(self.tax_frame, text="VERSAMENTI", font=("Arial", 12)).pack(anchor="w", pady=(10, 0), padx=15)
             self.versamenti_infos_user_widgets = ViewUtils.construct_tasse_infos_cards(self.tax_frame, versamenti_infos)
 
+            # Formattatore numerico
+            def fmt(num):
+                return f"{num:,.2f}".replace(",", " ").replace(".", ",").replace(" ", ".")
+
             # Tooltip per le carte dei totali
             for key, widget_info in self.tasse_infos_user_widgets.items():
                 card = widget_info["card"]
-                title_label = card.winfo_children()[0]  # La label del titolo è il primo figlio
+                title_label = card.winfo_children()[0]
 
                 if key == "INPS":
                     tooltip_text = (
                         f"Calcolo contributi INPS complessivi:\n\n"
                         f"1. Fatturato totale = Fatturato Willow + Reddito esterno\n"
-                        f"   = {total['FATTURATO_WILLOW']} + {total['REDDITO_ESTERNO']}\n"
-                        f"   = {total['FATTURATO_WILLOW'] + total['REDDITO_ESTERNO']} €\n\n"
-                        f"2. Reddito imponibile = Fatturato totale × Coefficiente di redditività ({total['COEFFICIENTE_IMPONIBILE'] * 100}%)\n"
-                        f"   = {total['FATTURATO_WILLOW'] + total['REDDITO_ESTERNO']} × {total['COEFFICIENTE_IMPONIBILE']}\n"
-                        f"   = {total['REDDITO_TOT']} €\n\n"
-                        f"3. Contributi INPS = Reddito imponibile × Aliquota INPS ({total['ALIQUOTA_INPS'] * 100}%)\n"
-                        f"   = {total['REDDITO_TOT']} × {total['ALIQUOTA_INPS']}\n"
-                        f"   = {total['INPS']} €"
+                        f"   = {fmt(total['FATTURATO_WILLOW'])} + {fmt(total['REDDITO_ESTERNO'])}\n"
+                        f"   = {fmt(total['FATTURATO_WILLOW'] + total['REDDITO_ESTERNO'])} €\n\n"
+                        f"2. Reddito imponibile = Fatturato totale × Coefficiente di redditività ({total['COEFFICIENTE_IMPONIBILE'] * 100:.2f}%)\n"
+                        f"   = {fmt(total['FATTURATO_WILLOW'] + total['REDDITO_ESTERNO'])} × {total['COEFFICIENTE_IMPONIBILE']:.4f}\n"
+                        f"   = {fmt(total['REDDITO_TOT'])} €\n\n"
+                        f"3. Contributi INPS = Reddito imponibile × Aliquota INPS ({total['ALIQUOTA_INPS'] * 100:.2f}%)\n"
+                        f"   = {fmt(total['REDDITO_TOT'])} × {total['ALIQUOTA_INPS']:.4f}\n"
+                        f"   = {fmt(total['INPS'])} €"
                     )
 
                 elif key == "IRPEF":
                     tooltip_text = (
                         f"Calcolo imposta sostitutiva IRPEF:\n\n"
-                        f"1. Reddito imponibile = {total['REDDITO_TOT']} €\n"
-                        f"2. Aliquota IRPEF = {total['ALIQUOTA_IRPEF'] * 100}%\n"
+                        f"1. Reddito imponibile = {fmt(total['REDDITO_TOT'])} €\n"
+                        f"2. Aliquota IRPEF = {total['ALIQUOTA_IRPEF'] * 100:.2f}%\n"
                         f"3. Imposta sostitutiva = Reddito imponibile × Aliquota IRPEF\n"
-                        f"   = {total['REDDITO_TOT']} × {total['ALIQUOTA_IRPEF']}\n"
-                        f"   = {total['IRPEF']} €"
+                        f"   = {fmt(total['REDDITO_TOT'])} × {total['ALIQUOTA_IRPEF']:.4f}\n"
+                        f"   = {fmt(total['IRPEF'])} €"
                     )
 
                 elif key == "IRPEF WILLOW":
                     tooltip_text = (
                         f"Quota IRPEF attribuibile a Willow:\n\n"
-                        f"1. Quota proporzionale Willow = {total['QUOTA_WILLOW']}\n"
+                        f"1. Quota proporzionale Willow = {total['QUOTA_WILLOW']:.4f}\n"
                         f"2. IRPEF Willow = IRPEF totale × Quota proporzionale\n"
-                        f"   = {total['IRPEF']} × {total['QUOTA_WILLOW']}\n"
-                        f"   = {total['IRPEF WILLOW']} €"
+                        f"   = {fmt(total['IRPEF'])} × {total['QUOTA_WILLOW']:.4f}\n"
+                        f"   = {fmt(total['IRPEF WILLOW'])} €"
                     )
 
                 elif key == "INPS WILLOW":
-
-                    def fmt(num):
-                        return f"{num:,.2f}".replace(",", " ").replace(".", ",").replace(" ", ".")
-
                     tooltip_text = (
-                        "Calcolo Quota INPS Willow:\n\n"                    
-                        f"• Fatturato: {fmt(total['FATTURATO_WILLOW'])} €\n"                    
-                        f"• Imponibile: {fmt(total['FATTURATO_WILLOW'])} × {total['COEFFICIENTE_IMPONIBILE']} = {fmt(total['REDDITO_WILLOW'])} €\n"                    
-                        f"• Quota: {fmt(total['REDDITO_WILLOW'])} / {fmt(total['REDDITO_TOT'])} = {total['QUOTA_WILLOW']:.4f}\n"                    
-                        f"• INPS: {fmt(total['INPS'])} × {total['QUOTA_WILLOW']:.4f} = {fmt(total['INPS WILLOW'])} €"
+                        f"Quota INPS attribuibile a Willow:\n\n"
+                        f"1. Fatturato Willow = {fmt(total['FATTURATO_WILLOW'])} €\n"
+                        f"2. Reddito imponibile Willow = Fatturato Willow × Coefficiente di redditività\n"
+                        f"   = {fmt(total['FATTURATO_WILLOW'])} × {total['COEFFICIENTE_IMPONIBILE']:.4f}\n"
+                        f"   = {fmt(total['REDDITO_WILLOW'])} €\n"
+                        f"3. Quota proporzionale Willow = Reddito imponibile Willow / Reddito imponibile totale\n"
+                        f"   = {fmt(total['REDDITO_WILLOW'])} / {fmt(total['REDDITO_TOT'])}\n"
+                        f"   = {total['QUOTA_WILLOW']:.4f}\n"
+                        f"4. INPS Willow = INPS totale × Quota proporzionale\n"
+                        f"   = {fmt(total['INPS'])} × {total['QUOTA_WILLOW']:.4f}\n"
+                        f"   = {fmt(total['INPS WILLOW'])} €"
                     )
 
                 else:
@@ -1424,50 +1421,50 @@ class UserDetailView(ctk.CTkFrame):
             # Tooltip per le carte dei versamenti
             for key, widget_info in self.versamenti_infos_user_widgets.items():
                 card = widget_info["card"]
-                title_label = card.winfo_children()[0]  # La label del titolo è il primo figlio
+                title_label = card.winfo_children()[0]
 
-                if key == "PRIMO\nACCONTO TOT":
+                if key == "SALDO\nTOTALE":
                     tooltip_text = (
-                        f"Calcolo primo acconto totale:\n\n"
-                        f"1. Acconto IRPEF = IRPEF totale × {total['PERC_ACC_IMP_PRIMO'] * 100}%\n"
-                        f"   = {total['IRPEF']} × {total['PERC_ACC_IMP_PRIMO']}\n"
-                        f"   = {total['PRIMO_ACCONTO_IRPEF']} €\n\n"
-                        f"2. Acconto INPS = INPS totale × {total['PERC_ACC_INPS'] * 100}% × {total['PERC_RATA_INPS'] * 100}%\n"
-                        f"   = {total['INPS']} × {total['PERC_ACC_INPS']} × {total['PERC_RATA_INPS']}\n"
-                        f"   = {total['PRIMO_ACCONTO_INPS']} €\n\n"
-                        f"3. Totale primo acconto = {total['PRIMO_ACCONTO_IRPEF']} + {total['PRIMO_ACCONTO_INPS']}\n"
-                        f"   = {total['PRIMO_ACCONTO_TOTALE']} €"
+                        f"Calcolo saldo totale:\n\n"
+                        f"1. Tasse totali (INPS + IRPEF) = {fmt(total['TOTALE_TASSE'])} €\n"
+                        f"2. Acconto versato per l'anno precedente = {fmt(total['ACCONTO_ANNO_PRECEDENTE'])} €\n"
+                        f"3. Saldo = Tasse totali - Acconto anno precedente\n"
+                        f"   = {fmt(total['TOTALE_TASSE'])} - {fmt(total['ACCONTO_ANNO_PRECEDENTE'])}\n"
+                        f"   = {fmt(total['SALDO_CORRENTE'])} €"
                     )
 
-                elif key == "SECONDO\nACCONTO TOT":
+                elif key == "ACCONTO\nTOTALE":
                     tooltip_text = (
-                        f"Calcolo secondo acconto totale:\n\n"
-                        f"1. Acconto IRPEF = IRPEF totale × {total['PERC_ACC_IMP_SECONDO'] * 100}%\n"
-                        f"   = {total['IRPEF']} × {total['PERC_ACC_IMP_SECONDO']}\n"
-                        f"   = {total['SECONDO_ACCONTO_IRPEF']} €\n\n"
-                        f"2. Acconto INPS = INPS totale × {total['PERC_ACC_INPS'] * 100}% × (1 - {total['PERC_RATA_INPS'] * 100}%)\n"
-                        f"   = {total['INPS']} × {total['PERC_ACC_INPS']} × (1 - {total['PERC_RATA_INPS']})\n"
-                        f"   = {total['SECONDO_ACCONTO_INPS']} €\n\n"
-                        f"3. Totale secondo acconto = {total['SECONDO_ACCONTO_IRPEF']} + {total['SECONDO_ACCONTO_INPS']}\n"
-                        f"   = {total['SECONDO_ACCONTO_TOTALE']} €"
+                        f"Calcolo acconto totale per l'anno successivo:\n\n"
+                        f"1. Acconto IRPEF = IRPEF totale × ({total['PERC_ACC_IMP_PRIMO'] * 100:.2f}% + {total['PERC_ACC_IMP_SECONDO'] * 100:.2f}%)\n"
+                        f"   = {fmt(total['IRPEF'])} × {total['PERC_ACC_IMP_PRIMO'] + total['PERC_ACC_IMP_SECONDO']:.4f}\n"
+                        f"   = {fmt(total['PRIMO_ACCONTO_IRPEF'] + total['SECONDO_ACCONTO_IRPEF'])} €\n\n"
+                        f"2. Acconto INPS = INPS totale × {total['PERC_ACC_INPS'] * 100:.2f}%\n"
+                        f"   = {fmt(total['INPS'])} × {total['PERC_ACC_INPS']:.4f}\n"
+                        f"   = {fmt(total['PRIMO_ACCONTO_INPS'] + total['SECONDO_ACCONTO_INPS'])} €\n\n"
+                        f"3. Totale acconto = Acconto IRPEF + Acconto INPS\n"
+                        f"   = {fmt(total['PRIMO_ACCONTO_IRPEF'] + total['SECONDO_ACCONTO_IRPEF'])} + {fmt(total['PRIMO_ACCONTO_INPS'] + total['SECONDO_ACCONTO_INPS'])}\n"
+                        f"   = {fmt(total['ACCONTO_TOTALE'])} €"
                     )
 
-                elif key == "PRIMO\nACCONTO WILLOW":
+                elif key == "SALDO\nWILLOW":
                     tooltip_text = (
-                        f"Quota Willow del primo acconto totale:\n\n"
-                        f"1. Quota proporzionale Willow = {total['QUOTA_WILLOW']}\n\n"
-                        f"2. Primo acconto Willow = Primo acconto totale × Quota proporzionale\n"
-                        f"   = {total['PRIMO_ACCONTO_TOTALE']} × {total['QUOTA_WILLOW']}\n"
-                        f"   = {total['PRIMO_ACCONTO_WILLOW']} €"
+                        f"Quota del saldo corrente attribuita a Willow:\n\n"
+                        f"1. Saldo totale = {fmt(total['SALDO_CORRENTE'])} €\n"
+                        f"2. Quota proporzionale Willow = {total['QUOTA_WILLOW']:.4f}\n"
+                        f"3. Saldo Willow = Saldo totale × Quota proporzionale\n"
+                        f"   = {fmt(total['SALDO_CORRENTE'])} × {total['QUOTA_WILLOW']:.4f}\n"
+                        f"   = {fmt(total['SALDO_WILLOW'])} €"
                     )
 
-                elif key == "SECONDO\nACCONTO WILLOW":
+                elif key == "ACCONTO\nWILLOW":
                     tooltip_text = (
-                        f"Quota Willow del secondo acconto totale:\n\n"
-                        f"1. Quota proporzionale Willow = {total['QUOTA_WILLOW']}\n\n"
-                        f"2. Secondo acconto Willow = Secondo acconto totale × Quota proporzionale\n"
-                        f"   = {total['SECONDO_ACCONTO_TOTALE']} × {total['QUOTA_WILLOW']}\n"
-                        f"   = {total['SECONDO_ACCONTO_WILLOW']} €"
+                        f"Quota dell'acconto per l'anno successivo attribuita a Willow:\n\n"
+                        f"1. Acconto totale = {fmt(total['ACCONTO_TOTALE'])} €\n"
+                        f"2. Quota proporzionale Willow = {total['QUOTA_WILLOW']:.4f}\n"
+                        f"3. Acconto Willow = Acconto totale × Quota proporzionale\n"
+                        f"   = {fmt(total['ACCONTO_TOTALE'])} × {total['QUOTA_WILLOW']:.4f}\n"
+                        f"   = {fmt(total['ACCONTO_WILLOW'])} €"
                     )
 
                 else:

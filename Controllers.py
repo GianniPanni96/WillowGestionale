@@ -4958,6 +4958,11 @@ class Analyzer:
         perc_acc_inps = float(forfettaria_settings.percentuale_acconto_inps_forfettario)
         perc_rata_inps = float(forfettaria_settings.percentuale_rata_acconto_inps_forfettario)
 
+        # Recupero anticipo anno precedente
+        acconto_anno_precedente_IRPEF = float(user.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value, 0.0))
+        acconto_anno_precedente_INPS = float(user.get(DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value, 0.0))
+        acconto_anno_precedente = acconto_anno_precedente_IRPEF + acconto_anno_precedente_INPS
+
         # Calcolo valori base
         coefficiente_imponibile = float(forfettaria_settings.imponibile)
         aliquota_inps = float(forfettaria_settings.aliquota_inps)
@@ -4965,25 +4970,39 @@ class Analyzer:
             int(datetime.today().date().year) - anno_apertura
         ))
 
+        # Calcolo reddito imponibile
         reddito_willow = fatturato_willow * coefficiente_imponibile
         reddito_tot = reddito_willow + reddito_esterno
+
+        # Calcolo tasse
         irpef = reddito_tot * aliquota_irpef
         inps = reddito_tot * aliquota_inps
+        totale_tasse = inps + irpef
+
+        # Calcolo saldo corrente (tasse totali - acconto anno precedente)
+        saldo_corrente = max(0, totale_tasse - acconto_anno_precedente)
 
         # Calcolo quote Willow
         quota_willow = reddito_willow / reddito_tot if reddito_tot > 0 else 0
         irpef_w = irpef * quota_willow
         inps_w = inps * quota_willow
+        tasse_willow = inps_w + irpef_w
+        saldo_willow = saldo_corrente * quota_willow
 
-        # Calcolo versamenti (acconti)
+        # Calcolo acconti per l'anno successivo
         # IRPEF
         primo_acconto_irpef = irpef * perc_acc_imp_primo
         secondo_acconto_irpef = irpef * perc_acc_imp_secondo
 
-        # INPS (calcolato su percentuale acconto totale e ripartito per rata)
+        # INPS
         acconto_inps_totale = inps * perc_acc_inps
         primo_acconto_inps = acconto_inps_totale * perc_rata_inps
         secondo_acconto_inps = acconto_inps_totale - primo_acconto_inps
+
+        # Calcolo totale acconti
+        acconto_totale = (primo_acconto_irpef + secondo_acconto_irpef +
+                          primo_acconto_inps + secondo_acconto_inps)
+        acconto_willow = acconto_totale * quota_willow
 
         # Calcolo totale per scadenza
         primo_acconto_totale = primo_acconto_irpef + primo_acconto_inps
@@ -4993,7 +5012,15 @@ class Analyzer:
         primo_acconto_willow = primo_acconto_totale * quota_willow
         secondo_acconto_willow = secondo_acconto_totale * quota_willow
 
-        # Dizionario versamenti completo per tooltip
+        # Mappa versamenti (saldo e acconti)
+        versamenti_map = {
+            "SALDO TOTALE": round(saldo_corrente, 2),
+            "ACCONTO TOTALE": round(acconto_totale, 2),
+            "SALDO WILLOW": round(saldo_willow, 2),
+            "ACCONTO WILLOW": round(acconto_willow, 2)
+        }
+
+        # Output map per tooltip e dettagli
         output_map = {
             # Informazioni di base
             "FATTURATO_WILLOW": round(fatturato_willow, 2),
@@ -5014,16 +5041,27 @@ class Analyzer:
             # Totali tasse
             "INPS": round(inps, 2),
             "IRPEF": round(irpef, 2),
+            "TOTALE_TASSE": round(totale_tasse, 2),
             "INPS WILLOW": round(inps_w, 2),
             "IRPEF WILLOW": round(irpef_w, 2),
+            "TASSE_WILLOW": round(tasse_willow, 2),
 
-            # Acconti totali
+            # Anticipo anno precedente
+            "ACCONTO_ANNO_PRECEDENTE": round(acconto_anno_precedente, 2),
+            "ACCONTO_ANNO_PRECEDENTE_IRPEF": round(acconto_anno_precedente_IRPEF, 2),
+            "ACCONTO_ANNO_PRECEDENTE_INPS": round(acconto_anno_precedente_INPS, 2),
+
+            # Saldi
+            "SALDO_CORRENTE": round(saldo_corrente, 2),
+            "SALDO_WILLOW": round(saldo_willow, 2),
+
+            # Acconti anno successivo
+            "ACCONTO_TOTALE": round(acconto_totale, 2),
+            "ACCONTO_WILLOW": round(acconto_willow, 2),
             "PRIMO_ACCONTO_TOTALE": round(primo_acconto_totale, 2),
             "SECONDO_ACCONTO_TOTALE": round(secondo_acconto_totale, 2),
             "PRIMO_ACCONTO_WILLOW": round(primo_acconto_willow, 2),
             "SECONDO_ACCONTO_WILLOW": round(secondo_acconto_willow, 2),
-
-            # Componenti acconti
             "PRIMO_ACCONTO_IRPEF": round(primo_acconto_irpef, 2),
             "SECONDO_ACCONTO_IRPEF": round(secondo_acconto_irpef, 2),
             "PRIMO_ACCONTO_INPS": round(primo_acconto_inps, 2),
@@ -5034,18 +5072,13 @@ class Analyzer:
             "SECONDO_ACCONTO_INPS_WILLOW": round(secondo_acconto_inps * quota_willow, 2)
         }
 
-        # Output principale invariato
+        # Output principale
         return {
             "INPS": round(inps, 2),
             "IRPEF": round(irpef, 2),
             "IRPEF WILLOW": round(irpef_w, 2),
             "INPS WILLOW": round(inps_w, 2)
-        }, {
-            "PRIMO_ACCONTO_TOTALE": round(primo_acconto_totale, 2),
-            "SECONDO_ACCONTO_TOTALE": round(secondo_acconto_totale, 2),
-            "PRIMO_ACCONTO_WILLOW": round(primo_acconto_willow, 2),
-            "SECONDO_ACCONTO_WILLOW": round(secondo_acconto_willow, 2)
-        }, output_map
+        }, versamenti_map, output_map
 
     def calculate_previsione_tasse_ordinaria(self, user_id):
         user = self.user_controller.retrieve_user_map_by_id(user_id)
@@ -5261,6 +5294,72 @@ class Analyzer:
             "WILLOW INPS": round(inps_willow, 2),
             "WILLOW IRPEF": round(max(0, irpef_willow - tot_ritenuta), 2)
         }, versamenti_map, output_map
+
+    def calculate_previsione_tasse_willow(self):
+        list_of_users = self.user_controller.retrieve_users_map_list()
+        result_map = {}
+        total_saldo_willow = 0.0
+        total_acconto_willow = 0.0
+        total_irpef_willow = 0.0
+        total_inps_willow = 0.0
+
+        for user in list_of_users:
+            user_id = user[DBUsersColumns.ID.value]
+            regime_fiscale = user[DBUsersColumns.REGIME_FISCALE.value]
+            user_name = f"{user.get(DBUsersColumns.FIRST_NAME.value, '')} {user.get(DBUsersColumns.LAST_NAME.value, '')}"
+
+            saldo_willow = 0.0
+            acconto_willow = 0.0
+            irpef_willow = 0.0
+            inps_willow = 0.0
+
+            try:
+                if regime_fiscale == self.user_controller.RegimeFiscale.ORDINARIO.value:
+                    tasse_map, versamenti, _ = self.calculate_previsione_tasse_ordinaria(user_id)
+                    saldo_willow = versamenti.get("SALDO WILLOW", 0.0)
+                    acconto_willow = versamenti.get("ACCONTO WILLOW", 0.0)
+                    irpef_willow = tasse_map.get("WILLOW IRPEF", 0.0)
+                    inps_willow = tasse_map.get("WILLOW INPS", 0.0)
+
+                elif regime_fiscale == self.user_controller.RegimeFiscale.FORFETTARIO.value:
+                    tasse_map, versamenti, _ = self.calculate_previsione_tasse_forfettaria(user_id)
+                    saldo_willow = versamenti.get("SALDO WILLOW", 0.0)
+                    acconto_willow = versamenti.get("ACCONTO WILLOW", 0.0)
+                    irpef_willow = tasse_map.get("IRPEF WILLOW", 0.0)
+                    inps_willow = tasse_map.get("INPS WILLOW", 0.0)
+
+                # Aggiungi i valori dell'utente alla mappa
+                result_map[user_name] = {
+                    "SALDO WILLOW": saldo_willow,
+                    "ACCONTO WILLOW": acconto_willow,
+                    "IRPEF WILLOW": irpef_willow,
+                    "INPS WILLOW": inps_willow
+                }
+
+                # Aggiorna i totali
+                total_saldo_willow += saldo_willow
+                total_acconto_willow += acconto_willow
+                total_irpef_willow += irpef_willow
+                total_inps_willow += inps_willow
+
+            except Exception as e:
+                print(f"Errore nel calcolo per l'utente {user_name} (ID: {user_id}): {str(e)}")
+                result_map[user_name] = {
+                    "SALDO WILLOW": 0.0,
+                    "ACCONTO WILLOW": 0.0,
+                    "IRPEF WILLOW": 0.0,
+                    "INPS WILLOW": 0.0
+                }
+
+        # Aggiungi i totali alla mappa risultato
+        result_map["TOTALE"] = {
+            "SALDO WILLOW": total_saldo_willow,
+            "ACCONTO WILLOW": total_acconto_willow,
+            "IRPEF WILLOW": total_irpef_willow,
+            "INPS WILLOW": total_inps_willow
+        }
+
+        return result_map
 
     def _calcola_irpef(self, imponibile, scaglioni):
         """Calcola l'IRPEF in base agli scaglioni di reddito"""

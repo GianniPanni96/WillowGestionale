@@ -20,6 +20,8 @@ from Views.Accounts_view import AccountsView
 from Views.Salaries_view import SalariesView
 from Views.Iva_trimes_view import IvaTrimesView
 from Views.Refunds_view import RefundsView
+from Views.Taxes_view import TaxesView
+
 
 class MainWindow(ctk.CTk):
     def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings):
@@ -175,6 +177,9 @@ class MainWindow(ctk.CTk):
         self.tab_instances["Iva"] = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller,
                                             self.expense_controller, self.update_controller, self.analyzer,
                                             self.tabview, self.event_bus)
+        self.tab_instances["Tasse"] = TaxesView(self.db_model, self.analyzer, self.update_controller,
+                                          self.config_manager, self.catalogo_elenchi, self.tabview,
+                                          self.event_bus)
 
         # Impacchettamento nelle rispettive tab
         for tab_name, instance in self.tab_instances.items():

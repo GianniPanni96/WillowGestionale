@@ -5441,9 +5441,3 @@ class Analyzer:
         tot_pagamenti = self.payment_controller.calculate_tot_payments(current_year)
 
         return round(tot_fatture - tot_ritenuta - tot_pagamenti, 2)
-
-
-
-
-
-

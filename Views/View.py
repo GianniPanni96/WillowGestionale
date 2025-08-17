@@ -173,7 +173,7 @@ class MainWindow(ctk.CTk):
                                         self.analyzer, self.tabview.tab("Conti"), self.event_bus)
         self.tab_instances["Salario"] = SalariesView(self.db_model, self.salary_controller, self.user_controller,
                                        self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
-                                       self.catalogo_elenchi, self.config_manager, self.tabview.tab("Salario"), self.event_bus)
+                                       self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus)
         self.tab_instances["Iva"] = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller,
                                             self.expense_controller, self.update_controller, self.analyzer,
                                             self.tabview, self.event_bus)

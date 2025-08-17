@@ -165,9 +165,9 @@ class MainWindow(ctk.CTk):
                                         self.account_controller, self.supplier_controller, self.invoice_controller,
                                         self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
                                         self.config_manager, self.tabview, self.event_bus)
-        self.tab_instances["Fornitori"] = SuppliersView(self.db_model, self.supplier_controller, self.update_controller,
-                                          self.config_manager, self.catalogo_elenchi, self.tabview.tab("Fornitori"),
-                                          self.event_bus)
+        self.tab_instances["Fornitori"] = SuppliersView(self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
+                                          self.config_manager, self.catalogo_elenchi, self.tabview,
+                                          self.event_bus, self.analyzer)
         self.tab_instances["Conti"] = AccountsView(self.db_model, self.account_controller, self.update_controller,
                                         self.transfer_controller, self.config_manager, self.catalogo_elenchi,
                                         self.analyzer, self.tabview.tab("Conti"), self.event_bus)

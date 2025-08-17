@@ -1343,6 +1343,16 @@ class DatabaseModel:
             cursor.execute(query, (account_id,))
             return cursor.fetchall()
 
+    def fetch_expenses_by_supplier_id(self, supplier_id):
+        """Recupera una specifica fattura in modo dinamico."""
+        columns = [column.value for column in DBExpensesColumns]
+        query = f"SELECT {', '.join(columns)} FROM expenses WHERE {DBExpensesColumns.SUPPLIER_ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (supplier_id,))
+            return cursor.fetchall()
+
     def fetch_last_expense_insert(self):
         """
         Recupera l'ultima expense inserita, ordinando in base alla colonna updated_at.
@@ -1408,6 +1418,50 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query, tuple(kwargs[column] for column in columns))
             conn.commit()
+
+    def update_supplier(self, supplier_id, **kwargs):
+        """
+        Aggiorna i valori di un fornitore esistente.
+        """
+        valid_columns = {column.value for column in DBSuppliersColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE suppliers SET {set_clause} WHERE {DBSuppliersColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), supplier_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento del fornitore: {str(e)}")
+
+    def remove_supplier(self, supplier_id):
+        """
+        Elimina un fornitore dal database dato il suo ID.
+
+        :param supplier_id: ID del fornitore da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM suppliers WHERE {DBSuppliersColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (supplier_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True, "Fornitore eliminato con successo dal database"
+                return False, "Qualcosa è andato storto,il fornitore non è stato eliminato"
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione della spesa: {e}")
+            return False, f"Errore durante l'eliminazione della spesa: {e}"
 
     def fetch_supplier_by_id(self, supplier_id):
         """

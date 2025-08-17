@@ -28,7 +28,7 @@ class TaxesView(ctk.CTkFrame):
         self.text_med = ("Arial", 14)
 
         # Container principale
-        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.main_container = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.main_container.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Inizializza la vista principale
@@ -191,7 +191,7 @@ class TaxesView(ctk.CTkFrame):
             font=self.header_font,
             text_color="#2d7acf"
         )
-        ripartizione_label.pack(padx=15, pady=(20, 5), anchor="w")
+        ripartizione_label.pack(padx=15, pady=(90, 5), anchor="w")
         ctk.CTkLabel(self.main_container,
             text="Dettaglio delle tasse relative a quest'anno, differenziate tra IRPEF e INPS  -  Non tiene conto di acconti precedenti o futuri",
             font=self.text_large,

@@ -3983,6 +3983,23 @@ class ExpenseController:
         # Applica il filtro usando il metodo statico
         return ControllerUtils.filter_expenses(expenses, current_year)
 
+    def retrieve_expense_map_list_by_supplier(self, supplier_id, current_year=True):
+        """
+        Recupera tutte le spese legate ad un fornitore e le restituisce come lista di dizionari,
+        filtrandole per l'anno corrente o mantenendo quelle con rate non pagate.
+
+        :param supplier_id: ID del fornitore.
+        :param current_year: Se True, ritorna solo le spese dell'anno corrente o con rate non pagate.
+        :return: Lista di dizionari contenenti i dati delle spese.
+        """
+        rows = self.db_model.fetch_expenses_by_supplier_id(supplier_id)
+        rows = [ValidationUtils._row_to_map(row, DBExpensesColumns) for row in rows]
+
+        if current_year and rows:
+            rows = ControllerUtils.filter_expenses(rows, current_year)
+
+        return rows
+
     def retrieve_last_expense_insert_map(self):
         """
         Recupera l'ultima expense inserita e la restituisce come dizionario.
@@ -4212,6 +4229,37 @@ class SupplierController:
             return True, "Fornitore salvato con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio del fornitore: {str(e)}"
+
+    def update_supplier(self, supplier_id, supplier_data):
+        """
+        Aggiorna i dati di un fornitore esistente.
+        :param supplier_id: ID del fornitore da aggiornare
+        :param supplier_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità
+            if not supplier_id or not isinstance(supplier_id, int):
+                return False, "ID fornitore non valido. Deve essere un intero positivo."
+
+            required_fields = {DBSuppliersColumns.NAME.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not supplier_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_supplier(supplier_id, **supplier_data)
+            return True, "Fornitore aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del fornitore: {str(e)}"
+
+    def delete_supplier(self, supplier_id):
+        return self.db_model.remove_supplier(supplier_id)
 
     def retrieve_suppliers(self):
         """Recupera tutti i suppliers."""

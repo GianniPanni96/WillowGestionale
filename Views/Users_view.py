@@ -14,6 +14,8 @@ from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpens
     DBSalariesColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
+
+
 class UsersView(ctk.CTkFrame):
     def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab, analyzer, event_bus):
         super().__init__(tab)
@@ -1192,6 +1194,9 @@ class UserDetailView(ctk.CTkFrame):
     def show_salary_detail(self, invoice_id):
         self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, invoice_id)
 
+    def show_expense_detail(self, expense_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, expense_id)
+
     def _create_anticipated_expenses_history(self):
         """Crea la sezione storico delle spese anticipate"""
         section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
@@ -1218,7 +1223,9 @@ class UserDetailView(ctk.CTkFrame):
             if expense[DBExpensesColumns.NAME.value] is not None:
                 nome_spesa = expense[DBExpensesColumns.NAME.value]
                 id_spesa = expense[DBExpensesColumns.ID.value]
-                spesa_button = ctk.CTkButton(expenses_frame, text=f"{nome_spesa}")
+                spesa_button = ctk.CTkButton(expenses_frame,
+                                             text=f"{nome_spesa}",
+                                             command=lambda id=id_spesa: self.show_expense_detail(id))
                 spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
 
     def _create_deduz_expenses_history(self):

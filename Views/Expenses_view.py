@@ -687,7 +687,7 @@ class ExpenseDetailView(ctk.CTkFrame):
         self.nome_fornitore_string = "FORNITORE"
 
         # Container per i contenuti dinamici
-        self.content_frame = ctk.CTkScrollableFrame(self)
+        self.content_frame = ctk.CTkFrame(self)
 
         self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_edit(self.content_frame))
 

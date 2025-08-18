@@ -1758,6 +1758,27 @@ class DatabaseModel:
             cursor.execute(query, tuple(insert_fields.values()))
             conn.commit()
 
+    def update_account(self, account_id, **kwargs):
+        """
+        Aggiorna i valori di un conto esistente.
+        """
+        valid_columns = {column.value for column in DBAccountsColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE accounts SET {set_clause} WHERE {DBAccountsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), account_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento del conto: {str(e)}")
+
     def fetch_account_by_id(self, account_id):
         """
         Recupera un account specifico in base all'ID.
@@ -1961,6 +1982,50 @@ class DatabaseModel:
             cur.execute(query, tuple(data.values()))
             conn.commit()
             return cur.lastrowid  # opzionale: restituisce il nuovo ID
+
+    def update_salary(self, salary_id, **kwargs):
+        """
+        Aggiorna i valori di un salario esistente.
+        """
+        valid_columns = {column.value for column in DBSalariesColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE salaries SET {set_clause} WHERE {DBSalariesColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), salary_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento del salario: {str(e)}")
+
+    def remove_salary(self, salary_id):
+        """
+        Elimina un salrio dal database dato il suo ID.
+
+        :param salary_id: ID del salario da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM salaries WHERE {DBSalariesColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (salary_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True, "Salario eliminato con successo dal database"
+                return False, "Qualcosa è andato storto, il salario non è stato eliminato"
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione del salario: {e}")
+            return False, f"Errore durante l'eliminazione del salario: {e}"
 
     def fetch_salary_by_id(self, salary_id):
         """Recupera un versamento-salario specifico per ID"""

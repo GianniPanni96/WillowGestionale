@@ -438,7 +438,7 @@ class SalaryDetailView(ctk.CTkFrame):
         self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
         self.back_button = ctk.CTkButton(
             self.head_frame,
-            text="Elenco Spese",
+            text="Elenco Stipendi",
             command=self._cleanup_and_go_back
         )
         self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
@@ -513,14 +513,14 @@ class SalaryDetailView(ctk.CTkFrame):
             },
 
             # Collegamenti
-            "nome_conto": {
+            self.nome_conto_string: {
                 "type": ctk.CTkOptionMenu,
                 "label": "Conto",
                 "section": "Collegamenti",
                 "values": [c[DBAccountsColumns.NAME.value] for c in
                            self.account_controller.retrieve_accounts_map_list()]
             },
-            "nome_utente": {
+            self.nome_user_string: {
                 "type": ctk.CTkOptionMenu,
                 "label": "Utente",
                 "section": "Collegamenti",
@@ -684,10 +684,80 @@ class SalaryDetailView(ctk.CTkFrame):
         self.delete_btn.pack(padx=10, pady=(20, 20), side="right", anchor="e")
 
     def save_salary_mod(self):
-        return
+        # Recupera e converte il nome del conto in ID
+        nome_conto = self.salary_info_widgets[self.nome_conto_string].get()
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        id_conto = conto[DBAccountsColumns.ID.value] if conto else None
+
+        # Recupera e converte il nome dell'utente in ID
+        nome_utente = self.salary_info_widgets[self.nome_user_string].get()
+        id_utente = None
+        if nome_utente != "":
+            # Divide nome e cognome (assumendo formato "Nome Cognome")
+            parts = nome_utente.split(" ", 1)
+            first_name = parts[0] if len(parts) > 0 else ""
+            last_name = parts[1] if len(parts) > 1 else ""
+
+            utente = self.user_controller.retrieve_user_map_by_fullname(first_name, last_name)
+            id_utente = utente[DBUsersColumns.ID.value] if utente else None
+
+        # Costruisci i dati dello stipendio
+        salary_data = {
+            DBSalariesColumns.NAME.value: self.salary_info_widgets[
+                DBSalariesColumns.NAME.value].get().strip(),
+            DBSalariesColumns.DATE.value: self.salary_info_widgets[
+                DBSalariesColumns.DATE.value].get_date(),
+            DBSalariesColumns.AMOUNT.value: self.salary_info_widgets[
+                DBSalariesColumns.AMOUNT.value].get().strip(),
+            DBSalariesColumns.ACCOUNT_ID.value: id_conto,
+            DBSalariesColumns.USER_ID.value: id_utente
+        }
+
+        # Chiamata al controller per salvare i dati
+        success, message = self.salary_controller.update_salary(self.current_salary_id, salary_data)
+
+        if success:
+            salary_name = self.salary_controller.retrieve_salary_map_by_id(self.current_salary_id)[DBSalariesColumns.NAME.value]
+            print(f"Stipendio {salary_name} salvato con successo")
+            ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+
+            self.switch_modify.deselect()
+            self.toggle_edit(self.content_frame)
+
+        else:
+            print(f"Errore salvataggio stipendio: {message}")
+            ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
 
     def delete_salary(self):
-        return
+        confirmation = ViewUtils.ask_confirmation_popup(
+            self.content_frame,
+            "Stai per eliminare questo stipendio.\nDesideri continuare?",
+            "ELIMINAZIONE Stipendio"
+        )
+
+        if confirmation:
+            success, message = self.salary_controller.delete_salary(self.current_salary_id)
+
+            if success:
+                # Recupera il nome dello stipendio prima dell'eliminazione per il messaggio
+                salary_name = self.salary[DBSalariesColumns.NAME.value]
+                ViewUtils.show_confirm_popup_2(
+                    self.content_frame,
+                    "STIPENDIO ELIMINATO CON SUCCESSO",
+                    message
+                )
+                print(f"Stipendio {salary_name} eliminato correttamente")
+
+                self.switch_modify.deselect()
+                self.toggle_edit(self.content_frame)
+
+            else:
+                print(f"Errore eliminazione stipendio: {message}")
+                ViewUtils.show_error_popup(
+                    self.content_frame,
+                    "ERRORE",
+                    message
+                )
 
     def toggle_edit(self, parent):
         """

@@ -348,7 +348,7 @@ class ControllerUtils:
         current_year_value = datetime.now().year
         return [
             tr for tr in transfers
-            if (date_str := tr.get(DBTransfersColumns.DATE.value)) and
+            if (date_str := tr.get(DBTransfersColumns.CREATED_AT.value)) and
                (dt := ControllerUtils._parse_date(date_str)) and
                dt.year == current_year_value
         ]
@@ -3110,6 +3110,42 @@ class AccountController:
             self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.NUM_ACCOUNTS.value] += 1
             self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.INIT_BALANCE.value])
 
+    def update_account(self, account_id, account_data):
+        """
+        Aggiorna i dati di un conto esistente.
+        :param account_id: ID del conto da aggiornare
+        :param account_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità refund_id
+            if not account_id or not isinstance(account_id, int):
+                return False, "ID account non valido. Deve essere un intero positivo."
+
+            required_fields = {DBAccountsColumns.NAME.value, DBAccountsColumns.INIT_BALANCE.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not account_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Validazione Importi
+            if DBAccountsColumns.INIT_BALANCE.value in account_data:
+                amount = account_data[DBAccountsColumns.INIT_BALANCE.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo inserito non è valido."
+
+            account_data[DBAccountsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_account(account_id, **account_data)
+            return True, "Account aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del conto: {str(e)}"
+
     def retrieve_accounts(self):
         """
         Recupera tutte le tuple degli account dalla tabella, filtrandoli per l'anno corrente se specificato.
@@ -4505,6 +4541,45 @@ class SalaryController:
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
 
+    def update_salary(self, salary_id, salary_data):
+        """
+        Aggiorna i dati di un salario esistente.
+        :param salary_id: ID del salario da aggiornare
+        :param salary_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità refund_id
+            if not salary_id or not isinstance(salary_id, int):
+                return False, "ID salario non valido. Deve essere un intero positivo."
+
+            required_fields = {DBSalariesColumns.NAME.value, DBSalariesColumns.AMOUNT.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not salary_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Validazione Importi
+            if DBSalariesColumns.AMOUNT.value in salary_data:
+                amount = salary_data[DBSalariesColumns.AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo inserito non è valido."
+
+            salary_data[DBSalariesColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_salary(salary_id, **salary_data)
+            return True, "Salario aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del salario: {str(e)}"
+
+    def delete_salary(self, salary_id):
+        return self.db_model.remove_salary(salary_id)
+
     def retrieve_salaries(self, current_year: bool = True) -> list[tuple]:
         """
         Recupera tutte le tuple dei versamenti-salario dalla tabella.
@@ -4976,6 +5051,87 @@ class Analyzer:
             valori["da_pagare"] = valori["debito"] - valori["credito"]
 
         return output_dict
+
+    def retrieve_account_movements_by_account_id(self, account_id):
+        movements = []
+
+        # Payments (+) - Entrate
+        payments = self.payment_controller.retrieve_payments_map_list(current_year=True)
+        filtered_payments = [p for p in payments if p[DBPaymentsColumns.CONTO_ID.value] == account_id]
+        for payment in filtered_payments:
+            movements.append({
+                "name": payment[DBPaymentsColumns.PAYMENT_NAME.value],
+                "date": payment[DBPaymentsColumns.PAYMENT_DATE.value],
+                "amount": float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value]),
+                "type": "Pagamento",
+                "sign": "+"
+            })
+
+        # Refunds (+) - Entrate
+        refunds = self.refunds_controller.retrieve_refunds_map_list(current_year=True)
+        filtered_refunds = [r for r in refunds if r[DBRefundsColumns.CONTO_ID.value] == account_id]
+        for refund in filtered_refunds:
+            movements.append({
+                "name": refund[DBRefundsColumns.REFUND_NAME.value],
+                "date": refund[DBRefundsColumns.REFUND_DATE.value],
+                "amount": float(refund[DBRefundsColumns.REFUND_AMOUNT.value]),
+                "type": "Rimborso",
+                "sign": "+"
+            })
+
+        # Expenses (-) - Uscite
+        expenses = self.expenses_controller.retrieve_expenses_map_list(current_year=True)
+        filtered_expenses = [e for e in expenses if e[DBExpensesColumns.ACCOUNT_ID.value] == account_id]
+        for expense in filtered_expenses:
+            movements.append({
+                "name": expense[DBExpensesColumns.NAME.value],
+                "date": expense[DBExpensesColumns.DATE.value],
+                "amount": float(expense[DBExpensesColumns.TOT_AMOUNT.value]),
+                "type": "Spesa",
+                "sign": "-"
+            })
+
+        # Salaries (-) - Uscite
+        salaries = self.salary_controller.retrieve_salaries_map_list(current_year=True)
+        filtered_salaries = [s for s in salaries if s[DBSalariesColumns.ACCOUNT_ID.value] == account_id]
+        for salary in filtered_salaries:
+            movements.append({
+                "name": salary[DBSalariesColumns.NAME.value],
+                "date": salary[DBSalariesColumns.DATE.value],
+                "amount": float(salary[DBSalariesColumns.AMOUNT.value]),
+                "type": "Stipendio",
+                "sign": "-"
+            })
+
+        # Transfers (bonifici) - Possono essere entrate o uscite
+        transfers = self.transfer_controller.retrieve_transfers_map_list(current_year=True)
+
+        # Bonifici in entrata (ricevuti)
+        incoming_transfers = [t for t in transfers if t[DBTransfersColumns.RECEIVER_ACCOUNT_ID.value] == account_id]
+        for transfer in incoming_transfers:
+            movements.append({
+                "name": f"{transfer[DBTransfersColumns.DESCRIPTION.value]}",
+                "date": transfer[DBTransfersColumns.CREATED_AT.value].split(" ")[0],
+                "amount": float(transfer[DBTransfersColumns.AMOUNT.value]),
+                "type": "Bonifico",
+                "sign": "+"
+            })
+
+        # Bonifici in uscita (inviati)
+        outgoing_transfers = [t for t in transfers if t[DBTransfersColumns.SENDER_ACCOUNT_ID.value] == account_id]
+        for transfer in outgoing_transfers:
+            movements.append({
+                "name": f"{transfer[DBTransfersColumns.DESCRIPTION.value]}",
+                "date": transfer[DBTransfersColumns.CREATED_AT.value].split(" ")[0],
+                "amount": float(transfer[DBTransfersColumns.AMOUNT.value]),
+                "type": "Bonifico",
+                "sign": "-"
+            })
+
+        # Ordina per data (dalla più recente alla più vecchia)
+        movements.sort(key=lambda x: x["date"], reverse=True)
+
+        return movements
 
     def calculate_tot_trimestral_iva(self):
         output_map = {}

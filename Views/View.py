@@ -170,7 +170,7 @@ class MainWindow(ctk.CTk):
                                           self.event_bus, self.analyzer)
         self.tab_instances["Conti"] = AccountsView(self.db_model, self.account_controller, self.update_controller,
                                         self.transfer_controller, self.config_manager, self.catalogo_elenchi,
-                                        self.analyzer, self.tabview.tab("Conti"), self.event_bus)
+                                        self.analyzer, self.tabview, self.event_bus)
         self.tab_instances["Salario"] = SalariesView(self.db_model, self.salary_controller, self.user_controller,
                                        self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
                                        self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus)

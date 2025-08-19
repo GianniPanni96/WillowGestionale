@@ -5052,6 +5052,17 @@ class Analyzer:
 
         return output_dict
 
+    def calculate_tot_trimestral_iva(self):
+        output_map = {}
+
+        for user in self.user_controller.retrieve_users_map_list():
+            if user[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value:
+                user_name = user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
+                user_id = user[DBUsersColumns.ID.value]
+                output_map[user_name] = self.calculate_trimestral_iva_by_account_id(user_id)
+
+        return output_map
+
     def retrieve_account_movements_by_account_id(self, account_id):
         movements = []
 
@@ -5132,17 +5143,6 @@ class Analyzer:
         movements.sort(key=lambda x: x["date"], reverse=True)
 
         return movements
-
-    def calculate_tot_trimestral_iva(self):
-        output_map = {}
-
-        for user in self.user_controller.retrieve_users_map_list():
-            if user[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value:
-                user_name = user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
-                user_id = user[DBUsersColumns.ID.value]
-                output_map[user_name] = self.calculate_trimestral_iva_by_account_id(user_id)
-
-        return output_map
 
     def calculate_previsione_tasse_forfettaria(self, user_id):
         user = self.user_controller.retrieve_user_map_by_id(user_id)
@@ -5597,3 +5597,100 @@ class Analyzer:
         tot_pagamenti = self.payment_controller.calculate_tot_payments(current_year)
 
         return round(tot_fatture - tot_ritenuta - tot_pagamenti, 2)
+
+    def retrieve_monthly_data(self):
+        # Recupera i dati per l'anno corrente
+        invoices = self.invoice_controller.retrieve_invoices_map_list(current_year=True)
+        expenses = self.expenses_controller.retrieve_expenses_map_list(current_year=True)
+        salaries = self.salary_controller.retrieve_salaries_map_list(current_year=True)
+        refunds = self.refunds_controller.retrieve_refunds_map_list(current_year=True)
+
+        # Inizializza la struttura per i dati mensili
+        monthly_data = {month: {
+            'fatturato': 0.0,
+            'spese': 0.0,
+            'incomes': 0.0,
+            'outcomes': 0.0
+        } for month in range(1, 13)}
+
+        # Funzione di supporto per estrarre il mese dalle date
+        def extract_month(date_str):
+            if isinstance(date_str, datetime):
+                return date_str.month
+            try:
+                return datetime.strptime(date_str, "%Y-%m-%d").month
+            except:
+                return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").month
+
+        # 1. Calcola il fatturato (TOT_DOCUMENTO - IVA)
+        for inv in invoices:
+            month = extract_month(inv[DBInvoicesColumns.DATA_CREAZIONE.value])
+            tot_doc = float(inv[DBInvoicesColumns.TOT_DOCUMENTO.value])
+            iva = float(inv[DBInvoicesColumns.IVA.value])
+            monthly_data[month]['fatturato'] += (tot_doc - iva)
+
+        # 2. Calcola le spese (NET_AMOUNT)
+        for exp in expenses:
+            month = extract_month(exp[DBExpensesColumns.DATE.value])
+            monthly_data[month]['spese'] += float(exp[DBExpensesColumns.NET_AMOUNT.value])
+
+        # 3. Calcola gli incomes (NETTO_A_PAGARE + REFUND_AMOUNT)
+        for inv in invoices:
+            month = extract_month(inv[DBInvoicesColumns.DATA_CREAZIONE.value])
+            monthly_data[month]['incomes'] += float(inv[DBInvoicesColumns.NETTO_A_PAGARE.value])
+
+        for ref in refunds:
+            month = extract_month(ref[DBRefundsColumns.REFUND_DATE.value])
+            monthly_data[month]['incomes'] += float(ref[DBRefundsColumns.REFUND_AMOUNT.value])
+
+        # 4. Calcola gli outcomes (NET_AMOUNT + AMOUNT)
+        for exp in expenses:
+            month = extract_month(exp[DBExpensesColumns.DATE.value])
+            monthly_data[month]['outcomes'] += float(exp[DBExpensesColumns.NET_AMOUNT.value])
+
+        for sal in salaries:
+            month = extract_month(sal[DBSalariesColumns.DATE.value])
+            monthly_data[month]['outcomes'] += float(sal[DBSalariesColumns.AMOUNT.value])
+
+        # Calcola le medie mensili (solo per i mesi passati)
+        current_month = datetime.now().month
+        passed_months = [m for m in range(1, current_month + 1)]
+
+        # Calcola i totali per i mesi passati
+        totals = {k: 0.0 for k in ['fatturato', 'spese', 'incomes', 'outcomes']}
+        for month in passed_months:
+            for key in totals:
+                totals[key] += monthly_data[month][key]
+
+        # Calcola le medie
+        averages = {}
+        for key in totals:
+            averages[key] = totals[key] / len(passed_months) if passed_months else 0.0
+
+        # Costruisci il risultato finale con deviazioni
+        result = {}
+        for month in range(1, 13):
+            month_data = monthly_data[month]
+            deviations = {}
+
+            # Calcola le deviazioni solo per i mesi passati
+            if month <= current_month:
+                for key in month_data:
+                    if averages[key] != 0:
+                        deviation = ((month_data[key] - averages[key]) / averages[key]) * 100
+                    else:
+                        deviation = 0.0 if month_data[key] == 0 else float('inf')
+                    deviations[key] = round(deviation, 2)
+            else:
+                # Per i mesi futuri non calcolare le deviazioni
+                for key in month_data:
+                    deviations[key] = None
+
+            result[month] = {
+                'values': {k: round(v, 2) for k, v in month_data.items()},
+                'averages': {k: round(v, 2) for k, v in averages.items()},
+                'deviations': deviations
+            }
+
+        return result
+

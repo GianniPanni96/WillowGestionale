@@ -5601,6 +5601,7 @@ class Analyzer:
     def retrieve_monthly_data(self):
         # Recupera i dati per l'anno corrente
         invoices = self.invoice_controller.retrieve_invoices_map_list(current_year=True)
+        payments = self.payment_controller.retrieve_payments_map_list(current_year=True)
         expenses = self.expenses_controller.retrieve_expenses_map_list(current_year=True)
         salaries = self.salary_controller.retrieve_salaries_map_list(current_year=True)
         refunds = self.refunds_controller.retrieve_refunds_map_list(current_year=True)
@@ -5635,9 +5636,9 @@ class Analyzer:
             monthly_data[month]['spese'] += float(exp[DBExpensesColumns.NET_AMOUNT.value])
 
         # 3. Calcola gli incomes (NETTO_A_PAGARE + REFUND_AMOUNT)
-        for inv in invoices:
-            month = extract_month(inv[DBInvoicesColumns.DATA_CREAZIONE.value])
-            monthly_data[month]['incomes'] += float(inv[DBInvoicesColumns.NETTO_A_PAGARE.value])
+        for pay in payments:
+            month = extract_month(pay[DBPaymentsColumns.PAYMENT_DATE.value])
+            monthly_data[month]['incomes'] += float(pay[DBPaymentsColumns.PAYMENT_AMOUNT.value])
 
         for ref in refunds:
             month = extract_month(ref[DBRefundsColumns.REFUND_DATE.value])

@@ -1,18 +1,7 @@
 import customtkinter as ctk
 import tkinter.font as tkfont
-import tkinter as tk
-from tkinter import filedialog
-from PIL import Image, ImageTk
+
 from datetime import datetime
-import os, re
-
-from customtkinter import CTkFrame
-
-from Views.View_utils import ViewUtils
-
-from Controllers import AccountController, ValidationUtils, UserController
-from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns, \
-    DBSalariesColumns
 
 
 class ReportView (ctk.CTkFrame):
@@ -124,15 +113,8 @@ class ReportView (ctk.CTkFrame):
                 columns_texts[col_index].append(f"{v:.2f} €")
 
         # Misura larghezza massima per colonna (px). Usiamo header_font per l'header e data_font per i valori.
-        column_width = (1920-100)/5
+        column_width = (self.winfo_screenwidth()-100)/5
         column_widths = [column_width, column_width, column_width, column_width, column_width]
-        """horizontal_padding_px = 24  # margine interno/padding aggiuntivo (regolabile)
-
-        for idx, texts in enumerate(columns_texts):
-            header_w = header_font.measure(texts[0])
-            data_w = max((data_font.measure(t) for t in texts[1:]), default=0)
-            max_w = max(header_w, data_w)
-            column_widths.append(int(max_w + horizontal_padding_px))"""
 
         # ---------- Applicazione dello scale factor ----------
         scale = 0.97  # 1.0 = uguale, >1 = più larga, <1 = più stretta
@@ -210,7 +192,7 @@ class ReportView (ctk.CTkFrame):
         footer_frame.pack(fill="x", padx=20, pady=(5, 10))
 
         ctk.CTkLabel(footer_frame,
-                     text="* Dati aggiornati al: " + datetime.now().strftime("%d/%m/%Y"),
+                     text="* Dati aggiornati al: " + datetime.now().strftime("%d/%m/%Y") + "\nFatturato e Spese esenti IVA",
                      font=("Arial", 10),
                      text_color="#7f8c8d").pack(side="left")
 

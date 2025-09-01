@@ -9,10 +9,10 @@ from datetime import datetime
 from enum import Enum
 from dataclasses import fields
 
-class SalariesView(ctk.CTk):
+class SalariesView(ctk.CTkFrame):
 
-    def __init__(self, db_model, salary_controller, user_controller, account_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab, event_bus):
-        super().__init__()
+    def __init__(self, db_model, salary_controller, user_controller, account_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab_view, event_bus):
+        super().__init__(tab_view.tab("Salario"))
 
         self.db_model = db_model
         self.salary_controller = salary_controller
@@ -23,8 +23,11 @@ class SalariesView(ctk.CTk):
         self.fiscal_settings = fiscal_settings
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
-        self.tab = tab
+        self.tab_view = tab_view
+        self.tab = tab_view.tab("Salario")
         self.event_bus = event_bus
+
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, self.handle_show_salary_detail)
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -38,10 +41,34 @@ class SalariesView(ctk.CTk):
         self.salaries_card_list = {}
         self.salary_card_labels_status = {}
 
+        # Container principale
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.detail_container = ctk.CTkFrame(self, fg_color="transparent")
+
+        # Vista dettaglio
+        self.salary_detail_view = SalaryDetailView(
+            parent=self,
+            salary_controller=self.salary_controller,
+            back_callback=self.show_main_view,
+            account_controller=account_controller,
+            user_controller=self.user_controller,
+            update_controller=self.update_controller,
+            db_model=db_model,
+            event_bus = self.event_bus,
+            catalogo_elenchi=self.catalogo_elenchi
+        )
+
+
+        self.show_main_view()
         self.create_salaries_tab()
 
+    def show_main_view(self):
+        """Torna alla vista principale"""
+        self.salary_detail_view.pack_forget()
+        self.main_container.pack(fill='both', expand=True)
+
     def create_salaries_tab(self):
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
@@ -58,7 +85,7 @@ class SalariesView(ctk.CTk):
         self.populate_global_infos()
 
         for (key, info) in self.global_infos.items():
-            card = ctk.CTkFrame(self.search_bar_frame)
+            card = ctk.CTkFrame(self.search_bar_frame, fg_color="#333333")
 
             if key == SalaryController.SalariesAggregateData.NUMERO_SALARI.value:
                 global_info_unità_di_misura = ""
@@ -75,14 +102,14 @@ class SalariesView(ctk.CTk):
             # salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.salaries_table_frame = ctk.CTkFrame(self.tab)
+        self.salaries_table_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.salaries_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "UTENTE", "IMPORTO", "DATA", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
             # crea il container
-            column = ctk.CTkFrame(self.salaries_table_frame)
+            column = ctk.CTkFrame(self.salaries_table_frame, fg_color="#333333")
             column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
 
             # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
@@ -95,10 +122,10 @@ class SalariesView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.cards_frame = ctk.CTkScrollableFrame(self.main_container, fg_color="transparent")
         self.cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_salary_frame = ctk.CTkFrame(self.tab)
+        self.add_salary_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.add_salary_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_salary_frame, text="Aggiungi un salario",
@@ -185,7 +212,7 @@ class SalariesView(ctk.CTk):
         btn = ctk.CTkButton(
             card,
             text=salary_name,
-            command=lambda sid=salary_id: self.open_modify_salary(sid)
+            command=lambda sid=salary_id: self.open_salary_detail_tab(sid)
         )
         btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
 
@@ -367,8 +394,16 @@ class SalariesView(ctk.CTk):
             print(message)
             ViewUtils.show_error_popup(self.add_salary_window, "ERRORE", message)
 
-    def open_modify_salary(self, salary_id):
-        return
+    def open_salary_detail_tab(self, salary_id):
+        """Mostra la vista dettaglio utente"""
+        self.main_container.pack_forget()
+        self.salary_detail_view.pack(fill='both', expand=True)
+        self.salary_detail_view.create_detail_tab(salary_id)  # Ricrea i contenuti ogni volta
+
+    def handle_show_salary_detail(self, salary_id):
+        self.tab_view.set("Salario")  # Cambia tab
+        self.open_salary_detail_tab(salary_id)  # Mostra il dettaglio
+
 
     def clear_class_variable(self):
         self.salaries_widgets.clear()
@@ -376,3 +411,393 @@ class SalariesView(ctk.CTk):
 
     def update_global_infos(self):
         return
+
+
+
+
+
+class SalaryDetailView(ctk.CTkFrame):
+    def __init__(self, parent, back_callback, salary_controller, user_controller, account_controller, update_controller, db_model, event_bus, catalogo_elenchi):
+        super().__init__(parent)
+        self.salary_controller = salary_controller
+        self.user_controller = user_controller
+        self.account_controller = account_controller
+        self.db_model = db_model
+        self.back_callback = back_callback
+        self.update_controller = update_controller
+        self.event_bus = event_bus
+        self.current_expense_id = None
+        self.catalogo_elenchi = catalogo_elenchi
+        self.parent = parent
+
+        self.configure(fg_color="transparent")
+
+
+
+        # Widgets persistenti (vanno creati una volta sola)
+        self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
+        self.back_button = ctk.CTkButton(
+            self.head_frame,
+            text="Elenco Stipendi",
+            command=self._cleanup_and_go_back
+        )
+        self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
+
+        self.expense_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+
+        self.nome_conto_string = "CONTO"
+        self.nome_user_string = "UTENTE"
+
+
+        # Container per i contenuti dinamici
+        self.content_frame = ctk.CTkFrame(self)
+
+        self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_edit(self.content_frame))
+
+        # Layout iniziale
+        self._setup_base_layout()
+
+    def create_detail_tab(self, salary_id):
+        """Ricrea la vista dettaglio per una spesa specifica"""
+        self.current_salary_id = salary_id
+
+        # 1. Pulizia dei widget precedenti
+        self._clear_content()
+
+        # 2. Caricamento dati
+        self.salary = self.salary_controller.retrieve_salary_map_by_id(salary_id)
+
+        # prendo il nome del conto:
+        id_conto = self.salary[DBSalariesColumns.ACCOUNT_ID.value]
+        conto = self.account_controller.retrieve_account_map_by_id(id_conto)
+        if conto is not None:
+            nome_conto = conto[DBAccountsColumns.NAME.value]
+            self.salary[self.nome_conto_string] = nome_conto
+
+        # prendo il nome dell'utente
+        id_user = self.salary[DBSalariesColumns.USER_ID.value]
+        user = self.user_controller.retrieve_user_map_by_id(id_user)
+        if user is not None:
+            nome_user = user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
+            self.salary[self.nome_user_string] = nome_user
+
+        # 3. Aggiornamento elementi persistenti
+        self.title_label.configure(
+            text=f"{self.salary[DBSalariesColumns.NAME.value]}")
+
+        # 4. Creazione contenuti dinamici
+        self._create_salary_info_section(self.salary)
+        self.toggle_edit(self.content_frame)
+
+        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame.pack(padx=15, pady=(90, 0), fill="both", expand=True)
+
+    def _create_salary_info_section(self, salary_data):
+        # Dizionario per la configurazione dei campi
+        self.entry_fields_salaries = {
+            # Dati Generali
+            DBSalariesColumns.NAME.value: {
+                "type": ctk.CTkEntry,
+                "label": "Nome Stipendio",
+                "section": "Dati Generali"
+            },
+            DBSalariesColumns.DATE.value: {
+                "type": Calendar,
+                "label": "Data Stipendio",
+                "section": "Dati Generali"
+            },
+            DBSalariesColumns.AMOUNT.value: {
+                "type": ctk.CTkEntry,
+                "label": "Importo (€)",
+                "section": "Dati Generali"
+            },
+
+            # Collegamenti
+            self.nome_conto_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Conto",
+                "section": "Collegamenti",
+                "values": [c[DBAccountsColumns.NAME.value] for c in
+                           self.account_controller.retrieve_accounts_map_list()]
+            },
+            self.nome_user_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Utente",
+                "section": "Collegamenti",
+                "values": [f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}"
+                           for u in self.user_controller.retrieve_users_map_list()]
+            },
+
+            # Campi statici
+            DBSalariesColumns.CREATED_AT.value: {
+                "type": ctk.CTkLabel,
+                "label": "Data Creazione",
+                "section": "Note"
+            },
+            DBSalariesColumns.UPDATED_AT.value: {
+                "type": ctk.CTkLabel,
+                "label": "Ultimo Aggiornamento",
+                "section": "Note"
+            }
+        }
+
+        # Regole di validazione
+        validation_rules = {
+            DBSalariesColumns.NAME.value: (
+                lambda val: val.strip() != "",
+                "Nome obbligatorio"
+            ),
+            DBSalariesColumns.DATE.value: (
+                lambda val: val.strip() != "",
+                "Data obbligatoria"
+            ),
+            DBSalariesColumns.AMOUNT.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            )
+        }
+
+        # Inizializzazione strutture dati
+        self.salary_info_widgets = {}
+        self.salary_info_labels = {}
+        self.error_labels_salaries = {}
+        sections = {}
+
+        # Creazione frame principale
+        self.info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
+        self.info_frame.pack(fill="both", expand=True, pady=(5, 10), padx=(5, 25))
+
+        # Configurazione griglia a 2 colonne
+        self.info_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        self.info_frame.grid_columnconfigure(1, weight=1, uniform="col")
+
+        # Sezioni organizzate
+        sections_order = [
+            "Dati Generali",
+            "Collegamenti",
+            "Note"
+        ]
+
+        # Creazione frame sezioni
+        for i, section_name in enumerate(sections_order):
+            frame = ctk.CTkFrame(self.info_frame)
+            column = i % 2  # Solo 2 colonne
+            row = i // 2  # Calcola la riga in base all'indice
+
+            frame.grid(row=row, column=column, sticky="nsew", padx=15, pady=15)
+            frame.grid_columnconfigure(1, weight=1)
+
+            sections[section_name] = {
+                "frame": frame,
+                "row": 0
+            }
+
+            ctk.CTkLabel(frame, text=section_name, font=("Arial", 14, "bold")).grid(
+                row=0, column=0, columnspan=2, sticky="w", padx=15, pady=5
+            )
+            sections[section_name]["row"] += 1
+
+        # Popolamento sezioni
+        for field, config in self.entry_fields_salaries.items():
+            section = sections[config["section"]]
+            frame = section["frame"]
+            row = section["row"]
+
+            # Creazione label
+            lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
+            self.salary_info_labels[field] = lbl
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(5, 5))
+
+            # Creazione widget
+            if config["type"] == ctk.CTkLabel:
+                value = str(salary_data.get(field, ""))
+                widget = config["type"](frame, text=value)
+                widget.grid(row=row, column=1, sticky="w", padx=(5, 15), pady=(5, 5))
+            else:
+                if config["type"] == ctk.CTkOptionMenu:
+                    widget = config["type"](frame, values=config.get("values", []))
+
+                    # Imposta il valore corrente per il conto
+                    if field == "nome_conto":
+                        account_id = salary_data.get(DBSalariesColumns.ACCOUNT_ID.value, "")
+                        account_name = next(
+                            (a[DBAccountsColumns.NAME.value] for a in
+                             self.account_controller.retrieve_accounts_map_list()
+                             if a[DBAccountsColumns.ID.value] == account_id),
+                            "")
+                        widget.set(account_name)
+
+                    # Imposta il valore corrente per il dipendente
+                    elif field == "nome_utente":
+                        user_id = salary_data.get(DBSalariesColumns.USER_ID.value, "")
+                        user_name = next(
+                            (f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}"
+                             for u in self.user_controller.retrieve_users_map_list()
+                             if u[DBUsersColumns.ID.value] == user_id),
+                            "")
+                        widget.set(user_name)
+                    else:
+                        value = salary_data.get(field, config.get("values", [""])[0])
+                        widget.set(value)
+
+                elif config["type"] == Calendar:
+                    widget = config["type"](frame, date_pattern=ViewUtils.date_pattern)
+                    value = salary_data.get(field, "")
+                    widget.selection_set(str(value)) if value else widget.selection_set(datetime.today())
+                else:
+                    widget = config["type"](frame)
+                    value = str(salary_data.get(field, ""))
+                    widget.insert(0, value)
+
+                widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(5, 5))
+
+            self.salary_info_widgets[field] = widget
+
+            # Gestione validazione
+            if field in validation_rules:
+                validation_func, error_message = validation_rules[field]
+
+                error_lbl = ctk.CTkLabel(frame, text="", text_color="#e8e5dc")
+                error_lbl.grid(row=row + 1, column=1, sticky="w", padx=5, pady=(0, 10))
+                self.error_labels_salaries[field] = error_lbl
+
+                widget.bind("<FocusOut>",
+                            lambda e, w=widget, vl=validation_func, el=error_lbl, em=error_message:
+                            ViewUtils.validate_entry(w, vl, el, em))
+
+                section["row"] += 2
+            else:
+                section["row"] += 1
+
+        # Frame per i bottoni
+        buttons_frame = ctk.CTkFrame(self.info_frame, fg_color="#2b2b2b")
+        buttons_frame.grid(row=2, column=0, columnspan=2, pady=(5, 15), padx=20, sticky="WE")
+
+        # Bottone Salva
+        self.save_info_btn = ctk.CTkButton(buttons_frame, text="Salva Stipendio", command=self.save_salary_mod)
+        self.save_info_btn.pack(padx=(400, 10), pady=(20, 20), side="left")
+
+        # Bottone Elimina
+        self.delete_btn = ctk.CTkButton(buttons_frame, text="Elimina Stipendio",
+                                        fg_color="#8B0000", hover_color="#A52A2A",
+                                        command=self.delete_salary)
+        self.delete_btn.pack(padx=10, pady=(20, 20), side="right", anchor="e")
+
+    def save_salary_mod(self):
+        # Recupera e converte il nome del conto in ID
+        nome_conto = self.salary_info_widgets[self.nome_conto_string].get()
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        id_conto = conto[DBAccountsColumns.ID.value] if conto else None
+
+        # Recupera e converte il nome dell'utente in ID
+        nome_utente = self.salary_info_widgets[self.nome_user_string].get()
+        id_utente = None
+        if nome_utente != "":
+            # Divide nome e cognome (assumendo formato "Nome Cognome")
+            parts = nome_utente.split(" ", 1)
+            first_name = parts[0] if len(parts) > 0 else ""
+            last_name = parts[1] if len(parts) > 1 else ""
+
+            utente = self.user_controller.retrieve_user_map_by_fullname(first_name, last_name)
+            id_utente = utente[DBUsersColumns.ID.value] if utente else None
+
+        # Costruisci i dati dello stipendio
+        salary_data = {
+            DBSalariesColumns.NAME.value: self.salary_info_widgets[
+                DBSalariesColumns.NAME.value].get().strip(),
+            DBSalariesColumns.DATE.value: self.salary_info_widgets[
+                DBSalariesColumns.DATE.value].get_date(),
+            DBSalariesColumns.AMOUNT.value: self.salary_info_widgets[
+                DBSalariesColumns.AMOUNT.value].get().strip(),
+            DBSalariesColumns.ACCOUNT_ID.value: id_conto,
+            DBSalariesColumns.USER_ID.value: id_utente
+        }
+
+        # Chiamata al controller per salvare i dati
+        success, message = self.salary_controller.update_salary(self.current_salary_id, salary_data)
+
+        if success:
+            salary_name = self.salary_controller.retrieve_salary_map_by_id(self.current_salary_id)[DBSalariesColumns.NAME.value]
+            print(f"Stipendio {salary_name} salvato con successo")
+            ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+
+            self.switch_modify.deselect()
+            self.toggle_edit(self.content_frame)
+
+        else:
+            print(f"Errore salvataggio stipendio: {message}")
+            ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
+
+    def delete_salary(self):
+        confirmation = ViewUtils.ask_confirmation_popup(
+            self.content_frame,
+            "Stai per eliminare questo stipendio.\nDesideri continuare?",
+            "ELIMINAZIONE Stipendio"
+        )
+
+        if confirmation:
+            success, message = self.salary_controller.delete_salary(self.current_salary_id)
+
+            if success:
+                # Recupera il nome dello stipendio prima dell'eliminazione per il messaggio
+                salary_name = self.salary[DBSalariesColumns.NAME.value]
+                ViewUtils.show_confirm_popup_2(
+                    self.content_frame,
+                    "STIPENDIO ELIMINATO CON SUCCESSO",
+                    message
+                )
+                print(f"Stipendio {salary_name} eliminato correttamente")
+
+                self.switch_modify.deselect()
+                self.toggle_edit(self.content_frame)
+
+            else:
+                print(f"Errore eliminazione stipendio: {message}")
+                ViewUtils.show_error_popup(
+                    self.content_frame,
+                    "ERRORE",
+                    message
+                )
+
+    def toggle_edit(self, parent):
+        """
+        Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
+        """
+        # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
+        state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
+
+        # Cambia anche lo stato del pulsante Salva
+        self.save_info_btn.configure(state=state)
+        self.delete_btn.configure(state=state)
+
+        for w in parent.winfo_children():
+            # se è un Entry
+            if isinstance(w, (ctk.CTkEntry, ctk.CTkTextbox)):
+                w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            # se è un OptionMenu
+            elif isinstance(w, ctk.CTkOptionMenu):
+                w.configure(state=state)
+            # se è un Frame/container, scendi ricorsivamente
+            elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
+                self.toggle_edit(w)
+
+    def _setup_base_layout(self):
+        """Inizializza la struttura base del layout"""
+        self.head_frame.pack(fill="x", pady=5, padx=5)
+        self.back_button.pack(anchor="w", side="left", pady=10, padx=10)
+        self.title_label.pack(anchor="c", side="left", fill="x", expand=True, pady=10)
+        self.switch_modify.pack(anchor="e", side="left", pady=10, padx=10)
+        self.content_frame.pack(fill="both", expand=True, pady=20, padx=20)
+
+    def _clear_content(self):
+        """Distrugge tutti i widget dinamici"""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        self.switch_modify.deselect()
+
+    def _cleanup_and_go_back(self):
+        """Pulizia completa prima di tornare indietro"""
+        self._clear_content()
+        self.pack_forget()
+        self.back_callback()

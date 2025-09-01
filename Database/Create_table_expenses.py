@@ -17,6 +17,7 @@ columns = [
     f"{DBExpensesColumns.DEDUCIBILE.value} TEXT NOT NULL",
     f"{DBExpensesColumns.ACCOUNT_ID.value} INTEGER NOT NULL",
     f"{DBExpensesColumns.LINKED_INVOICE_ID.value} INTEGER",
+    f"{DBExpensesColumns.RICORRENTE.value} BOOL DEFAULT 0",
     f"{DBExpensesColumns.created_at.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"{DBExpensesColumns.updated_at.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"FOREIGN KEY ({DBExpensesColumns.USER_ID_DEDUZIONE.value}) REFERENCES users({DBUsersColumns.ID.value})"

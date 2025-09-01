@@ -3,15 +3,15 @@ import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
 from Controllers import ProductionController, PaymentsController, InvoiceController, UserController, ControllerUtils
-from Model import DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns
+from Model import DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBInvoicesColumns
 from datetime import datetime
 import re
 from enum import Enum
 
-class ProductionsView(ctk.CTk):
+class ProductionsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, production_controller, payment_controller, invoice_controller, user_controller, client_controller, catalogo_elenchi, config_manager, tab, event_bus):
-        super().__init__()
+    def __init__(self, db_model, production_controller, payment_controller, invoice_controller, user_controller, client_controller, catalogo_elenchi, config_manager, tabview, event_bus, update_controller):
+        super().__init__(tabview.tab("Produzioni"))
 
         self.db_model = db_model
         self.production_controller = production_controller
@@ -21,8 +21,12 @@ class ProductionsView(ctk.CTk):
         self.payment_controller = payment_controller
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
-        self.tab = tab
+        self.tabview = tabview
+        self.tab = self.tabview.tab("Produzioni")
         self.event_bus = event_bus
+        self.update_controller = update_controller
+
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self.handle_show_production_detail)
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -38,11 +42,44 @@ class ProductionsView(ctk.CTk):
         self.production_card_labels_status = {}
         self.production_card_list = {}
 
+        # Container principale
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.detail_container = ctk.CTkFrame(self, fg_color="transparent")
+
+        self.production_detail_view = ProductionDetailView(
+            parent=self,
+            invoice_controller=self.invoice_controller,
+            back_callback=self.show_main_view,
+            client_controller=self.client_controller,
+            production_controller=self.production_controller,
+            catalogo_elenchi=self.catalogo_elenchi,
+            config_manager=self.config_manager,
+            db_model=db_model,
+            update_controller=self.update_controller,
+            event_bus=self.event_bus
+        )
+
         self.create_productions_tab()
+        self.show_main_view()
+
+    def show_main_view(self):
+        """Torna alla vista principale"""
+        self.production_detail_view.pack_forget()
+        self.main_container.pack(fill='both', expand=True)
+
+    def handle_show_production_detail(self, production_id):
+        self.tabview.set("Produzioni")  # Cambia tab
+        self.open_production_detail_tab(production_id)  # Mostra il dettaglio
+
+    def open_production_detail_tab(self, production_id):
+        """Mostra la vista dettaglio utente"""
+        self.main_container.pack_forget()
+        self.production_detail_view.pack(fill='both', expand=True)
+        self.production_detail_view.create_detail_tab(production_id)  # Ricrea i contenuti ogni volta
 
     def create_productions_tab(self):
 
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
@@ -60,7 +97,7 @@ class ProductionsView(ctk.CTk):
         self.populate_global_infos()
 
         for (key, info) in self.global_infos.items():
-            card = ctk.CTkFrame(self.search_bar_frame)
+            card = ctk.CTkFrame(self.search_bar_frame, fg_color="#333333")
 
             if key == ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value or \
                 key == ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value or \
@@ -81,7 +118,7 @@ class ProductionsView(ctk.CTk):
             #salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.productions_table_frame = ctk.CTkFrame(self.tab)
+        self.productions_table_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.productions_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "CLIENTE", ViewUtils.split_string_by_length("TIPOLOGIA DI PRODUZIONE", 12),
@@ -94,7 +131,7 @@ class ProductionsView(ctk.CTk):
 
         for i, header in enumerate(self.table_headers):
             # crea il container
-            column = ctk.CTkFrame(self.productions_table_frame)
+            column = ctk.CTkFrame(self.productions_table_frame, fg_color="#333333")
             column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
 
             # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
@@ -107,10 +144,10 @@ class ProductionsView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.productions_cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.productions_cards_frame = ctk.CTkScrollableFrame(self.main_container, fg_color="transparent")
         self.productions_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_production_frame = ctk.CTkFrame(self.tab)
+        self.add_production_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.add_production_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_production_frame, text="Aggiungi una produzione",
@@ -359,7 +396,7 @@ class ProductionsView(ctk.CTk):
         btn = ctk.CTkButton(
             card,
             text=production_name,
-            command=lambda pid=production_id: self.open_modify_production(pid)
+            command=lambda pid=production_id: self.open_production_detail_tab(pid)
         )
         btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
 
@@ -564,3 +601,459 @@ class ProductionsView(ctk.CTk):
         salva le modifiche apportate alla produzione tramite i widgets dell'interfaccia
         :return:
         """
+
+
+
+
+class ProductionDetailView(ctk.CTkFrame):
+    def __init__(self, parent, back_callback, client_controller, invoice_controller, production_controller, update_controller, db_model, catalogo_elenchi, config_manager, event_bus):
+        super().__init__(parent)
+        self.client_controller = client_controller
+        self.invoice_controller = invoice_controller
+        self.production_controller = production_controller
+        self.db_model = db_model
+        self.back_callback = back_callback
+        self.update_controller = update_controller
+        self.event_bus = event_bus
+        self.catalogo_elenchi = catalogo_elenchi
+        self.config_manager = config_manager
+        self.current_invoice_id = None
+        self.parent = parent
+
+        self.configure(fg_color="transparent")
+
+        # Widgets persistenti (vanno creati una volta sola)
+        self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
+        self.back_button = ctk.CTkButton(
+            self.head_frame,
+            text="Elenco Produzioni",
+            command=self._cleanup_and_go_back
+        )
+        self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
+
+        self.payment_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+
+
+        self.nome_cliente_string = "CLIENTE"
+
+        # Container per i contenuti dinamici
+        self.content_frame = ctk.CTkScrollableFrame(self)
+
+        self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_edit(self.content_frame))
+
+        # Layout iniziale
+        self._setup_base_layout()
+
+    def _setup_base_layout(self):
+        """Inizializza la struttura base del layout"""
+        self.head_frame.pack(fill="x", pady=5, padx=5)
+        self.back_button.pack(anchor="w", side="left", pady=10, padx=10)
+        self.title_label.pack(anchor="c", side="left", fill="x", expand=True, pady=10)
+        self.switch_modify.pack(anchor="e", side="left", pady=10, padx=10)
+        self.content_frame.pack(fill="both", expand=True, pady=20, padx=20)
+
+    def create_detail_tab(self, production_id):
+        """Ricrea la vista dettaglio per un pagamento specifico"""
+        self.current_production_id = production_id
+
+        # 1. Pulizia dei widget precedenti
+        self._clear_content()
+
+        # 2. Caricamento dati
+        self.production = self.production_controller.retrieve_production_map_by_id(production_id)
+
+        # prendo il nome del cliente
+        id_cliente = self.production[DBProductionsColumns.CLIENT_ID.value]
+        cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)
+        nome_cliente = cliente[DBClientsColumns.NAME.value] if cliente else "Cliente non trovato"
+        self.production[self.nome_cliente_string] = nome_cliente
+
+        # 3. Aggiornamento elementi persistenti
+        self.title_label.configure(
+            text=f"{self.production[DBProductionsColumns.NAME.value]}")
+
+        # 4. Creazione contenuti dinamici
+        self._create_production_info_section(self.production)
+        self.toggle_edit(self.content_frame)
+
+        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame.pack(padx=15, pady=(90, 0), fill="both", expand=True)
+        self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame2.pack(padx=15, pady=(90, 90), fill="both", expand=True)
+
+        self._create_invoices_history()
+
+    def _create_production_info_section(self, production_data):
+        # Campi derivati per le produzioni (se necessario)
+        self.derived_fields_productions = {
+            # Potresti aggiungere campi calcolati qui se necessario
+        }
+
+        self.entry_fields_productions = {
+            DBProductionsColumns.NAME.value: {
+                "type": ctk.CTkEntry,
+                "label": "Nome Produzione",
+                "section": "Dati Generali"
+            },
+            self.nome_cliente_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Cliente",
+                "section": "Dati Generali",
+                "values": [c[DBClientsColumns.NAME.value]
+                           for c in self.client_controller.retrieve_clients_map_list()],
+                "command" : self.auto_compile_name
+            },
+            DBProductionsColumns.STATO.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Stato",
+                "section": "Dati Generali",
+                "values": [stato.name for stato in self.production_controller.Stato]
+            },
+            DBProductionsColumns.END_DATE.value: {
+                "type": Calendar,
+                "label": "Data Conclusione",
+                "section": "Dati Generali"
+            },
+
+            # Dati Produzione
+            DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Tipologia Produzione",
+                "section": "Dati Produzione",
+                "values": [tipo[1] for tipo in self.catalogo_elenchi["production_types"]],
+                "command": self.parent.open_add_prod_type
+            },
+            DBProductionsColumns.TIPOLOGIA_OUTPUT.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Tipologia Output",
+                "section": "Dati Produzione",
+                "values": [tipo[1] for tipo in self.catalogo_elenchi["production_output_types"]],
+                "command": self.parent.open_add_prod_out_type
+            },
+            DBProductionsColumns.HOURS.value: {
+                "type": ctk.CTkEntry,
+                "label": "Ore di produzione",
+                "section": "Dati Produzione"
+            },
+            DBProductionsColumns.TOTALE_PREVENTIVO.value: {
+                "type": ctk.CTkEntry,
+                "label": "Totale Preventivo (€)",
+                "section": "Dati Produzione"
+            },
+
+            # Campi statici
+            DBProductionsColumns.CREATED_AT.value: {
+                "type": ctk.CTkLabel,
+                "label": "Data Creazione",
+                "section": "Note"
+            },
+            DBProductionsColumns.UPDATED_AT.value: {
+                "type": ctk.CTkLabel,
+                "label": "Ultimo Aggiornamento",
+                "section": "Note"
+            }
+        }
+
+        self.error_fields_productions = {
+            DBProductionsColumns.HOURS.value: "Valore intero positivo",
+            DBProductionsColumns.TOTALE_PREVENTIVO.value: "Valore numerico con massimo 2 decimali"
+        }
+
+        validation_rules = {
+            DBProductionsColumns.HOURS.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Inserire un valore numerico"
+            ),
+            DBProductionsColumns.TOTALE_PREVENTIVO.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            )
+        }
+
+        # Inizializzazione strutture dati
+        self.production_info_widgets = {}
+        self.production_info_labels = {}
+        self.error_labels_productions = {}
+        sections = {}
+
+        # Creazione frame principale
+        self.info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color="#2659ab")
+        self.info_frame.pack(fill="both", expand=True, pady=(5, 10), padx=(5, 25))
+
+        # Configurazione griglia a 2 colonne
+        self.info_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        self.info_frame.grid_columnconfigure(1, weight=1, uniform="col")
+
+        # Sezioni organizzate per colonne
+        sections_order = [
+            "Dati Generali",
+            "Dati Produzione",
+            "Note"
+        ]
+
+        # Creazione frame sezioni
+        for i, section_name in enumerate(sections_order):
+            frame = ctk.CTkFrame(self.info_frame)
+            column = i % 2  # Solo 2 colonne
+            row = i // 2  # Calcola la riga in base all'indice
+
+            frame.grid(row=row, column=column, sticky="nsew", padx=15, pady=15)
+            frame.grid_columnconfigure(1, weight=1)
+
+            sections[section_name] = {
+                "frame": frame,
+                "row": 0
+            }
+
+            ctk.CTkLabel(frame, text=section_name, font=("Arial", 14, "bold")).grid(
+                row=0, column=0, columnspan=2, sticky="w", padx=15, pady=5
+            )
+            sections[section_name]["row"] += 1
+
+        # Popolamento sezioni
+        for field, config in self.entry_fields_productions.items():
+            section = sections[config["section"]]
+            frame = section["frame"]
+            row = section["row"]
+
+            # Creazione label
+            lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
+            self.production_info_labels[field] = lbl
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(5, 5))
+
+            # Creazione widget
+            if config["type"] == ctk.CTkLabel:
+                value = str(production_data.get(field, ""))
+                widget = config["type"](frame, text=value)
+                widget.grid(row=row, column=1, sticky="w", padx=(5, 15), pady=(5, 5))
+            else:
+                if config["type"] == ctk.CTkOptionMenu:
+                    widget = config["type"](frame, values=config.get("values", []))
+
+                    # Gestione speciale per client_id
+                    if field == self.nome_cliente_string:
+                        client_id = production_data[DBProductionsColumns.CLIENT_ID.value]
+                        client = self.client_controller.retrieve_client_map_by_id(client_id)
+                        client_name = client[DBClientsColumns.NAME.value]
+                        widget.configure(command = config.get("command"))
+                        widget.set(client_name)
+
+                    # Gestione speciale per tipologie
+                    elif field == DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value:
+                        current_value = production_data.get(field, "")
+                        command_function = config.get("command")
+                        widget.configure(command=lambda selected_value: command_function(selected_value))
+                        widget.set(current_value)
+
+                    # Gestione speciale per tipologie
+                    elif field == DBProductionsColumns.TIPOLOGIA_OUTPUT.value:
+                        current_value = production_data.get(field, "")
+                        command_function = config.get("command")
+                        widget.configure(command=lambda selected_value: command_function(selected_value))
+                        widget.set(current_value)
+
+                    # Gestione stato
+                    elif field == DBProductionsColumns.STATO.value:
+                        stato = production_data.get(field, "")
+                        widget.set(stato)
+
+                    else:
+                        widget.set(production_data.get(field, config.get("values", [""])[0]))
+
+                elif config["type"] == Calendar:
+                    widget = config["type"](frame, date_pattern=ViewUtils.date_pattern)
+                    value = production_data.get(field, "")
+                    widget.selection_set(str(value)) if value else widget.selection_set(datetime.today())
+
+                else:
+                    widget = config["type"](frame)
+                    value = str(production_data.get(field, ""))
+                    widget.insert(0, value)
+
+                widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(5, 5))
+
+            self.production_info_widgets[field] = widget
+
+            # Gestione validazione
+            if field in validation_rules:
+                validation_func, error_message = validation_rules[field]
+
+                error_lbl = ctk.CTkLabel(frame, text="", text_color="#e8e5dc")
+                error_lbl.grid(row=row + 1, column=1, sticky="w", padx=5, pady=(0, 10))
+                self.error_labels_productions[field] = error_lbl
+
+                widget.bind("<FocusOut>",
+                            lambda e, w=widget, vl=validation_func, el=error_lbl, em=error_message:
+                            ViewUtils.validate_entry(w, vl, el, em))
+
+                section["row"] += 2
+            else:
+                section["row"] += 1
+
+
+        self.production_info_widgets[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value].configure(command=lambda selected_value: self.parent.open_add_prod_type(selected_value))
+
+        buttons_frame = ctk.CTkFrame(self.info_frame, fg_color="#2b2b2b")
+        buttons_frame.grid(row=2, column=0, columnspan=2, pady=(5, 15), padx=20, sticky="WE")
+
+        # Bottone Salva
+        self.save_production_btn = ctk.CTkButton(buttons_frame, text="Salva Produzione",
+                                                 command=self.save_production_mod)
+        self.save_production_btn.pack(padx=(400, 10), pady=(20, 20), side="left")
+
+        # Bottone Elimina
+        self.delete_btn = ctk.CTkButton(buttons_frame, text="Elimina Produzione",
+                                        fg_color="#8B0000", hover_color="#A52A2A",
+                                        command=self.delete_production)
+        self.delete_btn.pack(padx=10, pady=(20, 20), side="right", anchor="e")
+
+    def save_production_mod(self):
+
+        invoices_map_list = self.invoice_controller.retrieve_invoice_map_list_by_production(self.current_production_id)
+        confirmation = True
+        if len(invoices_map_list) > 0:
+            confirmation = ViewUtils.ask_confirmation_popup(self.info_frame, "Questa produzione presenta una o più fatture associate.\n"
+                                                                             "La sua modifica può comportare delle incongruenze tra i dati delle fatture ad essa associate.\n"
+                                                                             "Desideri continuare?\n"
+                                                                             "In caso affermativo ricordati di controllare i dati delle fatture associate",
+                                                            "MODIFICA PRODUZIONE")
+
+        if confirmation:
+            nome_cliente = self.production_info_widgets[self.nome_cliente_string].get()
+            cliente = self.client_controller.retrieve_client_map_by_name(nome_cliente)
+            id_cliente = cliente[DBClientsColumns.ID.value]
+
+            production_data = {
+                DBProductionsColumns.NAME.value: self.production_info_widgets[
+                    DBProductionsColumns.NAME.value].get().strip(),
+                DBProductionsColumns.CLIENT_ID.value: id_cliente,
+                DBProductionsColumns.STATO.value: self.production_info_widgets[
+                    DBProductionsColumns.STATO.value].get(),
+                DBProductionsColumns.END_DATE.value: self.production_info_widgets[
+                    DBProductionsColumns.END_DATE.value].get_date(),
+                DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value: self.production_info_widgets[
+                    DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value].get(),
+                DBProductionsColumns.TIPOLOGIA_OUTPUT.value: self.production_info_widgets[
+                    DBProductionsColumns.TIPOLOGIA_OUTPUT.value].get(),
+                DBProductionsColumns.HOURS.value: self.production_info_widgets[
+                    DBProductionsColumns.HOURS.value].get(),
+                DBProductionsColumns.TOTALE_PREVENTIVO.value: self.production_info_widgets[
+                    DBProductionsColumns.TOTALE_PREVENTIVO.value].get()
+            }
+
+            # Chiamata al controller per salvare i dati
+            success, message = self.production_controller.update_production(self.current_production_id, production_data)
+            if success:
+                print(
+                    f"Produzione {self.production_controller.retrieve_production_map_by_id(self.current_production_id)[DBProductionsColumns.NAME.value]} salvata con successo")
+                ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+                self.switch_modify.deselect()
+                self.toggle_edit(self.content_frame)
+
+            else:
+                # Mostra il messaggio d'errore
+                print(message)
+                ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
+
+    def delete_production(self):
+
+        invoices_map_list = self.invoice_controller.retrieve_invoice_map_list_by_production(self.current_production_id)
+        invoices_presence = False
+        if len(invoices_map_list) > 0:
+            invoices_presence = True
+
+        message = "Sei sicuro di voler eliminare questa produzione?" if not invoices_presence else ("Sei sicuro di voler eliminare questa produzione?\n"
+                                                                                                    "Essa presenta delle fatture associate. Controlla eventualmente la consistenza dei dati\n"
+                                                                                                    "di tali fatture a seguito dell'eliminazione")
+        confirmation = ViewUtils.ask_confirmation_popup(self.info_frame, message, "ELIMINAZIONE PRODUZIONE")
+        if confirmation:
+            success = self.production_controller.delete_production(self.current_production_id)
+            if success:
+                ViewUtils.show_confirm_popup(self.info_frame)
+            else:
+                ViewUtils.show_error_popup(self.info_frame)
+
+
+    def _create_invoices_history(self):
+        """Crea la sezione fatture associate"""
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
+
+        ctk.CTkLabel(section_frame, text="FATTURE ASSOCIATE", font=("Arial", 14, "bold")).pack(anchor="w",
+                                                                                               pady=(10, 10), padx=10)
+
+        global_infos = {
+            "TOTALE SERVIZI + RIMBORSI\nFATTURE": {
+                "value": self.production_controller.calcola_totale_servizi_rimborsi_per_produzione(self.current_production_id),
+                "uom": "€"
+            },
+            "TOTALE PREVENTIVO": {
+                "value": self.production_controller.retrieve_production_map_by_id(self.current_production_id)[DBProductionsColumns.TOTALE_PREVENTIVO.value],
+                "uom": "€"
+            }
+        }
+
+        self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+
+        invoice_frame = ctk.CTkScrollableFrame(section_frame, height=300)
+        invoice_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
+
+        # popolo gli invoices
+        invoices = self.production_controller.retrieve_production_with_invoices_map_list(self.current_production_id)
+        for invoice in invoices:
+            if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None:
+                nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
+                id_fattura = invoice[DBInvoicesColumns.ID.value]
+                fattura_button = ctk.CTkButton(invoice_frame,
+                                               text=f"{nome_fattura}",
+                                               command=lambda id=id_fattura: self.show_invoice_detail(id))
+                fattura_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def show_invoice_detail(self, invoice_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, invoice_id)
+
+
+    def auto_compile_name(self, event):
+        client_name = self.production_info_widgets[self.nome_cliente_string].get()
+        nome_produzione_array = self.production_info_widgets[DBProductionsColumns.NAME.value].get().split(" - ")
+        new_name = client_name + " - " + nome_produzione_array[1] if len(nome_produzione_array) > 1 else client_name + " - "
+        self.production_info_widgets[DBProductionsColumns.NAME.value].delete(0, tk.END)
+        self.production_info_widgets[DBProductionsColumns.NAME.value].insert(0, new_name)
+
+    def toggle_edit(self, parent):
+        """
+        Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
+        """
+        # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
+        state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
+
+        # Cambia anche lo stato del pulsante Salva
+        self.save_production_btn.configure(state=state)
+        self.delete_btn.configure(state=state)
+
+        for w in parent.winfo_children():
+            # se è un Entry
+            if isinstance(w, ctk.CTkEntry):
+                w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            # se è un OptionMenu
+            elif isinstance(w, ctk.CTkOptionMenu):
+                w.configure(state=state)
+            elif isinstance(w, Calendar):
+                w.configure(state=state)
+            # se è un Frame/container, scendi ricorsivamente
+            elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
+                self.toggle_edit(w)
+
+    def _clear_content(self):
+        """Distrugge tutti i widget dinamici"""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        self.switch_modify.deselect()
+
+    def _cleanup_and_go_back(self):
+        """Pulizia completa prima di tornare indietro"""
+        self._clear_content()
+        self.pack_forget()
+        self.back_callback()

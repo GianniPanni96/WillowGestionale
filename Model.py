@@ -143,6 +143,7 @@ class DBExpensesColumns(Enum):
     DEDUCIBILE = "DEDUCIBILE"
     ACCOUNT_ID = "ID_CONTO"
     LINKED_INVOICE_ID = "ID_FATTURA_COLLEGATA"
+    RICORRENTE = "RICORRENTE"
     created_at = "created_at"
     updated_at = "updated_at"
 
@@ -430,6 +431,57 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query, tuple(kwargs[column] for column in columns))
             conn.commit()
+
+    def remove_client(self, client_id):
+        """
+        Elimina un cliente dal database dato il suo ID.
+
+        :param client_id: ID del cliente da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM clients WHERE {DBClientsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (client_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True, "Cliente eliminato con successo dal database"
+                return False, "Qualcosa è andato storto, il cliente non è stato eliminato"
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione del cliente: {e}")
+            return False, f"Errore durante l'eliminazione del cliente: {e}"
+
+    def update_client(self, client_id, **kwargs):
+        """
+        Aggiorna i valori di un pagamento esistente nella tabella `clients`.
+        I campi da aggiornare devono essere passati come keyword arguments.
+
+        :param client_id: ID del cliente da aggiornare.
+        :param kwargs: Campi da aggiornare (anche `None` per settare `NULL`).
+        :raises ValueError: Se non vengono specificati campi validi per l'aggiornamento.
+        """
+        # Controllo che i campi passati siano validi per la tabella payments
+        valid_columns = {column.value for column in DBClientsColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        # Creazione dinamica della query SQL
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE clients SET {set_clause} WHERE {DBClientsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), client_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(str(e))
 
     def fetch_client_by_id(self, client_id):
         """Recupera uno specifico cliente in modo dinamico."""
@@ -855,6 +907,26 @@ class DatabaseModel:
             cursor.execute(query, (invoice_id,))
             return cursor.fetchall()
 
+    def fetch_payments_with_invoice_for_client(self, client_id):
+        """
+        Recupera i pagamenti con i dati delle fatture associate per un cliente specifico.
+        """
+        payment_columns = [f"p.{col.value}" for col in DBPaymentsColumns]
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = payment_columns + invoice_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM payments p
+        JOIN invoices i ON p.{DBPaymentsColumns.INVOICE_ID.value} = i.{DBInvoicesColumns.ID.value}
+        WHERE i.{DBInvoicesColumns.ID_CLIENTE.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (client_id,))
+            return cursor.fetchall()
+
     def fetch_last_payment_insert(self):
         """
         Recupera l'ultimo pagamento inserito nel database, ordinando in base alla colonna PAYMENT_DATE.
@@ -942,6 +1014,30 @@ class DatabaseModel:
             result = cur.fetchone()[0]
             return result if result is not None else 0.0
 
+    def delete_payment(self, payment_id):
+        """
+        Elimina un pagamento dal database dato il suo ID.
+
+        :param payment_id: ID del pagamento da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM payments WHERE {DBPaymentsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (payment_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True
+                return False
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione del pagamento: {e}")
+            return False
+
+
     #@staticmethod
     @staticmethod
     def _fetch_recent_payments(db_model, months=12):
@@ -1003,6 +1099,29 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query, tuple(insert_fields.values()))
             conn.commit()
+
+    def remove_refund(self, refund_id):
+        """
+        Elimina un rimborso dal database dato il suo ID.
+
+        :param refund_id: ID del rimborso da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM refunds WHERE {DBRefundsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (refund_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True, "Rimborso eliminato con successo dal database"
+                return False, "Qualcosa è andato storto, il rimborso non è stato eliminato"
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione del rimborso: {e}")
+            return False, f"Errore durante l'eliminazione del rimborso: {e}"
 
     def fetch_refund_by_id(self, refund_id):
         """
@@ -1157,6 +1276,50 @@ class DatabaseModel:
             cursor.execute(query, tuple(insert_fields.values()))
             conn.commit()
 
+    def remove_expense(self, expense_id):
+        """
+        Elimina una spesa dal database dato il suo ID.
+
+        :param expense_id: ID della spesa da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM expenses WHERE {DBExpensesColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (expense_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True, "Spesa eliminata con successo dal database"
+                return False, "Qualcosa è andato storto, la spesa non è stata eliminata"
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione della spesa: {e}")
+            return False, f"Errore durante l'eliminazione della spesa: {e}"
+
+    def update_expense(self, expense_id, **kwargs):
+        """
+        Aggiorna i valori di una spesa esistente.
+        """
+        valid_columns = {column.value for column in DBExpensesColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE expenses SET {set_clause} WHERE {DBExpensesColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), expense_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento della spesa: {str(e)}")
+
     def fetch_expense_by_id(self, expense_id):
         """
         Recupera una expense specifica dato il suo id.
@@ -1178,6 +1341,16 @@ class DatabaseModel:
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(query, (account_id,))
+            return cursor.fetchall()
+
+    def fetch_expenses_by_supplier_id(self, supplier_id):
+        """Recupera una specifica fattura in modo dinamico."""
+        columns = [column.value for column in DBExpensesColumns]
+        query = f"SELECT {', '.join(columns)} FROM expenses WHERE {DBExpensesColumns.SUPPLIER_ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (supplier_id,))
             return cursor.fetchall()
 
     def fetch_last_expense_insert(self):
@@ -1245,6 +1418,50 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query, tuple(kwargs[column] for column in columns))
             conn.commit()
+
+    def update_supplier(self, supplier_id, **kwargs):
+        """
+        Aggiorna i valori di un fornitore esistente.
+        """
+        valid_columns = {column.value for column in DBSuppliersColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE suppliers SET {set_clause} WHERE {DBSuppliersColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), supplier_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento del fornitore: {str(e)}")
+
+    def remove_supplier(self, supplier_id):
+        """
+        Elimina un fornitore dal database dato il suo ID.
+
+        :param supplier_id: ID del fornitore da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM suppliers WHERE {DBSuppliersColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (supplier_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True, "Fornitore eliminato con successo dal database"
+                return False, "Qualcosa è andato storto,il fornitore non è stato eliminato"
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione della spesa: {e}")
+            return False, f"Errore durante l'eliminazione della spesa: {e}"
 
     def fetch_supplier_by_id(self, supplier_id):
         """
@@ -1315,6 +1532,8 @@ class DatabaseModel:
 
 
 
+
+
     def fetch_productions(self):
         """Recupera tutte le produzioni"""
         query = "SELECT * FROM productions"
@@ -1345,6 +1564,29 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query, tuple(insert_fields.values()))
             conn.commit()
+
+    def remove_production(self, production_id):
+        """
+        Elimina una produzione dal database dato il suo ID.
+
+        :param production_id: ID della produzione da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM productions WHERE {DBProductionsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (production_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True
+                return False
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione della produzione: {e}")
+            return False
 
     def fetch_production_by_id(self, production_id):
         """
@@ -1400,6 +1642,54 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query)
             return cursor.fetchone()
+
+    def fetch_all_productions_with_invoices(self):
+        """
+        Recupera tutte le produzioni unite alle rispettive fatture associate.
+        Utilizza un LEFT JOIN per includere anche le produzioni senza fatture collegate.
+        Ritorna una lista di tuple con le colonne di productions seguite da quelle di invoices (NULL se non presenti).
+        """
+        # Colonne per productions (prefisso 'p')
+        production_columns = [f"p.{col.value}" for col in DBProductionsColumns]
+        # Colonne per invoices (prefisso 'i')
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = production_columns + invoice_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM productions p
+        LEFT JOIN invoices i ON i.{DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value} = p.{DBProductionsColumns.ID.value}
+        ORDER BY p.{DBProductionsColumns.ID.value} ASC
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchall()
+
+    def fetch_production_with_invoices(self, production_id):
+        """
+        Recupera una produzione specifica unita a tutte le sue fatture associate.
+        Utilizza un LEFT JOIN per includere la produzione anche se non ha fatture collegate.
+        Ritorna una lista di tuple con le colonne di productions seguite da quelle di invoices (NULL se non presenti).
+        """
+        # Colonne per productions (prefisso 'p')
+        production_columns = [f"p.{col.value}" for col in DBProductionsColumns]
+        # Colonne per invoices (prefisso 'i')
+        invoice_columns = [f"i.{col.value}" for col in DBInvoicesColumns]
+        all_columns = production_columns + invoice_columns
+
+        query = f"""
+        SELECT {', '.join(all_columns)}
+        FROM productions p
+        LEFT JOIN invoices i ON i.{DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value} = p.{DBProductionsColumns.ID.value}
+        WHERE p.{DBProductionsColumns.ID.value} = ?
+        """
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (production_id,))
+            return cursor.fetchall()
 
     def update_production(self, production_id, **kwargs):
         """
@@ -1467,6 +1757,27 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query, tuple(insert_fields.values()))
             conn.commit()
+
+    def update_account(self, account_id, **kwargs):
+        """
+        Aggiorna i valori di un conto esistente.
+        """
+        valid_columns = {column.value for column in DBAccountsColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE accounts SET {set_clause} WHERE {DBAccountsColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), account_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento del conto: {str(e)}")
 
     def fetch_account_by_id(self, account_id):
         """
@@ -1671,6 +1982,50 @@ class DatabaseModel:
             cur.execute(query, tuple(data.values()))
             conn.commit()
             return cur.lastrowid  # opzionale: restituisce il nuovo ID
+
+    def update_salary(self, salary_id, **kwargs):
+        """
+        Aggiorna i valori di un salario esistente.
+        """
+        valid_columns = {column.value for column in DBSalariesColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE salaries SET {set_clause} WHERE {DBSalariesColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), salary_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento del salario: {str(e)}")
+
+    def remove_salary(self, salary_id):
+        """
+        Elimina un salrio dal database dato il suo ID.
+
+        :param salary_id: ID del salario da eliminare
+        :return: True se l'eliminazione è avvenuta con successo, False altrimenti
+        """
+        query = f"DELETE FROM salaries WHERE {DBSalariesColumns.ID.value} = ?"
+
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (salary_id,))
+                conn.commit()
+
+                # Verifica se una riga è stata effettivamente eliminata
+                if cursor.rowcount > 0:
+                    return True, "Salario eliminato con successo dal database"
+                return False, "Qualcosa è andato storto, il salario non è stato eliminato"
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione del salario: {e}")
+            return False, f"Errore durante l'eliminazione del salario: {e}"
 
     def fetch_salary_by_id(self, salary_id):
         """Recupera un versamento-salario specifico per ID"""

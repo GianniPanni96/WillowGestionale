@@ -20,6 +20,11 @@ class ViewUtils(ctk.CTk):
 
     class EventBusKeys(Enum):
         SHOW_INVOICE_DETAIL = "SHOW_INVOICE_DETAIL"
+        SHOW_SALARY_DETAIL = "SHOW_SALARY_DETAIL"
+        SHOW_PRODUCTION_DETAIL = "SHOW_PRODUCTION_DETAIL"
+        SHOW_REFUND_DETAIL = "SHOW_REFUND_DETAIL"
+        SHOW_EXPENSE_DETAIL = "SHOW_EXPENSE_DETAIL"
+        SHOW_PAYMENT_DETAIL = "SHOW_PAYMENT_DETAIL"
 
     date_pattern = "yyyy-mm-dd"
 
@@ -41,6 +46,27 @@ class ViewUtils(ctk.CTk):
         else:
             entry_widget.configure(border_color="red")  # Sfondo rosso per errore
             error_label.configure(text_color="#e8e5dc", text=error_message)  # Mostra il messaggio di errore
+
+    @staticmethod
+    def validate_textbox(textbox_widget, validation_func, error_label, error_message):
+        """
+        Valida un campo di testo multilinea.
+        :param textbox_widget: Il widget CTkTextbox da validare.
+        :param validation_func: La funzione di validazione da applicare.
+        :param error_label: Il widget dove mostrare il messaggio di errore.
+        :param error_message: Il messaggio di errore da mostrare.
+        """
+        # Ottieni il contenuto del textbox (dall'inizio alla fine, escludendo il carattere di nuova riga finale)
+        value = textbox_widget.get("1.0", "end-1c")
+
+        if validation_func(value):
+            # Se la validazione ha successo
+            textbox_widget.configure(border_color="#565B5E")  # Colore bordo normale
+            error_label.configure(text="")  # Nessun messaggio di errore
+        else:
+            # Se la validazione fallisce
+            textbox_widget.configure(border_color="red")  # Bordo rosso per errore
+            error_label.configure(text_color="#e8e5dc", text=error_message)  # Mostra messaggio di errore
 
     @staticmethod
     def show_error_popup(parent, title="Errore", message="Si è verificato un errore"):
@@ -123,6 +149,26 @@ class ViewUtils(ctk.CTk):
             pop_up.destroy()
 
     @staticmethod
+    def show_confirm_popup_simple(parent, title="CONFERMA", message="L'operazione è andata a buon fine"):
+        """
+        Genera un pop-up di errore.
+        :param parent: La finestra principale da cui viene lanciato il pop-up.
+        :param title: Il titolo del pop-up.
+        :param message: Il messaggio di errore da mostrare.
+        """
+        confirm_popup = ctk.CTkToplevel(parent)
+        confirm_popup.title(title)
+
+        # Assicurati che il pop-up sia modale
+        confirm_popup.grab_set()
+        confirm_popup.lift()
+
+        # Etichetta per il messaggio di errore
+        confirm_label = ctk.CTkLabel(confirm_popup, text=message, wraplength=250, font=("Arial", 14))
+        confirm_label.pack(pady=(20, 10))
+
+
+    @staticmethod
     def ask_confirmation_popup(parent, message, title="CONFERMA OPERAZIONE"):
         """
         Crea un pop-up che chiede conferma all'utente per proseguire un'operazione.
@@ -138,7 +184,7 @@ class ViewUtils(ctk.CTk):
         # Creazione del Toplevel e impostazioni iniziali
         popup = ctk.CTkToplevel(parent)
         popup.title(title)
-        popup.geometry("350x190")
+        #popup.geometry("350x190")
         popup.grab_set()  # Rende il pop-up modale
         popup.lift()  # Porta il pop-up in primo piano
 
@@ -355,7 +401,7 @@ class ViewUtils(ctk.CTk):
                              justify="left",
                              bg="#2a2a2a",
                              fg="#f2f2f2",
-                             wraplength=300,
+                             wraplength=500,
                              font=("Segoe UI", 10, "normal"),
                              padx=10,
                              pady=6)

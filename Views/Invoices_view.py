@@ -8,7 +8,7 @@ from datetime import datetime
 import re
 from enum import Enum
 
-class InvoicesView(ctk.CTk):
+class InvoicesView(ctk.CTkFrame):
 
     class InvoicesStatusColors(Enum):
         CRITICAL = "#f52f2f"
@@ -18,8 +18,8 @@ class InvoicesView(ctk.CTk):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tabview, fiscal_settings, historical_financial_data_settings, event_bus):
-        super().__init__()
+    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tabview, fiscal_settings, historical_financial_data_settings, event_bus, analyzer):
+        super().__init__(tabview.tab("Fatture"))
 
         self.db_model = db_model
         self.invoice_controller = invoice_controller
@@ -34,6 +34,7 @@ class InvoicesView(ctk.CTk):
         self.fiscal_settings = fiscal_settings
         self.historical_financial_data_settings = historical_financial_data_settings
         self.event_bus = event_bus
+        self.analyzer = analyzer
 
         self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self.handle_show_invoice_detail)
 
@@ -57,14 +58,14 @@ class InvoicesView(ctk.CTk):
         self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color_2, self.toggle_aggregate_data)
 
         # Container principale
-        self.main_container = ctk.CTkFrame(self.tab)
-        self.detail_container = ctk.CTkFrame(self.tab)
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.detail_container = ctk.CTkFrame(self, fg_color="transparent")
 
         self.update_controller.register_on_delete_production_view_cllbks(self.attach_warning_on_a_card)
 
         # Vista dettaglio
         self.invoice_detail_view = InvoiceDetailView(
-            parent=self.tab,
+            parent=self,
             invoice_controller=self.invoice_controller,
             back_callback=self.show_main_view,
             user_controller=user_controller,
@@ -217,7 +218,7 @@ class InvoicesView(ctk.CTk):
         self.invoice_detail_view.pack_forget()
         self.main_container.pack(fill='both', expand=True)
 
-    def open_user_detail_tab(self, invoice_id):
+    def open_invoice_detail_tab(self, invoice_id):
         """Mostra la vista dettaglio utente"""
         self.main_container.pack_forget()
         self.invoice_detail_view.pack(fill='both', expand=True)
@@ -225,15 +226,14 @@ class InvoicesView(ctk.CTk):
 
     def handle_show_invoice_detail(self, invoice_id):
         self.tabview.set("Fatture")  # Cambia tab
-        self.open_user_detail_tab(invoice_id)  # Mostra il dettaglio
+        self.open_invoice_detail_tab(invoice_id)  # Mostra il dettaglio
 
     def populate_global_infos(self):
         self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
         self.global_infos_lordi["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.FATT_LORDO.value]
-        self.global_infos_lordi["CREDITI"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.CREDITI_LORDO.value]
+        self.global_infos_lordi["CREDITI"] = self.analyzer.calculate_totale_crediti()
         self.global_infos_lordi["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_LORDO.value]
         #self.global_infos_lordi["PAGAMENTO \n ORARIO"] = 0
@@ -242,8 +242,7 @@ class InvoicesView(ctk.CTk):
             InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
         self.global_infos_netti["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.FATT_NETTO.value]
-        self.global_infos_netti["CREDITI"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.CREDITI_NETTO.value]
+        self.global_infos_netti["CREDITI"] = self.analyzer.calculate_totale_crediti()
         self.global_infos_netti["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
             InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_NETTO.value]
         #self.global_infos_netti["PAGAMENTO \n ORARIO"] = 0
@@ -340,7 +339,7 @@ class InvoicesView(ctk.CTk):
             elif label_text == DBInvoicesColumns.TIPO.value:
                 widget = widget_class(self.invoice_window_scrollableFrame,
                                       values=[item.value for item in InvoiceController.Tipologia],
-                                      command = lambda selected_value: self.toggle_id_fattura_associata(selected_value))
+                                      command = lambda selected_value, user_name=self.invoice_widgets[self.nome_utente_string].get(): self.toggle_id_fattura_associata(user_name, selected_value))
                 widget.set(InvoiceController.Tipologia.FATTURA.value)
             elif label_text == DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value:
                 widget = widget_class(self.invoice_window_scrollableFrame,
@@ -408,7 +407,7 @@ class InvoicesView(ctk.CTk):
         ))
 
         self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].bind(
-            "<FocusOut>",
+            "<KeyRelease>",
             lambda event: self.populate_rivalsa_INPS(),
             add="+"
         )
@@ -455,7 +454,7 @@ class InvoicesView(ctk.CTk):
         # 0) Bottone "nome"
         btn = ctk.CTkButton(card,
                             text=nome,
-                            command=lambda: self.open_user_detail_tab(invoice_id))
+                            command=lambda: self.open_invoice_detail_tab(invoice_id))
         btn.grid(row=0, column=0, sticky="nsew", padx=(10,5), pady=10)
 
         # 1) CLIENTE, 2) UTENTE, 3) PRODUZIONE, 4) DATA, 5) STATO, 6) RATE, 7) NETTO, 8) TIPOLOGIA
@@ -675,11 +674,13 @@ class InvoicesView(ctk.CTk):
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].insert(0, formatted_rivalsa)
 
-    def toggle_id_fattura_associata(self, selected_value=None):
+    def toggle_id_fattura_associata(self,  user_name, selected_value=None):
         if selected_value == InvoiceController.Tipologia.FATTURA.value:
             self.invoice_widgets[DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value].pack_forget()
             self.invoice_labels[DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value].pack_forget()
 
+            self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].delete(0, tk.END)
+            self.auto_compile_invoice_name(user_name)
             self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].delete(0, tk.END)
             self.invoice_widgets[DBInvoicesColumns.RIMBORSI.value].delete(0, tk.END)
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
@@ -706,7 +707,9 @@ class InvoicesView(ctk.CTk):
         user = self.user_controller.retrieve_user_by_fullname(user_first, user_last)
         user_id = user[0]
 
-        nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value] + " - NDC"
+        nome_fattura_array = invoice[DBInvoicesColumns.NUMERO_FATTURA.value].split(" - ")
+
+        nome_fattura = nome_fattura_array[0] + " - " + nome_fattura_array[1] + " - NDC"
         servizi = invoice[DBInvoicesColumns.SERVIZI.value]
         id_cliente = invoice[DBInvoicesColumns.ID_CLIENTE.value]
         nome_cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)[DBClientsColumns.NAME.value]
@@ -774,7 +777,12 @@ class InvoicesView(ctk.CTk):
             last_invoice_number_str = "01"
 
         self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].delete(0, tk.END)
-        self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].insert(0, f"{user_full_name[1]} - FPR" + last_invoice_number_str)
+        #check if it is a NDC
+        if self.invoice_widgets[DBInvoicesColumns.TIPO.value].get() == self.invoice_controller.Tipologia.FATTURA.value:
+            self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].insert(0, f"{user_full_name[1]} - FPR" + last_invoice_number_str)
+        else:
+            nome_fattura_array = self.invoice_widgets[DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value].get().split(" - ")
+            self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].insert(0, nome_fattura_array[0] + " - " + nome_fattura_array[1] + " - NDC")
 
     def select_correct_invoice(self, invoice):
         servizi = invoice[DBInvoicesColumns.SERVIZI.value]
@@ -1197,6 +1205,8 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.event_bus = event_bus
         self.current_invoice_id = None
 
+        self.configure(fg_color="transparent")
+
         # Widgets persistenti (vanno creati una volta sola)
         self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
         self.back_button = ctk.CTkButton(
@@ -1281,10 +1291,10 @@ class InvoiceDetailView(ctk.CTkFrame):
         self._create_invoice_info_section(invoice)
         self.toggle_edit(self.content_frame)
 
-        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="#333333")
-        self.wrapper_frame.pack(padx=25, pady=(90, 0), fill="both", expand=True)
-        self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="#333333")
-        self.wrapper_frame2.pack(padx=25, pady=(90, 90), fill="both", expand=True)
+        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame.pack(padx=15, pady=(90, 0), fill="both", expand=True)
+        self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame2.pack(padx=15, pady=(90, 90), fill="both", expand=True)
 
         self._create_payments_history()
         self._create_production_expenses_history()
@@ -1867,8 +1877,47 @@ class InvoiceDetailView(ctk.CTkFrame):
             if payment[DBPaymentsColumns.PAYMENT_NAME.value] is not None:
                 nome_pagamento = payment[DBPaymentsColumns.PAYMENT_NAME.value]
                 id_pagamento = payment[DBPaymentsColumns.ID.value]
-                pagamento_button = ctk.CTkButton(payments_frame, text=f"{nome_pagamento}")
+                pagamento_button = ctk.CTkButton(payments_frame,
+                                                 text=f"{nome_pagamento}",
+                                                 command=lambda id=id_pagamento: self.show_payment_detail(id))
                 pagamento_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def show_payment_detail(self, payment_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, payment_id)
+
+    def _create_production_expenses_history(self):
+        """Crea la sezione storico delle spese di produzione"""
+        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
+        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
+
+        ctk.CTkLabel(section_frame, text="SPESE DI PRODUZIONE ASSOCIATE", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
+
+        global_infos = {
+            "TOTALE SPESE" : {
+                "value" : self.invoice_controller.calcola_totale_spese_produzione_fattura(self.current_invoice_id),
+                "uom" : "€"
+            }
+        }
+
+        self.global_infos_payments_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+        # tabella payments
+        expenses_frame = ctk.CTkScrollableFrame(section_frame, height=300)
+        expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
+
+        # popolo i payments
+        expenses = self.invoice_controller.retrieve_invoice_with_expenses_map_list(self.current_invoice_id)
+        for expense in expenses:
+            if expense[DBExpensesColumns.NAME.value] is not None:
+                nome_spesa = expense[DBExpensesColumns.NAME.value]
+                id_spesa = expense[DBExpensesColumns.ID.value]
+                spesa_button = ctk.CTkButton(expenses_frame,
+                                             text=f"{nome_spesa}",
+                                             command=lambda id=id_spesa: self.show_production_expense_detail(id))
+                spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
+
+    def show_production_expense_detail(self, expense_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, expense_id)
 
     #da salvare come callback alla modifica/aggiunta di un pagamento
     def toggle_warning_global_info_payments(self):
@@ -1922,34 +1971,6 @@ class InvoiceDetailView(ctk.CTkFrame):
                 card.configure(border_width=2, border_color="#e6c719")
                 ViewUtils.add_tooltip(label, warning)
 
-    def _create_production_expenses_history(self):
-        """Crea la sezione storico delle spese di produzione"""
-        section_frame = ctk.CTkFrame(self.wrapper_frame, border_width=2, border_color="#2659ab")
-        section_frame.pack(fill="both", side="left", expand=True, pady=0, padx=(0, 30))
-
-        ctk.CTkLabel(section_frame, text="SPESE DI PRODUZIONE ASSOCIATE", font=("Arial", 14, "bold")).pack(anchor="w", pady=(10, 10), padx=10)
-
-        global_infos = {
-            "TOTALE SPESE" : {
-                "value" : self.invoice_controller.calcola_totale_spese_produzione_fattura(self.current_invoice_id),
-                "uom" : "€"
-            }
-        }
-
-        self.global_infos_payments_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
-
-        # tabella payments
-        expenses_frame = ctk.CTkScrollableFrame(section_frame, height=300)
-        expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
-
-        # popolo i payments
-        expenses = self.invoice_controller.retrieve_invoice_with_expenses_map_list(self.current_invoice_id)
-        for expense in expenses:
-            if expense[DBExpensesColumns.NAME.value] is not None:
-                nome_spesa = expense[DBExpensesColumns.NAME.value]
-                id_spesa = expense[DBExpensesColumns.ID.value]
-                spesa_button = ctk.CTkButton(expenses_frame, text=f"{nome_spesa}")
-                spesa_button.pack(padx=10, pady=10, fill="x", expand=True)
 
 
 

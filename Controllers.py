@@ -348,7 +348,7 @@ class ControllerUtils:
         current_year_value = datetime.now().year
         return [
             tr for tr in transfers
-            if (date_str := tr.get(DBTransfersColumns.DATE.value)) and
+            if (date_str := tr.get(DBTransfersColumns.CREATED_AT.value)) and
                (dt := ControllerUtils._parse_date(date_str)) and
                dt.year == current_year_value
         ]
@@ -1190,6 +1190,37 @@ class ClientController:
         except Exception as e:
             return False, f"Errore durante il salvataggio del cliente: {str(e)}"
 
+    def delete_client(self, client_id):
+        return self.db_model.remove_client(client_id)
+
+    def update_client(self, client_id, client_data):
+        """
+        Aggiorna i dati di un cliente esistente.
+        :param client_id: ID del cliente da aggiornare
+        :param client_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità
+            if not client_id or not isinstance(client_id, int):
+                return False, "ID cliente non valido. Deve essere un intero positivo."
+
+            required_fields = {DBClientsColumns.NAME.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not client_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_client(client_id, **client_data)
+            return True, "Cliente aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del cliente: {str(e)}"
+
     def retrieve_clients(self):
         """Recupera tutti i clienti."""
         return self.db_model.fetch_clients()
@@ -1250,16 +1281,6 @@ class ClientController:
         }
 
         return client_aggregate_data
-
-    def delete_client_by_id(self, client_id):
-        """Elimina un cliente dato il suo ID."""
-        table = "clients"
-        try:
-            self.db_model.delete_row(table, DBClientsColumns.ID.value, client_id)
-            print(f"Cliente {client_id} rimosso con successo")
-            return True, f"Cliente {client_id} rimosso con successo"
-        except Exception as e:
-            return False, f"Errore durante l'eliminazione del cliente: {str(e)}"
 
     def print_cliente(self, client):
         """
@@ -1336,152 +1357,195 @@ class ClientController:
 
     def calcola_ritardo_medio_cliente(self, client_id):
         """
-        Calcola il ritardo medio in giorni dei pagamenti per un dato cliente.
+        Calcola il ritardo medio in giorni per un cliente, considerando:
+        - Pagamenti effettuati dopo la scadenza
+        - Rate non pagate con scadenza passata
 
-        Per ciascun pagamento (ottenuto dalla LEFT JOIN tra invoices e payments):
-          - Si verifica che la fattura appartenga al cliente specificato.
-          - Si ottiene il numero della rata associata al pagamento (campo LINKED_RATA).
-          - Si seleziona la data di scadenza corrispondente della fattura:
-                Se LINKED_RATA == 1 -> DATA_SCADENZA_1
-                Se LINKED_RATA == 2 -> DATA_SCADENZA_2
-                Se LINKED_RATA == 3 -> DATA_SCADENZA_3
-          - Si confronta la data di pagamento con quella della rata:
-                Se il pagamento è in ritardo (maggiore della data di scadenza), si calcola il ritardo in giorni.
-
-        Ritorna il ritardo medio (in giorni). Se non ci sono pagamenti in ritardo, ritorna 0.
+        Ritorna:
+        - Ritardo medio in giorni (float)
+        - 0 se non ci sono rate in ritardo
         """
-        # Recupera tutte le righe dalla join invoices-payments
-        invoices_with_payments = self.db_model.fetch_invoices_with_payments()
-        # Combina le colonne di invoices e payments: prima quelle della fattura poi quelle del pagamento.
-        all_columns = list(DBInvoicesColumns) + list(DBPaymentsColumns)
+        # 1. Recupera tutte le fatture del cliente
+        invoice_rows = self.db_model.fetch_invoices_by_client_id(client_id)
+        invoices_maps = [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in invoice_rows]
+        invoices_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(invoices_maps)
 
-        # Converte ogni riga in un dizionario per un accesso più semplice
-        invoices_with_payments_maps = [
-            ValidationUtils._row_to_map(row, all_columns)
-            for row in invoices_with_payments
-        ]
+        # 2. Recupera tutti i pagamenti associati alle fatture del cliente
+        payment_rows = self.db_model.fetch_payments_with_invoice_for_client(client_id)
 
-        # Filtraggio o pulizia ulteriore se necessario (ad es. rimuovere fatture di tipo NDC o stornate)
-        invoices_with_payments_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
-            invoices_with_payments_maps)
+        # 3. Organizza i pagamenti per fattura e rata
+        payments_dict = {}
+        for row in payment_rows:
+            # Estrae i dati del pagamento (prima parte della tupla)
+            payment_data = row[:len(DBPaymentsColumns)]
+            payment_map = ValidationUtils._row_to_map(payment_data, DBPaymentsColumns)
 
-        num_pagamenti = 0
-        giorni_ritardo_totale = 0
-        # Definisci il formato in cui le date sono memorizzate. Ad esempio: "YYYY-MM-DD"
+            # Estrae i dati della fattura (seconda parte della tupla)
+            invoice_data = row[len(DBPaymentsColumns):len(DBPaymentsColumns) + len(DBInvoicesColumns)]
+            invoice_map = ValidationUtils._row_to_map(invoice_data, DBInvoicesColumns)
+
+            invoice_id = invoice_map[DBInvoicesColumns.ID.value]
+            rata = payment_map[DBPaymentsColumns.LINKED_RATA.value]
+
+            if invoice_id not in payments_dict:
+                payments_dict[invoice_id] = {}
+
+            payments_dict[invoice_id][rata] = payment_map
+
+        totale_ritardo = 0
+        conteggio_rate_in_ritardo = 0
         date_format = "%Y-%m-%d"
+        oggi = datetime.today()
 
-        for record in invoices_with_payments_maps:
-            # Controlla se la fattura appartiene al cliente specificato
-            if record[DBInvoicesColumns.ID_CLIENTE.value] == client_id:
-                # Ottieni il numero della rata associata al pagamento
-                linked_rata = record[DBPaymentsColumns.LINKED_RATA.value]
+        for invoice in invoices_maps:
+            try:
+                num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
+            except (ValueError, TypeError):
+                num_rate = 1  # Default a 1 rata se il valore non è valido
 
-                # Seleziona la data di scadenza in base al numero della rata
-                if linked_rata == 1:
-                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_1.value]
-                elif linked_rata == 2:
-                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_2.value]
-                elif linked_rata == 3:
-                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_3.value]
+            for rata in range(1, num_rate + 1):
+                # Recupera la data di scadenza della rata
+                if rata == 1:
+                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_1.value]
+                elif rata == 2:
+                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_2.value]
+                elif rata == 3:
+                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_3.value]
                 else:
-                    # Se il valore di linked_rata non è previsto, salta il record
-                    continue
+                    continue  # Supporta solo fino a 3 rate
 
-                # Ottieni la data del pagamento come stringa
-                payment_date_str = record[DBPaymentsColumns.PAYMENT_DATE.value]
+                if not due_date_str:
+                    continue  # Salta se la data di scadenza non è presente
 
                 try:
-                    payment_date = datetime.strptime(payment_date_str, date_format)
                     due_date = datetime.strptime(due_date_str, date_format)
-                except Exception as e:
-                    # Se il parsing delle date fallisce, salta questo record
-                    print(f"Errore nel parsing delle date per il record: {e}")
-                    continue
+                except ValueError:
+                    continue  # Salta se il formato della data non è valido
 
-                # Se il pagamento è avvenuto dopo la data di scadenza, calcola il ritardo
-                if payment_date > due_date:
-                    ritardo = (payment_date - due_date).days
-                    giorni_ritardo_totale += ritardo
-                    num_pagamenti += 1
+                # Cerca un pagamento per questa rata
+                invoice_id = invoice[DBInvoicesColumns.ID.value]
+                payment = payments_dict.get(invoice_id, {}).get(rata)
 
-        # Calcola e ritorna il ritardo medio (in giorni)
-        if num_pagamenti > 0:
-            return giorni_ritardo_totale / num_pagamenti
+                ritardo_calcolato = 0
+                in_ritardo = False
+
+                if payment:
+                    # Calcola ritardo per pagamento effettuato
+                    payment_date_str = payment[DBPaymentsColumns.PAYMENT_DATE.value]
+                    try:
+                        payment_date = datetime.strptime(payment_date_str, date_format)
+                        if payment_date > due_date:
+                            ritardo_calcolato = (payment_date - due_date).days
+                            in_ritardo = True
+                    except ValueError:
+                        continue
+                else:
+                    # Calcola ritardo per rata non pagata (solo se scaduta)
+                    if oggi > due_date:
+                        ritardo_calcolato = (oggi - due_date).days
+                        in_ritardo = True
+
+                if in_ritardo:
+                    totale_ritardo += ritardo_calcolato
+                    conteggio_rate_in_ritardo += 1
+
+        # Calcola la media
+        if conteggio_rate_in_ritardo > 0:
+            return totale_ritardo / conteggio_rate_in_ritardo
         else:
-            return -1
+            return 0  # Nessuna rata in ritardo
 
     def calcola_totale_ritardi_cliente(self, client_id):
         """
-            Calcola il ritardo medio in giorni dei pagamenti per un dato cliente.
-
-            Per ciascun pagamento (ottenuto dalla LEFT JOIN tra invoices e payments):
-              - Si verifica che la fattura appartenga al cliente specificato.
-              - Si ottiene il numero della rata associata al pagamento (campo LINKED_RATA).
-              - Si seleziona la data di scadenza corrispondente della fattura:
-                    Se LINKED_RATA == 1 -> DATA_SCADENZA_1
-                    Se LINKED_RATA == 2 -> DATA_SCADENZA_2
-                    Se LINKED_RATA == 3 -> DATA_SCADENZA_3
-              - Si confronta la data di pagamento con quella della rata:
-                    Se il pagamento è in ritardo (maggiore della data di scadenza), si calcola il ritardo in giorni.
-
-            Ritorna il totale dei ritardi (in giorni). Se non ci sono pagamenti in ritardo, ritorna 0.
+        Calcola il ritardo totale in giorni per un cliente, considerando:
+        - Pagamenti effettuati dopo la scadenza
+        - Rate non pagate con scadenza passata
         """
+        # 1. Recupera tutte le fatture del cliente
+        invoice_rows = self.db_model.fetch_invoices_by_client_id(client_id)
+        invoices_maps = [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in invoice_rows]
+        invoices_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(invoices_maps)
 
-        # Recupera tutte le righe dalla join invoices-payments
-        invoices_with_payments = self.db_model.fetch_invoices_with_payments()
-        # Combina le colonne di invoices e payments: prima quelle della fattura poi quelle del pagamento.
-        all_columns = list(DBInvoicesColumns) + list(DBPaymentsColumns)
+        # 2. Recupera tutti i pagamenti associati alle fatture del cliente
+        payment_rows = self.db_model.fetch_payments_with_invoice_for_client(client_id)
 
-        # Converte ogni riga in un dizionario per un accesso più semplice
-        invoices_with_payments_maps = [
-            ValidationUtils._row_to_map(row, all_columns)
-            for row in invoices_with_payments
-        ]
+        # 3. Organizza i pagamenti per fattura e rata
+        payments_dict = {}
+        for row in payment_rows:
+            # Estrae i dati del pagamento (prima parte della tupla)
+            payment_data = row[:len(DBPaymentsColumns)]
+            payment_map = ValidationUtils._row_to_map(payment_data, DBPaymentsColumns)
 
-        # Filtraggio o pulizia ulteriore se necessario (ad es. rimuovere fatture di tipo NDC o stornate)
-        invoices_with_payments_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
-            invoices_with_payments_maps)
+            # Estrae i dati della fattura (seconda parte della tupla)
+            invoice_data = row[len(DBPaymentsColumns):len(DBPaymentsColumns) + len(DBInvoicesColumns)]
+            invoice_map = ValidationUtils._row_to_map(invoice_data, DBInvoicesColumns)
 
-        num_pagamenti = 0
+            invoice_id = invoice_map[DBInvoicesColumns.ID.value]
+            rata = payment_map[DBPaymentsColumns.LINKED_RATA.value]
+
+            if invoice_id not in payments_dict:
+                payments_dict[invoice_id] = {}
+
+            payments_dict[invoice_id][rata] = payment_map
+
         giorni_ritardo_totale = 0
-        # Definisci il formato in cui le date sono memorizzate. Ad esempio: "YYYY-MM-DD"
         date_format = "%Y-%m-%d"
+        oggi = datetime.today()
 
-        for record in invoices_with_payments_maps:
-            # Controlla se la fattura appartiene al cliente specificato
-            if record[DBInvoicesColumns.ID_CLIENTE.value] == client_id:
-                # Ottieni il numero della rata associata al pagamento
-                linked_rata = record[DBPaymentsColumns.LINKED_RATA.value]
+        for invoice in invoices_maps:
+            try:
+                num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
+            except (ValueError, TypeError):
+                num_rate = 1  # Default a 1 rata se il valore non è valido
 
-                # Seleziona la data di scadenza in base al numero della rata
-                if linked_rata == 1:
-                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_1.value]
-                elif linked_rata == 2:
-                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_2.value]
-                elif linked_rata == 3:
-                    due_date_str = record[DBInvoicesColumns.DATA_SCADENZA_3.value]
+            for rata in range(1, num_rate + 1):
+                # Recupera la data di scadenza della rata
+                if rata == 1:
+                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_1.value]
+                elif rata == 2:
+                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_2.value]
+                elif rata == 3:
+                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_3.value]
                 else:
-                    # Se il valore di linked_rata non è previsto, salta il record
-                    continue
+                    continue  # Supporta solo fino a 3 rate
 
-                # Ottieni la data del pagamento come stringa
-                payment_date_str = record[DBPaymentsColumns.PAYMENT_DATE.value]
+                if not due_date_str:
+                    continue  # Salta se la data di scadenza non è presente
 
                 try:
-                    payment_date = datetime.strptime(payment_date_str, date_format)
                     due_date = datetime.strptime(due_date_str, date_format)
-                except Exception as e:
-                    # Se il parsing delle date fallisce, salta questo record
-                    print(f"Errore nel parsing delle date per il record: {e}")
-                    continue
+                except ValueError:
+                    continue  # Salta se il formato della data non è valido
 
-                # Se il pagamento è avvenuto dopo la data di scadenza, calcola il ritardo
-                if payment_date > due_date:
-                    ritardo = (payment_date - due_date).days
-                    giorni_ritardo_totale += ritardo
-                    num_pagamenti += 1
+                # Cerca un pagamento per questa rata
+                invoice_id = invoice[DBInvoicesColumns.ID.value]
+                payment = payments_dict.get(invoice_id, {}).get(rata)
+
+                if payment:
+                    # Calcola ritardo per pagamento effettuato
+                    payment_date_str = payment[DBPaymentsColumns.PAYMENT_DATE.value]
+                    try:
+                        payment_date = datetime.strptime(payment_date_str, date_format)
+                        if payment_date > due_date:
+                            ritardo = (payment_date - due_date).days
+                            giorni_ritardo_totale += ritardo
+                    except ValueError:
+                        continue
+                else:
+                    # Calcola ritardo per rata non pagata (solo se scaduta)
+                    if oggi > due_date:
+                        ritardo = (oggi - due_date).days
+                        giorni_ritardo_totale += ritardo
 
         return giorni_ritardo_totale
+
+    def calcola_tot_rimborsi_by_client(self, client_id):
+        refunds = [ValidationUtils._row_to_map(row, DBRefundsColumns) for row in self.db_model.fetch_refunds_by_client_id(client_id)]
+        tot = 0.0
+        for r in refunds:
+            tot += float(r[DBRefundsColumns.REFUND_AMOUNT.value])
+
+        return tot
 
 
 class InvoiceController:
@@ -1758,7 +1822,7 @@ class InvoiceController:
 
         invoice_data_prepared[DBInvoicesColumns.CREATED_AT.value] = invoice[DBInvoicesColumns.CREATED_AT.value]
 
-        invoice_data_prepared[DBInvoicesColumns.UPDATED_AT.value] = datetime.now().replace(microsecond=0)
+        invoice_data_prepared[DBInvoicesColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
             # Invoca il metodo del model per aggiornare l'utente
@@ -1887,6 +1951,22 @@ class InvoiceController:
         :return: Lista di dizionari contenenti i dati delle fatture.
         """
         rows = self.db_model.fetch_invoices_by_prod_id(prod_id)
+
+        if current_year and rows:
+            rows = ControllerUtils.filter_invoices(rows, self.db_model, current_year)
+
+        return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
+
+    def retrieve_invoice_map_list_by_client(self, client_id, current_year=True):
+        """
+        Recupera tutte le fatture di un cliente e le restituisce come lista di dizionari,
+        filtrandole per l'anno corrente o mantenendo quelle con rate non pagate.
+
+        :param client_id: ID del cliente.
+        :param current_year: Se True, ritorna solo le fatture dell'anno corrente o con rate non pagate.
+        :return: Lista di dizionari contenenti i dati delle fatture.
+        """
+        rows = self.db_model.fetch_invoices_by_client_id(client_id)
 
         if current_year and rows:
             rows = ControllerUtils.filter_invoices(rows, self.db_model, current_year)
@@ -2905,9 +2985,10 @@ class PaymentsController:
             if not payment_id or not isinstance(payment_id, int):
                 return False, "ID pagamento non valido. Deve essere un intero positivo."
 
+            required_fields = {DBPaymentsColumns.PAYMENT_AMOUNT.value}
 
             # Validazione campi obbligatori
-            missing_fields = [field for field in self.required_fields if not payment_data.get(field)]
+            missing_fields = [field for field in required_fields if not payment_data.get(field)]
             if missing_fields:
                 return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
 
@@ -2918,8 +2999,10 @@ class PaymentsController:
                 if amount and not ValidationUtils.validate_amount(amount):
                     return False, "L'importo inserito non è valido."
 
+            payment_data[DBPaymentsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
             # Invoca il metodo del model per aggiornare l'utente
-            self.db_model.update_user(payment_id, **payment_data)
+            self.db_model.update_payment(payment_id, **payment_data)
             return True, "Pagamento aggiornato con successo!"
 
         except ValueError as ve:
@@ -2932,6 +3015,18 @@ class PaymentsController:
 
     def sum_payments_for_account(self, account_id):
         return self.db_model.sum_payments_by_account(account_id)
+
+    # Controller corretto
+    def delete_payment(self, payment_id):
+        try:
+            # Ottieni il risultato dal model
+            result = self.db_model.delete_payment(payment_id)
+            if result:
+                return True, "Pagamento eliminato con successo."  # Successo
+            else:
+                return False, "Pagamento non trovato o errore durante l'eliminazione."  # Fallimento
+        except Exception as e:
+            return False, f"Errore durante l'eliminazione del pagamento: {str(e)}"  # Eccezione
 
 
 class AccountController:
@@ -3014,6 +3109,42 @@ class AccountController:
         for account in self.retrieve_accounts_map_list():
             self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.NUM_ACCOUNTS.value] += 1
             self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.INIT_BALANCE.value])
+
+    def update_account(self, account_id, account_data):
+        """
+        Aggiorna i dati di un conto esistente.
+        :param account_id: ID del conto da aggiornare
+        :param account_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità refund_id
+            if not account_id or not isinstance(account_id, int):
+                return False, "ID account non valido. Deve essere un intero positivo."
+
+            required_fields = {DBAccountsColumns.NAME.value, DBAccountsColumns.INIT_BALANCE.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not account_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Validazione Importi
+            if DBAccountsColumns.INIT_BALANCE.value in account_data:
+                amount = account_data[DBAccountsColumns.INIT_BALANCE.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo inserito non è valido."
+
+            account_data[DBAccountsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_account(account_id, **account_data)
+            return True, "Account aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del conto: {str(e)}"
 
     def retrieve_accounts(self):
         """
@@ -3400,9 +3531,10 @@ class ProductionController:
             if not production_id or not isinstance(production_id, int):
                 return False, "ID pagamento non valido. Deve essere un intero positivo."
 
+            required_fields = {DBProductionsColumns.NAME.value, DBProductionsColumns.HOURS.value, DBProductionsColumns.TOTALE_PREVENTIVO.value}
 
             # Validazione campi obbligatori
-            missing_fields = [field for field in self.required_fields if not production_data.get(field)]
+            missing_fields = [field for field in required_fields if not production_data.get(field)]
             if missing_fields:
                 return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
 
@@ -3410,14 +3542,16 @@ class ProductionController:
             # Validazione ore di lavoro
             if DBProductionsColumns.HOURS.value in production_data:
                 hours = production_data[DBProductionsColumns.HOURS.value]
-                if hours and not ValidationUtils.validate_integers(hours):
-                    return False, "L'importo orario inserito non è valido, inserire un numero intero."
+                if hours and not ValidationUtils.validate_amount(hours):
+                    return False, "L'importo orario inserito non è valido, inserire un valore numerico"
 
             # Validazione Importo
             if DBProductionsColumns.TOTALE_PREVENTIVO.value in production_data:
                 amount = production_data[DBProductionsColumns.TOTALE_PREVENTIVO.value]
                 if amount and not ValidationUtils.validate_amount(amount):
                     return False, "L'importo del preventivo inserito non è valido."
+
+            production_data[DBProductionsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # Invoca il metodo del model per aggiornare l'utente
             self.db_model.update_production(production_id, **production_data)
@@ -3428,6 +3562,9 @@ class ProductionController:
             return False, str(ve)
         except Exception as e:
             return False, f"Errore durante l'aggiornamento della produzione: {str(e)}"
+
+    def delete_production(self, production_id):
+        return self.db_model.remove_production(production_id)
 
     def update_specific_production_data(self, production_id, production_data):
         try:
@@ -3532,6 +3669,13 @@ class ProductionController:
         # Applica il filtro usando il metodo statico
         return ControllerUtils.filter_productions(productions, current_year)
 
+    def retrieve_production_with_invoices_map_list(self, production_id):
+        invoices = self.db_model.fetch_production_with_invoices(production_id)
+        all_columns = list(DBProductionsColumns) + list(DBInvoicesColumns)
+        invoices_map = [ValidationUtils._row_to_map(invoice, all_columns) for invoice in invoices]
+
+        return invoices_map
+
     def retrieve_last_production_insert_map(self):
         """
         Recupera l'ultima production inserita e la restituisce come dizionario.
@@ -3575,6 +3719,10 @@ class ProductionController:
         else:
             productions = self.retrieve_productions_map_list(current_year=False)
         return len(productions)
+
+    def count_productions_of_client(self, client_id, current_year=True):
+        productions_map = self.retrieve_productions_map_list_by_client_id(client_id, current_year=True)
+        return(len(productions_map))
 
     def count_active_productions(self, current_year=True):
         """
@@ -3620,6 +3768,16 @@ class ProductionController:
         self.CY_productions_aggregated_data[ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value] = self.count_productions(True)
         self.CY_productions_aggregated_data[ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value] = self.count_active_productions(True)
         self.CY_productions_aggregated_data[ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value] = self.count_closed_productions(True)
+
+    def calcola_totale_servizi_rimborsi_per_produzione(self, production_id):
+
+        invoices_map = self.retrieve_production_with_invoices_map_list(production_id)
+
+        tot = 0.0
+        for invoice in invoices_map:
+            tot += invoice[DBInvoicesColumns.SERVIZI.value] + invoice[DBInvoicesColumns.RIMBORSI.value] if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None else 0
+
+        return tot
 
 
 class ExpenseController:
@@ -3684,7 +3842,7 @@ class ExpenseController:
         #prendo ID Utente per la deduzione
         user_id_deduzione = None
         user_name = expense_data.get("DEDUZIONE A CARICO")
-        if len(user_name.split(" ")) >= 2: #se è un nome di un utente vero allora è Nome Cognome
+        if user_name is not None and len(user_name.split(" ")) >= 2: #se è un nome di un utente vero allora è Nome Cognome
             user_first = user_name.split(" ")[0]
             user_last = user_name.split(" ")[1]
             user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
@@ -3694,14 +3852,16 @@ class ExpenseController:
         invoice_id = None
         #la view si occupa di non mandare tra i dati la fattura associata se la categoria non è "SPESA DI PRODUZIONE"
         invoice_name = expense_data.get("FATTURA ASSOCIATA")
-        if invoice_name:
+        if invoice_name is not None:
             invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name, True)
-            invoice_id = invoice[DBInvoicesColumns.ID.value]
+            if invoice != {}:
+                invoice_id = invoice[DBInvoicesColumns.ID.value]
 
         #calcolo importo netto
         aliquota_iva = float(expense_data.get("ALIQUOTA IVA"))
-        spesa_netta = float(spesa_lorda)/( 1 + aliquota_iva)
-        iva = spesa_netta * aliquota_iva
+        iva = float(spesa_lorda)*aliquota_iva
+        spesa_netta = float(spesa_lorda)-iva
+
 
         #prendo ID supplier
         supplier_id = None
@@ -3717,9 +3877,11 @@ class ExpenseController:
             conto = self.account_controller.retrieve_account_map_by_name(conto_name)
             conto_id = conto[DBAccountsColumns.ID.value]
 
+        nome_spesa = supplier_name + " - " + expense_data.get(DBExpensesColumns.NAME.value)
+
 
         expense_data_prepared = {
-            DBExpensesColumns.NAME.value: expense_data.get(DBExpensesColumns.NAME.value),
+            DBExpensesColumns.NAME.value: nome_spesa,
             DBExpensesColumns.USER_ID_ANTICIPO.value: user_id_anticipo,
             DBExpensesColumns.USER_ID_DEDUZIONE.value: user_id_deduzione,
             DBExpensesColumns.SUPPLIER_ID.value: supplier_id,
@@ -3740,6 +3902,61 @@ class ExpenseController:
             return True, "Spesa salvata con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
+
+    def update_expense(self, expense_id, expense_data):
+        """
+        Aggiorna i dati di unaa spesa esistente.
+        :param expense_id: ID dellla spesa da aggiornare
+        :param expense_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità refund_id
+            if not expense_id or not isinstance(expense_id, int):
+                return False, "ID rimborso non valido. Deve essere un intero positivo."
+
+            required_fields = {DBExpensesColumns.NET_AMOUNT.value, DBExpensesColumns.TOT_AMOUNT.value, DBExpensesColumns.IVA_AMOUNT.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not expense_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Validazione Importi
+            if DBExpensesColumns.NET_AMOUNT.value in expense_data:
+                amount = expense_data[DBExpensesColumns.NET_AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo netto inserito non è valido."
+
+            if DBExpensesColumns.TOT_AMOUNT.value in expense_data:
+                amount = expense_data[DBExpensesColumns.TOT_AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo lordo inserito non è valido."
+
+            if DBExpensesColumns.IVA_AMOUNT.value in expense_data:
+                amount = expense_data[DBExpensesColumns.IVA_AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo iva inserito non è valido."
+
+            if expense_data[DBExpensesColumns.CATEGORY.value] != dict(self.catalogo_elenchi["expenses_category"]).get("PRODUCTION_EXPENSE"):
+                expense_data.pop(DBExpensesColumns.LINKED_INVOICE_ID.value)
+
+            if expense_data[DBExpensesColumns.DEDUCIBILE.value] == "No":
+                expense_data.pop(DBExpensesColumns.USER_ID_DEDUZIONE.value)
+
+            expense_data[DBExpensesColumns.updated_at.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_expense(expense_id, **expense_data)
+            return True, "Spesa aggiornata con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento della spesa: {str(e)}"
+
+    def delete_expense(self, expense_id):
+        return self.db_model.remove_expense(expense_id)
 
     def retrieve_expenses(self, current_year=True):
         """
@@ -3801,6 +4018,23 @@ class ExpenseController:
 
         # Applica il filtro usando il metodo statico
         return ControllerUtils.filter_expenses(expenses, current_year)
+
+    def retrieve_expense_map_list_by_supplier(self, supplier_id, current_year=True):
+        """
+        Recupera tutte le spese legate ad un fornitore e le restituisce come lista di dizionari,
+        filtrandole per l'anno corrente o mantenendo quelle con rate non pagate.
+
+        :param supplier_id: ID del fornitore.
+        :param current_year: Se True, ritorna solo le spese dell'anno corrente o con rate non pagate.
+        :return: Lista di dizionari contenenti i dati delle spese.
+        """
+        rows = self.db_model.fetch_expenses_by_supplier_id(supplier_id)
+        rows = [ValidationUtils._row_to_map(row, DBExpensesColumns) for row in rows]
+
+        if current_year and rows:
+            rows = ControllerUtils.filter_expenses(rows, current_year)
+
+        return rows
 
     def retrieve_last_expense_insert_map(self):
         """
@@ -3938,7 +4172,8 @@ class ExpenseController:
                 DBExpensesColumns.USER_ID_DEDUZIONE.value: deductor_id,
                 DBExpensesColumns.DATE.value: today.isoformat(),
                 DBExpensesColumns.DEDUCIBILE.value: "Sì" if exp.deductible else "No",
-                DBExpensesColumns.ACCOUNT_ID.value: acct_id
+                DBExpensesColumns.ACCOUNT_ID.value: acct_id,
+                DBExpensesColumns.RICORRENTE.value: 1
             }
             try:
                 self.db_model.add_expense(**new_exp)
@@ -4030,6 +4265,37 @@ class SupplierController:
             return True, "Fornitore salvato con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio del fornitore: {str(e)}"
+
+    def update_supplier(self, supplier_id, supplier_data):
+        """
+        Aggiorna i dati di un fornitore esistente.
+        :param supplier_id: ID del fornitore da aggiornare
+        :param supplier_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità
+            if not supplier_id or not isinstance(supplier_id, int):
+                return False, "ID fornitore non valido. Deve essere un intero positivo."
+
+            required_fields = {DBSuppliersColumns.NAME.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not supplier_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_supplier(supplier_id, **supplier_data)
+            return True, "Fornitore aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del fornitore: {str(e)}"
+
+    def delete_supplier(self, supplier_id):
+        return self.db_model.remove_supplier(supplier_id)
 
     def retrieve_suppliers(self):
         """Recupera tutti i suppliers."""
@@ -4275,6 +4541,45 @@ class SalaryController:
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
 
+    def update_salary(self, salary_id, salary_data):
+        """
+        Aggiorna i dati di un salario esistente.
+        :param salary_id: ID del salario da aggiornare
+        :param salary_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità refund_id
+            if not salary_id or not isinstance(salary_id, int):
+                return False, "ID salario non valido. Deve essere un intero positivo."
+
+            required_fields = {DBSalariesColumns.NAME.value, DBSalariesColumns.AMOUNT.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not salary_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Validazione Importi
+            if DBSalariesColumns.AMOUNT.value in salary_data:
+                amount = salary_data[DBSalariesColumns.AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo inserito non è valido."
+
+            salary_data[DBSalariesColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_salary(salary_id, **salary_data)
+            return True, "Salario aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del salario: {str(e)}"
+
+    def delete_salary(self, salary_id):
+        return self.db_model.remove_salary(salary_id)
+
     def retrieve_salaries(self, current_year: bool = True) -> list[tuple]:
         """
         Recupera tutte le tuple dei versamenti-salario dalla tabella.
@@ -4373,7 +4678,7 @@ class RefundController:
         self.client_controller = client_controller
         self.account_controller = account_controller
 
-    def  save_refund(self, refund_data):
+    def save_refund(self, refund_data):
         """
         Gestisce il salvataggio di un rimborso, con validazioni di primo livello.
         :param refund_data: Dizionario contenente i dati del rimborso
@@ -4417,6 +4722,45 @@ class RefundController:
             return True, "Rimborso salvato con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
+
+    def update_refund(self, refund_id, refund_data):
+        """
+        Aggiorna i dati di un rimborso esistente.
+        :param refund_id: ID del rimborso da aggiornare
+        :param refund_data: Dizionario contenente i dati da aggiornare
+        :return: Tuple (success, message), dove success è True/False
+        """
+        try:
+            # Controllo validità refund_id
+            if not refund_id or not isinstance(refund_id, int):
+                return False, "ID rimborso non valido. Deve essere un intero positivo."
+
+            required_fields = {DBRefundsColumns.REFUND_NAME.value, DBRefundsColumns.REFUND_AMOUNT.value}
+
+            # Validazione campi obbligatori
+            missing_fields = [field for field in required_fields if not refund_data.get(field)]
+            if missing_fields:
+                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
+
+            # Validazione Importo
+            if DBRefundsColumns.REFUND_AMOUNT.value in refund_data:
+                amount = refund_data[DBRefundsColumns.REFUND_AMOUNT.value]
+                if amount and not ValidationUtils.validate_amount(amount):
+                    return False, "L'importo inserito non è valido."
+
+            refund_data[DBRefundsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Invoca il metodo del model per aggiornare l'utente
+            self.db_model.update_refund(refund_id, **refund_data)
+            return True, "Rimborso aggiornato con successo!"
+
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del rimborso: {str(e)}"
+
+    def delete_refund(self, refund_id):
+        return self.db_model.remove_refund(refund_id)
 
     def retrieve_refunds(self, current_year=True):
         """
@@ -4531,6 +4875,17 @@ class RefundController:
         for refund in refund_list:
             tot = tot + float(refund[DBRefundsColumns.REFUND_AMOUNT.value])
         return tot
+
+    def calculate_tot_refunds_of_client(self, client_id, current_year=True):
+        """
+        Calcola il totale degli importi dei rimborsi.
+        """
+        refund_list = self.retrieve_refunds_map_list_by_client_id(current_year, client_id)
+        tot = 0.0
+        for refund in refund_list:
+            tot = tot + float(refund[DBRefundsColumns.REFUND_AMOUNT.value])
+        return tot
+
 
     def update_refund(self, refund_id, refund_data):
         """
@@ -4708,6 +5063,87 @@ class Analyzer:
 
         return output_map
 
+    def retrieve_account_movements_by_account_id(self, account_id):
+        movements = []
+
+        # Payments (+) - Entrate
+        payments = self.payment_controller.retrieve_payments_map_list(current_year=True)
+        filtered_payments = [p for p in payments if p[DBPaymentsColumns.CONTO_ID.value] == account_id]
+        for payment in filtered_payments:
+            movements.append({
+                "name": payment[DBPaymentsColumns.PAYMENT_NAME.value],
+                "date": payment[DBPaymentsColumns.PAYMENT_DATE.value],
+                "amount": float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value]),
+                "type": "Pagamento",
+                "sign": "+"
+            })
+
+        # Refunds (+) - Entrate
+        refunds = self.refunds_controller.retrieve_refunds_map_list(current_year=True)
+        filtered_refunds = [r for r in refunds if r[DBRefundsColumns.CONTO_ID.value] == account_id]
+        for refund in filtered_refunds:
+            movements.append({
+                "name": refund[DBRefundsColumns.REFUND_NAME.value],
+                "date": refund[DBRefundsColumns.REFUND_DATE.value],
+                "amount": float(refund[DBRefundsColumns.REFUND_AMOUNT.value]),
+                "type": "Rimborso",
+                "sign": "+"
+            })
+
+        # Expenses (-) - Uscite
+        expenses = self.expenses_controller.retrieve_expenses_map_list(current_year=True)
+        filtered_expenses = [e for e in expenses if e[DBExpensesColumns.ACCOUNT_ID.value] == account_id]
+        for expense in filtered_expenses:
+            movements.append({
+                "name": expense[DBExpensesColumns.NAME.value],
+                "date": expense[DBExpensesColumns.DATE.value],
+                "amount": float(expense[DBExpensesColumns.TOT_AMOUNT.value]),
+                "type": "Spesa",
+                "sign": "-"
+            })
+
+        # Salaries (-) - Uscite
+        salaries = self.salary_controller.retrieve_salaries_map_list(current_year=True)
+        filtered_salaries = [s for s in salaries if s[DBSalariesColumns.ACCOUNT_ID.value] == account_id]
+        for salary in filtered_salaries:
+            movements.append({
+                "name": salary[DBSalariesColumns.NAME.value],
+                "date": salary[DBSalariesColumns.DATE.value],
+                "amount": float(salary[DBSalariesColumns.AMOUNT.value]),
+                "type": "Stipendio",
+                "sign": "-"
+            })
+
+        # Transfers (bonifici) - Possono essere entrate o uscite
+        transfers = self.transfer_controller.retrieve_transfers_map_list(current_year=True)
+
+        # Bonifici in entrata (ricevuti)
+        incoming_transfers = [t for t in transfers if t[DBTransfersColumns.RECEIVER_ACCOUNT_ID.value] == account_id]
+        for transfer in incoming_transfers:
+            movements.append({
+                "name": f"{transfer[DBTransfersColumns.DESCRIPTION.value]}",
+                "date": transfer[DBTransfersColumns.CREATED_AT.value].split(" ")[0],
+                "amount": float(transfer[DBTransfersColumns.AMOUNT.value]),
+                "type": "Bonifico",
+                "sign": "+"
+            })
+
+        # Bonifici in uscita (inviati)
+        outgoing_transfers = [t for t in transfers if t[DBTransfersColumns.SENDER_ACCOUNT_ID.value] == account_id]
+        for transfer in outgoing_transfers:
+            movements.append({
+                "name": f"{transfer[DBTransfersColumns.DESCRIPTION.value]}",
+                "date": transfer[DBTransfersColumns.CREATED_AT.value].split(" ")[0],
+                "amount": float(transfer[DBTransfersColumns.AMOUNT.value]),
+                "type": "Bonifico",
+                "sign": "-"
+            })
+
+        # Ordina per data (dalla più recente alla più vecchia)
+        movements.sort(key=lambda x: x["date"], reverse=True)
+
+        return movements
+
     def calculate_previsione_tasse_forfettaria(self, user_id):
         user = self.user_controller.retrieve_user_map_by_id(user_id)
         reddito_esterno = 0.0
@@ -4716,23 +5152,137 @@ class Analyzer:
             reddito_esterno = float(user[DBUsersColumns.REDDITO_ESTERNO.value])
             fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id)
             anno_apertura = int(user[DBUsersColumns.ANNO_APERTURA_PIVA.value])
-        else: return
+        else:
+            return
 
-        reddito_willow = fatturato_willow * float(self.fiscal_settings.partita_iva_forfettaria.imponibile)
+        # Recupero impostazioni fiscali
+        forfettaria_settings = self.fiscal_settings.partita_iva_forfettaria
+        perc_acc_imp_primo = float(forfettaria_settings.percentuale_acconto_imposta_primo)
+        perc_acc_imp_secondo = float(forfettaria_settings.percentuale_acconto_imposta_secondo)
+        perc_acc_inps = float(forfettaria_settings.percentuale_acconto_inps_forfettario)
+        perc_rata_inps = float(forfettaria_settings.percentuale_rata_acconto_inps_forfettario)
+
+        # Recupero anticipo anno precedente
+        acconto_anno_precedente_IRPEF = float(user.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value, 0.0))
+        acconto_anno_precedente_INPS = float(user.get(DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value, 0.0))
+        acconto_anno_precedente = acconto_anno_precedente_IRPEF + acconto_anno_precedente_INPS
+
+        # Calcolo valori base
+        coefficiente_imponibile = float(forfettaria_settings.imponibile)
+        aliquota_inps = float(forfettaria_settings.aliquota_inps)
+        aliquota_irpef = float(self.user_controller.calcola_aliquota_tax_forfettaria(
+            int(datetime.today().date().year) - anno_apertura
+        ))
+
+        # Calcolo reddito imponibile
+        reddito_willow = fatturato_willow * coefficiente_imponibile
         reddito_tot = reddito_willow + reddito_esterno
-        aliquota_irpef = float(self.user_controller.calcola_aliquota_tax_forfettaria(int(datetime.today().date().year) - anno_apertura))
-        irpef = reddito_tot * aliquota_irpef
-        inps = reddito_tot * float(self.fiscal_settings.partita_iva_forfettaria.aliquota_inps)
-        quota_willow = reddito_willow/reddito_tot if reddito_tot > 0 else 0
-        irpef_w = irpef*quota_willow
-        inps_w = inps*quota_willow
 
-        return {
-            "INPS" : round(inps, 2),
-            "IRPEF" : round(irpef, 2),
-            "IRPEF WILLOW" : round(irpef_w, 2),
-            "INPS WILLOW" : round(inps_w, 2)
+        # Calcolo tasse
+        irpef = reddito_tot * aliquota_irpef
+        inps = reddito_tot * aliquota_inps
+        totale_tasse = inps + irpef
+
+        # Calcolo saldo corrente (tasse totali - acconto anno precedente)
+        saldo_corrente = max(0, totale_tasse - acconto_anno_precedente)
+
+        # Calcolo quote Willow
+        quota_willow = reddito_willow / reddito_tot if reddito_tot > 0 else 0
+        irpef_w = irpef * quota_willow
+        inps_w = inps * quota_willow
+        tasse_willow = inps_w + irpef_w
+        saldo_willow = saldo_corrente * quota_willow
+
+        # Calcolo acconti per l'anno successivo
+        # IRPEF
+        primo_acconto_irpef = irpef * perc_acc_imp_primo
+        secondo_acconto_irpef = irpef * perc_acc_imp_secondo
+
+        # INPS
+        acconto_inps_totale = inps * perc_acc_inps
+        primo_acconto_inps = acconto_inps_totale * perc_rata_inps
+        secondo_acconto_inps = acconto_inps_totale - primo_acconto_inps
+
+        # Calcolo totale acconti
+        acconto_totale = (primo_acconto_irpef + secondo_acconto_irpef +
+                          primo_acconto_inps + secondo_acconto_inps)
+        acconto_willow = acconto_totale * quota_willow
+
+        # Calcolo totale per scadenza
+        primo_acconto_totale = primo_acconto_irpef + primo_acconto_inps
+        secondo_acconto_totale = secondo_acconto_irpef + secondo_acconto_inps
+
+        # Ripartizione per Willow
+        primo_acconto_willow = primo_acconto_totale * quota_willow
+        secondo_acconto_willow = secondo_acconto_totale * quota_willow
+
+        # Mappa versamenti (saldo e acconti)
+        versamenti_map = {
+            "SALDO TOTALE": round(saldo_corrente, 2),
+            "ACCONTO TOTALE": round(acconto_totale, 2),
+            "SALDO WILLOW": round(saldo_willow, 2),
+            "ACCONTO WILLOW": round(acconto_willow, 2)
         }
+
+        # Output map per tooltip e dettagli
+        output_map = {
+            # Informazioni di base
+            "FATTURATO_WILLOW": round(fatturato_willow, 2),
+            "REDDITO_ESTERNO": round(reddito_esterno, 2),
+            "COEFFICIENTE_IMPONIBILE": coefficiente_imponibile,
+            "ALIQUOTA_INPS": aliquota_inps,
+            "ALIQUOTA_IRPEF": aliquota_irpef,
+            "PERC_ACC_IMP_PRIMO": perc_acc_imp_primo,
+            "PERC_ACC_IMP_SECONDO": perc_acc_imp_secondo,
+            "PERC_ACC_INPS": perc_acc_inps,
+            "PERC_RATA_INPS": perc_rata_inps,
+
+            # Calcoli intermedi
+            "REDDITO_WILLOW": round(reddito_willow, 2),
+            "REDDITO_TOT": round(reddito_tot, 2),
+            "QUOTA_WILLOW": quota_willow,
+
+            # Totali tasse
+            "INPS": round(inps, 2),
+            "IRPEF": round(irpef, 2),
+            "TOTALE_TASSE": round(totale_tasse, 2),
+            "INPS WILLOW": round(inps_w, 2),
+            "IRPEF WILLOW": round(irpef_w, 2),
+            "TASSE_WILLOW": round(tasse_willow, 2),
+
+            # Anticipo anno precedente
+            "ACCONTO_ANNO_PRECEDENTE": round(acconto_anno_precedente, 2),
+            "ACCONTO_ANNO_PRECEDENTE_IRPEF": round(acconto_anno_precedente_IRPEF, 2),
+            "ACCONTO_ANNO_PRECEDENTE_INPS": round(acconto_anno_precedente_INPS, 2),
+
+            # Saldi
+            "SALDO_CORRENTE": round(saldo_corrente, 2),
+            "SALDO_WILLOW": round(saldo_willow, 2),
+
+            # Acconti anno successivo
+            "ACCONTO_TOTALE": round(acconto_totale, 2),
+            "ACCONTO_WILLOW": round(acconto_willow, 2),
+            "PRIMO_ACCONTO_TOTALE": round(primo_acconto_totale, 2),
+            "SECONDO_ACCONTO_TOTALE": round(secondo_acconto_totale, 2),
+            "PRIMO_ACCONTO_WILLOW": round(primo_acconto_willow, 2),
+            "SECONDO_ACCONTO_WILLOW": round(secondo_acconto_willow, 2),
+            "PRIMO_ACCONTO_IRPEF": round(primo_acconto_irpef, 2),
+            "SECONDO_ACCONTO_IRPEF": round(secondo_acconto_irpef, 2),
+            "PRIMO_ACCONTO_INPS": round(primo_acconto_inps, 2),
+            "SECONDO_ACCONTO_INPS": round(secondo_acconto_inps, 2),
+            "PRIMO_ACCONTO_IRPEF_WILLOW": round(primo_acconto_irpef * quota_willow, 2),
+            "SECONDO_ACCONTO_IRPEF_WILLOW": round(secondo_acconto_irpef * quota_willow, 2),
+            "PRIMO_ACCONTO_INPS_WILLOW": round(primo_acconto_inps * quota_willow, 2),
+            "SECONDO_ACCONTO_INPS_WILLOW": round(secondo_acconto_inps * quota_willow, 2)
+        }
+
+        # Output principale
+        return {
+            "INPS": round(inps, 2),
+            "IRPEF": round(irpef, 2),
+            "IRPEF WILLOW": round(irpef_w, 2),
+            "INPS WILLOW": round(inps_w, 2)
+        }, versamenti_map, output_map
 
     def calculate_previsione_tasse_ordinaria(self, user_id):
         user = self.user_controller.retrieve_user_map_by_id(user_id)
@@ -4949,6 +5499,72 @@ class Analyzer:
             "WILLOW IRPEF": round(max(0, irpef_willow - tot_ritenuta), 2)
         }, versamenti_map, output_map
 
+    def calculate_previsione_tasse_willow(self):
+        list_of_users = self.user_controller.retrieve_users_map_list()
+        result_map = {}
+        total_saldo_willow = 0.0
+        total_acconto_willow = 0.0
+        total_irpef_willow = 0.0
+        total_inps_willow = 0.0
+
+        for user in list_of_users:
+            user_id = user[DBUsersColumns.ID.value]
+            regime_fiscale = user[DBUsersColumns.REGIME_FISCALE.value]
+            user_name = f"{user.get(DBUsersColumns.FIRST_NAME.value, '')} {user.get(DBUsersColumns.LAST_NAME.value, '')}"
+
+            saldo_willow = 0.0
+            acconto_willow = 0.0
+            irpef_willow = 0.0
+            inps_willow = 0.0
+
+            try:
+                if regime_fiscale == self.user_controller.RegimeFiscale.ORDINARIO.value:
+                    tasse_map, versamenti, _ = self.calculate_previsione_tasse_ordinaria(user_id)
+                    saldo_willow = versamenti.get("SALDO WILLOW", 0.0)
+                    acconto_willow = versamenti.get("ACCONTO WILLOW", 0.0)
+                    irpef_willow = tasse_map.get("WILLOW IRPEF", 0.0)
+                    inps_willow = tasse_map.get("WILLOW INPS", 0.0)
+
+                elif regime_fiscale == self.user_controller.RegimeFiscale.FORFETTARIO.value:
+                    tasse_map, versamenti, _ = self.calculate_previsione_tasse_forfettaria(user_id)
+                    saldo_willow = versamenti.get("SALDO WILLOW", 0.0)
+                    acconto_willow = versamenti.get("ACCONTO WILLOW", 0.0)
+                    irpef_willow = tasse_map.get("IRPEF WILLOW", 0.0)
+                    inps_willow = tasse_map.get("INPS WILLOW", 0.0)
+
+                # Aggiungi i valori dell'utente alla mappa
+                result_map[user_name] = {
+                    "SALDO WILLOW": saldo_willow,
+                    "ACCONTO WILLOW": acconto_willow,
+                    "IRPEF WILLOW": irpef_willow,
+                    "INPS WILLOW": inps_willow
+                }
+
+                # Aggiorna i totali
+                total_saldo_willow += saldo_willow
+                total_acconto_willow += acconto_willow
+                total_irpef_willow += irpef_willow
+                total_inps_willow += inps_willow
+
+            except Exception as e:
+                print(f"Errore nel calcolo per l'utente {user_name} (ID: {user_id}): {str(e)}")
+                result_map[user_name] = {
+                    "SALDO WILLOW": 0.0,
+                    "ACCONTO WILLOW": 0.0,
+                    "IRPEF WILLOW": 0.0,
+                    "INPS WILLOW": 0.0
+                }
+
+        # Aggiungi i totali alla mappa risultato
+        result_map["TOTALE"] = {
+            "SALDO WILLOW": total_saldo_willow,
+            "ACCONTO WILLOW": total_acconto_willow,
+            "IRPEF WILLOW": total_irpef_willow,
+            "INPS WILLOW": total_inps_willow
+        }
+
+        return result_map
+
     def _calcola_irpef(self, imponibile, scaglioni):
         """Calcola l'IRPEF in base agli scaglioni di reddito"""
         if imponibile <= 0:
@@ -4975,6 +5591,107 @@ class Analyzer:
 
         return irpef
 
+    def calculate_totale_crediti(self, current_year=True):
+        tot_fatture = self.invoice_controller.calculate_TOT_DOCUMENTO_invoiced(current_year)
+        tot_ritenuta = self.invoice_controller.calculate_RITENUTA_ACCONTO_invoiced(current_year)
+        tot_pagamenti = self.payment_controller.calculate_tot_payments(current_year)
 
+        return round(tot_fatture - tot_ritenuta - tot_pagamenti, 2)
 
+    def retrieve_monthly_data(self):
+        # Recupera i dati per l'anno corrente
+        invoices = self.invoice_controller.retrieve_invoices_map_list(current_year=True)
+        payments = self.payment_controller.retrieve_payments_map_list(current_year=True)
+        expenses = self.expenses_controller.retrieve_expenses_map_list(current_year=True)
+        salaries = self.salary_controller.retrieve_salaries_map_list(current_year=True)
+        refunds = self.refunds_controller.retrieve_refunds_map_list(current_year=True)
+
+        # Inizializza la struttura per i dati mensili
+        monthly_data = {month: {
+            'fatturato': 0.0,
+            'spese': 0.0,
+            'incomes': 0.0,
+            'outcomes': 0.0
+        } for month in range(1, 13)}
+
+        # Funzione di supporto per estrarre il mese dalle date
+        def extract_month(date_str):
+            if isinstance(date_str, datetime):
+                return date_str.month
+            try:
+                return datetime.strptime(date_str, "%Y-%m-%d").month
+            except:
+                return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").month
+
+        # 1. Calcola il fatturato (TOT_DOCUMENTO - IVA)
+        for inv in invoices:
+            month = extract_month(inv[DBInvoicesColumns.DATA_CREAZIONE.value])
+            tot_doc = float(inv[DBInvoicesColumns.TOT_DOCUMENTO.value])
+            iva = float(inv[DBInvoicesColumns.IVA.value])
+            monthly_data[month]['fatturato'] += (tot_doc - iva)
+
+        # 2. Calcola le spese (NET_AMOUNT)
+        for exp in expenses:
+            month = extract_month(exp[DBExpensesColumns.DATE.value])
+            monthly_data[month]['spese'] += float(exp[DBExpensesColumns.NET_AMOUNT.value])
+
+        # 3. Calcola gli incomes (NETTO_A_PAGARE + REFUND_AMOUNT)
+        for pay in payments:
+            month = extract_month(pay[DBPaymentsColumns.PAYMENT_DATE.value])
+            monthly_data[month]['incomes'] += float(pay[DBPaymentsColumns.PAYMENT_AMOUNT.value])
+
+        for ref in refunds:
+            month = extract_month(ref[DBRefundsColumns.REFUND_DATE.value])
+            monthly_data[month]['incomes'] += float(ref[DBRefundsColumns.REFUND_AMOUNT.value])
+
+        # 4. Calcola gli outcomes (NET_AMOUNT + AMOUNT)
+        for exp in expenses:
+            month = extract_month(exp[DBExpensesColumns.DATE.value])
+            monthly_data[month]['outcomes'] += float(exp[DBExpensesColumns.NET_AMOUNT.value])
+
+        for sal in salaries:
+            month = extract_month(sal[DBSalariesColumns.DATE.value])
+            monthly_data[month]['outcomes'] += float(sal[DBSalariesColumns.AMOUNT.value])
+
+        # Calcola le medie mensili (solo per i mesi passati)
+        current_month = datetime.now().month
+        passed_months = [m for m in range(1, current_month + 1)]
+
+        # Calcola i totali per i mesi passati
+        totals = {k: 0.0 for k in ['fatturato', 'spese', 'incomes', 'outcomes']}
+        for month in passed_months:
+            for key in totals:
+                totals[key] += monthly_data[month][key]
+
+        # Calcola le medie
+        averages = {}
+        for key in totals:
+            averages[key] = totals[key] / len(passed_months) if passed_months else 0.0
+
+        # Costruisci il risultato finale con deviazioni
+        result = {}
+        for month in range(1, 13):
+            month_data = monthly_data[month]
+            deviations = {}
+
+            # Calcola le deviazioni solo per i mesi passati
+            if month <= current_month:
+                for key in month_data:
+                    if averages[key] != 0:
+                        deviation = ((month_data[key] - averages[key]) / averages[key]) * 100
+                    else:
+                        deviation = 0.0 if month_data[key] == 0 else float('inf')
+                    deviations[key] = round(deviation, 2)
+            else:
+                # Per i mesi futuri non calcolare le deviazioni
+                for key in month_data:
+                    deviations[key] = None
+
+            result[month] = {
+                'values': {k: round(v, 2) for k, v in month_data.items()},
+                'averages': {k: round(v, 2) for k, v in averages.items()},
+                'deviations': deviations
+            }
+
+        return result
 

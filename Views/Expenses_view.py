@@ -7,11 +7,13 @@ from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPayment
 import re
 from enum import Enum
 from dataclasses import fields
+from datetime import datetime, timedelta, date
 
-class ExpensesView(ctk.CTk):
 
-    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab, event_bus):
-        super().__init__()
+class ExpensesView(ctk.CTkFrame):
+
+    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab_view, event_bus):
+        super().__init__(tab_view.tab("Spese"))
 
         self.db_model = db_model
         self.expense_controller = expense_controller
@@ -24,7 +26,8 @@ class ExpensesView(ctk.CTk):
         self.fiscal_settings = fiscal_settings
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager = config_manager
-        self.tab = tab
+        self.tab_view = tab_view
+        self.tab = tab_view.tab("Spese")
         self.event_bus = event_bus
 
         self.global_infos = {}
@@ -36,11 +39,45 @@ class ExpensesView(ctk.CTk):
 
         self.expenses_card_list = {}
         self.expense_card_labels_status = {}
+        self.cards_warnings = {}
+
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self.handle_show_expense_detail)
+
+        # Container principale
+        self.main_container = ctk.CTkFrame(self, fg_color="transparent")
+        self.detail_container = ctk.CTkFrame(self, fg_color="transparent")
+
+        # Vista dettaglio
+        self.expense_detail_view = ExpenseDetailView(
+            parent=self,
+            invoice_controller=self.invoice_controller,
+            supplier_controller=self.supplier_controller,
+            back_callback=self.show_main_view,
+            account_controller=account_controller,
+            user_controller=self.user_controller,
+            expense_controller=self.expense_controller,
+            update_controller=self.update_controller,
+            db_model=db_model,
+            event_bus = self.event_bus,
+            catalogo_elenchi=self.catalogo_elenchi
+        )
 
         self.create_expenses_tab()
+        self.show_main_view()
+
+    def show_main_view(self):
+        """Torna alla vista principale"""
+        self.expense_detail_view.pack_forget()
+        self.main_container.pack(fill='both', expand=True)
+
+    def open_expense_detail_tab(self, expense_id):
+        """Mostra la vista dettaglio utente"""
+        self.main_container.pack_forget()
+        self.expense_detail_view.pack(fill='both', expand=True)
+        self.expense_detail_view.create_detail_tab(expense_id)  # Ricrea i contenuti ogni volta
 
     def create_expenses_tab(self):
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
@@ -58,7 +95,7 @@ class ExpensesView(ctk.CTk):
         self.populate_global_infos()
 
         for (key, info) in self.global_infos.items():
-            card = ctk.CTkFrame(self.search_bar_frame)
+            card = ctk.CTkFrame(self.search_bar_frame, fg_color="#333333")
 
             if key == ExpenseController.ExpensesAggregateData.NUMERO_SPESE.value:
                 global_info_unità_di_misura = ""
@@ -75,14 +112,14 @@ class ExpensesView(ctk.CTk):
             # salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.expenses_table_frame = ctk.CTkFrame(self.tab)
+        self.expenses_table_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.expenses_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "FORNITORE", "NETTO", "LORDO", "CATEGORIA", "DATA", "DEDUCIBILE", "DEDUZIONE A\nCARICO DI", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
             # crea il container
-            column = ctk.CTkFrame(self.expenses_table_frame)
+            column = ctk.CTkFrame(self.expenses_table_frame, fg_color="#333333")
             column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
 
             # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
@@ -95,10 +132,10 @@ class ExpensesView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.cards_frame = ctk.CTkScrollableFrame(self.main_container, fg_color="transparent")
         self.cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_expense_frame = ctk.CTkFrame(self.tab)
+        self.add_expense_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.add_expense_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_expense_frame, text="Aggiungi una spesa",
@@ -307,6 +344,10 @@ class ExpensesView(ctk.CTk):
               "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
             ))
 
+    def handle_show_expense_detail(self, expense_id):
+        self.tab_view.set("Spese")  # Cambia tab
+        self.open_expense_detail_tab(expense_id)  # Mostra il dettaglio
+
     def save_expense_data(self):
         expense_data = {}
 
@@ -341,9 +382,12 @@ class ExpensesView(ctk.CTk):
                 DBSuppliersColumns.NAME.value]
 
             user= self.user_controller.retrieve_user_map_by_id(expense_map[DBExpensesColumns.USER_ID_DEDUZIONE.value])
-            user_first = user[DBUsersColumns.FIRST_NAME.value]
-            user_last = user[DBUsersColumns.LAST_NAME.value]
-            user_full = user_first + " " + user_last
+            if user is not None:
+                user_first = user[DBUsersColumns.FIRST_NAME.value]
+                user_last = user[DBUsersColumns.LAST_NAME.value]
+                user_full = user_first + " " + user_last
+            else:
+                user_full = "----"
 
             account_name = self.account_controller.retrieve_account_map_by_id(expense_map[DBExpensesColumns.ACCOUNT_ID.value])[
                 DBAccountsColumns.NAME.value]
@@ -427,7 +471,7 @@ class ExpensesView(ctk.CTk):
         btn = ctk.CTkButton(
             card,
             text=name,
-            command=lambda eid=expense_id: self.open_modify_expense(eid)
+            command=lambda eid=expense_id: self.open_expense_detail_tab(eid)
         )
         btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
 
@@ -600,3 +644,607 @@ class ExpensesView(ctk.CTk):
 
     def open_modify_expense(self, expense_id):
         return
+
+
+
+
+
+class ExpenseDetailView(ctk.CTkFrame):
+    def __init__(self, parent, back_callback, invoice_controller, user_controller, account_controller, expense_controller, supplier_controller, update_controller, db_model, event_bus, catalogo_elenchi):
+        super().__init__(parent)
+        self.invoice_controller = invoice_controller
+        self.user_controller = user_controller
+        self.account_controller = account_controller
+        self.expense_controller = expense_controller
+        self.supplier_controller = supplier_controller
+        self.db_model = db_model
+        self.back_callback = back_callback
+        self.update_controller = update_controller
+        self.event_bus = event_bus
+        self.current_expense_id = None
+        self.catalogo_elenchi = catalogo_elenchi
+        self.parent = parent
+
+        self.configure(fg_color="transparent")
+
+
+
+        # Widgets persistenti (vanno creati una volta sola)
+        self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
+        self.back_button = ctk.CTkButton(
+            self.head_frame,
+            text="Elenco Spese",
+            command=self._cleanup_and_go_back
+        )
+        self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
+
+        self.expense_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+
+        self.nome_conto_string = "CONTO"
+        self.nome_user_deduzione_string = "UTENTE DEDUZIONE"
+        self.nome_user_anticipo_string = "UTENTE ANTICIPO"
+        self.nome_fattura_string = "FATTURA ASSOCIATA"
+        self.nome_fornitore_string = "FORNITORE"
+
+        # Container per i contenuti dinamici
+        self.content_frame = ctk.CTkFrame(self)
+
+        self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_edit(self.content_frame))
+
+        # Layout iniziale
+        self._setup_base_layout()
+
+    def _setup_base_layout(self):
+        """Inizializza la struttura base del layout"""
+        self.head_frame.pack(fill="x", pady=5, padx=5)
+        self.back_button.pack(anchor="w", side="left", pady=10, padx=10)
+        self.title_label.pack(anchor="c", side="left", fill="x", expand=True, pady=10)
+        self.switch_modify.pack(anchor="e", side="left", pady=10, padx=10)
+        self.content_frame.pack(fill="both", expand=True, pady=20, padx=20)
+
+    def create_detail_tab(self, expense_id):
+        """Ricrea la vista dettaglio per una spesa specifica"""
+        self.current_expense_id = expense_id
+
+        # 1. Pulizia dei widget precedenti
+        self._clear_content()
+
+        # 2. Caricamento dati
+        self.expense = self.expense_controller.retrieve_expense_map_by_id(expense_id)
+
+        # prendo il nome del conto:
+        id_conto = self.expense[DBExpensesColumns.ACCOUNT_ID.value]
+        conto = self.account_controller.retrieve_account_map_by_id(id_conto)
+        if conto is not None:
+            nome_conto = conto[DBAccountsColumns.NAME.value]
+            self.expense[self.nome_conto_string] = nome_conto
+
+        # prendo il nome del fornitore
+        id_supplier = self.expense[DBExpensesColumns.SUPPLIER_ID.value]
+        supplier = self.supplier_controller.retrieve_supplier_map_by_id(id_supplier)
+        if supplier is not None:
+            nome_supplier = supplier[DBSuppliersColumns.NAME.value]
+            self.expense[self.nome_fornitore_string] = nome_supplier
+
+        # prendo il nome dell'utente che deduce
+        id_user = self.expense[DBExpensesColumns.USER_ID_DEDUZIONE.value]
+        user = self.user_controller.retrieve_user_map_by_id(id_user)
+        if user is not None:
+            nome_user = user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
+            self.expense[self.nome_user_deduzione_string] = nome_user
+        else:
+            self.expense[self.nome_user_deduzione_string] = None
+
+        # prendo il nome dell'utente che anticipa
+        id_user = self.expense[DBExpensesColumns.USER_ID_ANTICIPO.value]
+        user = self.user_controller.retrieve_user_map_by_id(id_user)
+        if user is not None:
+            nome_user = user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
+            self.expense[self.nome_user_anticipo_string] = nome_user
+
+        # prendo il nome della fattura associata
+        id_fattura = self.expense[DBExpensesColumns.LINKED_INVOICE_ID.value]
+        fattura = self.invoice_controller.retrieve_invoice_map_by_id(id_fattura)
+        if fattura is not None:
+            nome_fattura = fattura[DBInvoicesColumns.NUMERO_FATTURA.value]
+            self.expense[self.nome_fattura_string] = nome_fattura
+
+        # 3. Aggiornamento elementi persistenti
+        self.title_label.configure(
+            text=f"{self.expense[DBExpensesColumns.NAME.value]}")
+
+        # 4. Creazione contenuti dinamici
+        self._create_expense_info_section(self.expense)
+        self.toggle_edit(self.content_frame)
+
+        self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame.pack(padx=15, pady=(90, 0), fill="both", expand=True)
+        self.wrapper_frame2 = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.wrapper_frame2.pack(padx=15, pady=(90, 90), fill="both", expand=True)
+
+        #self._create_payments_history()
+        #self._create_production_expenses_history()
+
+    def _create_expense_info_section(self, expense_data):
+        # Campi derivati per le spese
+        self.derived_fields_expenses = {
+            # Potresti aggiungere campi calcolati qui se necessario
+        }
+
+        self.entry_fields_expenses = {
+            # Dati Generali
+            DBExpensesColumns.NAME.value: {
+                "type": ctk.CTkEntry,
+                "label": "Nome Spesa",
+                "section": "Dati Generali"
+            },
+            DBExpensesColumns.DATE.value: {
+                "type": Calendar,
+                "label": "Data Spesa",
+                "section": "Dati Generali"
+            },
+
+            # Dati Fiscali
+            DBExpensesColumns.CATEGORY.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Categoria",
+                "section": "Dati Fiscali",
+                "values": [item[1] for item in self.catalogo_elenchi["expenses_category"]]
+            },
+            DBExpensesColumns.NET_AMOUNT.value: {
+                "type": ctk.CTkEntry,
+                "label": "Importo Netto (€)",
+                "section": "Dati Fiscali"
+            },
+            DBExpensesColumns.IVA_AMOUNT.value: {
+                "type": ctk.CTkEntry,
+                "label": "Importo IVA (€)",
+                "section": "Dati Fiscali"
+            },
+            DBExpensesColumns.TOT_AMOUNT.value: {
+                "type": ctk.CTkEntry,
+                "label": "Importo Totale (€)",
+                "section": "Dati Fiscali"
+            },
+            DBExpensesColumns.DEDUCIBILE.value: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Deducibile",
+                "section": "Dati Fiscali",
+                "values": ["Sì", "No"]
+            },
+
+            # Collegamenti
+            self.nome_fornitore_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Fornitore",
+                "section": "Collegamenti",
+                "values": [s[DBSuppliersColumns.NAME.value] for s in
+                           self.supplier_controller.retrieve_suppliers_map_list()]
+            },
+            self.nome_user_deduzione_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Utente Deduzione",
+                "section": "Collegamenti",
+                "values": [f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}"
+                           for u in self.user_controller.retrieve_users_map_list()]
+            },
+            self.nome_user_anticipo_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Utente Anticipo",
+                "section": "Collegamenti",
+                "values": [f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}"
+                           for u in self.user_controller.retrieve_users_map_list()]
+            },
+            self.nome_fattura_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Fattura Associata",
+                "section": "Collegamenti",
+                "values": [f"{i[DBInvoicesColumns.NUMERO_FATTURA.value]}"
+                           for i in self.invoice_controller.retrieve_invoices_map_list()]
+            },
+            self.nome_conto_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Conto",
+                "section": "Collegamenti",
+                "values": [c[DBAccountsColumns.NAME.value] for c in
+                           self.account_controller.retrieve_accounts_map_list()]
+            },
+
+            # Campi statici
+            DBExpensesColumns.created_at.value: {
+                "type": ctk.CTkLabel,
+                "label": "Data Creazione",
+                "section": "Note"
+            },
+            DBExpensesColumns.updated_at.value: {
+                "type": ctk.CTkLabel,
+                "label": "Ultimo Aggiornamento",
+                "section": "Note"
+            }
+        }
+
+        self.error_fields_expenses = {
+            DBExpensesColumns.NET_AMOUNT.value: "Valore numerico con massimo 2 decimali",
+            DBExpensesColumns.IVA_AMOUNT.value: "Valore numerico con massimo 2 decimali",
+            DBExpensesColumns.TOT_AMOUNT.value: "Valore numerico con massimo 2 decimali",
+            DBExpensesColumns.DATE.value: "Data obbligatoria",
+            DBExpensesColumns.NAME.value: "Nome obbligatorio"
+
+        }
+
+        validation_rules = {
+            DBExpensesColumns.NET_AMOUNT.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            ),
+            DBExpensesColumns.IVA_AMOUNT.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            ),
+            DBExpensesColumns.TOT_AMOUNT.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            ),
+            DBExpensesColumns.DATE.value: (
+                lambda val: val.strip() != "",
+                "Campo obbligatorio"
+            ),
+            DBExpensesColumns.NAME.value: (
+                lambda val: val.strip() != "",
+                "Campo obbligatorio"
+            )
+        }
+
+        # Inizializzazione strutture dati
+        self.expense_info_widgets = {}
+        self.expense_info_labels = {}
+        self.error_labels_expenses = {}
+        sections = {}
+
+        if expense_data[DBExpensesColumns.RICORRENTE.value]:
+            self.entry_fields_expenses.pop(DBExpensesColumns.NAME.value)
+
+        expense_name = expense_data[DBExpensesColumns.NAME.value]
+        warning = self.parent.cards_warnings.get(expense_name)
+        border_color = "#2659ab" if warning is None else "#fcba03"
+
+        # Warning frame
+        self.warning_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color=border_color)
+        self.toggle_warning_frame(expense_data[DBExpensesColumns.NAME.value])
+        ctk.CTkLabel(self.warning_frame, text=warning if warning is not None else "", font=("Arial", 16)).pack(padx=30,
+                                                                                                               pady=(
+                                                                                                               20, 20),
+                                                                                                               side="left")
+        self.remove_warning_btn = ctk.CTkButton(self.warning_frame, text="OK, è tutto in ordine",
+                                                command=lambda: self.remove_warning(expense_name))
+        self.remove_warning_btn.pack(padx=30, pady=(20, 20), side="right")
+
+        # Creazione frame principale
+        self.info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color=border_color)
+        self.info_frame.pack(fill="both", expand=True, pady=(5, 10), padx=(5, 25))
+
+        # Configurazione griglia a 2 colonne
+        self.info_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        self.info_frame.grid_columnconfigure(1, weight=1, uniform="col")
+
+        # Sezioni organizzate per colonne
+        sections_order = [
+            "Dati Generali",
+            "Dati Fiscali",
+            "Collegamenti",
+            "Note"
+        ]
+
+        # Creazione frame sezioni
+        for i, section_name in enumerate(sections_order):
+            frame = ctk.CTkFrame(self.info_frame)
+            column = i % 2  # Solo 2 colonne
+            row = i // 2  # Calcola la riga in base all'indice
+
+            frame.grid(row=row, column=column, sticky="nsew", padx=15, pady=15)
+            frame.grid_columnconfigure(1, weight=1)
+
+            sections[section_name] = {
+                "frame": frame,
+                "row": 0
+            }
+
+            ctk.CTkLabel(frame, text=section_name, font=("Arial", 14, "bold")).grid(
+                row=0, column=0, columnspan=2, sticky="w", padx=15, pady=5
+            )
+            sections[section_name]["row"] += 1
+
+        # Popolamento sezioni
+        for field, config in self.entry_fields_expenses.items():
+            section = sections[config["section"]]
+            frame = section["frame"]
+            row = section["row"]
+
+            # Creazione label
+            lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
+            self.expense_info_labels[field] = lbl
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(5, 5))
+
+            # Creazione widget
+            if config["type"] == ctk.CTkLabel:
+                value = str(expense_data.get(field, ""))
+                widget = config["type"](frame, text=value)
+                widget.grid(row=row, column=1, sticky="w", padx=(5, 15), pady=(5, 5))
+            else:
+                if config["type"] == ctk.CTkOptionMenu:
+                    widget = config["type"](frame, values=config.get("values", []))
+
+                    # Imposta il valore corrente per il fornitore
+                    if field == self.nome_fornitore_string:
+                        widget.set(expense_data.get(self.nome_fornitore_string, ""))
+
+                    # Imposta il valore corrente per l'utente che deduce
+                    elif field == self.nome_user_deduzione_string:
+                        name = expense_data.get(self.nome_user_deduzione_string, "")
+                        widget.set(name)
+
+                    # Imposta il valore corrente per l'utente che ha anticipato
+                    elif field == self.nome_user_anticipo_string:
+                        widget.set(expense_data.get(self.nome_user_anticipo_string, ""))
+
+                    # Imposta il valore corrente per la fattura associata
+                    elif field == self.nome_fattura_string:
+                        widget.set(expense_data.get(self.nome_fattura_string, ""))
+
+                    # Imposta il valore corrente per il conto
+                    elif field == self.nome_conto_string:
+                        widget.set(expense_data.get(self.nome_conto_string, ""))
+
+                    # Imposta il valore corrente per la categoria
+                    elif field == DBExpensesColumns.CATEGORY.value:
+                        # Trova la descrizione corrispondente alla chiave
+                        category_key = expense_data.get(field, "")
+                        category_desc = next(
+                            (desc for key, desc in self.catalogo_elenchi["expenses_category"] if key == category_key),
+                            category_key)
+                        widget.set(category_desc)
+
+                    else:
+                        value = expense_data.get(field, config.get("values", [""])[0])
+                        try:
+                            value = round(float(value), 2)
+                        except ValueError:
+                            value = value
+                        widget.set(value)
+
+                elif config["type"] == Calendar:
+                    widget = config["type"](frame, date_pattern=ViewUtils.date_pattern)
+                    value = expense_data.get(field, "")
+                    widget.selection_set(str(value)) if value else widget.selection_set(datetime.today())
+                else:
+                    widget = config["type"](frame)
+                    value = str(expense_data.get(field, ""))
+                    widget.insert(0, value)
+
+                widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(5, 5))
+
+            self.expense_info_widgets[field] = widget
+
+            # Gestione validazione
+            if field in validation_rules:
+                validation_func, error_message = validation_rules[field]
+
+                error_lbl = ctk.CTkLabel(frame, text="", text_color="#e8e5dc")
+                error_lbl.grid(row=row + 1, column=1, sticky="w", padx=5, pady=(0, 10))
+                self.error_labels_expenses[field] = error_lbl
+
+                widget.bind("<FocusOut>",
+                            lambda e, w=widget, vl=validation_func, el=error_lbl, em=error_message:
+                            ViewUtils.validate_entry(w, vl, el, em))
+
+                section["row"] += 2
+            else:
+                section["row"] += 1
+
+
+        #aggiungo le callback toggle agli optionMenu
+        self.expense_info_widgets[DBExpensesColumns.CATEGORY.value].configure(command=lambda selected_value : self.expense_category_optionMenu_behaviour(selected_value))
+        self.expense_info_widgets[DBExpensesColumns.DEDUCIBILE.value].configure(command=lambda selected_value : self.toggle_user_deduzione(selected_value))
+
+        if self.expense_info_widgets[DBExpensesColumns.DEDUCIBILE.value].get() == "No":
+            self.expense_info_widgets[self.nome_user_deduzione_string].set("")
+
+        # Frame per i bottoni
+        buttons_frame = ctk.CTkFrame(self.info_frame, fg_color="#2b2b2b")
+        buttons_frame.grid(row=2, column=0, columnspan=2, pady=(5, 15), padx=20, sticky="WE")
+
+        # Bottone Salva
+        self.save_info_btn = ctk.CTkButton(buttons_frame, text="Salva Spesa", command=self.save_expense_mod)
+        self.save_info_btn.pack(padx=(400, 10), pady=(20, 20), side="left")
+
+        # Bottone Elimina
+        self.delete_btn = ctk.CTkButton(buttons_frame, text="Elimina Spesa",
+                                        fg_color="#8B0000", hover_color="#A52A2A",
+                                        command=self.delete_expense)
+        self.delete_btn.pack(padx=10, pady=(20, 20), side="right", anchor="e")
+
+    def delete_expense(self):
+        confirmation = ViewUtils.ask_confirmation_popup(self.content_frame,
+                                                        "Stai per eliminare questa spesa.\nDesideri continuare ?",
+                                                        "ELIMINAZIONE Spesa")
+        if confirmation:
+            success, message = self.expense_controller.delete_expense(self.current_expense_id)
+            if success:
+                ViewUtils.show_confirm_popup_2(self.content_frame, "SPESA ELIMINATA CON SUCCESSO", message)
+                print(f"Spesa {self.expense[DBExpensesColumns.NAME.value]} eliminata correttamente")
+            else:
+                # Mostra il messaggio d'errore
+                print(message)
+                ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
+
+    def save_expense_mod(self):
+        nome_conto = self.expense_info_widgets[self.nome_conto_string].get()
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        id_conto = conto[DBAccountsColumns.ID.value] if conto else None
+
+        nome_fornitore = self.expense_info_widgets[self.nome_fornitore_string].get()
+        fornitore = self.supplier_controller.retrieve_supplier_map_by_name(nome_fornitore)
+        id_fornitore = fornitore[DBSuppliersColumns.ID.value] if fornitore else None
+
+        nome_utente_deduzione = self.expense_info_widgets[self.nome_user_deduzione_string].get()
+        id_utente_deduzione = None
+        if nome_utente_deduzione != "":
+            utente_deduzione = self.user_controller.retrieve_user_map_by_extended_name(nome_utente_deduzione)
+            id_utente_deduzione = utente_deduzione[DBUsersColumns.ID.value] if utente_deduzione else None
+
+        nome_utente_anticipo = self.expense_info_widgets[self.nome_user_anticipo_string].get()
+        id_utente_anticipo = None
+        if nome_utente_anticipo != "":
+            utente_anticipo = self.user_controller.retrieve_user_map_by_extended_name(nome_utente_anticipo)
+            id_utente_anticipo = utente_anticipo[DBUsersColumns.ID.value] if nome_utente_anticipo else None
+
+        nome_fattura_associata = self.expense_info_widgets[self.nome_fattura_string].get()
+        fattura_associata = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura_associata)
+        id_fattura_associata = fattura_associata[DBInvoicesColumns.ID.value] if fattura_associata else None
+
+        expense_data = {
+            DBExpensesColumns.DATE.value: self.expense_info_widgets[
+                DBExpensesColumns.DATE.value].get_date(),
+            DBExpensesColumns.SUPPLIER_ID.value: id_fornitore,
+            DBExpensesColumns.USER_ID_DEDUZIONE.value: id_utente_deduzione,
+            DBExpensesColumns.USER_ID_ANTICIPO.value: id_utente_anticipo,
+            DBExpensesColumns.LINKED_INVOICE_ID.value: id_fattura_associata,
+            DBExpensesColumns.ACCOUNT_ID.value: id_conto,
+            DBExpensesColumns.CATEGORY.value: self.expense_info_widgets[
+                DBExpensesColumns.CATEGORY.value].get(),
+            DBExpensesColumns.NET_AMOUNT.value: self.expense_info_widgets[
+                DBExpensesColumns.NET_AMOUNT.value].get().strip(),
+            DBExpensesColumns.IVA_AMOUNT.value: self.expense_info_widgets[
+                DBExpensesColumns.IVA_AMOUNT.value].get().strip(),
+            DBExpensesColumns.TOT_AMOUNT.value: self.expense_info_widgets[
+                DBExpensesColumns.TOT_AMOUNT.value].get().strip(),
+            DBExpensesColumns.DEDUCIBILE.value: self.expense_info_widgets[
+                DBExpensesColumns.DEDUCIBILE.value].get()
+        }
+
+        ricorrente = self.expense[DBExpensesColumns.RICORRENTE.value]
+        if not ricorrente:
+            expense_data[DBExpensesColumns.NAME.value] = self.expense_info_widgets[DBExpensesColumns.NAME.value].get().strip()
+
+        # Chiamata al controller per salvare i dati
+        success, message = self.expense_controller.update_expense(self.current_expense_id, expense_data)
+        if success:
+            print(
+                f"Spesa {self.expense_controller.retrieve_expense_map_by_id(self.current_expense_id)[DBExpensesColumns.NAME.value]} salvata con successo")
+            ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+            self.switch_modify.deselect()
+            self.toggle_edit(self.content_frame)
+        else:
+            # Mostra il messaggio d'errore
+            print(message)
+            ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
+
+    def toggle_warning_frame(self, expense_name):
+        return
+
+    def remove_warning(self):
+        return
+
+    def toggle_edit(self, parent):
+        """
+        Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
+        """
+        # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
+        state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
+
+        # Cambia anche lo stato del pulsante Salva
+        self.save_info_btn.configure(state=state)
+        self.delete_btn.configure(state=state)
+        self.remove_warning_btn.configure(state=state)
+
+        expense_category = self.expense_info_widgets[DBExpensesColumns.CATEGORY.value].get()
+
+        for w in parent.winfo_children():
+            # se è un Entry
+            if isinstance(w, ctk.CTkEntry):
+                w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            # se è un OptionMenu
+            elif isinstance(w, ctk.CTkOptionMenu):
+                w.configure(state=state)
+                if w == self.expense_info_widgets[self.nome_fattura_string] and expense_category != dict(self.catalogo_elenchi["expenses_category"]).get("PRODUCTION_EXPENSE"):
+                    w.configure(state=tk.DISABLED)
+                if w == self.expense_info_widgets[self.nome_user_deduzione_string] and self.expense[DBExpensesColumns.DEDUCIBILE.value] == "No":
+                    w.configure(state=tk.DISABLED)
+            elif isinstance(w, Calendar):
+                w.configure(state=state)
+            # se è un Frame/container, scendi ricorsivamente
+            elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
+                self.toggle_edit(w)
+
+    def expense_category_optionMenu_behaviour(self, selected_value):
+        sector_dict = dict(self.catalogo_elenchi["expenses_category"])
+        if selected_value == sector_dict.get("ADD_CATEGORY"):
+            self.open_add_expenses_category()
+        self.toggle_linked_invoice_selection(selected_value, sector_dict)
+
+    def toggle_linked_invoice_selection(self, selected_value, dictionary):
+        if selected_value == dictionary.get("PRODUCTION_EXPENSE"):
+            self.expense_info_widgets[self.nome_fattura_string].configure(state=tk.NORMAL)
+        else:
+            self.expense_info_widgets[self.nome_fattura_string].configure(state=tk.DISABLED)
+
+    def toggle_user_deduzione(self, selected_value):
+        user_deduzione = self.expense[self.nome_user_deduzione_string]
+        if selected_value == "Sì":
+            self.expense_info_widgets[self.nome_user_deduzione_string].configure(state=tk.NORMAL)
+            if user_deduzione is not None:
+                self.expense_info_widgets[self.nome_user_deduzione_string].set(user_deduzione)
+            else:
+                primo_utente = self.user_controller.retrieve_users_map_list()[0]
+                nuovo_nome_utente = primo_utente[DBUsersColumns.FIRST_NAME.value] + " " + primo_utente[DBUsersColumns.LAST_NAME.value]
+                self.expense_info_widgets[self.nome_user_deduzione_string].set(nuovo_nome_utente)
+
+        elif selected_value == "No":
+            self.expense_info_widgets[self.nome_user_deduzione_string].configure(state=tk.DISABLED)
+            self.expense_info_widgets[self.nome_user_deduzione_string].set("")
+
+    def open_add_expenses_category(self):
+        self.add_category_window = ctk.CTkToplevel(self)
+        self.add_category_window.title("Aggiungi una nuova categoria di spesa")
+
+        # Assicurati che la finestra rimanga sopra
+        self.add_category_window.lift()  # Porta la finestra sopra quella principale
+        self.add_category_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+
+        self.add_category_window.geometry("400x300")
+
+        self.expenses_category_window_Frame = ctk.CTkFrame(self.add_category_window)
+        self.expenses_category_window_Frame.pack(fill="both", expand=True)
+
+        ctk.CTkLabel(self.expenses_category_window_Frame, text="Aggiungi una categoria di spesa alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
+
+        self.add_category_entry = ctk.CTkEntry(self.expenses_category_window_Frame)
+        self.add_category_entry.pack(padx=10, pady=5, fill="x", expand=True)
+
+        ctk.CTkButton(self.expenses_category_window_Frame, text="Aggiungi settore", command=self.save_expenses_category).pack(padx=10, pady=(15, 10))
+
+    def save_expenses_category(self):
+        new_category = self.add_category_entry.get()
+        new_category_key = ControllerUtils.normalize_string_for_key(new_category)
+        try:
+            self.parent.config_manager.update_list_field("expenses_category", new_category_key, new_category, "update")
+        except Exception as e:
+            ViewUtils.show_error_popup(self.add_category_window, "Errore",
+                                       f"Impossibile aggiungere la nuova categoria: {str(e)}")
+            return
+
+        self.expense_info_widgets[DBExpensesColumns.CATEGORY.value].set(new_category)
+        self.add_category_window.destroy()
+
+    def _clear_content(self):
+        """Distrugge tutti i widget dinamici"""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+        self.switch_modify.deselect()
+
+    def _cleanup_and_go_back(self):
+        """Pulizia completa prima di tornare indietro"""
+        self._clear_content()
+        self.pack_forget()
+        self.back_callback()

@@ -20,6 +20,9 @@ from Views.Accounts_view import AccountsView
 from Views.Salaries_view import SalariesView
 from Views.Iva_trimes_view import IvaTrimesView
 from Views.Refunds_view import RefundsView
+from Views.Taxes_view import TaxesView
+from Views.Report_view import ReportView
+
 
 class MainWindow(ctk.CTk):
     def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings):
@@ -86,7 +89,7 @@ class MainWindow(ctk.CTk):
         self.recurring_expenses_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Spese Ricorrenti", command=self.open_recurring_expenses_window)
         self.recurring_expenses_menu_button.pack(side="left", padx=15, pady=15)
 
-        self.refresh_view_button = ctk.CTkButton(self.toolbar_frame, text="Refresh", command=self.refresh_tabviews)
+        self.refresh_view_button = ctk.CTkButton(self.toolbar_frame, text="🔄", font=("Segoe UI Emoji", 20), command=self.refresh_tabviews, width=30)
         self.refresh_view_button.pack(side="right", padx=15, pady=15)
 
         # Creazione di un popup menu simulato
@@ -135,59 +138,69 @@ class MainWindow(ctk.CTk):
         self._after_ids.clear()
 
     def construct_tabviews(self):
-        self.user_tab = UsersView(self.db_model, self.user_controller, self.account_controller,
+        """Crea tutte le tabview e le impacchetta"""
+        self.tab_instances = {}
+
+        self.tab_instances["Utenti"] = UsersView(self.db_model, self.user_controller, self.account_controller,
                                   self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"),
                                   self.analyzer, self.event_bus)
-        self.client_tab = ClientsView(self.db_model, self.client_controller, self.catalogo_elenchi, self.config_manager,
-                                      self.tabview.tab("Clienti"), self.event_bus)
-        self.invoice_tab = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
+        self.tab_instances["Clienti"] = ClientsView(self.db_model, self.client_controller, self.production_controller,
+                                                    self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
+                                                    self.config_manager, self.tabview.tab("Clienti"), self.event_bus, self.analyzer)
+        self.tab_instances["Fatture"] = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
                                         self.client_controller, self.production_controller, self.payment_controller,
                                         self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
-                                        self.historical_financial_data_settings, self.event_bus)
-        self.payment_tab = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller,
+                                        self.historical_financial_data_settings, self.event_bus, self.analyzer)
+        self.tab_instances["Pagamenti"] = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller,
                                         self.user_controller, self.client_controller, self.production_controller,
-                                        self.account_controller, self.update_controller, self.tabview.tab("Pagamenti"),
+                                        self.account_controller, self.update_controller, self.tabview,
                                         self.event_bus)
-        self.refund_tab = RefundsView(self.db_model, self.refund_controller, self.client_controller,
+        self.tab_instances["Rimborsi"] = RefundsView(self.db_model, self.refund_controller, self.client_controller,
                                       self.account_controller, self.update_controller, self.tabview, self.analyzer,
                                       self.event_bus)
-        self.production_tab = ProductionsView(self.db_model, self.production_controller, self.payment_controller,
+        self.tab_instances["Produzioni"] = ProductionsView(self.db_model, self.production_controller, self.payment_controller,
                                               self.invoice_controller, self.user_controller, self.client_controller,
                                               self.catalogo_elenchi, self.config_manager,
-                                              self.tabview.tab("Produzioni"), self.event_bus)
-        self.expense_tab = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
+                                              self.tabview, self.event_bus, self.update_controller)
+        self.tab_instances["Spese"] = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
                                         self.account_controller, self.supplier_controller, self.invoice_controller,
                                         self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
-                                        self.config_manager, self.tabview.tab("Spese"), self.event_bus)
-        self.supplier_tab = SuppliersView(self.db_model, self.supplier_controller, self.update_controller,
-                                          self.config_manager, self.catalogo_elenchi, self.tabview.tab("Fornitori"),
-                                          self.event_bus)
-        self.account_tab = AccountsView(self.db_model, self.account_controller, self.update_controller,
+                                        self.config_manager, self.tabview, self.event_bus)
+        self.tab_instances["Fornitori"] = SuppliersView(self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
+                                          self.config_manager, self.catalogo_elenchi, self.tabview,
+                                          self.event_bus, self.analyzer)
+        self.tab_instances["Conti"] = AccountsView(self.db_model, self.account_controller, self.update_controller,
                                         self.transfer_controller, self.config_manager, self.catalogo_elenchi,
-                                        self.analyzer, self.tabview.tab("Conti"), self.event_bus)
-        self.salary_tab = SalariesView(self.db_model, self.salary_controller, self.user_controller,
+                                        self.analyzer, self.tabview, self.event_bus)
+        self.tab_instances["Salario"] = SalariesView(self.db_model, self.salary_controller, self.user_controller,
                                        self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
-                                       self.catalogo_elenchi, self.config_manager, self.tabview.tab("Salario"), self.event_bus)
-        self.iva_trimes_tab = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller,
+                                       self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus)
+        self.tab_instances["Iva"] = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller,
                                             self.expense_controller, self.update_controller, self.analyzer,
                                             self.tabview, self.event_bus)
+        self.tab_instances["Tasse"] = TaxesView(self.db_model, self.analyzer, self.update_controller,
+                                          self.config_manager, self.catalogo_elenchi, self.tabview,
+                                          self.event_bus)
+        self.tab_instances["Report"] = ReportView(self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
+                                                  self.event_bus, self.update_controller)
 
-    def destroy_tabviews(self):
-        self.user_tab.destroy()
-        self.client_tab.destroy()
-        self.invoice_tab.destroy()
-        self.payment_tab.destroy()
-        self.refund_tab.destroy()
-        self.production_tab.destroy()
-        self.expense_tab.destroy()
-        self.supplier_tab.destroy()
-        self.account_tab.destroy()
-        self.salary_tab.destroy()
-        self.iva_trimes_tab.destroy()
+        # Impacchettamento nelle rispettive tab
+        for tab_name, instance in self.tab_instances.items():
+            tab_frame = self.tabview.tab(tab_name)
+            instance.pack(in_=tab_frame, fill="both", expand=True)
 
     def refresh_tabviews(self):
-        self.destroy_tabviews()
+        """Aggiorna tutte le tabview distruggendo e ricreando il contenuto"""
+        # 1. Distruggi tutte le tabview esistenti
+        for instance in self.tab_instances.values():
+            if instance.winfo_exists():
+                instance.destroy()
+
+        # 2. Ricrea tutte le tabview
         self.construct_tabviews()
+
+        # 3. Forza l'aggiornamento della GUI
+        self.update_idletasks()
 
 
 

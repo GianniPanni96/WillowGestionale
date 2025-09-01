@@ -11,7 +11,9 @@ table_scripts = [
     "Create_table_productions.py",
     "Create_table_transfers.py",
     "Create_table_suppliers.py",
-    "Create_table_salaries.py"
+    "Create_table_salaries.py",
+    "Create_table_refunders.py"
+
 ]
 
 def execute_script(script_name):

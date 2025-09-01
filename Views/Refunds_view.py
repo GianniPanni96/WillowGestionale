@@ -8,10 +8,10 @@ from datetime import datetime
 import re
 from enum import Enum
 
-class RefundsView(ctk.CTk):
+class RefundsView(ctk.CTkFrame):
 
     def __init__(self, db_model, refunds_controller, client_controller, account_controller, update_controller, tab_view, analyzer, event_bus):
-        super().__init__()
+        super().__init__(tab_view.tab("Rimborsi"))
 
         self.db_model = db_model
         self.refunds_controller = refunds_controller
@@ -30,11 +30,31 @@ class RefundsView(ctk.CTk):
         self.refund = {}
         self.cards_warnings = {}
 
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_REFUND_DETAIL, self.handle_show_refund_detail)
+
+        # Container principale
+        self.main_container = ctk.CTkFrame(self, fg_color="#2b2b2b")
+        self.detail_container = ctk.CTkFrame(self, fg_color="#2b2b2b")
+
+        # Vista dettaglio
+        self.refund_detail_view = RefundDetailView(
+            parent=self,
+            back_callback=self.show_main_view,
+            client_controller=self.client_controller,
+            account_controller=account_controller,
+            refund_controller=refunds_controller,
+            db_model=db_model,
+            analyzer=self.analyzer,
+            event_bus = self.event_bus,
+        )
+
         self.create_refunds_tab()
+        self.show_main_view()
+
 
     def create_refunds_tab(self):
 
-        self.search_bar_frame = ctk.CTkFrame(self.tab)
+        self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5, 35), anchor="s", side="right")
@@ -52,7 +72,7 @@ class RefundsView(ctk.CTk):
         self.populate_global_infos()
 
         for (key, info) in self.global_infos.items():
-            card = ctk.CTkFrame(self.search_bar_frame)
+            card = ctk.CTkFrame(self.search_bar_frame, fg_color="#333333")
 
             if key == RefundController.RefundsAggregateData.NUMERO_RIMBORSI.value:
                 global_info_unità_di_misura = ""
@@ -69,14 +89,14 @@ class RefundsView(ctk.CTk):
             # salvo i dati che potrebbero avere bisogno di configure successivamente
             self.amount_aggregate_labels[f"{key}"] = amount
 
-        self.refunds_table_frame = ctk.CTkFrame(self.tab)
+        self.refunds_table_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.refunds_table_frame.pack(pady=(20, 0), padx=(10, 15), fill="x", anchor="n")
 
         self.table_headers = ["NOME", "CLIENTE", "TOTALE", "DATA", "CONTO\nCORRENTE"]
 
         for i, header in enumerate(self.table_headers):
             # crea il container
-            column = ctk.CTkFrame(self.refunds_table_frame)
+            column = ctk.CTkFrame(self.refunds_table_frame, fg_color="#333333")
             column.grid(row=0, column=i, sticky="nsew", padx=(0, 5), pady=5)
 
             # imposta peso e uniformità: tutte le colonne "col" si dividono equamente
@@ -89,10 +109,10 @@ class RefundsView(ctk.CTk):
             label.pack(fill="both", expand=True, padx=5, pady=15)
 
         # Creazione del frame delle cards
-        self.refunds_cards_frame = ctk.CTkScrollableFrame(self.tab)
+        self.refunds_cards_frame = ctk.CTkScrollableFrame(self.main_container, fg_color="transparent")
         self.refunds_cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
 
-        self.add_refund_frame = ctk.CTkFrame(self.tab)
+        self.add_refund_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.add_refund_frame.pack(padx=0, pady=(5, 20), fill="x")
 
         self.save_button = ctk.CTkButton(self.add_refund_frame, text="Aggiungi un rimborso",
@@ -132,6 +152,21 @@ class RefundsView(ctk.CTk):
         # warnings launch
         for card in self.refund_card_list.values():
             ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
+
+    def show_main_view(self):
+        """Torna alla vista principale"""
+        self.refund_detail_view.pack_forget()
+        self.main_container.pack(fill='both', expand=True)
+
+    def open_refund_detail_tab(self, refund_id):
+        """Mostra la vista dettaglio del rimborso"""
+        self.main_container.pack_forget()
+        self.refund_detail_view.pack(fill='both', expand=True)
+        self.refund_detail_view.create_detail_tab(refund_id)  # Ricrea i contenuti ogni volta
+
+    def handle_show_refund_detail(self, refund_id):
+        self.tab_view.set("Rimborsi")  # Cambia tab
+        self.open_refund_detail_tab(refund_id)  # Mostra il dettaglio
 
     def filter_cards(self, event):
         """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""
@@ -306,7 +341,7 @@ class RefundsView(ctk.CTk):
         btn = ctk.CTkButton(
             card,
             text=refund_name,
-            command=lambda rid=refund_id: self.open_modify_payment(rid)
+            command=lambda rid=refund_id: self.open_refund_detail_tab(rid)
         )
         btn.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
 
@@ -322,7 +357,6 @@ class RefundsView(ctk.CTk):
         # Se esiste un warning associato al nome del pagamento, aggiungi il tooltip
         if refund_name in self.cards_warnings:
             ViewUtils.add_tooltip(btn, self.cards_warnings[refund_name])
-
 
     def open_modify_payment(self, refund_id):
         return
@@ -367,7 +401,388 @@ class RefundsView(ctk.CTk):
             print(message)
             ViewUtils.show_error_popup(self.add_refund_window, "ERRORE", message)
 
-
     def clear_class_variable(self):
         self.refund_widgets.clear()
         self.refund_widgets.clear()
+
+
+
+
+class RefundDetailView(ctk.CTkFrame):
+    def __init__(self, parent, back_callback, client_controller, account_controller, refund_controller, db_model, analyzer, event_bus):
+        super().__init__(parent)
+        self.parent = parent
+        self.refund_controller = refund_controller
+        self.db_model = db_model
+        self.back_callback = back_callback
+        self.client_controller = client_controller
+        self.account_controller = account_controller
+        self.event_bus = event_bus
+        self.current_refund_id = None
+        self.analyzer = analyzer
+
+        self.configure(fg_color="transparent")
+
+        # Widgets persistenti (vanno creati una volta sola)
+        self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
+        self.back_button = ctk.CTkButton(
+            self.head_frame,
+            text="Elenco Rimborsi",
+            command=self._cleanup_and_go_back
+        )
+        self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
+
+        self.user_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+
+        self.nome_cliente_string = "CLIENTE ASSOCIATO"
+        self.nome_conto_string = "CONTO"
+
+
+        # Container per i contenuti dinamici
+        self.content_frame = ctk.CTkFrame(self)
+
+        self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_edit(self.content_frame))
+
+        # Layout iniziale
+        self._setup_base_layout()
+
+    def _setup_base_layout(self):
+        """Inizializza la struttura base del layout"""
+        self.head_frame.pack(fill="x", pady=5, padx=5)
+        self.back_button.pack(anchor="w", side="left", pady=10, padx=10)
+        self.title_label.pack(anchor="c", side="left", fill="x", expand=True, pady=10)
+        self.switch_modify.pack(anchor="e", side="left", pady=10, padx=10)
+        self.content_frame.pack(fill="both", expand=True, pady=20, padx=20)
+
+    def create_detail_tab(self, refund_id):
+        """Ricrea la vista dettaglio per un rimborso specifico"""
+        self.current_refund_id = refund_id
+
+        # 1. Pulizia dei widget precedenti
+        self._clear_content()
+
+        # 2. Caricamento dati
+        self.refund = self.refund_controller.retrieve_refund_map_by_id(refund_id)
+
+        # 3. Aggiornamento elementi persistenti
+        self.title_label.configure(
+            text=f"{self.refund[DBRefundsColumns.REFUND_NAME.value]}")
+
+        # 4. Creazione contenuti dinamici
+        self._create_refund_info_section(self.refund)
+        self.toggle_edit(self.content_frame)
+
+        #self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="#333333")
+        #self.wrapper_frame.pack(padx=25, pady=(90, 0), fill="both", expand=True)
+
+    def _create_refund_info_section(self, refund_data):
+        # Campi derivati per i rimborsi
+        self.derived_fields_refunds = {
+            # Potresti aggiungere campi calcolati qui se necessario
+        }
+
+        self.entry_fields_refunds = {
+            # Dati Generali
+            DBRefundsColumns.REFUND_NAME.value: {
+                "type": ctk.CTkEntry,
+                "label": "Nome Rimborso",
+                "section": "Dati Generali"
+            },
+            DBRefundsColumns.REFUND_DATE.value: {
+                "type": Calendar,
+                "label": "Data Rimborso",
+                "section": "Dati Generali"
+            },
+
+            # Dati Fiscali
+            DBRefundsColumns.REFUND_AMOUNT.value: {
+                "type": ctk.CTkEntry,
+                "label": "Importo Rimborsato (€)",
+                "section": "Dati Fiscali"
+            },
+
+            # Collegamenti
+            self.nome_cliente_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Cliente",
+                "section": "Collegamenti",
+                "values": [c[DBClientsColumns.NAME.value] for c in self.client_controller.retrieve_clients_map_list()]
+            },
+            self.nome_conto_string: {
+                "type": ctk.CTkOptionMenu,
+                "label": "Conto",
+                "section": "Collegamenti",
+                "values": [c[DBAccountsColumns.NAME.value] for c in
+                           self.account_controller.retrieve_accounts_map_list()]
+            },
+
+            # Campi statici
+            DBRefundsColumns.CREATED_AT.value: {
+                "type": ctk.CTkLabel,
+                "label": "Data Creazione",
+                "section": "Note"
+            },
+            DBRefundsColumns.UPDATED_AT.value: {
+                "type": ctk.CTkLabel,
+                "label": "Ultimo Aggiornamento",
+                "section": "Note"
+            }
+        }
+
+        self.error_fields_refunds = {
+            DBRefundsColumns.REFUND_NAME.value: "Nome obbligatorio",
+            DBRefundsColumns.REFUND_AMOUNT.value: "Valore numerico con massimo 2 decimali",
+            DBRefundsColumns.REFUND_DATE.value: "Data obbligatoria"
+        }
+
+        validation_rules = {
+            DBRefundsColumns.REFUND_AMOUNT.value: (
+                lambda val: re.fullmatch(r"^\d+(\.\d{1,2})?$", val),
+                "Formato valido: 1234.56"
+            ),
+            DBRefundsColumns.REFUND_DATE.value: (
+                lambda val: val.strip() != "",
+                "Campo obbligatorio"
+            ),
+            DBRefundsColumns.REFUND_NAME.value: (
+                lambda val: val.strip() != "",
+                "Campo obbligatorio"
+            )
+        }
+
+        # Inizializzazione strutture dati
+        self.refund_info_widgets = {}
+        self.refund_info_labels = {}
+        self.error_labels_refunds = {}
+        sections = {}
+
+        refund_name = refund_data[DBRefundsColumns.REFUND_NAME.value]
+        warning = self.parent.cards_warnings.get(refund_name)
+        border_color = "#2659ab" if warning is None else "#fcba03"
+
+        # Warning frame
+        self.warning_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color=border_color)
+        self.toggle_warning_frame(refund_data[DBRefundsColumns.REFUND_NAME.value])
+        ctk.CTkLabel(self.warning_frame, text=warning if warning is not None else "", font=("Arial", 16)).pack(padx=30,
+                                                                                                               pady=(
+                                                                                                               20, 20),
+                                                                                                               side="left")
+        self.remove_warning_btn = ctk.CTkButton(self.warning_frame, text="OK, è tutto in ordine",
+                                                command=lambda: self.remove_warning(refund_name))
+        self.remove_warning_btn.pack(padx=30, pady=(20, 20), side="right")
+
+        # Creazione frame principale
+        self.info_frame = ctk.CTkFrame(self.content_frame, border_width=2, border_color=border_color)
+        self.info_frame.pack(fill="both", expand=True, pady=(5, 10), padx=(5, 25))
+
+        # Configurazione griglia a 2 colonne
+        self.info_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        self.info_frame.grid_columnconfigure(1, weight=1, uniform="col")
+
+        # Sezioni organizzate per colonne
+        sections_order = [
+            "Dati Generali",
+            "Dati Fiscali",
+            "Collegamenti",
+            "Note"
+        ]
+
+        # Creazione frame sezioni
+        for i, section_name in enumerate(sections_order):
+            frame = ctk.CTkFrame(self.info_frame)
+            column = i % 2  # Solo 2 colonne
+            row = i // 2  # Calcola la riga in base all'indice
+
+            frame.grid(row=row, column=column, sticky="nsew", padx=15, pady=15)
+            frame.grid_columnconfigure(1, weight=1)
+
+            sections[section_name] = {
+                "frame": frame,
+                "row": 0
+            }
+
+            ctk.CTkLabel(frame, text=section_name, font=("Arial", 14, "bold")).grid(
+                row=0, column=0, columnspan=2, sticky="w", padx=15, pady=5
+            )
+            sections[section_name]["row"] += 1
+
+        # Popolamento sezioni
+        for field, config in self.entry_fields_refunds.items():
+            section = sections[config["section"]]
+            frame = section["frame"]
+            row = section["row"]
+
+            # Creazione label
+            lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
+            self.refund_info_labels[field] = lbl
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(5, 5))
+
+            # Creazione widget
+            if config["type"] == ctk.CTkLabel:
+                value = str(refund_data.get(field, ""))
+                widget = config["type"](frame, text=value)
+                widget.grid(row=row, column=1, sticky="w", padx=(5, 15), pady=(5, 5))
+            else:
+                if config["type"] == ctk.CTkOptionMenu:
+                    widget = config["type"](frame, values=config.get("values", []))
+
+                    # Imposta il valore corrente per il cliente
+                    if field == self.nome_cliente_string:
+                        client_id = refund_data.get(DBRefundsColumns.CLIENT_ID.value)
+                        client = self.client_controller.retrieve_client_map_by_id(client_id)
+                        client_name = client[DBClientsColumns.NAME.value] if client else ""
+                        widget.set(client_name)
+
+                    # Imposta il valore corrente per il conto
+                    elif field == self.nome_conto_string:
+                        account_id = refund_data.get(DBRefundsColumns.CONTO_ID.value)
+                        account = self.account_controller.retrieve_account_map_by_id(account_id)
+                        account_name = account[DBAccountsColumns.NAME.value] if account else ""
+                        widget.set(account_name)
+
+                    else:
+                        widget.set(refund_data.get(field, config.get("values", [""])[0]))
+
+                elif config["type"] == Calendar:
+                    widget = config["type"](frame, date_pattern=ViewUtils.date_pattern)
+                    value = refund_data.get(field, "")
+                    widget.selection_set(str(value)) if value else widget.selection_set(datetime.today())
+                else:
+                    widget = config["type"](frame)
+                    value = str(refund_data.get(field, ""))
+                    widget.insert(0, value)
+
+                widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(5, 5))
+
+            self.refund_info_widgets[field] = widget
+
+            # Gestione validazione
+            if field in validation_rules:
+                validation_func, error_message = validation_rules[field]
+
+                error_lbl = ctk.CTkLabel(frame, text="", text_color="#e8e5dc")
+                error_lbl.grid(row=row + 1, column=1, sticky="w", padx=5, pady=(0, 10))
+                self.error_labels_refunds[field] = error_lbl
+
+                widget.bind("<FocusOut>",
+                            lambda e, w=widget, vl=validation_func, el=error_lbl, em=error_message:
+                            ViewUtils.validate_entry(w, vl, el, em))
+
+                section["row"] += 2
+            else:
+                section["row"] += 1
+
+        # Frame per i bottoni
+        buttons_frame = ctk.CTkFrame(self.info_frame, fg_color="transparent")
+        buttons_frame.grid(row=2, column=0, columnspan=2, pady=(5, 15), padx=20, sticky="NSWE")
+
+        # Bottone Salva
+        self.save_info_btn = ctk.CTkButton(buttons_frame, text="Salva Rimborso", command=self.save_refund_mod)
+        self.save_info_btn.pack(padx=(400, 10), pady=(20, 20), side="left")
+
+        # Bottone Elimina
+        self.delete_btn = ctk.CTkButton(buttons_frame, text="Elimina Rimborso",
+                                        fg_color="#8B0000", hover_color="#A52A2A",
+                                        command=self.delete_refund)
+        self.delete_btn.pack(padx=10, pady=(20, 20), side="right", anchor="e")
+
+    def toggle_edit(self, parent):
+        """
+        Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
+        """
+        # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
+        state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
+
+        # Cambia anche lo stato del pulsante Salva
+        self.save_info_btn.configure(state=state)
+        self.delete_btn.configure(state=state)
+
+        for w in parent.winfo_children():
+            # se è un Entry
+            if isinstance(w, (ctk.CTkEntry, ctk.CTkTextbox)):
+                w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            # se è un OptionMenu
+            elif isinstance(w, ctk.CTkOptionMenu):
+                w.configure(state=state)
+            elif isinstance(w, Calendar):
+                w.configure(state=state)
+            # se è un Frame/container, scendi ricorsivamente
+            elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
+                self.toggle_edit(w)
+
+    def toggle_warning_frame(self, refund_name):
+        warning = self.parent.cards_warnings.get(refund_name)
+        if warning is not None:
+            self.warning_frame.pack(fill="both", expand=True, pady=10, padx=(5, 25))
+        else:
+            self.warning_frame.pack_forget()
+
+    def remove_warning(self, refund_name):
+        self.save_refund_mod()
+        self.parent.cards_warnings.pop(refund_name)
+        self.info_frame.configure(border_color="#2659ab")
+        #retrieve the card
+        card = self.parent.refund_card_list[refund_name]
+        ViewUtils.toggle_warning_on_card(card, self.parent.cards_warnings)
+        self.toggle_warning_frame(refund_name)
+        self.remove_warning_btn.configure(state=ctk.DISABLED)
+
+    def save_refund_mod(self):
+        nome_conto = self.refund_info_widgets[self.nome_conto_string].get()
+        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        id_conto = conto[DBAccountsColumns.ID.value] if conto else None
+
+        nome_cliente = self.refund_info_widgets[self.nome_cliente_string].get()
+        cliente = self.client_controller.retrieve_client_map_by_name(nome_cliente)
+        id_cliente = cliente[DBClientsColumns.ID.value]
+
+        refund_data = {
+            DBRefundsColumns.REFUND_NAME.value: self.refund_info_widgets[
+                DBRefundsColumns.REFUND_NAME.value].get().strip(),
+            DBRefundsColumns.REFUND_DATE.value: self.refund_info_widgets[
+                DBRefundsColumns.REFUND_DATE.value].get_date(),
+            DBRefundsColumns.REFUND_AMOUNT.value: self.refund_info_widgets[
+                DBRefundsColumns.REFUND_AMOUNT.value].get().strip(),
+            DBRefundsColumns.CLIENT_ID.value: id_cliente,
+            DBRefundsColumns.CONTO_ID.value: id_conto
+        }
+
+        # Chiamata al controller per salvare i dati
+        success, message = self.refund_controller.update_refund(self.current_refund_id, refund_data)
+        if success:
+            print(
+                f"Rimborso {self.refund_controller.retrieve_refund_map_by_id(self.current_refund_id)[DBRefundsColumns.REFUND_NAME.value]} salvato con successo")
+            ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
+            self.switch_modify.deselect()
+            self.toggle_edit(self.content_frame)
+
+        else:
+            # Mostra il messaggio d'errore
+            print(message)
+            ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
+
+    def delete_refund(self):
+        confirmation = ViewUtils.ask_confirmation_popup(self.content_frame,
+                                                        "Stai per eliminare questo rimborso.\nDesideri continuare ?",
+                                                        "ELIMINAZIONE Rimborso")
+        if confirmation:
+            success, message = self.refund_controller.delete_refund(self.current_refund_id)
+            if success:
+                ViewUtils.show_confirm_popup_2(self.content_frame, "RIMBORSO ELIMINATO CON SUCCESSO", message)
+                print(f"Rimborso {self.refund[DBRefundsColumns.REFUND_NAME.value]} eliminato correttamente")
+            else:
+                # Mostra il messaggio d'errore
+                print(message)
+                ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
+
+    def _clear_content(self):
+        """Distrugge tutti i widget dinamici"""
+        for widget in self.content_frame.winfo_children():
+            widget.destroy()
+
+    def _cleanup_and_go_back(self):
+        """Pulizia completa prima di tornare indietro"""
+        self._clear_content()
+        self.pack_forget()
+        self.back_callback()
+

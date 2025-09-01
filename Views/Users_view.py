@@ -1130,7 +1130,7 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.TELEFONO.value: self.user_info_widgets[DBUsersColumns.TELEFONO.value].get().strip(),
             DBUsersColumns.EMAIL.value: self.user_info_widgets[DBUsersColumns.EMAIL.value].get().strip(),
             DBUsersColumns.REDDITO_ESTERNO.value: self.user_info_widgets[DBUsersColumns.REDDITO_ESTERNO.value].get().strip(),
-            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: self.user_info_widgets[DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value].get().strip(),
+            DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: self.user_info_widgets[DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value].get().strip() if DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value in self.user_info_widgets else 0,
             DBUsersColumns.PROVIDER_FATTURE.value: self.user_info_widgets[DBUsersColumns.PROVIDER_FATTURE.value].get(),
             DBUsersColumns.USERNAME_PROVIDER.value: self.user_info_widgets[DBUsersColumns.USERNAME_PROVIDER.value].get().strip(),
             DBUsersColumns.PASSWORD_PROVIDER.value: self.user_info_widgets[DBUsersColumns.PASSWORD_PROVIDER.value].get().strip(),
@@ -1729,7 +1729,7 @@ class UserDetailView(ctk.CTkFrame):
     def toggle_taxes(self):
         """Ricalcola e aggiorna i valori delle tasse visualizzate nelle cards"""
         # Ricalcola le tasse con i nuovi parametri
-        tasse = self.analyzer.calculate_previsione_tasse_forfettaria(self.current_user_id)
+        tasse, versamenti, output_map = self.analyzer.calculate_previsione_tasse_forfettaria(self.current_user_id)
 
         # Aggiorna le labels nelle cards esistenti
         for name, value in tasse.items():

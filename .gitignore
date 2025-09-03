@@ -45,4 +45,4 @@ backups/
 *.db
 
 #file di configurazione dell'app
-.json
+*.json

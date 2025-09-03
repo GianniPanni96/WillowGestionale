@@ -43,3 +43,6 @@ coverage.xml
 #  database e backups
 backups/
 *.db
+
+#file di configurazione dell'app
+.json

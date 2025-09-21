@@ -893,6 +893,16 @@ class DatabaseModel:
             cursor.execute(query, (payment_id,))
             return cursor.fetchone()
 
+    def fetch_payment_by_name(self, payment_name):
+        """Recupera uno specifico pagamento in modo dinamico."""
+        columns = [column.value for column in DBPaymentsColumns]
+        query = f"SELECT {', '.join(columns)} FROM payments WHERE {DBPaymentsColumns.PAYMENT_NAME.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (payment_name,))
+            return cursor.fetchone()
+
     def fetch_payments_by_invoice_id(self, invoice_id):
         """
         Recupera dei payments specifici in modo dinamico.
@@ -1135,6 +1145,16 @@ class DatabaseModel:
             cursor.execute(query, (refund_id,))
             return cursor.fetchone()
 
+    def fetch_refund_by_name(self, refund_name):
+        """Recupera uno specifico rimborso in modo dinamico."""
+        columns = [column.value for column in DBRefundsColumns]
+        query = f"SELECT {', '.join(columns)} FROM refunds WHERE {DBRefundsColumns.REFUND_NAME.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (refund_name,))
+            return cursor.fetchone()
+
     def fetch_refunds_by_client_id(self, client_id):
         """
         Recupera i rimborsi per un specifico cliente.
@@ -1329,6 +1349,16 @@ class DatabaseModel:
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(query, (expense_id,))
+            return cursor.fetchone()
+
+    def fetch_expense_by_name(self, expense_name):
+        """Recupera uno specifico rimborso in modo dinamico."""
+        columns = [column.value for column in DBExpensesColumns]
+        query = f"SELECT {', '.join(columns)} FROM expenses WHERE {DBExpensesColumns.NAME.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (expense_name,))
             return cursor.fetchone()
 
     def fetch_expenses_by_account_id(self, account_id):

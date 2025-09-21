@@ -2921,6 +2921,27 @@ class PaymentsController:
 
         return payment_dict
 
+    def retrieve_payment_map_by_name(self, payment_name, current_year=True):
+        """
+        Recupera un pagamento specifico e lo restituisce come dizionario,
+        filtrando per l'anno corrente se specificato.
+        :param payment_name: nome del pagamento.
+        :param current_year: Se True, ritorna None se il pagamento non è dell'anno corrente.
+        :return: Dizionario con i dati del pagamento oppure None.
+        """
+        row = self.db_model.fetch_payment_by_name(payment_name)
+        if not row:
+            return None
+
+        columns = [col.value for col in DBPaymentsColumns]
+        payment_dict = dict(zip(columns, row))
+
+        # Applica il filtro se necessario
+        if current_year and not ControllerUtils.filter_payments([payment_dict], current_year):
+            return None
+
+        return payment_dict
+
     def retrieve_payments_map_list(self, current_year=True):
         """
         Recupera tutti i pagamenti e li restituisce come lista di dizionari,
@@ -4007,6 +4028,17 @@ class ExpenseController:
         row = self.db_model.fetch_expense_by_id(expense_id)
         return ValidationUtils._row_to_map(row, DBExpensesColumns)
 
+    def retrieve_expense_map_by_name(self, expense_name):
+        """
+        Recupera una expense specifica e la restituisce come dizionario,
+        filtrando per l'anno corrente se specificato.
+        :param expense_name: nome della expense.
+        :param current_year: Se True, ritorna None se la expense non è dell'anno corrente.
+        :return: Dizionario con i dati della expense oppure None.
+        """
+        row = self.db_model.fetch_expense_by_name(expense_name)
+        return ValidationUtils._row_to_map(row, DBExpensesColumns)
+
     def retrieve_expenses_map_list(self, current_year=True):
         """
         Recupera tutte le expenses e le restituisce come lista di dizionari,
@@ -4807,6 +4839,27 @@ class RefundController:
         :return: Dizionario con i dati del rimborso oppure None.
         """
         row = self.db_model.fetch_refund_by_id(refund_id)
+        if not row:
+            return None
+
+        columns = [col.value for col in DBRefundsColumns]
+        refund_dict = dict(zip(columns, row))
+
+        # Applica il filtro se necessario
+        if current_year and not ControllerUtils.filter_refunds([refund_dict], current_year):
+            return None
+
+        return refund_dict
+
+    def retrieve_refund_map_by_name(self, refund_name, current_year=True):
+        """
+        Recupera un rimborso specifico e lo restituisce come dizionario,
+        filtrando per l'anno corrente se specificato.
+        :param refund_name: nome del rimborso.
+        :param current_year: Se True, ritorna None se il rimborso non è dell'anno corrente.
+        :return: Dizionario con i dati del rimborso oppure None.
+        """
+        row = self.db_model.fetch_refund_by_name(refund_name)
         if not row:
             return None
 

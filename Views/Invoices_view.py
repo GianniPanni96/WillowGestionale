@@ -608,7 +608,6 @@ class InvoicesView(ctk.CTkFrame):
         for _, card, _ in cards_with_values:
             card.pack(pady=10, padx=10, fill="x", expand=True)
 
-
     def save_invoice_data(self):
         invoice_data = {}
 

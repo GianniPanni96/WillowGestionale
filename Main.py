@@ -29,7 +29,7 @@ if __name__ == "__main__":
     backup_settings = config.get("backup_settings", {})
     interval_minutes = backup_settings.get("interval_minutes", {}).get("value", 15)
     max_backups = backup_settings.get("max_backups", {}).get("value", 35)
-    #backup_base_path = backup_settings.get("backup_base_path", {}).get("value")
+    backup_base_path = backup_settings.get("backup_base_path", {}).get("value")
     delta_days = backup_settings.get("delta_days", {}).get("value", 7)
 
     # Estrai le impostazioni fiscali dalla configurazione
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     scheduler = BackupScheduler(
         interval_minutes=interval_minutes,
         max_backups=max_backups,
-        backup_base_path=backup_path,
+        backup_base_path=backup_base_path,
         delta_days=delta_days
     )
 

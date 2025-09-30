@@ -91,8 +91,25 @@ class ProductionsView(ctk.CTkFrame):
         self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per ", font=("Arial", 14))
         self.search_bar_label.pack(padx=5, anchor="s", side="right")
 
+
+        self.order_bar_option_menu_values = {"DATA CREAZIONE": "DATA CREAZIONE",
+                                             "ULTIMA MODIFICA": "ULTIMA MODIFICA",
+                                              "TOTALE PREVENTIVO": "TOTALE PREVENTIVO"}
+        self.order_bar_option_menu_values_types = {"DECRESCENTE": "DECRESCENTE", "CRESCENTE": "CRESCENTE"}
+        self.order_bar_optionMenu_types = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.order_bar_option_menu_values_types.values()))
+        self.order_bar_optionMenu_types.pack(padx=(5, 100), anchor="s", side="right")
+        self.order_bar_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.order_bar_option_menu_values.values()))
+        self.order_bar_optionMenu.pack(padx=5, anchor="s", side="right")
+        self.order_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Ordina per ", font=("Arial", 14))
+        self.order_bar_label.pack(padx=5, anchor="s", side="right")
+
         # Aggiungi evento alla barra di ricerca
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
+
+        self.order_bar_optionMenu.configure(command=lambda _: self.sort_cards())
+        self.order_bar_optionMenu_types.configure(command=lambda _: self.sort_cards())
 
         self.populate_global_infos()
 
@@ -181,6 +198,8 @@ class ProductionsView(ctk.CTkFrame):
             prezzo_orario = self.production_controller.calculate_production_cost_per_hour(production_id)
 
             self.add_production_card(production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario)
+
+        self.sort_cards()
 
     def populate_global_infos(self):
         self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value}"] = self.production_controller.count_productions(True)
@@ -362,6 +381,82 @@ class ProductionsView(ctk.CTkFrame):
             # Se il testo estratto (in lowercase) contiene il testo di ricerca, riposiziona la card
             if search_text in widget_text.lower():
                 card.pack(pady=10, padx=10, fill="x", expand=True)
+
+    def sort_cards(self):
+        """Ordina le cards in base ai criteri selezionati nei menu di ordinamento."""
+
+        # Funzioni di supporto per la conversione dei valori
+        def _convert_to_currency(currency_str):
+            """Converte una stringa di valuta in un numero float per l'ordinamento."""
+            # Rimuovi il simbolo dell'euro, gli spazi, e gestisci separatori
+            cleaned = currency_str.replace('€', '').replace(' ', '').replace('.', '').replace(',', '.')
+            return float(cleaned)
+
+        def _convert_to_datetime(date_str):
+            """Converte una stringa in formato yyyy-mm-dd hh:mm:ss in un oggetto datetime per l'ordinamento."""
+            from datetime import datetime
+            return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+
+        # Ottieni i criteri di ordinamento
+        sort_by = self.order_bar_optionMenu.get()
+        sort_order = self.order_bar_optionMenu_types.get()
+
+        # Mappatura: ogni criterio associa una tupla (indice, funzione_di_conversione, tipo_di_accesso, colonna_db)
+        sort_mapping = {
+            "TOTALE PREVENTIVO": (6, _convert_to_currency, "direct", None),
+            "DATA CREAZIONE": (0, _convert_to_datetime, "database", DBProductionsColumns.CREATED_AT.value),
+            "ULTIMA MODIFICA": (0, _convert_to_datetime, "database", DBProductionsColumns.UPDATED_AT.value)
+        }
+
+        mapping = sort_mapping.get(sort_by)
+
+        # Se il tipo di ordinamento non è riconosciuto, non fare nulla
+        if mapping is None:
+            return
+
+        idx, converter, access_type, db_column = mapping
+        reverse = (sort_order == "DECRESCENTE")
+
+        # Raccogli tutte le cards e i loro valori di ordinamento
+        cards_with_values = []
+        for key, card in self.production_card_list.items():
+            children = card.winfo_children()
+            sort_value = ""
+
+            if access_type == "direct":
+                # Accesso diretto al valore nella card
+                if len(children) > idx:
+                    sort_value = children[idx].cget("text")
+            elif access_type == "database":
+                # Accesso al valore tramite database
+                if len(children) > 0:  # Assicurati che ci sia almeno un child
+                    production_name = children[0].cget("text")  # Nome produzione dal primo child
+                    production_map = self.production_controller.retrieve_production_map_by_name(production_name)
+                    if production_map and db_column:
+                        sort_value = production_map.get(db_column, "")
+
+            # Converti il valore nel tipo appropriato
+            try:
+                converted_value = converter(sort_value) if sort_value else None
+            except (ValueError, TypeError):
+                converted_value = None  # Gestisci i valori non convertibili
+
+            cards_with_values.append((key, card, converted_value))
+
+        # Ordina le cards in base al valore convertito
+        # Gestisci i valori None posizionandoli alla fine in entrambi i casi
+        cards_with_values.sort(
+            key=lambda x: (x[2] is not None, x[2]) if x[2] is not None else (False, None),
+            reverse=reverse
+        )
+
+        # Nascondi temporaneamente tutte le cards
+        for card in self.production_card_list.values():
+            card.pack_forget()
+
+        # Riposiziona le cards nell'ordine ordinato
+        for _, card, _ in cards_with_values:
+            card.pack(pady=10, padx=10, fill="x", expand=True)
 
     def add_production_card(self, production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario):
         """

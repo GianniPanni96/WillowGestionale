@@ -1,0 +1,48 @@
+# File e cartelle di Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cartelle dell'ambiente virtuale (modifica il nome se usi un nome diverso)
+venv/
+env/
+ENV/
+.venv/
+
+# File di log
+*.log
+
+# File di configurazione di PyCharm
+.idea/
+*.iml
+
+# File di sistema
+.DS_Store
+Thumbs.db
+
+# File generati da pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# File di test e coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Configurazioni locali
+*.env
+.env.*
+
+#  database e backups
+backups/
+*.db
+
+#file di configurazione dell'app
+*.json

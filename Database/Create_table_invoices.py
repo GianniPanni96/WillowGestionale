@@ -1,5 +1,5 @@
 import sqlite3
-from Model import db_path, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns
+from Model import db_path, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBAccountsColumns
 
 # Creazione della tabella `invoices` utilizzando l'enum
 columns = [
@@ -9,11 +9,9 @@ columns = [
     f"{DBInvoicesColumns.DATA_SCADENZA_1.value} DATE NOT NULL",
     f"{DBInvoicesColumns.DATA_SCADENZA_2.value} DATE",
     f"{DBInvoicesColumns.DATA_SCADENZA_3.value} DATE",
-    f"{DBInvoicesColumns.DATA_PAGAMENTO_1.value} DATE",
-    f"{DBInvoicesColumns.DATA_PAGAMENTO_2.value} DATE",
-    f"{DBInvoicesColumns.DATA_PAGAMENTO_3.value} DATE",
     f"{DBInvoicesColumns.ID_UTENTE.value} INTEGER NOT NULL",
     f"{DBInvoicesColumns.ID_CLIENTE.value} INTEGER NOT NULL",
+    f"{DBInvoicesColumns.ID_CONTO.value} INTEGER NOT NULL",
     f"{DBInvoicesColumns.NOTE.value} TEXT",
     f"{DBInvoicesColumns.SERVIZI.value} REAL NOT NULL",
     f"{DBInvoicesColumns.CASSA_INPS.value} REAL NOT NULL",
@@ -34,6 +32,7 @@ columns = [
     f"{DBInvoicesColumns.UPDATED_AT.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"FOREIGN KEY ({DBInvoicesColumns.ID_UTENTE.value}) REFERENCES users({DBUsersColumns.ID.value})",
     f"FOREIGN KEY ({DBInvoicesColumns.ID_CLIENTE.value}) REFERENCES clients({DBClientsColumns.ID.value})",
+    f"FOREIGN KEY ({DBInvoicesColumns.ID_CONTO.value}) REFERENCES accounts({DBAccountsColumns.ID.value})",
     f"FOREIGN KEY ({DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value}) REFERENCES invoices({DBInvoicesColumns.ID.value})",  # Chiave esterna per ID_FATTURA_ASSOCIATA
     f"FOREIGN KEY ({DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value}) REFERENCES productions({DBProductionsColumns.ID.value})"
     ]

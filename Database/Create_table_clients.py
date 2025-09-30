@@ -4,7 +4,7 @@ from Model import db_path, DBClientsColumns
 # Creazione della tabella `clients` utilizzando l'enum
 columns = [
     f"{DBClientsColumns.ID.value} INTEGER PRIMARY KEY AUTOINCREMENT",
-    f"{DBClientsColumns.NAME.value} TEXT NOT NULL",
+    f"{DBClientsColumns.NAME.value} TEXT NOT NULL UNIQUE",
     f"{DBClientsColumns.PARTITA_IVA.value} TEXT NOT NULL UNIQUE",
     f"{DBClientsColumns.EMAIL.value} TEXT",
     f"{DBClientsColumns.SEDE_LEGALE.value} TEXT",

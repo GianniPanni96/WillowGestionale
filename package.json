@@ -1,0 +1,16 @@
+{
+  "name": "willowGestionale",
+  "version": "2.0.0",
+  "description": "Descrizione del progetto",
+  "main": "Main.py",
+  
+  "dependencies": {
+    "customtkinter": "*",
+    "pillow": "*",
+    "tkcalendar": "*",
+    "pycryptodome": "*"
+  },
+  
+  "author": "Panza Gianluca",
+  "license": "ISC"
+}

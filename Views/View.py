@@ -1028,8 +1028,8 @@ class MainWindow(ctk.CTk):
             deductible = widgets["deductible"].get()
 
             deductor_name = widgets["deductor"].get()
-            deductor = self.user_controller.retrieve_user_map_by_extended_name(deductor_name)
-            deductor_id = deductor[DBUsersColumns.ID.value]
+            deductor = self.user_controller.retrieve_user_map_by_extended_name(deductor_name) if deductible == "Sì" else None
+            deductor_id = deductor[DBUsersColumns.ID.value] if deductor is not None else None
 
             # Se è la tab “Nuova Spesa”, creo un nuovo key
             if expense_key == "Nuova Spesa":

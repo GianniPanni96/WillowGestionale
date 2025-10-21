@@ -3880,8 +3880,8 @@ class ExpenseController:
 
         #calcolo importo netto
         aliquota_iva = float(expense_data.get("ALIQUOTA IVA"))
-        iva = float(spesa_lorda)*aliquota_iva
-        spesa_netta = float(spesa_lorda)-iva
+        spesa_netta = float(float(spesa_lorda)/(1 + aliquota_iva))
+        iva = float(spesa_lorda) - spesa_netta
 
 
         #prendo ID supplier

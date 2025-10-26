@@ -503,50 +503,55 @@ class ViewUtils(ctk.CTk):
 
 
     @staticmethod
-    def process_items_in_chunks(widget, items_list, add_card_callback, extract_args_callback, chunk_size=10, delay=100):
+    def process_items_in_chunks(widget, items_list, add_card_callback, extract_args_callback,
+                                chunk_size=25, delay=50, cleanup_callback=None):
         """
-        Processa una lista di elementi in chunk separati per non bloccare l'interfaccia
-
-        Args:
-            widget: Il widget CTk che contiene il metodo after()
-            items_list: Lista generica di elementi da processare
-            add_card_callback: Funzione callback per aggiungere una card
-            extract_args_callback: Funzione che estrae gli argomenti da un elemento della lista
-            chunk_size: Dimensione di ogni chunk (default: 30)
-            delay: Delay tra i chunk in ms (default: 10)
+        Versione migliorata con cleanup e gestione memoria
         """
         if not items_list:
             return
 
-        # Dividi la lista in chunk
         chunks = [
             items_list[i:i + chunk_size]
             for i in range(0, len(items_list), chunk_size)
         ]
 
-        # Processa il primo chunk
         current_chunk_index = 0
+        processed_items = 0
 
         def process_next_chunk():
-            nonlocal current_chunk_index
+            nonlocal current_chunk_index, processed_items
 
             if current_chunk_index >= len(chunks):
-                return  # Tutti i chunk sono stati processati
+                if cleanup_callback:
+                    cleanup_callback()
+                return
 
             current_chunk = chunks[current_chunk_index]
 
             for item in current_chunk:
-                # Estrai gli argomenti usando la callback fornita
-                args = extract_args_callback(item)
-                # Chiama la funzione di aggiunta card con gli argomenti estratti
-                add_card_callback(*args)
+                try:
+                    args = extract_args_callback(item)
+                    add_card_callback(*args)
+                    processed_items += 1
+                except Exception as e:
+                    print(f"Errore nel processare item: {e}")
 
-            # Programma il prossimo chunk
+            # Force UI update
+            widget.update_idletasks()
+
+            # Cleanup periodico ogni 3 chunk
+            if current_chunk_index % 3 == 0 and cleanup_callback:
+                cleanup_callback()
+
             current_chunk_index += 1
             if current_chunk_index < len(chunks):
                 widget.after(delay, process_next_chunk)
+            else:
+                if cleanup_callback:
+                    cleanup_callback()
+                print(f"Processati {processed_items} elementi in {len(chunks)} chunk")
 
-        # Avvia il processing
         process_next_chunk()
 
     @staticmethod

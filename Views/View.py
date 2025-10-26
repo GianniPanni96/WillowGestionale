@@ -143,6 +143,7 @@ class MainWindow(ctk.CTk):
         self.update_idletasks()
         self.after(100, lambda: self.state("zoomed"))
 
+
     def _track_after(self, ms, callback=None, *args):
         after_id = self._orig_after(ms, callback, *args)
         self._after_ids.add(after_id)
@@ -157,69 +158,184 @@ class MainWindow(ctk.CTk):
         self._after_ids.clear()
 
     def construct_tabviews(self):
-        """Crea tutte le tabview e le impacchetta"""
+        """Crea solo la struttura delle tab, non il contenuto - Lazy Loading"""
         self.tab_instances = {}
+        self.current_tab = "Utenti"  # Tab iniziale
 
-        self.tab_instances["Utenti"] = UsersView(self.db_model, self.user_controller, self.account_controller,
-                                  self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"),
-                                  self.analyzer, self.event_bus, self.logged_user_id, self.login_status)
-        self.tab_instances["Clienti"] = ClientsView(self.db_model, self.client_controller, self.production_controller,
-                                                    self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
-                                                    self.config_manager, self.tabview.tab("Clienti"), self.event_bus, self.analyzer)
-        self.tab_instances["Fatture"] = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
-                                        self.client_controller, self.production_controller, self.payment_controller,
-                                        self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
-                                        self.historical_financial_data_settings, self.event_bus, self.analyzer)
-        self.tab_instances["Pagamenti"] = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller,
-                                        self.user_controller, self.client_controller, self.production_controller,
-                                        self.account_controller, self.update_controller, self.tabview,
-                                        self.event_bus)
-        self.tab_instances["Rimborsi"] = RefundsView(self.db_model, self.refund_controller, self.client_controller,
-                                      self.account_controller, self.update_controller, self.tabview, self.analyzer,
-                                      self.event_bus)
-        self.tab_instances["Produzioni"] = ProductionsView(self.db_model, self.production_controller, self.payment_controller,
-                                              self.invoice_controller, self.user_controller, self.client_controller,
-                                              self.catalogo_elenchi, self.config_manager,
-                                              self.tabview, self.event_bus, self.update_controller)
-        self.tab_instances["Spese"] = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
-                                        self.account_controller, self.supplier_controller, self.invoice_controller,
-                                        self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
-                                        self.config_manager, self.tabview, self.event_bus)
-        self.tab_instances["Fornitori"] = SuppliersView(self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
-                                          self.config_manager, self.catalogo_elenchi, self.tabview,
-                                          self.event_bus, self.analyzer)
-        self.tab_instances["Conti"] = AccountsView(self.db_model, self.account_controller, self.update_controller,
-                                        self.transfer_controller, self.config_manager, self.catalogo_elenchi,
-                                        self.analyzer, self.tabview, self.event_bus)
-        self.tab_instances["Salario"] = SalariesView(self.db_model, self.salary_controller, self.user_controller,
-                                       self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
-                                       self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus)
-        self.tab_instances["Iva"] = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller,
-                                            self.expense_controller, self.update_controller, self.analyzer,
-                                            self.tabview, self.event_bus)
-        self.tab_instances["Tasse"] = TaxesView(self.db_model, self.analyzer, self.update_controller,
-                                          self.config_manager, self.catalogo_elenchi, self.tabview,
-                                          self.event_bus)
-        self.tab_instances["Report"] = ReportView(self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
-                                                  self.event_bus, self.update_controller)
+        # Definisci la factory per le view
+        self.view_factory = {
+            "Utenti": lambda tab: UsersView(
+                self.db_model, self.user_controller, self.account_controller,
+                self.production_controller, self.fiscal_settings, tab,
+                self.analyzer, self.event_bus, self.logged_user_id, self.login_status
+            ),
+            "Clienti": lambda tab: ClientsView(
+                self.db_model, self.client_controller, self.production_controller,
+                self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
+                self.config_manager, tab, self.event_bus, self.analyzer
+            ),
+            "Fatture": lambda tab: InvoicesView(
+                self.db_model, self.invoice_controller, self.user_controller,
+                self.client_controller, self.production_controller, self.payment_controller,
+                self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
+                self.historical_financial_data_settings, self.event_bus, self.analyzer
+            ),
+            "Pagamenti": lambda tab: PaymentsView(
+                self.db_model, self.payment_controller, self.invoice_controller,
+                self.user_controller, self.client_controller, self.production_controller,
+                self.account_controller, self.update_controller, self.tabview,
+                self.event_bus
+            ),
+            "Rimborsi": lambda tab: RefundsView(
+                self.db_model, self.refund_controller, self.client_controller,
+                self.account_controller, self.update_controller, self.tabview, self.analyzer,
+                self.event_bus
+            ),
+            "Produzioni": lambda tab: ProductionsView(
+                self.db_model, self.production_controller, self.payment_controller,
+                self.invoice_controller, self.user_controller, self.client_controller,
+                self.catalogo_elenchi, self.config_manager,
+                self.tabview, self.event_bus, self.update_controller
+            ),
+            "Spese": lambda tab: ExpensesView(
+                self.db_model, self.expense_controller, self.user_controller,
+                self.account_controller, self.supplier_controller, self.invoice_controller,
+                self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
+                self.config_manager, self.tabview, self.event_bus
+            ),
+            "Fornitori": lambda tab: SuppliersView(
+                self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
+                self.config_manager, self.catalogo_elenchi, self.tabview,
+                self.event_bus, self.analyzer
+            ),
+            "Conti": lambda tab: AccountsView(
+                self.db_model, self.account_controller, self.update_controller,
+                self.transfer_controller, self.config_manager, self.catalogo_elenchi,
+                self.analyzer, self.tabview, self.event_bus
+            ),
+            "Salario": lambda tab: SalariesView(
+                self.db_model, self.salary_controller, self.user_controller,
+                self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
+                self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus
+            ),
+            "Iva": lambda tab: IvaTrimesView(
+                self.db_model, self.invoice_controller, self.user_controller,
+                self.expense_controller, self.update_controller, self.analyzer,
+                self.tabview, self.event_bus
+            ),
+            "Tasse": lambda tab: TaxesView(
+                self.db_model, self.analyzer, self.update_controller,
+                self.config_manager, self.catalogo_elenchi, self.tabview,
+                self.event_bus
+            ),
+            "Report": lambda tab: ReportView(
+                self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
+                self.event_bus, self.update_controller
+            )
+        }
 
-        # Impacchettamento nelle rispettive tab
-        for tab_name, instance in self.tab_instances.items():
-            tab_frame = self.tabview.tab(tab_name)
-            instance.pack(in_=tab_frame, fill="both", expand=True)
+        # MONITORAGGIO DEL CAMBIO TAB - APPROCCIO ALTERNATIVO
+        self._setup_tab_monitoring()
+
+        # Carica solo la tab iniziale
+        self.load_tab(self.current_tab)
 
     def refresh_tabviews(self):
-        """Aggiorna tutte le tabview distruggendo e ricreando il contenuto"""
-        # 1. Distruggi tutte le tabview esistenti
-        for instance in self.tab_instances.values():
-            if instance.winfo_exists():
+        """Aggiorna solo la tab corrente invece di tutte le tab"""
+        if self.current_tab in self.tab_instances:
+            print(f"Ricarico tab: {self.current_tab}")
+            # Ricarica solo la tab corrente
+            current_tab_name = self.current_tab
+            self.destroy_tab(current_tab_name)
+            self.load_tab(current_tab_name)
+
+            # Forza l'aggiornamento della GUI
+            self.update_idletasks()
+
+    def _on_tab_click(self, event):
+        """Gestisce il click sulle tab per il lazy loading"""
+        # Ottieni l'indice del tab cliccato
+        tab_index = self.tabview._segmented_button.index(f"@{event.x},{event.y}")
+        if tab_index is not None:
+            tab_names = list(self.view_factory.keys())
+            if tab_index < len(tab_names):
+                new_tab = tab_names[tab_index]
+                self._switch_to_tab(new_tab)
+
+    def load_tab(self, tab_name):
+        """Carica una tab solo se non è già caricata"""
+        if tab_name not in self.tab_instances and tab_name in self.view_factory:
+            print(f"Caricamento tab: {tab_name}")
+            tab_frame = self.tabview.tab(tab_name)
+
+            # Crea l'istanza della view
+            instance = self.view_factory[tab_name](tab_frame)
+            instance.pack(in_=tab_frame, fill="both", expand=True)
+            self.tab_instances[tab_name] = instance
+
+            # Forza il rendering
+            self.update_idletasks()
+
+    def destroy_tab(self, tab_name):
+        """Distrugge completamente una tab per liberare memoria"""
+        if tab_name in self.tab_instances:
+            print(f"Distruzione tab: {tab_name}")
+            try:
+                instance = self.tab_instances[tab_name]
+
+                # Chiama cleanup se esiste
+                if hasattr(instance, 'cleanup'):
+                    instance.cleanup()
+
+                # Distruggi l'istanza
                 instance.destroy()
 
-        # 2. Ricrea tutte le tabview
-        self.construct_tabviews()
+            except Exception as e:
+                print(f"Errore nel distruggere {tab_name}: {e}")
+            finally:
+                # Rimuovi dal dizionario
+                del self.tab_instances[tab_name]
 
-        # 3. Forza l'aggiornamento della GUI
-        self.update_idletasks()
+                # Forza garbage collection
+                import gc
+                gc.collect()
+
+    def _setup_tab_monitoring(self):
+        """Configura il monitoraggio del cambio tab usando un approccio alternativo"""
+        # Crea una variabile per tracciare il tab precedente
+        self._previous_tab = self.current_tab
+
+        # Avvia il monitoraggio periodico
+        self._monitor_tab_changes()
+
+    def _monitor_tab_changes(self):
+        """Monitora i cambi di tab periodicamente"""
+        current_tab = self.tabview.get()
+
+        # Se il tab è cambiato
+        if current_tab != self._previous_tab:
+            self._switch_to_tab(current_tab)
+            self._previous_tab = current_tab
+
+        # Continua il monitoraggio ogni 100ms
+        self.after(100, self._monitor_tab_changes)
+
+    def _switch_to_tab(self, new_tab):
+        """Cambia tab con lazy loading"""
+        if new_tab != self.current_tab:
+            print(f"Cambio tab: {self.current_tab} -> {new_tab}")
+
+            # Distruggi la tab precedente per liberare memoria
+            if self.current_tab in self.tab_instances:
+                self.destroy_tab(self.current_tab)
+
+            # Carica la nuova tab
+            self.load_tab(new_tab)
+            self.current_tab = new_tab
+
+            # Forza l'aggiornamento dell'interfaccia
+            self.update_idletasks()
+
 
 
 

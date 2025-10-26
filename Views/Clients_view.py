@@ -50,7 +50,6 @@ class ClientsView(ctk.CTkFrame):
         self.create_client_tab()
         self.show_main_view()
 
-
     def create_client_tab(self):
 
         self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
@@ -95,19 +94,7 @@ class ClientsView(ctk.CTkFrame):
         self.save_button = ctk.CTkButton(self.add_client_frame, text="Aggiungi Cliente", command=self.open_add_client_window)
         self.save_button.pack()
 
-        for client in self.client_controller.retrieve_clients_map_list():
-            #costruisco i dati aggregati per singolo cliente
-            aggregate_data = self.client_controller.construct_client_map_aggregate_data(client[DBClientsColumns.ID.value])
-
-            self.add_client_card(client[f"{DBClientsColumns.ID.value}"], client[f"{DBClientsColumns.NAME.value}"],
-                                 round(aggregate_data[ClientController.Aggregate_data.TOT_ENTRATE.value], 2),
-                                 aggregate_data[ClientController.Aggregate_data.NUM_FATTURE.value],
-                                 round(aggregate_data[ClientController.Aggregate_data.MEDIA_FATTURE.value], 2),
-                                 round(aggregate_data[ClientController.Aggregate_data.TOT_CREDITI.value], 2),
-                                 round(self.client_controller.calcola_tot_rimborsi_by_client(client[DBClientsColumns.ID.value])),
-                                 round(aggregate_data[ClientController.Aggregate_data.PAGAM_ORARIO_MEDIO.value], 2),
-                                 aggregate_data[ClientController.Aggregate_data.TOT_GIORNI_RIT.value],
-                                 round(aggregate_data[ClientController.Aggregate_data.MEDIA_RITARDO.value], 2))
+        self.load_clients_chunked()
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -119,6 +106,18 @@ class ClientsView(ctk.CTkFrame):
         self.main_container.pack_forget()
         self.client_detail_view.pack(fill='both', expand=True)
         self.client_detail_view.create_detail_tab(client_id)  # Ricrea i contenuti ogni volta
+
+    def load_clients_chunked(self):
+        all_clients = self.client_controller.retrieve_clients_map_list()
+
+        extractor = ViewUtils.create_extractor_for_clients(self.client_controller)
+
+        ViewUtils.process_items_in_chunks(
+            widget=self,
+            items_list=all_clients,
+            add_card_callback=self.add_client_card,
+            extract_args_callback=extractor
+        )
 
     def add_client_card(self, client_id, nome, tot_entrate, num_fatture, fattura_media, tot_crediti, tot_rimborsi, pagam_orario, giorni_rit, media_rit):
         """

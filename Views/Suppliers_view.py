@@ -93,21 +93,7 @@ class SuppliersView(ctk.CTkFrame):
         self.save_button = ctk.CTkButton(self.add_supplier_frame, text="Aggiungi Fornitore", command=self.open_add_supplier_window)
         self.save_button.pack()
 
-        supplier_list = self.supplier_controller.retrieve_suppliers_map_list()
-
-        for supplier in supplier_list:
-            #costruisco i dati aggregati per singolo cliente
-            aggregate_data = self.supplier_controller.construct_supplier_map_aggregate_data(supplier[DBSuppliersColumns.ID.value])
-
-            self.add_supplier_card(supplier[f"{DBSuppliersColumns.ID.value}"],
-                                   supplier[f"{DBSuppliersColumns.NAME.value}"],
-                                   supplier[f"{DBSuppliersColumns.PARTITA_IVA.value}"],
-                                   aggregate_data[SupplierController.Aggregate_data.NUM_SPESE.value],
-                                   round(aggregate_data[SupplierController.Aggregate_data.MEDIA_SPESE.value], 2),
-                                   round(aggregate_data[SupplierController.Aggregate_data.TOT_SPESE.value], 2),
-                                   supplier[f"{DBSuppliersColumns.NOTE.value}"],
-                                   supplier[f"{DBSuppliersColumns.CONTATTO.value}"]
-                                   )
+        self.load_suppliers_chunked()
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -193,6 +179,20 @@ class SuppliersView(ctk.CTkFrame):
             self.error_labels[DBSuppliersColumns.NAME.value],
             "Il nome non può essere vuoto."
         ))
+
+    def load_suppliers_chunked(self):
+        supplier_list = self.supplier_controller.retrieve_suppliers_map_list()
+
+        extractor = ViewUtils.create_extractor_for_suppliers(
+            self.supplier_controller
+        )
+
+        ViewUtils.process_items_in_chunks(
+            widget=self,
+            items_list=supplier_list,
+            add_card_callback=self.add_supplier_card,
+            extract_args_callback=extractor
+        )
 
     def add_supplier_card(self, supplier_id, supplier_name, partita_iva, num_spese, spesa_media, tot_spese, note, contatto):
         # Creazione della card

@@ -188,43 +188,7 @@ class InvoicesView(ctk.CTkFrame):
                                          command=self.open_suggest_user_window)
         self.suggest_user.pack(padx=20)
 
-        #aggiungo una tab per ogni fattura presente nel database
-        invoice_map_list = self.invoice_controller.retrieve_invoices_map_list(True)
-        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
-        invoice_map_list.sort(
-            key=lambda x: datetime.strptime(
-                x[DBInvoicesColumns.UPDATED_AT.value],
-                "%Y-%m-%d %H:%M:%S"
-            ) if " " in x[DBInvoicesColumns.UPDATED_AT.value] else datetime.strptime(
-                x[DBInvoicesColumns.UPDATED_AT.value],
-                "%Y-%m-%d"
-            ),
-            reverse=True
-        )
-        for invoice in invoice_map_list:
-            invoice_id = invoice[DBInvoicesColumns.ID.value]
-            invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
-            invoice_client_ID = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-            invoice_client_name = self.client_controller.retrieve_client_map_by_id(invoice_client_ID)[DBClientsColumns.NAME.value]
-            invoice_user_id = invoice[DBInvoicesColumns.ID_UTENTE.value]
-            invoice_user_name = self.user_controller.retrieve_user_map_by_id(invoice_user_id)[DBUsersColumns.FIRST_NAME.value] + " " + self.user_controller.retrieve_user_map_by_id(invoice_user_id)[DBUsersColumns.LAST_NAME.value]
-            invoice_creation_date = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
-            invoice_state = invoice[DBInvoicesColumns.STATUS.value]
-            invoice_rate = invoice[DBInvoicesColumns.NUMERO_RATE.value]
-            invoice_tot_documento = invoice[DBInvoicesColumns.NETTO_A_PAGARE.value]
-            invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
-            invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-            production = self.production_controller.retrieve_production_map_by_id(invoice_production_id)
-            if production:
-                invoice_production_name = production[DBProductionsColumns.NAME.value]
-            else:
-                invoice_production_name = "Produzione non trovata"
-                self.cards_warnings[invoice_name] = "La produzione associata a questa fattura non esiste nel database.\n"\
-                                                     "Provvedere alla modifica o allo storno di questa fattura."
-
-            self.add_invoice_card(invoice_id, invoice_name, invoice_client_name, invoice_user_name, invoice_production_name, invoice_creation_date, invoice_state, invoice_rate, invoice_tot_documento, invoice_tipologia)
-            self.toggle_specific_invoice_rate_color_2(invoice_id)
-            self.toggle_specific_invoice_status_color(invoice_id)
+        self.load_invoices_chunked()
 
         self.sort_cards()
 
@@ -447,6 +411,50 @@ class InvoicesView(ctk.CTkFrame):
                 "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
             )
         )
+
+    def load_invoices_chunked(self):
+        invoice_map_list = self.invoice_controller.retrieve_invoices_map_list(True)
+
+        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
+        invoice_map_list.sort(
+            key=lambda x: datetime.strptime(
+                x[DBInvoicesColumns.UPDATED_AT.value],
+                "%Y-%m-%d %H:%M:%S"
+            ) if " " in x[DBInvoicesColumns.UPDATED_AT.value] else datetime.strptime(
+                x[DBInvoicesColumns.UPDATED_AT.value],
+                "%Y-%m-%d"
+            ),
+            reverse=True
+        )
+
+        # Pre-processing: raccogli i warnings
+        self.collect_invoice_warnings(invoice_map_list)
+
+        extractor = ViewUtils.create_extractor_for_invoices(
+            self.invoice_controller,
+            self.client_controller,
+            self.user_controller,
+            self.production_controller
+        )
+
+        ViewUtils.process_items_in_chunks(
+            widget=self,
+            items_list=invoice_map_list,
+            add_card_callback=self.add_invoice_card,
+            extract_args_callback=extractor
+        )
+
+    def collect_invoice_warnings(self, invoice_map_list):
+        """Raccoglie tutti i warnings per le fatture prima del processing"""
+        self.cards_warnings.clear()
+        for invoice in invoice_map_list:
+            invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+            production = self.production_controller.retrieve_production_map_by_id(invoice_production_id)
+            if not production:
+                invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
+                self.cards_warnings[
+                    invoice_name] = "La produzione associata a questa fattura non esiste nel database.\n" \
+                                    "Provvedere alla modifica o allo storno di questa fattura."
 
     def add_invoice_card(self, invoice_id, nome, cliente, utente, produzione, data_creazione, stato, rate, tot_documento, tipologia):
         """

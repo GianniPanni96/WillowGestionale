@@ -171,33 +171,7 @@ class ProductionsView(ctk.CTkFrame):
                                          command=self.open_add_production_window)
         self.save_button.pack()
 
-        #aggiungo una tab per ogni fattura presente nel database
-        production_map_list = self.production_controller.retrieve_productions_map_list(True)
-        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
-        production_map_list.sort(
-            key=lambda x: datetime.strptime(
-                x[DBProductionsColumns.UPDATED_AT.value],
-                "%Y-%m-%d %H:%M:%S"
-            ) if " " in x[DBProductionsColumns.UPDATED_AT.value] else datetime.strptime(
-                x[DBProductionsColumns.UPDATED_AT.value],
-                "%Y-%m-%d"
-            ),
-            reverse=True
-        )
-        for production in production_map_list:
-            production_id = production[DBProductionsColumns.ID.value]
-            production_name = production[DBProductionsColumns.NAME.value]
-            client_id = production[DBProductionsColumns.CLIENT_ID.value]
-            client_name = self.client_controller.retrieve_client_map_by_id(client_id)[DBClientsColumns.NAME.value]
-            tipologia_produzione = production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value]
-            tipologia_output = production[DBProductionsColumns.TIPOLOGIA_OUTPUT.value]
-            produzione_stato = production[DBProductionsColumns.STATO.value]
-            data_di_consegna = production[DBProductionsColumns.END_DATE.value]
-            totale_preventivo = production[DBProductionsColumns.TOTALE_PREVENTIVO.value]
-            durata_produzione = production[DBProductionsColumns.HOURS.value]
-            prezzo_orario = self.production_controller.calculate_production_cost_per_hour(production_id)
-
-            self.add_production_card(production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario)
+        self.load_productions_chunked()
 
         self.sort_cards()
 
@@ -457,6 +431,33 @@ class ProductionsView(ctk.CTkFrame):
         # Riposiziona le cards nell'ordine ordinato
         for _, card, _ in cards_with_values:
             card.pack(pady=10, padx=10, fill="x", expand=True)
+
+    def load_productions_chunked(self):
+        production_map_list = self.production_controller.retrieve_productions_map_list(True)
+
+        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
+        production_map_list.sort(
+            key=lambda x: datetime.strptime(
+                x[DBProductionsColumns.UPDATED_AT.value],
+                "%Y-%m-%d %H:%M:%S"
+            ) if " " in x[DBProductionsColumns.UPDATED_AT.value] else datetime.strptime(
+                x[DBProductionsColumns.UPDATED_AT.value],
+                "%Y-%m-%d"
+            ),
+            reverse=True
+        )
+
+        extractor = ViewUtils.create_extractor_for_productions(
+            self.production_controller,
+            self.client_controller
+        )
+
+        ViewUtils.process_items_in_chunks(
+            widget=self,
+            items_list=production_map_list,
+            add_card_callback=self.add_production_card,
+            extract_args_callback=extractor
+        )
 
     def add_production_card(self, production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario):
         """

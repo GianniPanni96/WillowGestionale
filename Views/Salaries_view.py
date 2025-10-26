@@ -149,24 +149,7 @@ class SalariesView(ctk.CTkFrame):
                                          command=self.open_add_salary_window)
         self.save_button.pack()
 
-        for salary in self.salary_controller.retrieve_salaries_map_list(True):
-            if salary:
-                salary_id = salary[DBSalariesColumns.ID.value]
-                salary_name = salary[DBSalariesColumns.NAME.value]
-                amount = salary[DBSalariesColumns.AMOUNT.value]
-                date = salary[DBSalariesColumns.DATE.value]
-                user_id = salary[DBSalariesColumns.USER_ID.value]
-                if user_id:
-                    user = self.user_controller.retrieve_user_map_by_id(user_id)
-                    user_first = user[DBUsersColumns.FIRST_NAME.value]
-                    user_second = user[DBUsersColumns.LAST_NAME.value]
-                    user_name = user_first + " " + user_second
-                else:
-                    user_name = " ---- "
-                account = self.account_controller.retrieve_account_map_by_id(salary[DBSalariesColumns.ACCOUNT_ID.value])
-                account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
-
-                self.add_salary_card(salary_id, salary_name, user_name, amount, date, account_name)
+        self.load_salaries_chunked()
 
         self.sort_cards()
 
@@ -297,6 +280,22 @@ class SalariesView(ctk.CTkFrame):
         totale_salari = round(self.salary_controller.calculate_tot_salaries(), 2)
         self.global_infos[f"{SalaryController.SalariesAggregateData.NUMERO_SALARI.value}"] = numero_salari
         self.global_infos[f"{SalaryController.SalariesAggregateData.TOT_SALARI.value}"] = f"{totale_salari:.2f}"
+
+    def load_salaries_chunked(self):
+        salaries_list = self.salary_controller.retrieve_salaries_map_list(True)
+
+        extractor = ViewUtils.create_extractor_for_salaries(
+            self.salary_controller,
+            self.user_controller,
+            self.account_controller
+        )
+
+        ViewUtils.process_items_in_chunks(
+            widget=self,
+            items_list=salaries_list,
+            add_card_callback=self.add_salary_card,
+            extract_args_callback=extractor
+        )
 
     def add_salary_card(self, salary_id, salary_name, user_name, amount, date, account_name):
         card = ctk.CTkFrame(self.cards_frame, fg_color="dimgray")

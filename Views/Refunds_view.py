@@ -136,35 +136,7 @@ class RefundsView(ctk.CTkFrame):
                                          command=self.open_add_refund_window)
         self.save_button.pack()
 
-        # aggiungo una tab per ogni fattura presente nel database
-        refunds_map_list = self.refunds_controller.retrieve_refunds_map_list(current_year=True)
-        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
-        refunds_map_list.sort(
-            key=lambda x: datetime.strptime(
-                x[DBRefundsColumns.UPDATED_AT.value],
-                "%Y-%m-%d %H:%M:%S"
-            ) if " " in x[DBRefundsColumns.UPDATED_AT.value] else datetime.strptime(
-                x[DBRefundsColumns.UPDATED_AT.value],
-                "%Y-%m-%d"
-            ),
-            reverse=True
-        )
-
-        for refund in refunds_map_list:
-            if refund:
-                refund_id = refund[DBRefundsColumns.ID.value]
-                refund_name = refund[DBRefundsColumns.REFUND_NAME.value]
-                amount = refund[DBRefundsColumns.REFUND_AMOUNT.value]
-                refund_date = refund[DBRefundsColumns.REFUND_DATE.value]
-                cliente_id = refund[DBRefundsColumns.CLIENT_ID.value]
-                client = self.client_controller.retrieve_client_map_by_id(cliente_id)
-                client_name = client[DBClientsColumns.NAME.value]
-                conto = self.account_controller.retrieve_account_map_by_id(refund[DBRefundsColumns.CONTO_ID.value])
-                nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
-
-                # warnings attachments
-
-                self.add_refund_card(refund_id, refund_name, amount, refund_date, client_name, nome_conto)
+        self.load_refunds_chunked()
 
         self.sort_cards()
 
@@ -420,6 +392,34 @@ class RefundsView(ctk.CTkFrame):
                                                                                   DBRefundsColumns.REFUND_AMOUNT.value],
                                                                               "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
                                                                           ))
+
+    def load_refunds_chunked(self):
+        refunds_map_list = self.refunds_controller.retrieve_refunds_map_list(current_year=True)
+
+        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
+        refunds_map_list.sort(
+            key=lambda x: datetime.strptime(
+                x[DBRefundsColumns.UPDATED_AT.value],
+                "%Y-%m-%d %H:%M:%S"
+            ) if " " in x[DBRefundsColumns.UPDATED_AT.value] else datetime.strptime(
+                x[DBRefundsColumns.UPDATED_AT.value],
+                "%Y-%m-%d"
+            ),
+            reverse=True
+        )
+
+        extractor = ViewUtils.create_extractor_for_refunds(
+            self.refunds_controller,
+            self.client_controller,
+            self.account_controller
+        )
+
+        ViewUtils.process_items_in_chunks(
+            widget=self,
+            items_list=refunds_map_list,
+            add_card_callback=self.add_refund_card,
+            extract_args_callback=extractor
+        )
 
     def add_refund_card(self, refund_id, refund_name, amount, refund_date, client_name, nome_conto):
         """

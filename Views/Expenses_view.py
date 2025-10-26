@@ -538,59 +538,22 @@ class ExpensesView(ctk.CTkFrame):
 
     def load_expenses_chunked(self):
         all_expenses = self.expense_controller.retrieve_expenses_map_list(True)
-        # Dividi la lista in chunk di 30 elementi
-        chunk_size = 30
-        expense_chunks = [
-            all_expenses[i:i + chunk_size]
-            for i in range(0, len(all_expenses), chunk_size)
-        ]
 
-        # Processa il primo chunk
-        self.current_chunk_index = 0
-        self.process_next_chunk(expense_chunks)
+        # Crea l'estrattore specifico per le spese
+        extractor = ViewUtils.create_extractor_for_expenses(
+            self.expense_controller,
+            self.supplier_controller,
+            self.user_controller,
+            self.account_controller
+        )
 
-    def process_next_chunk(self, expense_chunks):
-        if self.current_chunk_index >= len(expense_chunks):
-            return  # Tutti i chunk sono stati processati
-
-        current_chunk = expense_chunks[self.current_chunk_index]
-
-        for expense in current_chunk:
-            if expense:
-                expense_id = expense[DBExpensesColumns.ID.value]
-                name = expense[DBExpensesColumns.NAME.value]
-                net_amount = expense[DBExpensesColumns.NET_AMOUNT.value]
-                amount = expense[DBExpensesColumns.TOT_AMOUNT.value]
-                supplier_id = expense[DBExpensesColumns.SUPPLIER_ID.value]
-                supplier = self.supplier_controller.retrieve_supplier_map_by_id(supplier_id)
-                supplier_name = supplier[DBSuppliersColumns.NAME.value]
-                date = expense[DBExpensesColumns.DATE.value]
-                category = expense[DBExpensesColumns.CATEGORY.value]
-                deducibile = expense[DBExpensesColumns.DEDUCIBILE.value]
-                user_id = expense[DBExpensesColumns.USER_ID_DEDUZIONE.value]
-
-                if user_id:
-                    user = self.user_controller.retrieve_user_map_by_id(user_id)
-                    user_first = user[DBUsersColumns.FIRST_NAME.value]
-                    user_second = user[DBUsersColumns.LAST_NAME.value]
-                    user_name = user_first + " " + user_second
-                else:
-                    user_name = " ---- "
-
-                account = self.account_controller.retrieve_account_map_by_id(
-                    expense[DBExpensesColumns.ACCOUNT_ID.value]
-                )
-                account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
-
-                self.add_expense_card(
-                    expense_id, name, supplier_name, net_amount, amount,
-                    category, date, deducibile, user_name, account_name
-                )
-
-        # Programma il prossimo chunk dopo un breve delay
-        self.current_chunk_index += 1
-        if self.current_chunk_index < len(expense_chunks):
-            self.after(10, lambda: self.process_next_chunk(expense_chunks))
+        # Usa la funzione generalizzata
+        ViewUtils.process_items_in_chunks(
+            widget=self,  # o un qualsiasi widget CTk
+            items_list=all_expenses,
+            add_card_callback=self.add_expense_card,
+            extract_args_callback=extractor
+        )
 
     def add_expense_card(self, expense_id, name, supplier_name, net_amount, amount, category, date, deducibile, user_name, account_name):
         card = ctk.CTkFrame(self.cards_frame, fg_color="dimgray")

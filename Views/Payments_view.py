@@ -53,6 +53,12 @@ class PaymentsView(ctk.CTkFrame):
             event_bus = self.event_bus
         )
 
+
+        # Sistema per tracciare gli after()
+        self._after_ids = set()
+        self._orig_after = self.after
+        self.after = self._track_after
+
         self.create_payments_tab()
         self.show_main_view()
 
@@ -733,6 +739,83 @@ class PaymentsView(ctk.CTkFrame):
                         continue
 
         ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
+
+    def cleanup(self):
+        """Pulizia completa per liberare memoria - DA AGGIUNGERE IN OGNI VIEW"""
+        try:
+            print(f"Cleanup di {self.__class__.__name__}")
+
+            # 1. Cancella tutti gli after scheduled
+            if hasattr(self, '_after_ids'):
+                for after_id in self._after_ids:
+                    try:
+                        self.after_cancel(after_id)
+                    except:
+                        pass
+                self._after_ids.clear()
+
+            # 2. Distruggi tutte le card e widget dinamici
+            card_lists = [
+                'payment_card_list', 'invoice_card_list', 'client_card_list',
+                'supplier_card_list', 'production_card_list', 'expenses_card_list',
+                'salaries_card_list', 'refund_card_list', 'account_card_list'
+            ]
+
+            for card_attr in card_lists:
+                if hasattr(self, card_attr):
+                    card_dict = getattr(self, card_attr)
+                    for card_name, card in card_dict.items():
+                        try:
+                            card.destroy()
+                        except:
+                            pass
+                    card_dict.clear()
+
+            # 3. Pulisci dizionari e liste
+            data_attrs = [
+                'cards_warnings', 'global_infos', 'amount_aggregate_labels',
+                'payment_card_labels_status', 'invoice_card_labels_status',
+                'production_card_labels_status'
+            ]
+
+            for attr in data_attrs:
+                if hasattr(self, attr):
+                    getattr(self, attr).clear()
+
+            # 4. Distruggi i container principali se esistono
+            container_attrs = [
+                'main_container', 'detail_container', 'payments_cards_frame',
+                'invoices_cards_frame', 'clients_cards_frame', 'suppliers_cards_frame',
+                'productions_cards_frame', 'expenses_cards_frame', 'refunds_cards_frame',
+                'accounts_cards_frame', 'salaries_cards_frame'
+            ]
+
+            for attr in container_attrs:
+                if hasattr(self, attr):
+                    container = getattr(self, attr)
+                    try:
+                        # Distruggi solo se il container esiste ancora
+                        if container.winfo_exists():
+                            for widget in container.winfo_children():
+                                try:
+                                    widget.destroy()
+                                except:
+                                    pass
+                    except:
+                        pass
+
+            # 5. Pulisci i riferimenti ai controller (opzionale)
+            if hasattr(self, 'db_model'):
+                self.db_model = None
+
+        except Exception as e:
+            print(f"Errore durante il cleanup di {self.__class__.__name__}: {e}")
+
+    def _track_after(self, ms, func, *args):
+        """Versione tracciata di after()"""
+        after_id = self._orig_after(ms, func, *args)
+        self._after_ids.add(after_id)
+        return after_id
 
 
 

@@ -90,13 +90,16 @@ if __name__ == "__main__":
     app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings)
 
 
-    # Definisci cosa fare alla chiusura della finestra principale
     def on_closing():
-        # Ferma il backup scheduler
         print("Finestra chiusa: arresto scheduler backup…")
-        scheduler.stop()
-        app._cancel_all_after()
-        app.quit()  # esce subito dal loop degli eventi
+
+        # Aggiungi queste righe per pulire il lazy loading
+        if hasattr(app, '_cancel_all_after'):
+            app._cancel_all_after()
+
+        # Ferma il backup scheduler
+        app.scheduler.stop()
+        app.quit()
         app.destroy()
 
 

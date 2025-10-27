@@ -10,7 +10,10 @@ from enum import Enum
 
 class ProductionsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, production_controller, payment_controller, invoice_controller, user_controller, client_controller, catalogo_elenchi, config_manager, tabview, event_bus, update_controller):
+    def __init__(self, db_model, production_controller, payment_controller,
+                 invoice_controller, user_controller, client_controller,
+                 catalogo_elenchi, config_manager, tabview,
+                 event_bus, update_controller, initial_production_id=None):
         super().__init__(tabview.tab("Produzioni"))
 
         self.db_model = db_model
@@ -26,7 +29,7 @@ class ProductionsView(ctk.CTkFrame):
         self.event_bus = event_bus
         self.update_controller = update_controller
 
-        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self.handle_show_production_detail)
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self.handle_show_production_detail)
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -60,7 +63,11 @@ class ProductionsView(ctk.CTkFrame):
         )
 
         self.create_productions_tab()
-        self.show_main_view()
+
+        if initial_production_id is not None:
+            self.after(100, lambda: self.open_production_detail_tab(initial_production_id))
+        else:
+            self.show_main_view()
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -69,13 +76,38 @@ class ProductionsView(ctk.CTkFrame):
 
     def handle_show_production_detail(self, production_id):
         self.tabview.set("Produzioni")  # Cambia tab
-        self.open_production_detail_tab(production_id)  # Mostra il dettaglio
+        self.after(150, lambda: self.open_production_detail_tab(production_id))
 
     def open_production_detail_tab(self, production_id):
-        """Mostra la vista dettaglio utente"""
-        self.main_container.pack_forget()
-        self.production_detail_view.pack(fill='both', expand=True)
-        self.production_detail_view.create_detail_tab(production_id)  # Ricrea i contenuti ogni volta
+        """Mostra la vista dettaglio produzione con controlli di sicurezza"""
+        try:
+            # Verifica che i widget esistano
+            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+                self.main_container.pack_forget()
+
+            # Se production_detail_view non esiste, crealo
+            if not hasattr(self, 'production_detail_view') or not self.production_detail_view.winfo_exists():
+                self.production_detail_view = ProductionDetailView(
+                    parent=self,
+                    invoice_controller=self.invoice_controller,
+                    back_callback=self.show_main_view,
+                    client_controller=self.client_controller,
+                    production_controller=self.production_controller,
+                    catalogo_elenchi=self.catalogo_elenchi,
+                    config_manager=self.config_manager,
+                    db_model=self.db_model,
+                    update_controller=self.update_controller,
+                    event_bus=self.event_bus
+                )
+
+            # Mostra il dettaglio
+            self.production_detail_view.pack(fill='both', expand=True)
+            self.production_detail_view.create_detail_tab(production_id)  # Ricrea i contenuti ogni volta
+
+        except Exception as e:
+            print(f"Errore in open_production_detail_tab: {e}")
+            # Fallback: mostra la vista principale
+            self.show_main_view()
 
     def create_productions_tab(self):
 

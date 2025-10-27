@@ -124,6 +124,8 @@ class MainWindow(ctk.CTk):
         self.update_idletasks()
         self.after(100, lambda: self.state("zoomed"))
 
+        self._setup_event_subscriptions()
+
 
     def _track_after(self, ms, callback=None, *args):
         after_id = self._orig_after(ms, callback, *args)
@@ -155,11 +157,12 @@ class MainWindow(ctk.CTk):
                 self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
                 self.config_manager, tab, self.event_bus, self.analyzer
             ),
-            "Fatture": lambda tab: InvoicesView(
+            "Fatture": lambda tab, invoice_id=None: InvoicesView(
                 self.db_model, self.invoice_controller, self.user_controller,
                 self.client_controller, self.production_controller, self.payment_controller,
                 self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
-                self.historical_financial_data_settings, self.event_bus, self.analyzer
+                self.historical_financial_data_settings, self.event_bus, self.analyzer,
+                initial_invoice_id=invoice_id  # Nuovo parametro
             ),
             "Pagamenti": lambda tab: PaymentsView(
                 self.db_model, self.payment_controller, self.invoice_controller,
@@ -172,11 +175,12 @@ class MainWindow(ctk.CTk):
                 self.account_controller, self.update_controller, self.tabview, self.analyzer,
                 self.event_bus
             ),
-            "Produzioni": lambda tab: ProductionsView(
+            "Produzioni": lambda tab, production_id=None: ProductionsView(
                 self.db_model, self.production_controller, self.payment_controller,
                 self.invoice_controller, self.user_controller, self.client_controller,
                 self.catalogo_elenchi, self.config_manager,
-                self.tabview, self.event_bus, self.update_controller
+                self.tabview, self.event_bus, self.update_controller,
+                initial_production_id=production_id
             ),
             "Spese": lambda tab: ExpensesView(
                 self.db_model, self.expense_controller, self.user_controller,
@@ -194,10 +198,11 @@ class MainWindow(ctk.CTk):
                 self.transfer_controller, self.config_manager, self.catalogo_elenchi,
                 self.analyzer, self.tabview, self.event_bus
             ),
-            "Salario": lambda tab: SalariesView(
+            "Salario": lambda tab, salary_id=None: SalariesView(
                 self.db_model, self.salary_controller, self.user_controller,
                 self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
-                self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus
+                self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus,
+                initial_salary_id=salary_id
             ),
             "Iva": lambda tab: IvaTrimesView(
                 self.db_model, self.invoice_controller, self.user_controller,
@@ -243,14 +248,18 @@ class MainWindow(ctk.CTk):
                 new_tab = tab_names[tab_index]
                 self._switch_to_tab(new_tab)
 
-    def load_tab(self, tab_name):
-        """Carica una tab solo se non è già caricata"""
+    def load_tab(self, tab_name, **kwargs):
+        """Carica una tab solo se non è già caricata, con parametri aggiuntivi"""
         if tab_name not in self.tab_instances and tab_name in self.view_factory:
-            print(f"Caricamento tab: {tab_name}")
+            print(f"Caricamento tab: {tab_name} con parametri: {kwargs}")
             tab_frame = self.tabview.tab(tab_name)
 
-            # Crea l'istanza della view
-            instance = self.view_factory[tab_name](tab_frame)
+            # Pulisci il frame della tab prima di aggiungere nuovi widget
+            for widget in tab_frame.winfo_children():
+                widget.destroy()
+
+            # Crea l'istanza della view passando i kwargs
+            instance = self.view_factory[tab_name](tab_frame, **kwargs)
             instance.pack(in_=tab_frame, fill="both", expand=True)
             self.tab_instances[tab_name] = instance
 
@@ -314,8 +323,99 @@ class MainWindow(ctk.CTk):
             self.load_tab(new_tab)
             self.current_tab = new_tab
 
+            # Aggiorna la selezione del tabview
+            self.tabview.set(new_tab)
+
             # Forza l'aggiornamento dell'interfaccia
             self.update_idletasks()
+
+
+
+
+    def _setup_event_subscriptions(self):
+        """Configura tutte le sottoscrizioni agli eventi nella MainWindow"""
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self._handle_show_invoice_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, self._handle_show_salary_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self._handle_show_production_detail)
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self._handle_show_payment_detail)
+
+    def _handle_show_invoice_detail(self, invoice_id):
+        """Gestisce la navigazione verso una fattura - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio fattura: {invoice_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Fatture
+        self.tabview.set("Fatture")
+
+        # 2. Se la tab Fatture è già caricata, apri il dettaglio
+        if "Fatture" in self.tab_instances:
+            invoices_view = self.tab_instances["Fatture"]
+            if hasattr(invoices_view, 'open_invoice_detail_tab'):
+                invoices_view.open_invoice_detail_tab(invoice_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Fatture", invoice_id=invoice_id)
+
+    def _forward_to_invoice_detail(self, invoice_id):
+        """Inoltra la richiesta alla InvoicesView una volta caricata"""
+        if "Fatture" in self.tab_instances:
+            invoices_view = self.tab_instances["Fatture"]
+            if hasattr(invoices_view, 'open_invoice_detail_tab'):
+                invoices_view.open_invoice_detail_tab(invoice_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_invoice_detail(invoice_id))
+
+    def _handle_show_salary_detail(self, salary_id):
+        """Gestisce la navigazione verso uno stipendio - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Salario: {salary_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Stipendi
+        self.tabview.set("Salario")
+
+        # 2. Se la tab Salario è già caricata, apri il dettaglio
+        if "Salario" in self.tab_instances:
+            salaries_view = self.tab_instances["Salario"]
+            if hasattr(salaries_view, 'open_salary_detail_tab'):
+                salaries_view.open_salary_detail_tab(salary_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Salario", salary_id=salary_id)
+
+    def _forward_to_salary_detail(self, salary_id):
+        """Inoltra la richiesta alla SalariesView una volta caricata"""
+        if "Salario" in self.tab_instances:
+            salaries_view = self.tab_instances["Salario"]
+            if hasattr(salaries_view, 'open_salary_detail_tab'):
+                salaries_view.open_salary_detail_tab(salary_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_salary_detail(salary_id))
+
+    def _handle_show_production_detail(self, production_id):
+        """Gestisce la navigazione verso una produzione - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Produzione: {production_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Produzioni
+        self.tabview.set("Produzioni")
+
+        # 2. Se la tab Produzioni è già caricata, apri il dettaglio
+        if "Produzioni" in self.tab_instances:
+            productions_view = self.tab_instances["Produzioni"]
+            if hasattr(productions_view, 'open_production_detail_tab'):
+                productions_view.open_production_detail_tab(production_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Produzioni", production_id=production_id)
+
+    def _forward_to_production_detail(self, production_id):
+        """Inoltra la richiesta alla ProductionsView una volta caricata"""
+        if "Produzioni" in self.tab_instances:
+            productions_view = self.tab_instances["Produzioni"]
+            if hasattr(productions_view, 'open_production_detail_tab'):
+                productions_view.open_production_detail_tab(production_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_production_detail(production_id))
 
 
 

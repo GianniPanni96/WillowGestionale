@@ -11,7 +11,9 @@ from dataclasses import fields
 
 class SalariesView(ctk.CTkFrame):
 
-    def __init__(self, db_model, salary_controller, user_controller, account_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab_view, event_bus):
+    def __init__(self, db_model, salary_controller, user_controller, account_controller,
+                 update_controller, analyzer, fiscal_settings, catalogo_elenchi,
+                 config_manager, tab_view, event_bus, initial_salary_id=None):
         super().__init__(tab_view.tab("Salario"))
 
         self.db_model = db_model
@@ -27,7 +29,7 @@ class SalariesView(ctk.CTkFrame):
         self.tab = tab_view.tab("Salario")
         self.event_bus = event_bus
 
-        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, self.handle_show_salary_detail)
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, self.handle_show_salary_detail)
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -58,9 +60,12 @@ class SalariesView(ctk.CTkFrame):
             catalogo_elenchi=self.catalogo_elenchi
         )
 
-
-        self.show_main_view()
         self.create_salaries_tab()
+
+        if initial_salary_id is not None:
+            self.after(100, lambda: self.open_salary_detail_tab(initial_salary_id))
+        else:
+            self.show_main_view()
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -504,14 +509,38 @@ class SalariesView(ctk.CTkFrame):
             ViewUtils.show_error_popup(self.add_salary_window, "ERRORE", message)
 
     def open_salary_detail_tab(self, salary_id):
-        """Mostra la vista dettaglio utente"""
-        self.main_container.pack_forget()
-        self.salary_detail_view.pack(fill='both', expand=True)
-        self.salary_detail_view.create_detail_tab(salary_id)  # Ricrea i contenuti ogni volta
+        """Mostra la vista dettaglio stipendio con controlli di sicurezza"""
+        try:
+            # Verifica che i widget esistano
+            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+                self.main_container.pack_forget()
+
+            # Se salary_detail_view non esiste, crealo
+            if not hasattr(self, 'salary_detail_view') or not self.salary_detail_view.winfo_exists():
+                self.salary_detail_view = SalaryDetailView(
+                    parent=self,
+                    salary_controller=self.salary_controller,
+                    back_callback=self.show_main_view,
+                    account_controller=self.account_controller,
+                    user_controller=self.user_controller,
+                    update_controller=self.update_controller,
+                    db_model=self.db_model,
+                    event_bus=self.event_bus,
+                    catalogo_elenchi=self.catalogo_elenchi
+                )
+
+            # Mostra il dettaglio
+            self.salary_detail_view.pack(fill='both', expand=True)
+            self.salary_detail_view.create_detail_tab(salary_id)  # Ricrea i contenuti ogni volta
+
+        except Exception as e:
+            print(f"Errore in open_salary_detail_tab: {e}")
+            # Fallback: mostra la vista principale
+            self.show_main_view()
 
     def handle_show_salary_detail(self, salary_id):
         self.tab_view.set("Salario")  # Cambia tab
-        self.open_salary_detail_tab(salary_id)  # Mostra il dettaglio
+        self.after(150, lambda: self.open_salary_detail_tab(salary_id))
 
 
     def clear_class_variable(self):

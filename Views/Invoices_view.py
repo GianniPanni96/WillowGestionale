@@ -18,7 +18,11 @@ class InvoicesView(ctk.CTkFrame):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tabview, fiscal_settings, historical_financial_data_settings, event_bus, analyzer):
+    def __init__(self, db_model, invoice_controller, user_controller, client_controller,
+                 production_controller, payment_controller, account_controller,
+                 update_controller, tabview, fiscal_settings, historical_financial_data_settings,
+                 event_bus, analyzer, initial_invoice_id=None):
+
         super().__init__(tabview.tab("Fatture"))
 
         self.db_model = db_model
@@ -36,7 +40,7 @@ class InvoicesView(ctk.CTkFrame):
         self.event_bus = event_bus
         self.analyzer = analyzer
 
-        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self.handle_show_invoice_detail)
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self.handle_show_invoice_detail)
 
         self.invoices_card_list = {}
         self.invoice_card_labels_status = {}
@@ -79,9 +83,12 @@ class InvoicesView(ctk.CTkFrame):
             event_bus = self.event_bus
         )
 
-        # Inizializza la vista principale
         self.create_invoices_tab()
-        self.show_main_view()
+
+        if initial_invoice_id is not None:
+            self.after(100, lambda: self.open_invoice_detail_tab(initial_invoice_id))
+        else:
+            self.show_main_view()
 
     def create_invoices_tab(self):
 
@@ -207,14 +214,42 @@ class InvoicesView(ctk.CTkFrame):
         self.main_container.pack(fill='both', expand=True)
 
     def open_invoice_detail_tab(self, invoice_id):
-        """Mostra la vista dettaglio utente"""
-        self.main_container.pack_forget()
-        self.invoice_detail_view.pack(fill='both', expand=True)
-        self.invoice_detail_view.create_detail_tab(invoice_id)  # Ricrea i contenuti ogni volta
+        """Mostra la vista dettaglio fattura con controlli di sicurezza"""
+        try:
+            # Verifica che i widget esistano
+            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+                self.main_container.pack_forget()
+
+            # Se invoice_detail_view non esiste, crealo
+            if not hasattr(self, 'invoice_detail_view') or not self.invoice_detail_view.winfo_exists():
+                self.invoice_detail_view = InvoiceDetailView(
+                    parent=self,
+                    invoice_controller=self.invoice_controller,
+                    back_callback=self.show_main_view,
+                    user_controller=self.user_controller,
+                    client_controller=self.client_controller,
+                    account_controller=self.account_controller,
+                    production_controller=self.production_controller,
+                    update_controller=self.update_controller,
+                    db_model=self.db_model,
+                    fiscal_settings=self.fiscal_settings,
+                    historical_financial_data_settings=self.historical_financial_data_settings,
+                    event_bus=self.event_bus
+                )
+
+            # Mostra il dettaglio
+            self.invoice_detail_view.pack(fill='both', expand=True)
+            self.invoice_detail_view.create_detail_tab(invoice_id)
+
+        except Exception as e:
+            print(f"Errore in open_invoice_detail_tab: {e}")
+            # Fallback: mostra la vista principale
+            self.show_main_view()
 
     def handle_show_invoice_detail(self, invoice_id):
         self.tabview.set("Fatture")  # Cambia tab
-        self.open_invoice_detail_tab(invoice_id)  # Mostra il dettaglio
+        #self.open_invoice_detail_tab(invoice_id)  # Mostra il dettaglio
+        self.after(150, lambda: self.open_invoice_detail_tab(invoice_id))
 
     def populate_global_infos(self):
         self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[

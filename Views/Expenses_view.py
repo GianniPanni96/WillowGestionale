@@ -68,10 +68,6 @@ class ExpensesView(ctk.CTkFrame):
             catalogo_elenchi=self.catalogo_elenchi
         )
 
-        # Sistema per tracciare gli after()
-        self._after_ids = set()
-        self._orig_after = self.after
-        self.after = self._track_after
 
         self.create_expenses_tab()
 

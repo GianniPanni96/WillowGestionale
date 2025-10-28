@@ -98,7 +98,7 @@ if __name__ == "__main__":
             app._cancel_all_after()
 
         # Ferma il backup scheduler
-        app.scheduler.stop()
+        scheduler.stop()
         app.quit()
         app.destroy()
 

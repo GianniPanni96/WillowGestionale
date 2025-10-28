@@ -56,12 +56,6 @@ class PaymentsView(ctk.CTkFrame):
             event_bus = self.event_bus
         )
 
-
-        # Sistema per tracciare gli after()
-        self._after_ids = set()
-        self._orig_after = self.after
-        self.after = self._track_after
-
         self.create_payments_tab()
 
         if initial_payment_id is not None:

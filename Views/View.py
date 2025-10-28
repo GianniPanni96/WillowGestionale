@@ -164,16 +164,16 @@ class MainWindow(ctk.CTk):
                 self.historical_financial_data_settings, self.event_bus, self.analyzer,
                 initial_invoice_id=invoice_id  # Nuovo parametro
             ),
-            "Pagamenti": lambda tab: PaymentsView(
+            "Pagamenti": lambda tab, payment_id=None: PaymentsView(
                 self.db_model, self.payment_controller, self.invoice_controller,
                 self.user_controller, self.client_controller, self.production_controller,
                 self.account_controller, self.update_controller, self.tabview,
-                self.event_bus
+                self.event_bus, initial_payment_id=payment_id
             ),
-            "Rimborsi": lambda tab: RefundsView(
+            "Rimborsi": lambda tab, refund_id=None: RefundsView(
                 self.db_model, self.refund_controller, self.client_controller,
                 self.account_controller, self.update_controller, self.tabview, self.analyzer,
-                self.event_bus
+                self.event_bus, initial_refund_id=refund_id
             ),
             "Produzioni": lambda tab, production_id=None: ProductionsView(
                 self.db_model, self.production_controller, self.payment_controller,
@@ -182,11 +182,11 @@ class MainWindow(ctk.CTk):
                 self.tabview, self.event_bus, self.update_controller,
                 initial_production_id=production_id
             ),
-            "Spese": lambda tab: ExpensesView(
+            "Spese": lambda tab, expense_id=None: ExpensesView(
                 self.db_model, self.expense_controller, self.user_controller,
                 self.account_controller, self.supplier_controller, self.invoice_controller,
                 self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
-                self.config_manager, self.tabview, self.event_bus
+                self.config_manager, self.tabview, self.event_bus, initial_expense_id = expense_id
             ),
             "Fornitori": lambda tab: SuppliersView(
                 self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
@@ -337,7 +337,10 @@ class MainWindow(ctk.CTk):
         self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self._handle_show_invoice_detail)
         self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, self._handle_show_salary_detail)
         self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self._handle_show_production_detail)
-        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self._handle_show_payment_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self._handle_show_payment_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_REFUND_DETAIL, self._handle_show_refund_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self._handle_show_expense_detail)
+
 
     def _handle_show_invoice_detail(self, invoice_id):
         """Gestisce la navigazione verso una fattura - APRE DIRETTAMENTE IL DETTAGLIO"""
@@ -416,6 +419,85 @@ class MainWindow(ctk.CTk):
         else:
             # Se ancora non caricata, riprova dopo un altro breve ritardo
             self.after(100, lambda: self._forward_to_production_detail(production_id))
+
+    def _handle_show_payment_detail(self, payment_id):
+        """Gestisce la navigazione verso un pagamento - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Pagamento: {payment_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Pagamenti
+        self.tabview.set("Pagamenti")
+
+        # 2. Se la tab Pagamenti è già caricata, apri il dettaglio
+        if "Pagamenti" in self.tab_instances:
+            payments_view = self.tab_instances["Pagamenti"]
+            if hasattr(payments_view, 'open_payment_detail_tab'):
+                payments_view.open_payment_detail_tab(payment_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Pagamenti", payment_id=payment_id)
+
+    def _forward_to_payment_detail(self, payment_id):
+        """Inoltra la richiesta alla PaymentsView una volta caricata"""
+        if "Pagamenti" in self.tab_instances:
+            payments_view = self.tab_instances["Pagamenti"]
+            if hasattr(payments_view, 'open_payment_detail_tab'):
+                payments_view.open_payment_detail_tab(payment_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_payment_detail(payment_id))
+
+    def _handle_show_refund_detail(self, refund_id):
+        """Gestisce la navigazione verso un rimborso - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Rimborso: {refund_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Rimborsi
+        self.tabview.set("Rimborsi")
+
+        # 2. Se la tab Rimborsi è già caricata, apri il dettaglio
+        if "Rimborsi" in self.tab_instances:
+            refunds_view = self.tab_instances["Rimborsi"]
+            if hasattr(refunds_view, 'open_refund_detail_tab'):
+                refunds_view.open_refund_detail_tab(refund_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Rimborsi", refund_id=refund_id)
+
+    def _forward_to_refund_detail(self, refund_id):
+        """Inoltra la richiesta alla RefundsView una volta caricata"""
+        if "Rimborsi" in self.tab_instances:
+            refunds_view = self.tab_instances["Rimborsi"]
+            if hasattr(refunds_view, 'open_refund_detail_tab'):
+                refunds_view.open_refund_detail_tab(refund_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_refund_detail(refund_id))
+
+    def _handle_show_expense_detail(self, expense_id):
+        """Gestisce la navigazione verso una spesa - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Spesa: {expense_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Spese
+        self.tabview.set("Spese")
+
+        # 2. Se la tab Spese è già caricata, apri il dettaglio
+        if "Spese" in self.tab_instances:
+            expenses_view = self.tab_instances["Spese"]
+            if hasattr(expenses_view, 'open_expense_detail_tab'):
+                expenses_view.open_expense_detail_tab(expense_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Spese", expense_id=expense_id)
+
+    def _forward_to_expense_detail(self, expense_id):
+        """Inoltra la richiesta alla ExpensesView una volta caricata"""
+        if "Spese" in self.tab_instances:
+            expenses_view = self.tab_instances["Spese"]
+            if hasattr(expenses_view, 'open_expense_detail_tab'):
+                expenses_view.open_expense_detail_tab(expense_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_expense_detail(expense_id))
+
 
 
 

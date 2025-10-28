@@ -10,7 +10,9 @@ from enum import Enum
 
 class RefundsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, refunds_controller, client_controller, account_controller, update_controller, tab_view, analyzer, event_bus):
+    def __init__(self, db_model, refunds_controller, client_controller,
+                 account_controller, update_controller, tab_view,
+                 analyzer, event_bus, initial_refund_id=None):
         super().__init__(tab_view.tab("Rimborsi"))
 
         self.db_model = db_model
@@ -30,7 +32,7 @@ class RefundsView(ctk.CTkFrame):
         self.refund = {}
         self.cards_warnings = {}
 
-        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_REFUND_DETAIL, self.handle_show_refund_detail)
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_REFUND_DETAIL, self.handle_show_refund_detail)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="#2b2b2b")
@@ -49,7 +51,11 @@ class RefundsView(ctk.CTkFrame):
         )
 
         self.create_refunds_tab()
-        self.show_main_view()
+
+        if initial_refund_id is not None:
+            self.after(100, lambda: self.open_refund_detail_tab(initial_refund_id))
+        else:
+            self.show_main_view()
 
 
     def create_refunds_tab(self):
@@ -155,10 +161,34 @@ class RefundsView(ctk.CTkFrame):
         self.main_container.pack(fill='both', expand=True)
 
     def open_refund_detail_tab(self, refund_id):
-        """Mostra la vista dettaglio del rimborso"""
-        self.main_container.pack_forget()
-        self.refund_detail_view.pack(fill='both', expand=True)
-        self.refund_detail_view.create_detail_tab(refund_id)  # Ricrea i contenuti ogni volta
+        """Mostra la vista dettaglio rimborso con controlli di sicurezza"""
+        try:
+            # Verifica che i widget esistano
+            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+                self.main_container.pack_forget()
+
+            # Se refund_detail_view non esiste, crealo
+            if not hasattr(self, 'refund_detail_view') or not self.refund_detail_view.winfo_exists():
+                self.refund_detail_view = RefundDetailView(
+                    parent=self,
+                    back_callback=self.show_main_view,
+                    client_controller=self.client_controller,
+                    account_controller=self.account_controller,
+                    refund_controller=self.refunds_controller,
+                    db_model=self.db_model,
+                    analyzer=self.analyzer,
+                    event_bus=self.event_bus,
+                )
+
+            # Mostra il dettaglio
+            self.refund_detail_view.pack(fill='both', expand=True)
+            self.refund_detail_view.create_detail_tab(refund_id)  # Ricrea i contenuti ogni volta
+
+        except Exception as e:
+            print(f"Errore in open_refund_detail_tab: {e}")
+            # Fallback: mostra la vista principale
+            self.show_main_view()
+
 
     def handle_show_refund_detail(self, refund_id):
         self.tab_view.set("Rimborsi")  # Cambia tab

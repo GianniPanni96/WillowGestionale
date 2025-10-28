@@ -12,7 +12,11 @@ from datetime import datetime, timedelta, date
 
 class ExpensesView(ctk.CTkFrame):
 
-    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab_view, event_bus):
+    def __init__(self, db_model, expense_controller, user_controller,
+                 account_controller, supplier_controller, invoice_controller,
+                 update_controller, analyzer, fiscal_settings, catalogo_elenchi,
+                 config_manager, tab_view, event_bus, initial_expense_id=None):
+
         super().__init__(tab_view.tab("Spese"))
 
         self.db_model = db_model
@@ -43,7 +47,7 @@ class ExpensesView(ctk.CTkFrame):
 
         self.current_chunk_index = 0
 
-        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self.handle_show_expense_detail)
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self.handle_show_expense_detail)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -70,7 +74,11 @@ class ExpensesView(ctk.CTkFrame):
         self.after = self._track_after
 
         self.create_expenses_tab()
-        self.show_main_view()
+
+        if initial_expense_id is not None:
+            self.after(100, lambda: self.open_expense_detail_tab(initial_expense_id))
+        else:
+            self.show_main_view()
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -78,10 +86,36 @@ class ExpensesView(ctk.CTkFrame):
         self.main_container.pack(fill='both', expand=True)
 
     def open_expense_detail_tab(self, expense_id):
-        """Mostra la vista dettaglio utente"""
-        self.main_container.pack_forget()
-        self.expense_detail_view.pack(fill='both', expand=True)
-        self.expense_detail_view.create_detail_tab(expense_id)  # Ricrea i contenuti ogni volta
+        """Mostra la vista dettaglio spesa con controlli di sicurezza"""
+        try:
+            # Verifica che i widget esistano
+            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+                self.main_container.pack_forget()
+
+            # Se expense_detail_view non esiste, crealo
+            if not hasattr(self, 'expense_detail_view') or not self.expense_detail_view.winfo_exists():
+                self.expense_detail_view = ExpenseDetailView(
+                    parent=self,
+                    invoice_controller=self.invoice_controller,
+                    supplier_controller=self.supplier_controller,
+                    back_callback=self.show_main_view,
+                    account_controller=self.account_controller,
+                    user_controller=self.user_controller,
+                    expense_controller=self.expense_controller,
+                    update_controller=self.update_controller,
+                    db_model=self.db_model,
+                    event_bus=self.event_bus,
+                    catalogo_elenchi=self.catalogo_elenchi
+                )
+
+            # Mostra il dettaglio
+            self.expense_detail_view.pack(fill='both', expand=True)
+            self.expense_detail_view.create_detail_tab(expense_id)
+
+        except Exception as e:
+            print(f"Errore in open_expense_detail_tab: {e}")
+            # Fallback: mostra la vista principale
+            self.show_main_view()
 
     def create_expenses_tab(self):
         self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")

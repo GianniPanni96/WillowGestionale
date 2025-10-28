@@ -10,7 +10,10 @@ from enum import Enum
 
 class PaymentsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, payment_controller, invoice_controller, user_controller, client_controller, production_controller, account_controller, update_controller, tab_view, event_bus):
+    def __init__(self, db_model, payment_controller, invoice_controller, user_controller,
+                 client_controller, production_controller, account_controller, update_controller,
+                 tab_view, event_bus,initial_payment_id=None):
+
         super().__init__(tab_view.tab("Pagamenti"))
 
         self.db_model = db_model
@@ -33,7 +36,7 @@ class PaymentsView(ctk.CTkFrame):
         self.cards_warnings = {}
 
         self.update_controller.register_on_modify_invoice_view_cllbks(self.attach_warning_on_a_card)
-        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self.handle_show_payment_detail)
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self.handle_show_payment_detail)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -60,18 +63,47 @@ class PaymentsView(ctk.CTkFrame):
         self.after = self._track_after
 
         self.create_payments_tab()
-        self.show_main_view()
+
+        if initial_payment_id is not None:
+            self.after(100, lambda: self.open_payment_detail_tab(initial_payment_id))
+        else:
+            self.show_main_view()
 
     def show_main_view(self):
         """Torna alla vista principale"""
         self.payment_detail_view.pack_forget()
         self.main_container.pack(fill='both', expand=True)
 
-    def open_payment_detail_tab(self, invoice_id):
-        """Mostra la vista dettaglio utente"""
-        self.main_container.pack_forget()
-        self.payment_detail_view.pack(fill='both', expand=True)
-        self.payment_detail_view.create_detail_tab(invoice_id)  # Ricrea i contenuti ogni volta
+    def open_payment_detail_tab(self, payment_id):
+        """Mostra la vista dettaglio pagamento con controlli di sicurezza"""
+        try:
+            # Verifica che i widget esistano
+            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+                self.main_container.pack_forget()
+
+            # Se payment_detail_view non esiste, crealo
+            if not hasattr(self, 'payment_detail_view') or not self.payment_detail_view.winfo_exists():
+                self.payment_detail_view = PaymentDetailView(
+                    parent=self,
+                    invoice_controller=self.invoice_controller,
+                    payment_controller=self.payment_controller,
+                    back_callback=self.show_main_view,
+                    account_controller=self.account_controller,
+                    client_controller=self.client_controller,
+                    production_controller=self.production_controller,
+                    update_controller=self.update_controller,
+                    db_model=self.db_model,
+                    event_bus=self.event_bus
+                )
+
+            # Mostra il dettaglio
+            self.payment_detail_view.pack(fill='both', expand=True)
+            self.payment_detail_view.create_detail_tab(payment_id)  # Ricrea i contenuti ogni volta
+
+        except Exception as e:
+            print(f"Errore in open_payment_detail_tab: {e}")
+            # Fallback: mostra la vista principale
+            self.show_main_view()
 
     def create_payments_tab(self):
 
@@ -820,7 +852,9 @@ class PaymentsView(ctk.CTkFrame):
 
 
 class PaymentDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, invoice_controller, payment_controller, account_controller, client_controller, production_controller, update_controller, db_model, event_bus):
+    def __init__(self, parent, back_callback, invoice_controller, payment_controller,
+                 account_controller, client_controller, production_controller,
+                 update_controller, db_model, event_bus):
         super().__init__(parent)
         self.invoice_controller = invoice_controller
         self.payment_controller = payment_controller

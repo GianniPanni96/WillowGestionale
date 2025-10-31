@@ -5659,6 +5659,16 @@ class Analyzer:
         salaries = self.salary_controller.retrieve_salaries_map_list(current_year=True)
         refunds = self.refunds_controller.retrieve_refunds_map_list(current_year=True)
 
+        #filter the invoices
+        current_year = datetime.now().year
+
+        # Filtrare le fatture convertendo la stringa in data
+        filtered_invoices = [
+            invoice for invoice in invoices
+            if invoice[DBInvoicesColumns.DATA_CREAZIONE.value] and
+               datetime.strptime(invoice[DBInvoicesColumns.DATA_CREAZIONE.value], "%Y-%m-%d").year == current_year
+        ]
+
         # Inizializza la struttura per i dati mensili
         monthly_data = {month: {
             'fatturato': 0.0,
@@ -5677,7 +5687,7 @@ class Analyzer:
                 return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").month
 
         # 1. Calcola il fatturato (TOT_DOCUMENTO - IVA)
-        for inv in invoices:
+        for inv in filtered_invoices:
             month = extract_month(inv[DBInvoicesColumns.DATA_CREAZIONE.value])
             tot_doc = float(inv[DBInvoicesColumns.TOT_DOCUMENTO.value])
             iva = float(inv[DBInvoicesColumns.IVA.value])

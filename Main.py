@@ -17,6 +17,7 @@ if __name__ == "__main__":
         raise EnvironmentError(f"La variabile d'ambiente {PATH_ENV_VAR} non è stata configurata.")
 
     db_path = os.path.join(path, "gestionale.db")
+    data_path = os.path.join(path, "Data")
     backup_path = os.path.join(path, "backups")
 
 
@@ -87,7 +88,7 @@ if __name__ == "__main__":
     backup_thread.start()
 
     # Avvia il frontend
-    app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings)
+    app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings, data_path)
 
 
     # Definisci cosa fare alla chiusura della finestra principale

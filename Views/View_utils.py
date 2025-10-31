@@ -1,6 +1,8 @@
 from enum import Enum
 import customtkinter as ctk
 import tkinter as tk
+from PIL import Image
+import os
 
 
 class ViewUtils(ctk.CTk):
@@ -439,3 +441,45 @@ class ViewUtils(ctk.CTk):
 
         widget.bind("<Enter>", show_tooltip)
         widget.bind("<Leave>", hide_tooltip)
+
+    @staticmethod
+    def create_PIL_image_from_path(path):
+        """
+        Crea un'immagine PIL dal percorso specificato.
+
+        Args:
+            path (str): Percorso del file immagine
+
+        Returns:
+            tuple: (success (bool), image (PIL.Image or None))
+        """
+        # Estensioni supportate da PIL
+        supported_extensions = {'.ico', '.png', '.jpg', '.jpeg', '.webp'}
+
+        # Verifica che il file esista
+        if not os.path.isfile(path):
+            return False, None
+
+        # Verifica l'estensione del file
+        file_ext = os.path.splitext(path)[1].lower()
+        if file_ext not in supported_extensions:
+            return False, None
+
+        try:
+            # Apri l'immagine con PIL
+            image = Image.open(path)
+
+            # Conserva la trasparenza per formati che la supportano
+            if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+                # Mantieni la modalità originale per preservare il canale alfa
+                # Non convertire in RGB per immagini con trasparenza
+                pass
+            elif image.mode != 'RGB':
+                # Per immagini senza trasparenza, converti in RGB
+                image = image.convert('RGB')
+
+            return True, image
+
+        except Exception as e:
+            print(f"Errore nel caricamento dell'immagine {path}: {str(e)}")
+            return False, None

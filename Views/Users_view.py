@@ -17,7 +17,9 @@ from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 
 class UsersView(ctk.CTkFrame):
-    def __init__(self, db_model, user_controller, account_controller, production_controller, fiscal_settings, tab, analyzer, event_bus):
+    def __init__(self, db_model, user_controller, account_controller,
+                 production_controller, fiscal_settings, tab, analyzer,
+                 event_bus, logged_user_id, login_status):
         super().__init__(tab)
 
         self.db_model = db_model
@@ -38,6 +40,8 @@ class UsersView(ctk.CTkFrame):
         self.number_of_users_cards = 0
         self.user_cards = {}  # Dizionario per associare user_id alle card
 
+        self.login_status = login_status
+        self.logged_user_id = logged_user_id
 
         #construct accounts_names list
         self.accounts_mapping = AccountController.get_accounts_mapping(self.db_model)
@@ -759,6 +763,7 @@ class UsersView(ctk.CTkFrame):
 class UserDetailView(ctk.CTkFrame):
     def __init__(self, parent, back_callback, user_controller, account_controller, production_controller, db_model, fiscal_settings, analyzer, event_bus):
         super().__init__(parent)
+        self.parent = parent
         self.user_controller = user_controller
         self.account_controller = account_controller
         self.db_model = db_model
@@ -785,7 +790,7 @@ class UserDetailView(ctk.CTkFrame):
         # Container per i contenuti dinamici
         self.content_frame = ctk.CTkScrollableFrame(self)
 
-        self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_edit(self.content_frame))
+        self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_widget_container_function(self.content_frame))
 
         # Layout iniziale
         self._setup_base_layout()
@@ -868,6 +873,11 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.TELEFONO.value: {
                 "type": ctk.CTkEntry,
                 "label": "Telefono",
+                "section": "Dati Anagrafici"
+            },
+            DBUsersColumns.PASSWORD_LOGIN.value: {
+                "type": ctk.CTkEntry,
+                "label": "Login Password",
                 "section": "Dati Anagrafici"
             },
 
@@ -1094,7 +1104,7 @@ class UserDetailView(ctk.CTkFrame):
         self.save_info_btn = ctk.CTkButton(info_frame, text="Salva Modifiche", command=self.save_info_mod)
         self.save_info_btn.grid(row=2, column=1, pady=(10, 30))
 
-    def toggle_edit(self, parent):
+    def toggle_edit(self, parent_widget):
         """
         Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
         """
@@ -1104,7 +1114,7 @@ class UserDetailView(ctk.CTkFrame):
         # Cambia anche lo stato del pulsante Salva
         self.save_info_btn.configure(state=state)
 
-        for w in parent.winfo_children():
+        for w in parent_widget.winfo_children():
             # se è un Entry
             if isinstance(w, ctk.CTkEntry):
                 w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
@@ -1114,6 +1124,27 @@ class UserDetailView(ctk.CTkFrame):
             # se è un Frame/container, scendi ricorsivamente
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)
+
+
+    def toggle_sensible_data(self):
+        # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
+        state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
+
+        if self.parent.login_status and self.parent.logged_user_id == self.current_user_id:
+            self.user_info_widgets[DBUsersColumns.REDDITO_ESTERNO.value].configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            self.user_info_widgets[DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value].configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            self.user_info_widgets[DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value].configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            self.user_info_widgets[DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value].configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+
+        else:
+            self.user_info_widgets[DBUsersColumns.REDDITO_ESTERNO.value].configure(state=ctk.DISABLED, text_color="#636363" )
+            self.user_info_widgets[DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value].configure(state=ctk.DISABLED, text_color="#636363")
+            self.user_info_widgets[DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value].configure(state=ctk.DISABLED, text_color="#636363")
+            self.user_info_widgets[DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value].configure(state=ctk.DISABLED, text_color="#636363")
+
+    def toggle_widget_container_function(self, parent_widget):
+        self.toggle_edit(parent_widget)
+        self.toggle_sensible_data()
 
     def save_info_mod(self):
         """Salva i dati dell'utente tramite il controller"""

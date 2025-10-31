@@ -1,5 +1,5 @@
 import customtkinter as ctk
-import re
+import re, os
 from Views.View_utils import ViewUtils
 
 
@@ -25,7 +25,7 @@ from Views.Report_view import ReportView
 
 
 class MainWindow(ctk.CTk):
-    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings):
+    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings, data_path):
         super().__init__()
 
         self._after_ids = set()
@@ -41,6 +41,12 @@ class MainWindow(ctk.CTk):
         self.catalogo_elenchi = catalogo_elenchi
         self.recurring_expenses_settings = recurring_expenses_settings
         self.historical_financial_data_settings = historical_financial_data_settings
+
+        self.data_path = data_path
+        self.images_path = os.path.join(self.data_path, "images")
+
+        self.login_status = False
+        self.logged_user_id = -1
 
         # inizializzatori oggetti controllers e model
         self.db_model = DatabaseModel(db_path)  # Istanzia il modello
@@ -91,6 +97,19 @@ class MainWindow(ctk.CTk):
 
         self.refresh_view_button = ctk.CTkButton(self.toolbar_frame, text="🔄", font=("Segoe UI Emoji", 20), command=self.refresh_tabviews, width=30)
         self.refresh_view_button.pack(side="right", padx=15, pady=15)
+
+        # Carica l'icona utente
+        convert_succ, self.generic_user_icon_image = ViewUtils.create_PIL_image_from_path(os.path.join(self.images_path, "user.png"))
+        if convert_succ:
+            self.user_icon = ctk.CTkImage(dark_image=self.generic_user_icon_image, size=(40, 40))
+
+            # Crea una label con l'icona invece di un button
+            self.user_icon_label = ctk.CTkLabel(self.toolbar_frame, image=self.user_icon, text="", bg_color="transparent")
+            self.user_icon_label.pack(side="right", padx=5, pady=15)  # padx più piccolo per avvicinare ai bottoni
+
+
+        self.login_button = ctk.CTkButton(self.toolbar_frame, text="Login", command=self.manage_login)
+        self.login_button.pack(side="right", padx=15, pady=15)
 
         # Creazione di un popup menu simulato
         self.file_menu_frame = None
@@ -143,7 +162,7 @@ class MainWindow(ctk.CTk):
 
         self.tab_instances["Utenti"] = UsersView(self.db_model, self.user_controller, self.account_controller,
                                   self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"),
-                                  self.analyzer, self.event_bus)
+                                  self.analyzer, self.event_bus, self.logged_user_id, self.login_status)
         self.tab_instances["Clienti"] = ClientsView(self.db_model, self.client_controller, self.production_controller,
                                                     self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
                                                     self.config_manager, self.tabview.tab("Clienti"), self.event_bus, self.analyzer)
@@ -201,6 +220,80 @@ class MainWindow(ctk.CTk):
 
         # 3. Forza l'aggiornamento della GUI
         self.update_idletasks()
+
+
+
+
+    # funzioni per il login
+    def manage_login(self):
+        if self.login_status is not True:
+            self.open_login_window()
+        else:
+            confirmation = ViewUtils.ask_confirmation_popup(self, "Vuoi eseguire il logout?")
+            if confirmation:
+                self.login_status = False
+                self.logged_user_id = -1
+                self.toggle_login_widgets()
+
+    def open_login_window(self):
+        """Apre una finestra per fare il login."""
+        # Finestra di dialogo
+        self.login_window = ctk.CTkToplevel(self)
+        self.login_window.title("Esegui il login")
+        self.login_window.geometry("350x500")
+        self.login_window.lift()
+        self.login_window.grab_set()
+
+        ctk.CTkLabel(self.login_window, text="SCEGLI L'UTENTE E INSERISCI LA PASSWORD").pack(pady=60, padx=20, fill="x", expand=True)
+
+        #retrieve users
+        users = self.user_controller.retrieve_users_map_list()
+
+        self.login_username = ctk.CTkOptionMenu(self.login_window, values = [user[DBUsersColumns.FIRST_NAME.value] +
+                                                       " " + user[DBUsersColumns.LAST_NAME.value] for user in users])
+        self.login_username.pack(pady=(5,10), padx=20, fill="x", expand=True)
+
+        ctk.CTkLabel(self.login_window, text="Password:").pack(pady=(10, 0), padx=20, fill="x", expand=True)
+
+        self.login_password = ctk.CTkEntry(self.login_window)
+        self.login_password.pack(pady=(5, 20), padx=20, fill="x", expand=True)
+
+        ctk.CTkButton(self.login_window, text="Esegui il login",
+                      command=lambda: self.try_to_login(self.login_username.get(), self.login_password.get())
+                      ).pack(pady=(40, 20), padx=20)
+
+    def try_to_login(self, username, password):
+        success, message, user_id = self.user_controller.check_password_for_login(username, password)
+        if success:
+            ViewUtils.show_confirm_popup(self.login_window, message=message)
+            self.login_status = True
+            self.logged_user_id = user_id
+            self.toggle_login_widgets()
+
+        if success is not True:
+            ViewUtils.show_error_popup(self.login_window, message=message)
+
+    def toggle_login_widgets(self):
+        if self.login_status is True:
+            self.login_button.configure(text="Esegui Logout")
+
+            #creo un'immagine PIL da inserire nell'icona a partire dall'immagine dell'utente
+            #prendo il path dell'immagine dell'utente loggato
+            logged_user_image_path = self.user_controller.retrieve_user_map_by_id(self.logged_user_id
+                                                                                  ).get(DBUsersColumns.PHOTO_PATH.value)
+
+            if logged_user_image_path is not None and logged_user_image_path != "":
+                convert_succ, user_icon_image = ViewUtils.create_PIL_image_from_path(logged_user_image_path)
+                if convert_succ:
+                    self.user_icon.configure(dark_image=user_icon_image)
+
+        else:
+            self.login_button.configure(text="Login")
+            self.user_icon.configure(dark_image=self.generic_user_icon_image)
+
+
+
+
 
 
 

@@ -19,6 +19,7 @@ columns = [
     f"{DBUsersColumns.PROVIDER_FATTURE.value} TEXT NOT NULL",
     f"{DBUsersColumns.USERNAME_PROVIDER.value} TEXT",
     f"{DBUsersColumns.PASSWORD_PROVIDER.value} TEXT",
+    f"{DBUsersColumns.PASSWORD_LOGIN.value} TEXT",
     f"{DBUsersColumns.STATUS.value} INTEGER NOT NULL DEFAULT active",
     f"{DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value} REAL NOT NULL DEFAULT 0",
     f"{DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value} REAL NOT NULL DEFAULT 0",

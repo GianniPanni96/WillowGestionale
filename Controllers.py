@@ -6,9 +6,8 @@ from enum import Enum
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
-import hashlib
+import hashlib, secrets, hmac
 import pandas as pd
-import numpy as np
 
 
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
@@ -360,6 +359,63 @@ class ControllerUtils:
                 inv[DBInvoicesColumns.TIPO.value] != InvoiceController.Tipologia.NOTA_DI_CREDITO.value and inv[
                     DBInvoicesColumns.STATUS.value] != InvoiceController.InvoiceRateizzSatus.STORNATA.value]
 
+    @staticmethod
+    def hash_password(password: str) -> str:
+        """
+        Crea un hash sicuro della password con salt.
+
+        Args:
+            password (str): La password da hashare
+
+        Returns:
+            str: Stringa contenente salt + hash in formato esadecimale
+        """
+        # Genera un salt casuale
+        salt = secrets.token_bytes(32)
+
+        # Combina password e salt, poi hasha
+        hashed = hashlib.pbkdf2_hmac(
+            'sha256',
+            password.encode('utf-8'),
+            salt,
+            100000  # Numero di iterazioni
+        )
+
+        # Restituisce salt + hash in formato esadecimale
+        return f"{salt.hex()}{hashed.hex()}"
+
+    @staticmethod
+    def verify_password(password: str, stored_hash: str) -> bool:
+        """
+        Verifica se la password corrisponde all'hash memorizzato.
+
+        Args:
+            password (str): La password da verificare
+            stored_hash (str): L'hash memorizzato nel database
+
+        Returns:
+            bool: True se la password è corretta, False altrimenti
+        """
+        try:
+            # Estrai salt e hash dallo stored value
+            # 32 bytes = 64 caratteri esadecimali
+            salt = bytes.fromhex(stored_hash[:64])
+            stored_hashed = bytes.fromhex(stored_hash[64:])
+
+            # Calcola l'hash della password fornita con lo stesso salt
+            computed_hashed = hashlib.pbkdf2_hmac(
+                'sha256',
+                password.encode('utf-8'),
+                salt,
+                100000
+            )
+
+            # Confronta in modo safe contro timing attacks
+            return hmac.compare_digest(computed_hashed, stored_hashed)
+
+        except Exception as e:
+            print(f"Errore nella verifica password: {e}")
+            return False
 
 
 
@@ -1086,6 +1142,25 @@ class UserController:
         users = self.retrieve_users_map_list()
         for user in users:
             self.print_utente(user)
+
+
+    def check_password_for_login(self, username, password):
+        user = self.retrieve_user_map_by_extended_name(username)
+        if user:
+            db_hash = user.get(DBUsersColumns.PASSWORD_LOGIN.value)
+            if db_hash == "" or db_hash is None:
+                return False, "L'utente selezionato non ha impostato una password per il login", -1
+        else:
+            print("Utente selezionato non trovato")
+            return False, "Utente selezionato non trovato", -1
+
+        if ControllerUtils.verify_password(password, db_hash):
+            print("Login Effettuato")
+            return True, "Login Effettuato", int(user.get(DBUsersColumns.ID.value))
+        else:
+            print("Password errata!")
+            return False, "Password errata!", -1
+
 
 
 class ClientController:

@@ -46,3 +46,23 @@ backups/
 
 #file di configurazione dell'app
 *.json
+/build/Main/Analysis-00.toc
+/build/MioProgramma/Analysis-00.toc
+/build/Main/base_library.zip
+/build/MioProgramma/base_library.zip
+/build/Main/EXE-00.toc
+/build/Main/Main.pkg
+/Main.spec
+/build/MioProgramma/MioProgramma.pkg
+/MioProgramma.spec
+/build/Main/PKG-00.toc
+/build/MioProgramma/PKG-00.toc
+/build/Main/PYZ-00.pyz
+/build/MioProgramma/PYZ-00.pyz
+/build/Main/PYZ-00.toc
+/build/MioProgramma/PYZ-00.toc
+/build/Main/warn-Main.txt
+/build/MioProgramma/warn-MioProgramma.txt
+/dist/WillowGestionale0.0.2.exe
+/build/Main/xref-Main.html
+/build/MioProgramma/xref-MioProgramma.html

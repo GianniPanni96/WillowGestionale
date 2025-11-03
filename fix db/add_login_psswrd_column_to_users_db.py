@@ -171,7 +171,15 @@ def create_backup(db_path: str):
     """
     Crea un backup del database prima di modificarlo.
     """
-    backup_path = db_path + ".backup"
+    # Estrai directory, nome file e estensione
+    directory = os.path.dirname(db_path)
+    filename = os.path.basename(db_path)
+    name, ext = os.path.splitext(filename)
+
+    # Crea il nuovo nome per il backup: nome_backup.ext
+    backup_filename = f"{name}_backup{ext}"
+    backup_path = os.path.join(directory, backup_filename)
+
     import shutil
     shutil.copy2(db_path, backup_path)
     print(f"Backup creato: {backup_path}")

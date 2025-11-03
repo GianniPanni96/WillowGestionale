@@ -75,6 +75,34 @@ class ValidationUtils:
         keys = [column.value for column in database_columns]
         return dict(zip(keys, row))
 
+    @staticmethod
+    def validate_password_strength(password: str) -> tuple[bool, str]:
+        """
+        Verifica che la password soddisfi i criteri di sicurezza.
+
+        Args:
+            password (str): La password da validare
+
+        Returns:
+            tuple[bool, str]: (True, "") se valida, (False, messaggio di errore) altrimenti
+        """
+        # Verifica lunghezza minima
+        if len(password) < 8:
+            return False, "La password deve essere lunga almeno 8 caratteri"
+
+        # Puoi aggiungere altri criteri qui in futuro
+        # Esempio:
+        # if not any(c.isupper() for c in password):
+        #     return False, "La password deve contenere almeno una lettera maiuscola"
+        # if not any(c.islower() for c in password):
+        #     return False, "La password deve contenere almeno una lettera minuscola"
+        # if not any(c.isdigit() for c in password):
+        #     return False, "La password deve contenere almeno un numero"
+
+        return True, ""
+
+
+
 
 class ControllerUtils:
     @staticmethod
@@ -682,7 +710,6 @@ class UserController:
         if not update_fields:
             return False, "Nessun campo valido fornito per l'aggiornamento."
 
-
         # Validazione campi obbligatori
         if update_fields.get(
                 DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
@@ -704,6 +731,28 @@ class UserController:
             if email and not ValidationUtils.validate_email(email):
                 return False, "L'indirizzo email non è valido."
 
+        #validazione password login
+        if DBUsersColumns.PASSWORD_LOGIN.value in update_fields:
+            login_password = update_fields[DBUsersColumns.PASSWORD_LOGIN.value]
+            if login_password and not ValidationUtils.validate_password_strength(login_password):
+                return False, "Password non valida, digitare almeno 8 caratteri"
+
+        # Gestione password login - HASHING
+        if DBUsersColumns.PASSWORD_LOGIN.value in update_fields:
+            password_value = update_fields[DBUsersColumns.PASSWORD_LOGIN.value]
+            if password_value and password_value.strip():  # Se la password non è vuota
+                try:
+                    # Crea l'hash della password
+                    hashed_password = ControllerUtils.hash_password(password_value)
+                    update_fields[DBUsersColumns.PASSWORD_LOGIN.value] = hashed_password
+                except Exception as e:
+                    print(f"Errore durante l'hashing della password di login: {e}")
+                    return False, "Errore durante la creazione della password di login."
+            else:
+                # Se la password è vuota, rimuovila dai campi da aggiornare
+                # (mantieni il valore esistente nel database)
+                update_fields.pop(DBUsersColumns.PASSWORD_LOGIN.value)
+
         # Cifratura dei dati di accesso se il provider è selezionato
         if update_fields.get(DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
             try:
@@ -719,8 +768,11 @@ class UserController:
                 print(f"Errore durante la cifratura dei dati di accesso: {e}")
                 return False, "Errore durante la cifratura dei dati di accesso."
         else:
-            update_fields.pop(DBUsersColumns.USERNAME_PROVIDER.value)
-            update_fields.pop(DBUsersColumns.PASSWORD_PROVIDER.value)
+            # Se il provider è "NESSUNO", rimuovi username e password provider
+            if DBUsersColumns.USERNAME_PROVIDER.value in update_fields:
+                update_fields.pop(DBUsersColumns.USERNAME_PROVIDER.value)
+            if DBUsersColumns.PASSWORD_PROVIDER.value in update_fields:
+                update_fields.pop(DBUsersColumns.PASSWORD_PROVIDER.value)
 
         try:
             # Invoca il metodo del model per aggiornare l'utente
@@ -1149,7 +1201,8 @@ class UserController:
         if user:
             db_hash = user.get(DBUsersColumns.PASSWORD_LOGIN.value)
             if db_hash == "" or db_hash is None:
-                return False, "L'utente selezionato non ha impostato una password per il login", -1
+                return False, ("L'utente selezionato non ha impostato una password per il login\n"
+                               "Impostare uno nuova password dal dettaglio dell'utente"), -1
         else:
             print("Utente selezionato non trovato")
             return False, "Utente selezionato non trovato", -1

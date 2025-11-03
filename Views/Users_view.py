@@ -43,6 +43,8 @@ class UsersView(ctk.CTkFrame):
         self.login_status = login_status
         self.logged_user_id = logged_user_id
 
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value, self._on_login_changed)
+
         #construct accounts_names list
         self.accounts_mapping = AccountController.get_accounts_mapping(self.db_model)
         if self.accounts_mapping == {}:
@@ -755,6 +757,11 @@ class UsersView(ctk.CTkFrame):
             self.provider_password_label.pack_forget()
             self.save_button.pack(pady=(45, 10))
 
+    def _on_login_changed(self, data):
+        self.login_status = data["login_status"]
+        self.logged_user_id = data["logged_user_id"]
+
+
 
 
 
@@ -790,10 +797,15 @@ class UserDetailView(ctk.CTkFrame):
         # Container per i contenuti dinamici
         self.content_frame = ctk.CTkScrollableFrame(self)
 
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value, self._on_login_changed_detail)
+        self.login_password_is_present = False
+
         self.switch_modify = ctk.CTkSwitch(self.head_frame, text="Abilita la modifica", command=lambda: self.toggle_widget_container_function(self.content_frame))
 
         # Layout iniziale
         self._setup_base_layout()
+
+        self.eye_buttons = []  # Aggiungi questa lista per memorizzare i bottoni occhio
 
     def _setup_base_layout(self):
         """Inizializza la struttura base del layout"""
@@ -877,8 +889,9 @@ class UserDetailView(ctk.CTkFrame):
             },
             DBUsersColumns.PASSWORD_LOGIN.value: {
                 "type": ctk.CTkEntry,
-                "label": "Login Password",
-                "section": "Dati Anagrafici"
+                "label": "Nuova Login Password",
+                "section": "Dati Anagrafici",
+                "password": True
             },
 
             # Sezione Fiscale
@@ -907,22 +920,26 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.REDDITO_ESTERNO.value: {
                 "type": ctk.CTkEntry,
                 "label": "Reddito Esterno",
-                "section": "Dati Fiscali"
+                "section": "Dati Fiscali",
+                "password": True
             },
             DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: {
                 "type": ctk.CTkEntry,
                 "label": "Spese Dedotte Esterne",
-                "section": "Dati Fiscali"
+                "section": "Dati Fiscali",
+                "password": True
             },
             DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value: {
                 "type": ctk.CTkEntry,
                 "label": "Acconto IRPEF anno scorso",
-                "section": "Dati Fiscali"
+                "section": "Dati Fiscali",
+                "password": True
             },
             DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value: {
                 "type": ctk.CTkEntry,
                 "label": "Acconto INPS anno scorso",
-                "section": "Dati Fiscali"
+                "section": "Dati Fiscali",
+                "password": True
             },
 
             # Sezione Provider
@@ -978,7 +995,8 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
             DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
             DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value: "Inserire cifra numerica con due cifre decimali seprate da \".\" ",
-            DBUsersColumns.EMAIL.value: "Formato email non valido"
+            DBUsersColumns.EMAIL.value: "Formato email non valido",
+            DBUsersColumns.PASSWORD_LOGIN.value: "Password non valida, digitare almeno 8 caratteri"
         }
 
         validation_rules = {
@@ -1013,6 +1031,10 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value: (
                 lambda val: re.fullmatch(r"^\d+(\.\d{2})?$", val),
                 "Inserire cifra numerica con due cifre decimali seprate da \".\" "
+            ),
+            DBUsersColumns.PASSWORD_LOGIN.value: (
+                lambda val: len(val) >= 8,
+                "Digitare almeno 8 caratteri se vuoi modificare la password\n Altrimenti lasciare il campo vuoto"
             )
         }
 
@@ -1058,7 +1080,8 @@ class UserDetailView(ctk.CTkFrame):
 
         # Popolamento delle sezioni
         for field, config in self.entry_fields.items():
-            if (str(user_data[DBUsersColumns.REGIME_FISCALE.value]) == str(self.user_controller.RegimeFiscale.FORFETTARIO.value) and field == DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value):
+            if (str(user_data[DBUsersColumns.REGIME_FISCALE.value]) == str(
+                    self.user_controller.RegimeFiscale.FORFETTARIO.value) and field == DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value):
                 continue
 
             section = sections[config["section"]]
@@ -1067,22 +1090,76 @@ class UserDetailView(ctk.CTkFrame):
 
             # Creazione label
             lbl = ctk.CTkLabel(frame, text=config["label"] + ":")
-            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5), pady=(2, 5) if field in validation_rules.keys() else (2, 25))
+            lbl.grid(row=row, column=0, sticky="w", padx=(15, 5),
+                     pady=(2, 5) if field in validation_rules.keys() else (2, 25))
 
             # Creazione widget
             if config["type"] == ctk.CTkOptionMenu:
                 widget = config["type"](frame, values=config.get("values", []))
                 widget.set(user_data.get(field, config.get("values", [""])[0]))
+                widget.grid(row=row, column=1, sticky="ew", padx=(5, 15),
+                            pady=(2, 5) if field in validation_rules.keys() else (2, 35))
+                self.user_info_widgets[field] = widget
             else:
-                widget = config["type"](frame, show="*" if config.get("password", False) else "")
-                # Converti esplicitamente a stringa prima dell'inserimento
-                value = str(user_data.get(field, ""))
-                widget.insert(0, value)
+                # Per i campi che vogliamo con il bottone occhio, creiamo un frame contenitore
+                if field in [DBUsersColumns.PASSWORD_LOGIN.value,
+                             DBUsersColumns.REDDITO_ESTERNO.value,
+                             DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value,
+                             DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value,
+                             DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value]:
 
+                    # Creiamo un frame per contenere entry e bottone
+                    entry_frame = ctk.CTkFrame(frame, fg_color="transparent")
+                    entry_frame.grid(row=row, column=1, sticky="ew", padx=(5, 15),
+                                     pady=(2, 5) if field in validation_rules.keys() else (2, 35))
 
-            widget.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(2, 5) if field in validation_rules.keys() else (2, 35))
-            self.user_info_widgets[field] = widget
+                    # Configurazione griglia del frame
+                    entry_frame.grid_columnconfigure(0, weight=1)  # Entry si espande
+                    entry_frame.grid_columnconfigure(1, weight=0)  # Bottone dimensione fissa
 
+                    # Creazione entry
+                    widget = config["type"](entry_frame, show="*" if config.get("password", False) else "")
+
+                    # PER IL CAMPO PASSWORD_LOGIN: mostra sempre stringa vuota invece dell'hash
+                    if field == DBUsersColumns.PASSWORD_LOGIN.value:
+                        # Controlla se nel database è presente un hash valido
+                        stored_hash = user_data.get(field, "")
+                        # Considera l'hash presente se non è None, non è stringa vuota e ha lunghezza sufficiente
+                        # (un hash PBKDF2 con salt di 32 byte + hash di 32 byte sarà di 128 caratteri esadecimali)
+                        self.login_password_is_present = (stored_hash is not None and
+                                                          stored_hash != "" and
+                                                          len(stored_hash) >= 128)
+                        value = ""  # Non mostrare l'hash, campo vuoto
+                    else:
+                        value = str(user_data.get(field, ""))
+
+                    widget.insert(0, value)
+                    widget.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+
+                    # Creazione bottone occhio
+                    eye_button = ctk.CTkButton(
+                        entry_frame,
+                        text="👁",
+                        width=30,
+                        command=lambda w=widget: ViewUtils.toggle_entry_visibility(w)
+                    )
+                    eye_button.grid(row=0, column=1, sticky="e")
+
+                    # Aggiungi il bottone alla lista
+                    self.eye_buttons.append(eye_button)
+                    self.user_info_widgets[field] = widget
+
+                else:
+                    # Per gli altri campi, creazione normale
+                    widget = config["type"](frame, show="*" if config.get("password", False) else "")
+                    value = str(user_data.get(field, ""))
+
+                    widget.insert(0, value)
+                    widget.grid(row=row, column=1, sticky="ew", padx=(5, 15),
+                                pady=(2, 5) if field in validation_rules.keys() else (2, 35))
+                    self.user_info_widgets[field] = widget
+
+            # Gestione validazione (rimane invariata)
             if field in validation_rules:
                 validation_func, error_message = validation_rules[field]
 
@@ -1125,22 +1202,43 @@ class UserDetailView(ctk.CTkFrame):
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)
 
+        # Gestione specifica dei bottoni occhio
+        for eye_button in self.eye_buttons:
+            eye_button.configure(state=state)
 
     def toggle_sensible_data(self):
         # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
         state = ctk.NORMAL if self.switch_modify.get() else ctk.DISABLED
 
         if self.parent.login_status and self.parent.logged_user_id == self.current_user_id:
-            self.user_info_widgets[DBUsersColumns.REDDITO_ESTERNO.value].configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
-            self.user_info_widgets[DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value].configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
-            self.user_info_widgets[DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value].configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
-            self.user_info_widgets[DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value].configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            self.user_info_widgets.get(DBUsersColumns.PASSWORD_LOGIN.value).configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            self.user_info_widgets.get(DBUsersColumns.REDDITO_ESTERNO.value).configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            self.user_info_widgets.get(DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value).configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            self.user_info_widgets.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value).configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            spese_dedotte_esterne = self.user_info_widgets.get(DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value)
+            if spese_dedotte_esterne is not None:
+                spese_dedotte_esterne.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            for button in self.eye_buttons:
+                button.configure(state=state)
 
         else:
-            self.user_info_widgets[DBUsersColumns.REDDITO_ESTERNO.value].configure(state=ctk.DISABLED, text_color="#636363" )
-            self.user_info_widgets[DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value].configure(state=ctk.DISABLED, text_color="#636363")
-            self.user_info_widgets[DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value].configure(state=ctk.DISABLED, text_color="#636363")
-            self.user_info_widgets[DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value].configure(state=ctk.DISABLED, text_color="#636363")
+            self.user_info_widgets.get(DBUsersColumns.PASSWORD_LOGIN.value).configure(state=ctk.DISABLED, text_color="#636363", show="*") \
+                if self.login_password_is_present \
+                else self.user_info_widgets.get(DBUsersColumns.PASSWORD_LOGIN.value).configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+
+            self.user_info_widgets.get(DBUsersColumns.REDDITO_ESTERNO.value).configure(state=ctk.DISABLED, text_color="#636363", show="*" )
+            self.user_info_widgets.get(DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value).configure(state=ctk.DISABLED, text_color="#636363", show="*")
+            self.user_info_widgets.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value).configure(state=ctk.DISABLED, text_color="#636363", show="*")
+            spese_dedotte_esterne =  self.user_info_widgets.get(DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value)
+            if spese_dedotte_esterne is not None:
+                spese_dedotte_esterne.configure(state=ctk.DISABLED, text_color="#636363", show="*")
+            for i, button in enumerate(self.eye_buttons):
+                if i == 0 and not self.login_password_is_present:
+                    # Se non è presente la password, il primo bottone (password login) segue lo stato generale
+                    button.configure(state=state)
+                else:
+                    # Altrimenti, tutti i bottoni sono disabilitati
+                    button.configure(state=ctk.DISABLED)
 
     def toggle_widget_container_function(self, parent_widget):
         self.toggle_edit(parent_widget)
@@ -1171,6 +1269,11 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.ANNO_APERTURA_PIVA.value: self.user_info_widgets[DBUsersColumns.ANNO_APERTURA_PIVA.value].get(),
             DBUsersColumns.STATUS.value: self.user_info_widgets[DBUsersColumns.STATUS.value].get(),
         }
+
+        #mando i dati della nuova password al controller per il salvataggio, solo se una nuova password è stata inserita
+        password_value = self.user_info_widgets[DBUsersColumns.PASSWORD_LOGIN.value].get().strip()
+        if password_value:
+            user_data[DBUsersColumns.PASSWORD_LOGIN.value] = password_value
 
         # Chiamata al controller per salvare i dati
         success, message = self.user_controller.update_user(self.current_user_id, user_data)
@@ -1773,6 +1876,17 @@ class UserDetailView(ctk.CTkFrame):
 
     def _cleanup_and_go_back(self):
         """Pulizia completa prima di tornare indietro"""
+        self.switch_modify.deselect()
+        self.toggle_widget_container_function(self.content_frame)
+
         self._clear_content()
         self.pack_forget()
         self.back_callback()
+
+        self.eye_buttons.clear()
+        self.user_info_widgets.clear()
+        self.login_password_is_present = False
+
+    def _on_login_changed_detail(self, data):
+        self.toggle_sensible_data()
+

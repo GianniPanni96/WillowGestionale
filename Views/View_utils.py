@@ -27,6 +27,7 @@ class ViewUtils(ctk.CTk):
         SHOW_REFUND_DETAIL = "SHOW_REFUND_DETAIL"
         SHOW_EXPENSE_DETAIL = "SHOW_EXPENSE_DETAIL"
         SHOW_PAYMENT_DETAIL = "SHOW_PAYMENT_DETAIL"
+        LOGIN_STATUS_CHANGED = "LOGIN_STATUS_CHANGED"
 
     date_pattern = "yyyy-mm-dd"
 
@@ -483,3 +484,17 @@ class ViewUtils(ctk.CTk):
         except Exception as e:
             print(f"Errore nel caricamento dell'immagine {path}: {str(e)}")
             return False, None
+
+    @staticmethod
+    def toggle_entry_visibility(entry_widget):
+        """
+        Alterna tra la visualizzazione del testo normale e asterischi per un entry widget.
+
+        Args:
+            entry_widget: Il widget CTkEntry di cui alternare la visibilità
+        """
+        current_show = entry_widget.cget("show")
+        if current_show == "":
+            entry_widget.configure(show="*")  # Nascondi il testo
+        else:
+            entry_widget.configure(show="")  # Mostra il testo in chiaro

@@ -234,6 +234,10 @@ class MainWindow(ctk.CTk):
                 self.login_status = False
                 self.logged_user_id = -1
                 self.toggle_login_widgets()
+                self.event_bus.publish(ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value, {
+                    "login_status": False,
+                    "logged_user_id": -1
+                })
 
     def open_login_window(self):
         """Apre una finestra per fare il login."""
@@ -269,6 +273,10 @@ class MainWindow(ctk.CTk):
             self.login_status = True
             self.logged_user_id = user_id
             self.toggle_login_widgets()
+            self.event_bus.publish(ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value, {
+                "login_status": True,
+                "logged_user_id": user_id
+            })
 
         if success is not True:
             ViewUtils.show_error_popup(self.login_window, message=message)

@@ -65,6 +65,19 @@ class SuppliersView(ctk.CTkFrame):
         self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per nome:", font=("Arial", 14))
         self.search_bar_label.pack(padx=5, anchor="e")
 
+        self.show_last_cards_optionMenu_values = {
+            "30 GG": "30 GG",
+            "60 GG": "60 GG",
+            "90 GG": "90 GG",
+            "365 GG": "365 GG"
+        }
+        self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
+        self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
+        self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
+        self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
 
         # Aggiungi evento alla barra di ricerca
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
@@ -99,7 +112,65 @@ class SuppliersView(ctk.CTkFrame):
         self.save_button = ctk.CTkButton(self.add_supplier_frame, text="Aggiungi Fornitore", command=self.open_add_supplier_window)
         self.save_button.pack()
 
-        self.load_suppliers_chunked()
+        self.show_last_cards()
+
+    def show_last_cards(self):
+        """Mostra solo i supplier con almeno una spesa negli ultimi giorni selezionati"""
+        # Ottieni il valore selezionato dal menu
+        selected = self.show_last_cards_optionMenu.get()
+
+        # Mappa la selezione al numero di giorni
+        days_map = {
+            "30 GG": 30,
+            "60 GG": 60,
+            "90 GG": 90,
+            "365 GG": 365
+        }
+        days = days_map.get(selected, 30)
+
+        # Calcola la data limite (oggi - giorni)
+        from datetime import datetime, timedelta
+        limit_date = datetime.now() - timedelta(days=days)
+
+        # Recupera tutti i supplier
+        all_suppliers = self.supplier_controller.retrieve_suppliers_map_list()
+
+        # Filtra i supplier: solo quelli con almeno una spesa >= limit_date
+        filtered_suppliers = []
+        for supplier in all_suppliers:
+            supplier_id = supplier[DBSuppliersColumns.ID.value]
+
+            # Recupera tutte le spese di questo supplier
+            supplier_expenses = self.supplier_controller.retrieve_supplier_with_expenses_map_list(supplier_id)
+
+            # Verifica se almeno una spesa è nell'intervallo temporale
+            has_recent_expense = False
+            for expense in supplier_expenses:
+                date_str = expense.get(DBExpensesColumns.DATE.value)
+                if date_str:
+                    try:
+                        # Prova a parsare la data in formato yyyy-mm-dd o yyyy-mm-dd hh:mm:ss
+                        try:
+                            expense_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                        except ValueError:
+                            expense_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+                        if expense_date >= limit_date:
+                            has_recent_expense = True
+                            break  # Basta una spesa recente
+                    except Exception as e:
+                        print(f"Errore nel parsare la data {date_str}: {e}")
+
+            if has_recent_expense:
+                filtered_suppliers.append(supplier)
+
+        # Svuota le cards attuali
+        for card in self.suppliers_card_list.values():
+            card.destroy()
+        self.suppliers_card_list.clear()
+
+        # Ricarica le cards con i supplier filtrati
+        self.load_suppliers_chunked(filtered_suppliers)
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -186,8 +257,7 @@ class SuppliersView(ctk.CTkFrame):
             "Il nome non può essere vuoto."
         ))
 
-    def load_suppliers_chunked(self):
-        supplier_list = self.supplier_controller.retrieve_suppliers_map_list()
+    def load_suppliers_chunked(self, suppliers_list):
 
         extractor = ViewUtils.create_extractor_for_suppliers(
             self.supplier_controller
@@ -195,9 +265,10 @@ class SuppliersView(ctk.CTkFrame):
 
         ViewUtils.process_items_in_chunks(
             widget=self,
-            items_list=supplier_list,
+            items_list=suppliers_list,
             add_card_callback=self.add_supplier_card,
-            extract_args_callback=extractor
+            extract_args_callback=extractor,
+            cards_frame=self.suppliers_cards_frame
         )
 
     def add_supplier_card(self, supplier_id, supplier_name, partita_iva, num_spese, spesa_media, tot_spese, note, contatto):

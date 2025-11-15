@@ -53,11 +53,25 @@ class ClientsView(ctk.CTkFrame):
     def create_client_tab(self):
 
         self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        self.search_bar_frame.pack(pady=10, fill="x", anchor="n")
+        self.search_bar_frame.pack(pady=30, fill="x", anchor="n")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5,35), anchor="e", side="right")
         self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per nome:", font=("Arial", 14))
-        self.search_bar_label.pack(padx=5, anchor="e")
+        self.search_bar_label.pack(padx=5, anchor="s", side="right")
+
+        self.show_last_cards_optionMenu_values = {
+            "30 GG": "30 GG",
+            "60 GG": "60 GG",
+            "90 GG": "90 GG",
+            "365 GG": "365 GG"
+        }
+        self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.pack(padx=(5, 200), anchor="s", side="right")
+        self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
+        self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
+        self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
 
 
         # Aggiungi evento alla barra di ricerca
@@ -94,7 +108,66 @@ class ClientsView(ctk.CTkFrame):
         self.save_button = ctk.CTkButton(self.add_client_frame, text="Aggiungi Cliente", command=self.open_add_client_window)
         self.save_button.pack()
 
-        self.load_clients_chunked()
+        self.show_last_cards()
+
+    def show_last_cards(self):
+        """Mostra solo i clienti con almeno una produzione negli ultimi giorni selezionati"""
+        # Ottieni il valore selezionato dal menu
+        selected = self.show_last_cards_optionMenu.get()
+
+        # Mappa la selezione al numero di giorni
+        days_map = {
+            "30 GG": 30,
+            "60 GG": 60,
+            "90 GG": 90,
+            "365 GG": 365
+        }
+        days = days_map.get(selected, 30)
+
+        # Calcola la data limite (oggi - giorni)
+        from datetime import datetime, timedelta
+        limit_date = datetime.now() - timedelta(days=days)
+
+        # Recupera tutti i clienti
+        all_clients = self.client_controller.retrieve_clients_map_list()
+
+        # Filtra i clienti: solo quelli con almeno una produzione >= limit_date
+        filtered_clients = []
+        for client in all_clients:
+            client_id = client[DBClientsColumns.ID.value]
+
+            # Recupera tutte le produzioni di questo cliente
+            client_productions = self.production_controller.retrieve_productions_map_list_by_client_id(client_id)
+
+            # Verifica se almeno una produzione è nell'intervallo temporale
+            has_recent_production = False
+            for production in client_productions:
+                date_str = production.get(DBProductionsColumns.CREATED_AT.value)
+                if date_str:
+                    try:
+                        # Prova a parsare la data in formato yyyy-mm-dd o yyyy-mm-dd hh:mm:ss
+                        try:
+                            production_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                        except ValueError:
+                            production_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+                        if production_date >= limit_date:
+                            has_recent_production = True
+                            break  # Basta una produzione recente
+                    except Exception as e:
+                        print(f"Errore nel parsare la data {date_str}: {e}")
+
+            if has_recent_production:
+                filtered_clients.append(client)
+
+        # Svuota le cards attuali
+        for card in self.clients_card_list.values():
+            card.destroy()
+        self.clients_card_list.clear()
+
+        # Ricarica le cards con i clienti filtrati
+        self.load_clients_chunked(filtered_clients)
+
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -107,16 +180,16 @@ class ClientsView(ctk.CTkFrame):
         self.client_detail_view.pack(fill='both', expand=True)
         self.client_detail_view.create_detail_tab(client_id)  # Ricrea i contenuti ogni volta
 
-    def load_clients_chunked(self):
-        all_clients = self.client_controller.retrieve_clients_map_list()
+    def load_clients_chunked(self, clients_list):
 
         extractor = ViewUtils.create_extractor_for_clients(self.client_controller)
 
         ViewUtils.process_items_in_chunks(
             widget=self,
-            items_list=all_clients,
+            items_list=clients_list,
             add_card_callback=self.add_client_card,
-            extract_args_callback=extractor
+            extract_args_callback=extractor,
+            cards_frame=self.clients_cards_frame
         )
 
     def add_client_card(self, client_id, nome, tot_entrate, num_fatture, fattura_media, tot_crediti, tot_rimborsi, pagam_orario, giorni_rit, media_rit):

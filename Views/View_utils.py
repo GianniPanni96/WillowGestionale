@@ -501,14 +501,27 @@ class ViewUtils(ctk.CTk):
         else:
             entry_widget.configure(show="")  # Mostra il testo in chiaro
 
-
     @staticmethod
     def process_items_in_chunks(widget, items_list, add_card_callback, extract_args_callback,
-                                chunk_size=25, delay=50, cleanup_callback=None):
+                                chunk_size=25, delay=50, cleanup_callback=None, cards_frame=None):
         """
         Versione migliorata con cleanup e gestione memoria
         """
-        if not items_list:
+        # Rimuovi tutti i widget figli esistenti solo dal frame delle cards
+        for child in cards_frame.winfo_children():
+            child.destroy()
+
+        if not items_list or len(items_list) == 0:
+            if cards_frame is not None:
+                # Mostra messaggio per lista vuota
+                empty_label = ctk.CTkLabel(
+                    cards_frame,
+                    text="Nessun item presente nel periodo di tempo selezionato",
+                    font=("Arial", 16),
+                    text_color="gray",
+                    height=100
+                )
+                empty_label.pack(fill="both", expand=True, pady=50)
             return
 
         chunks = [

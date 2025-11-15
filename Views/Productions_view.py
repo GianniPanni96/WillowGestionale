@@ -130,18 +130,31 @@ class ProductionsView(ctk.CTkFrame):
         self.order_bar_option_menu_values_types = {"DECRESCENTE": "DECRESCENTE", "CRESCENTE": "CRESCENTE"}
         self.order_bar_optionMenu_types = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.order_bar_option_menu_values_types.values()))
-        self.order_bar_optionMenu_types.pack(padx=(5, 100), anchor="s", side="right")
+        self.order_bar_optionMenu_types.pack(padx=(5, 50), anchor="s", side="right")
         self.order_bar_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.order_bar_option_menu_values.values()))
         self.order_bar_optionMenu.pack(padx=5, anchor="s", side="right")
         self.order_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Ordina per ", font=("Arial", 14))
         self.order_bar_label.pack(padx=5, anchor="s", side="right")
 
+        self.show_last_cards_optionMenu_values = {
+            "30 GG": "30 GG",
+            "60 GG": "60 GG",
+            "90 GG": "90 GG",
+            "365 GG": "365 GG"
+        }
+        self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.pack(padx=(5, 50), anchor="s", side="right")
+        self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
+        self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
         # Aggiungi evento alla barra di ricerca
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         self.order_bar_optionMenu.configure(command=lambda _: self.sort_cards())
         self.order_bar_optionMenu_types.configure(command=lambda _: self.sort_cards())
+        self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
 
         self.populate_global_infos()
 
@@ -203,17 +216,64 @@ class ProductionsView(ctk.CTkFrame):
                                          command=self.open_add_production_window)
         self.save_button.pack()
 
+        self.show_last_cards()
+
         # Sistema per tracciare gli after()
         self._after_ids = set()
         self._orig_after = self.after
         self.after = self._track_after
 
-        self.load_productions_chunked()
+    def show_last_cards(self):
+        """Mostra solo le fatture degli ultimi giorni selezionati dall'utente"""
+        # Ottieni il valore selezionato dal menu
+        selected = self.show_last_cards_optionMenu.get()
+
+        # Mappa la selezione al numero di giorni
+        days_map = {
+            "30 GG": 30,
+            "60 GG": 60,
+            "90 GG": 90,
+            "365 GG": 365
+        }
+        days = days_map.get(selected, 30)
+
+        # Calcola la data limite (oggi - giorni)
+        from datetime import datetime, timedelta
+        limit_date = datetime.now() - timedelta(days=days)
+
+        # Recupera tutte le fatture dell'anno corrente
+        all_productions = self.production_controller.retrieve_productions_map_list(True)
+
+        # Filtra le fatture: solo quelle con data di emissione >= limit_date
+        filtered_productions = []
+        for production in all_productions:
+            date_str = production.get(DBProductionsColumns.CREATED_AT.value)
+            if date_str:
+                try:
+                    # Prova a parsare la data in formato yyyy-mm-dd o yyyy-mm-dd hh:mm:ss
+                    try:
+                        production_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        production_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+                    if production_date >= limit_date:
+                        filtered_productions.append(production)
+                except Exception as e:
+                    print(f"Errore nel parsare la data {date_str}: {e}")
+
+        # Svuota le cards attuali
+        for card in self.production_card_list.values():
+            card.destroy()
+        self.production_card_list.clear()
+
+        # Ricarica le cards con le fatture filtrate
+        self.load_productions_chunked(filtered_productions)
 
         self.sort_cards()
 
+
     def populate_global_infos(self):
-        self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value}"] = self.production_controller.count_productions(True)
+        #self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value}"] = self.production_controller.count_productions(True)
         self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value}"] = self.production_controller.count_active_productions(True)
         self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value}"] = self.production_controller.count_closed_productions(True)
         self.global_infos[f"{ProductionController.ProductionsAggregateData.MEDIA_ORE_PRODUZIONE.value}"] = round(self.production_controller.mean_hours_for_production(True), 2)
@@ -469,11 +529,10 @@ class ProductionsView(ctk.CTkFrame):
         for _, card, _ in cards_with_values:
             card.pack(pady=10, padx=10, fill="x", expand=True)
 
-    def load_productions_chunked(self):
-        production_map_list = self.production_controller.retrieve_productions_map_list(True)
+    def load_productions_chunked(self, productions_list):
 
         # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
-        production_map_list.sort(
+        productions_list.sort(
             key=lambda x: datetime.strptime(
                 x[DBProductionsColumns.UPDATED_AT.value],
                 "%Y-%m-%d %H:%M:%S"
@@ -491,9 +550,11 @@ class ProductionsView(ctk.CTkFrame):
 
         ViewUtils.process_items_in_chunks(
             widget=self,
-            items_list=production_map_list,
+            items_list=productions_list,
             add_card_callback=self.add_production_card,
-            extract_args_callback=extractor
+            extract_args_callback=extractor,
+            cards_frame=self.productions_cards_frame
+
         )
 
     def add_production_card(self, production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario):

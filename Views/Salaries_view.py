@@ -98,11 +98,25 @@ class SalariesView(ctk.CTkFrame):
         self.order_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Ordina per ", font=("Arial", 14))
         self.order_bar_label.pack(padx=5, anchor="s", side="right")
 
+        self.show_last_cards_optionMenu_values = {
+            "30 GG": "30 GG",
+            "60 GG": "60 GG",
+            "90 GG": "90 GG",
+            "365 GG": "365 GG"
+        }
+        self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
+        self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
+        self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
         # Aggiungi evento alla barra di ricerca
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         self.order_bar_optionMenu.configure(command=lambda _: self.sort_cards())
         self.order_bar_optionMenu_types.configure(command=lambda _: self.sort_cards())
+        self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
+
 
         self.populate_global_infos()
 
@@ -159,9 +173,56 @@ class SalariesView(ctk.CTkFrame):
         self._orig_after = self.after
         self.after = self._track_after
 
-        self.load_salaries_chunked()
+        self.show_last_cards()
+
+    def show_last_cards(self):
+        """Mostra solo le fatture degli ultimi giorni selezionati dall'utente"""
+        # Ottieni il valore selezionato dal menu
+        selected = self.show_last_cards_optionMenu.get()
+
+        # Mappa la selezione al numero di giorni
+        days_map = {
+            "30 GG": 30,
+            "60 GG": 60,
+            "90 GG": 90,
+            "365 GG": 365
+        }
+        days = days_map.get(selected, 30)
+
+        # Calcola la data limite (oggi - giorni)
+        from datetime import datetime, timedelta
+        limit_date = datetime.now() - timedelta(days=days)
+
+        # Recupera tutte le fatture dell'anno corrente
+        all_salaries = self.salary_controller.retrieve_salaries_map_list(True)
+
+        # Filtra le fatture: solo quelle con data di emissione >= limit_date
+        filtered_salaries = []
+        for salary in all_salaries:
+            date_str = salary.get(DBSalariesColumns.DATE.value)
+            if date_str:
+                try:
+                    # Prova a parsare la data in formato yyyy-mm-dd o yyyy-mm-dd hh:mm:ss
+                    try:
+                        salary_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        salary_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+                    if salary_date >= limit_date:
+                        filtered_salaries.append(salary)
+                except Exception as e:
+                    print(f"Errore nel parsare la data {date_str}: {e}")
+
+        # Svuota le cards attuali
+        for card in self.salaries_card_list.values():
+            card.destroy()
+        self.salaries_card_list.clear()
+
+        # Ricarica le cards con le fatture filtrate
+        self.load_salaries_chunked(filtered_salaries)
 
         self.sort_cards()
+
 
     def filter_cards(self, event):
         """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""
@@ -203,21 +264,59 @@ class SalariesView(ctk.CTkFrame):
         """Ordina le cards degli stipendi in base ai criteri selezionati nei menu di ordinamento."""
 
         # Funzioni di supporto per la conversione dei valori
+        def _convert_to_date(date_str):
+            """Converte una stringa in formato dd-mm-yyyy in un oggetto date per l'ordinamento."""
+            from datetime import datetime
+            try:
+                return datetime.strptime(date_str.strip(), "%d-%m-%Y")
+            except (ValueError, TypeError):
+                return None
+
         def _convert_to_currency(currency_str):
             """Converte una stringa di valuta in un numero float per l'ordinamento."""
-            # Rimuovi il simbolo dell'euro, gli spazi, e gestisci separatori
-            cleaned = currency_str.strip().replace('€', '').replace(' ', '').replace('.', '').replace(',', '.')
-            return float(cleaned)
+            if not currency_str or not currency_str.strip():
+                return None
+
+            try:
+                # Rimuovi il simbolo dell'euro e gli spazi
+                cleaned = currency_str.strip().replace('€', '').replace(' ', '')
+
+                # Gestione dei numeri negativi
+                negative = False
+                if cleaned.startswith('-'):
+                    negative = True
+                    cleaned = cleaned[1:]
+
+                # Gestione di formati con separatori delle migliaia e decimali
+                # Cerca l'ultimo separatore (potrebbe essere punto o virgola per i decimali)
+                last_comma = cleaned.rfind(',')
+                last_dot = cleaned.rfind('.')
+
+                # Determina il separatore decimale (l'ultimo punto o virgola)
+                if last_comma > last_dot:
+                    # Virgola come separatore decimale, punti come separatori delle migliaia
+                    cleaned = cleaned.replace('.', '').replace(',', '.')
+                elif last_dot > last_comma:
+                    # Punto come separatore decimale, virgole come separatori delle migliaia
+                    cleaned = cleaned.replace(',', '').replace('.', '.')
+                else:
+                    # Nessun separatore decimale, rimuovi tutti i separatori
+                    cleaned = cleaned.replace(',', '').replace('.', '')
+
+                # Converti in float e gestisci il segno
+                result = float(cleaned) * (-1 if negative else 1)
+                return result
+
+            except (ValueError, TypeError):
+                return None
 
         def _convert_to_datetime(datetime_str):
             """Converte una stringa in formato yyyy-mm-dd hh:mm:ss in un oggetto datetime per l'ordinamento."""
             from datetime import datetime
-            return datetime.strptime(datetime_str.strip(), "%Y-%m-%d %H:%M:%S")
-
-        def _convert_to_date(date_str):
-            """Converte una stringa in formato dd-mm-yyyy in un oggetto date per l'ordinamento."""
-            from datetime import datetime
-            return datetime.strptime(date_str.strip(), "%d-%m-%Y")
+            try:
+                return datetime.strptime(datetime_str.strip(), "%Y-%m-%d %H:%M:%S")
+            except (ValueError, TypeError):
+                return None
 
         # Ottieni i criteri di ordinamento
         sort_by = self.order_bar_optionMenu.get()
@@ -260,10 +359,12 @@ class SalariesView(ctk.CTkFrame):
                         sort_value = salary_map.get(db_column, "")
 
             # Converti il valore nel tipo appropriato (applicando strip per rimuovere spazi)
-            try:
-                converted_value = converter(sort_value) if sort_value.strip() else None
-            except (ValueError, TypeError):
-                converted_value = None
+            converted_value = None
+            if sort_value and sort_value.strip():
+                try:
+                    converted_value = converter(sort_value)
+                except Exception:
+                    converted_value = None
 
             cards_with_values.append((key, card, converted_value))
 
@@ -291,8 +392,7 @@ class SalariesView(ctk.CTkFrame):
         self.global_infos[f"{SalaryController.SalariesAggregateData.NUMERO_SALARI.value}"] = numero_salari
         self.global_infos[f"{SalaryController.SalariesAggregateData.TOT_SALARI.value}"] = f"{totale_salari:.2f}"
 
-    def load_salaries_chunked(self):
-        salaries_list = self.salary_controller.retrieve_salaries_map_list(True)
+    def load_salaries_chunked(self, salaries_list):
 
         extractor = ViewUtils.create_extractor_for_salaries(
             self.salary_controller,
@@ -304,7 +404,9 @@ class SalariesView(ctk.CTkFrame):
             widget=self,
             items_list=salaries_list,
             add_card_callback=self.add_salary_card,
-            extract_args_callback=extractor
+            extract_args_callback=extractor,
+            cards_frame=self.cards_frame
+
         )
 
     def add_salary_card(self, salary_id, salary_name, user_name, amount, date, account_name):
@@ -541,7 +643,6 @@ class SalariesView(ctk.CTkFrame):
     def handle_show_salary_detail(self, salary_id):
         self.tab_view.set("Salario")  # Cambia tab
         self.after(150, lambda: self.open_salary_detail_tab(salary_id))
-
 
     def clear_class_variable(self):
         self.salaries_widgets.clear()

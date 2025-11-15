@@ -127,11 +127,25 @@ class InvoicesView(ctk.CTkFrame):
         self.order_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Ordina per ", font=("Arial", 14))
         self.order_bar_label.pack(padx=5, anchor="s", side="right")
 
+        self.show_last_cards_optionMenu_values = {
+            "30 GG": "30 GG",
+            "60 GG": "60 GG",
+            "90 GG": "90 GG",
+            "365 GG": "365 GG"
+        }
+        self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
+        self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
+        self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
         # Aggiungi evento alla barra di ricerca
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         self.order_bar_optionMenu.configure(command=lambda _: self.sort_cards())
         self.order_bar_optionMenu_types.configure(command=lambda _: self.sort_cards())
+        self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
+
 
         # Ottieni il valore di default dei corner radius dai pulsanti
         default_corner_radius = ctk.ThemeManager.theme["CTkButton"]["corner_radius"]
@@ -195,9 +209,7 @@ class InvoicesView(ctk.CTkFrame):
                                          command=self.open_suggest_user_window)
         self.suggest_user.pack(padx=20)
 
-        self.load_invoices_chunked()
-
-        self.sort_cards()
+        self.show_last_cards()
 
         #warnings launch
         for card in self.invoices_card_list.values():
@@ -207,6 +219,58 @@ class InvoicesView(ctk.CTkFrame):
         self._after_ids = set()
         self._orig_after = self.after
         self.after = self._track_after
+
+    def show_last_cards(self):
+        """Mostra solo le fatture degli ultimi giorni selezionati dall'utente"""
+        # Ottieni il valore selezionato dal menu
+        selected = self.show_last_cards_optionMenu.get()
+
+        # Mappa la selezione al numero di giorni
+        days_map = {
+            "30 GG": 30,
+            "60 GG": 60,
+            "90 GG": 90,
+            "365 GG": 365
+        }
+        days = days_map.get(selected, 30)
+
+        # Calcola la data limite (oggi - giorni)
+        from datetime import datetime, timedelta
+        limit_date = datetime.now() - timedelta(days=days)
+
+        # Recupera tutte le fatture dell'anno corrente
+        all_invoices = self.invoice_controller.retrieve_invoices_map_list(True)
+
+        # Filtra le fatture: solo quelle con data di emissione >= limit_date
+        filtered_invoices = []
+        for invoice in all_invoices:
+            date_str = invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value)
+            if date_str:
+                try:
+                    # Prova a parsare la data in formato yyyy-mm-dd o yyyy-mm-dd hh:mm:ss
+                    try:
+                        invoice_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        invoice_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+                    if invoice_date >= limit_date:
+                        filtered_invoices.append(invoice)
+                except Exception as e:
+                    print(f"Errore nel parsare la data {date_str}: {e}")
+
+        # Svuota le cards attuali
+        for card in self.invoices_card_list.values():
+            card.destroy()
+        self.invoices_card_list.clear()
+
+        # Ricarica le cards con le fatture filtrate
+        self.load_invoices_chunked(filtered_invoices)
+
+        self.sort_cards()
+
+        # Riacquista i warnings per le nuove cards
+        for card in self.invoices_card_list.values():
+            ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -452,11 +516,10 @@ class InvoicesView(ctk.CTkFrame):
             )
         )
 
-    def load_invoices_chunked(self):
-        invoice_map_list = self.invoice_controller.retrieve_invoices_map_list(True)
-
+    def load_invoices_chunked(self, invoices_list):
+        """Versione di load_invoices_chunked che accetta una lista specifica di fatture"""
         # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
-        invoice_map_list.sort(
+        invoices_list.sort(
             key=lambda x: datetime.strptime(
                 x[DBInvoicesColumns.UPDATED_AT.value],
                 "%Y-%m-%d %H:%M:%S"
@@ -468,7 +531,7 @@ class InvoicesView(ctk.CTkFrame):
         )
 
         # Pre-processing: raccogli i warnings
-        self.collect_invoice_warnings(invoice_map_list)
+        self.collect_invoice_warnings(invoices_list)
 
         extractor = ViewUtils.create_extractor_for_invoices(
             self.invoice_controller,
@@ -479,9 +542,10 @@ class InvoicesView(ctk.CTkFrame):
 
         ViewUtils.process_items_in_chunks(
             widget=self,
-            items_list=invoice_map_list,
+            items_list=invoices_list,
             add_card_callback=self.add_invoice_card,
-            extract_args_callback=extractor
+            extract_args_callback=extractor,
+            cards_frame=self.invoices_cards_frame
         )
 
     def collect_invoice_warnings(self, invoice_map_list):
@@ -599,20 +663,58 @@ class InvoicesView(ctk.CTkFrame):
 
         # Funzioni di supporto per la conversione dei valori
         def _convert_to_date(date_str):
-            """Converte una stringa in formato dd-mm-yyyy in un oggetto data per l'ordinamento."""
+            """Converte una stringa in formato dd-mm-yyyy in un oggetto date per l'ordinamento."""
             from datetime import datetime
-            return datetime.strptime(date_str, "%d-%m-%Y")
+            try:
+                return datetime.strptime(date_str.strip(), "%d-%m-%Y")
+            except (ValueError, TypeError):
+                return None
 
         def _convert_to_currency(currency_str):
             """Converte una stringa di valuta in un numero float per l'ordinamento."""
-            # Rimuovi il simbolo dell'euro, gli spazi, e gestisci separatori
-            cleaned = currency_str.replace('€', '').replace(' ', '').replace('.', '').replace(',', '.')
-            return float(cleaned)
+            if not currency_str or not currency_str.strip():
+                return None
+
+            try:
+                # Rimuovi il simbolo dell'euro e gli spazi
+                cleaned = currency_str.strip().replace('€', '').replace(' ', '')
+
+                # Gestione dei numeri negativi
+                negative = False
+                if cleaned.startswith('-'):
+                    negative = True
+                    cleaned = cleaned[1:]
+
+                # Gestione di formati con separatori delle migliaia e decimali
+                # Cerca l'ultimo separatore (potrebbe essere punto o virgola per i decimali)
+                last_comma = cleaned.rfind(',')
+                last_dot = cleaned.rfind('.')
+
+                # Determina il separatore decimale (l'ultimo punto o virgola)
+                if last_comma > last_dot:
+                    # Virgola come separatore decimale, punti come separatori delle migliaia
+                    cleaned = cleaned.replace('.', '').replace(',', '.')
+                elif last_dot > last_comma:
+                    # Punto come separatore decimale, virgole come separatori delle migliaia
+                    cleaned = cleaned.replace(',', '').replace('.', '.')
+                else:
+                    # Nessun separatore decimale, rimuovi tutti i separatori
+                    cleaned = cleaned.replace(',', '').replace('.', '')
+
+                # Converti in float e gestisci il segno
+                result = float(cleaned) * (-1 if negative else 1)
+                return result
+
+            except (ValueError, TypeError):
+                return None
 
         def _convert_to_datetime(datetime_str):
             """Converte una stringa in formato yyyy-mm-dd hh:mm:ss in un oggetto datetime per l'ordinamento."""
             from datetime import datetime
-            return datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
+            try:
+                return datetime.strptime(datetime_str.strip(), "%Y-%m-%d %H:%M:%S")
+            except (ValueError, TypeError):
+                return None
 
         # Ottieni i criteri di ordinamento
         sort_by = self.order_bar_optionMenu.get()
@@ -654,10 +756,12 @@ class InvoicesView(ctk.CTkFrame):
                         sort_value = invoice_map.get(param, "")
 
             # Converti il valore nel tipo appropriato
-            try:
-                converted_value = converter(sort_value) if sort_value else None
-            except (ValueError, TypeError):
-                converted_value = None  # Gestisci i valori non convertibili
+            converted_value = None
+            if sort_value and sort_value.strip():
+                try:
+                    converted_value = converter(sort_value)
+                except Exception:
+                    converted_value = None
 
             cards_with_values.append((key, card, converted_value))
 

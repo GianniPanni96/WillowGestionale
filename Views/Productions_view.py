@@ -10,7 +10,10 @@ from enum import Enum
 
 class ProductionsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, production_controller, payment_controller, invoice_controller, user_controller, client_controller, catalogo_elenchi, config_manager, tabview, event_bus, update_controller):
+    def __init__(self, db_model, production_controller, payment_controller,
+                 invoice_controller, user_controller, client_controller,
+                 catalogo_elenchi, config_manager, tabview,
+                 event_bus, update_controller, initial_production_id=None):
         super().__init__(tabview.tab("Produzioni"))
 
         self.db_model = db_model
@@ -26,7 +29,7 @@ class ProductionsView(ctk.CTkFrame):
         self.event_bus = event_bus
         self.update_controller = update_controller
 
-        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self.handle_show_production_detail)
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self.handle_show_production_detail)
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -60,7 +63,11 @@ class ProductionsView(ctk.CTkFrame):
         )
 
         self.create_productions_tab()
-        self.show_main_view()
+
+        if initial_production_id is not None:
+            self.after(100, lambda: self.open_production_detail_tab(initial_production_id))
+        else:
+            self.show_main_view()
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -69,13 +76,38 @@ class ProductionsView(ctk.CTkFrame):
 
     def handle_show_production_detail(self, production_id):
         self.tabview.set("Produzioni")  # Cambia tab
-        self.open_production_detail_tab(production_id)  # Mostra il dettaglio
+        self.after(150, lambda: self.open_production_detail_tab(production_id))
 
     def open_production_detail_tab(self, production_id):
-        """Mostra la vista dettaglio utente"""
-        self.main_container.pack_forget()
-        self.production_detail_view.pack(fill='both', expand=True)
-        self.production_detail_view.create_detail_tab(production_id)  # Ricrea i contenuti ogni volta
+        """Mostra la vista dettaglio produzione con controlli di sicurezza"""
+        try:
+            # Verifica che i widget esistano
+            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+                self.main_container.pack_forget()
+
+            # Se production_detail_view non esiste, crealo
+            if not hasattr(self, 'production_detail_view') or not self.production_detail_view.winfo_exists():
+                self.production_detail_view = ProductionDetailView(
+                    parent=self,
+                    invoice_controller=self.invoice_controller,
+                    back_callback=self.show_main_view,
+                    client_controller=self.client_controller,
+                    production_controller=self.production_controller,
+                    catalogo_elenchi=self.catalogo_elenchi,
+                    config_manager=self.config_manager,
+                    db_model=self.db_model,
+                    update_controller=self.update_controller,
+                    event_bus=self.event_bus
+                )
+
+            # Mostra il dettaglio
+            self.production_detail_view.pack(fill='both', expand=True)
+            self.production_detail_view.create_detail_tab(production_id)  # Ricrea i contenuti ogni volta
+
+        except Exception as e:
+            print(f"Errore in open_production_detail_tab: {e}")
+            # Fallback: mostra la vista principale
+            self.show_main_view()
 
     def create_productions_tab(self):
 
@@ -98,18 +130,31 @@ class ProductionsView(ctk.CTkFrame):
         self.order_bar_option_menu_values_types = {"DECRESCENTE": "DECRESCENTE", "CRESCENTE": "CRESCENTE"}
         self.order_bar_optionMenu_types = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.order_bar_option_menu_values_types.values()))
-        self.order_bar_optionMenu_types.pack(padx=(5, 100), anchor="s", side="right")
+        self.order_bar_optionMenu_types.pack(padx=(5, 50), anchor="s", side="right")
         self.order_bar_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.order_bar_option_menu_values.values()))
         self.order_bar_optionMenu.pack(padx=5, anchor="s", side="right")
         self.order_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Ordina per ", font=("Arial", 14))
         self.order_bar_label.pack(padx=5, anchor="s", side="right")
 
+        self.show_last_cards_optionMenu_values = {
+            "30 GG": "30 GG",
+            "60 GG": "60 GG",
+            "90 GG": "90 GG",
+            "365 GG": "365 GG"
+        }
+        self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.pack(padx=(5, 50), anchor="s", side="right")
+        self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
+        self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
         # Aggiungi evento alla barra di ricerca
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         self.order_bar_optionMenu.configure(command=lambda _: self.sort_cards())
         self.order_bar_optionMenu_types.configure(command=lambda _: self.sort_cards())
+        self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
 
         self.populate_global_infos()
 
@@ -171,38 +216,64 @@ class ProductionsView(ctk.CTkFrame):
                                          command=self.open_add_production_window)
         self.save_button.pack()
 
-        #aggiungo una tab per ogni fattura presente nel database
-        production_map_list = self.production_controller.retrieve_productions_map_list(True)
-        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
-        production_map_list.sort(
-            key=lambda x: datetime.strptime(
-                x[DBProductionsColumns.UPDATED_AT.value],
-                "%Y-%m-%d %H:%M:%S"
-            ) if " " in x[DBProductionsColumns.UPDATED_AT.value] else datetime.strptime(
-                x[DBProductionsColumns.UPDATED_AT.value],
-                "%Y-%m-%d"
-            ),
-            reverse=True
-        )
-        for production in production_map_list:
-            production_id = production[DBProductionsColumns.ID.value]
-            production_name = production[DBProductionsColumns.NAME.value]
-            client_id = production[DBProductionsColumns.CLIENT_ID.value]
-            client_name = self.client_controller.retrieve_client_map_by_id(client_id)[DBClientsColumns.NAME.value]
-            tipologia_produzione = production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value]
-            tipologia_output = production[DBProductionsColumns.TIPOLOGIA_OUTPUT.value]
-            produzione_stato = production[DBProductionsColumns.STATO.value]
-            data_di_consegna = production[DBProductionsColumns.END_DATE.value]
-            totale_preventivo = production[DBProductionsColumns.TOTALE_PREVENTIVO.value]
-            durata_produzione = production[DBProductionsColumns.HOURS.value]
-            prezzo_orario = self.production_controller.calculate_production_cost_per_hour(production_id)
+        self.show_last_cards()
 
-            self.add_production_card(production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario)
+        # Sistema per tracciare gli after()
+        self._after_ids = set()
+        self._orig_after = self.after
+        self.after = self._track_after
+
+    def show_last_cards(self):
+        """Mostra solo le fatture degli ultimi giorni selezionati dall'utente"""
+        # Ottieni il valore selezionato dal menu
+        selected = self.show_last_cards_optionMenu.get()
+
+        # Mappa la selezione al numero di giorni
+        days_map = {
+            "30 GG": 30,
+            "60 GG": 60,
+            "90 GG": 90,
+            "365 GG": 365
+        }
+        days = days_map.get(selected, 30)
+
+        # Calcola la data limite (oggi - giorni)
+        from datetime import datetime, timedelta
+        limit_date = datetime.now() - timedelta(days=days)
+
+        # Recupera tutte le fatture dell'anno corrente
+        all_productions = self.production_controller.retrieve_productions_map_list(True)
+
+        # Filtra le fatture: solo quelle con data di emissione >= limit_date
+        filtered_productions = []
+        for production in all_productions:
+            date_str = production.get(DBProductionsColumns.CREATED_AT.value)
+            if date_str:
+                try:
+                    # Prova a parsare la data in formato yyyy-mm-dd o yyyy-mm-dd hh:mm:ss
+                    try:
+                        production_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        production_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+                    if production_date >= limit_date:
+                        filtered_productions.append(production)
+                except Exception as e:
+                    print(f"Errore nel parsare la data {date_str}: {e}")
+
+        # Svuota le cards attuali
+        for card in self.production_card_list.values():
+            card.destroy()
+        self.production_card_list.clear()
+
+        # Ricarica le cards con le fatture filtrate
+        self.load_productions_chunked(filtered_productions)
 
         self.sort_cards()
 
+
     def populate_global_infos(self):
-        self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value}"] = self.production_controller.count_productions(True)
+        #self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value}"] = self.production_controller.count_productions(True)
         self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value}"] = self.production_controller.count_active_productions(True)
         self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value}"] = self.production_controller.count_closed_productions(True)
         self.global_infos[f"{ProductionController.ProductionsAggregateData.MEDIA_ORE_PRODUZIONE.value}"] = round(self.production_controller.mean_hours_for_production(True), 2)
@@ -458,6 +529,34 @@ class ProductionsView(ctk.CTkFrame):
         for _, card, _ in cards_with_values:
             card.pack(pady=10, padx=10, fill="x", expand=True)
 
+    def load_productions_chunked(self, productions_list):
+
+        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
+        productions_list.sort(
+            key=lambda x: datetime.strptime(
+                x[DBProductionsColumns.UPDATED_AT.value],
+                "%Y-%m-%d %H:%M:%S"
+            ) if " " in x[DBProductionsColumns.UPDATED_AT.value] else datetime.strptime(
+                x[DBProductionsColumns.UPDATED_AT.value],
+                "%Y-%m-%d"
+            ),
+            reverse=True
+        )
+
+        extractor = ViewUtils.create_extractor_for_productions(
+            self.production_controller,
+            self.client_controller
+        )
+
+        ViewUtils.process_items_in_chunks(
+            widget=self,
+            items_list=productions_list,
+            add_card_callback=self.add_production_card,
+            extract_args_callback=extractor,
+            cards_frame=self.productions_cards_frame
+
+        )
+
     def add_production_card(self, production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario):
         """
         Aggiunge una singola card con i dati forniti alla scrollable frame,
@@ -696,6 +795,83 @@ class ProductionsView(ctk.CTkFrame):
         salva le modifiche apportate alla produzione tramite i widgets dell'interfaccia
         :return:
         """
+
+    def cleanup(self):
+        """Pulizia completa per liberare memoria - DA AGGIUNGERE IN OGNI VIEW"""
+        try:
+            print(f"Cleanup di {self.__class__.__name__}")
+
+            # 1. Cancella tutti gli after scheduled
+            if hasattr(self, '_after_ids'):
+                for after_id in self._after_ids:
+                    try:
+                        self.after_cancel(after_id)
+                    except:
+                        pass
+                self._after_ids.clear()
+
+            # 2. Distruggi tutte le card e widget dinamici
+            card_lists = [
+                'payment_card_list', 'invoice_card_list', 'client_card_list',
+                'supplier_card_list', 'production_card_list', 'expenses_card_list',
+                'salaries_card_list', 'refund_card_list', 'account_card_list'
+            ]
+
+            for card_attr in card_lists:
+                if hasattr(self, card_attr):
+                    card_dict = getattr(self, card_attr)
+                    for card_name, card in card_dict.items():
+                        try:
+                            card.destroy()
+                        except:
+                            pass
+                    card_dict.clear()
+
+            # 3. Pulisci dizionari e liste
+            data_attrs = [
+                'cards_warnings', 'global_infos', 'amount_aggregate_labels',
+                'payment_card_labels_status', 'invoice_card_labels_status',
+                'production_card_labels_status'
+            ]
+
+            for attr in data_attrs:
+                if hasattr(self, attr):
+                    getattr(self, attr).clear()
+
+            # 4. Distruggi i container principali se esistono
+            container_attrs = [
+                'main_container', 'detail_container', 'payments_cards_frame',
+                'invoices_cards_frame', 'clients_cards_frame', 'suppliers_cards_frame',
+                'productions_cards_frame', 'expenses_cards_frame', 'refunds_cards_frame',
+                'accounts_cards_frame', 'salaries_cards_frame'
+            ]
+
+            for attr in container_attrs:
+                if hasattr(self, attr):
+                    container = getattr(self, attr)
+                    try:
+                        # Distruggi solo se il container esiste ancora
+                        if container.winfo_exists():
+                            for widget in container.winfo_children():
+                                try:
+                                    widget.destroy()
+                                except:
+                                    pass
+                    except:
+                        pass
+
+            # 5. Pulisci i riferimenti ai controller (opzionale)
+            if hasattr(self, 'db_model'):
+                self.db_model = None
+
+        except Exception as e:
+            print(f"Errore durante il cleanup di {self.__class__.__name__}: {e}")
+
+    def _track_after(self, ms, func, *args):
+        """Versione tracciata di after()"""
+        after_id = self._orig_after(ms, func, *args)
+        self._after_ids.add(after_id)
+        return after_id
 
 
 

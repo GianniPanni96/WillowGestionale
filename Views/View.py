@@ -143,6 +143,9 @@ class MainWindow(ctk.CTk):
         self.update_idletasks()
         self.after(100, lambda: self.state("zoomed"))
 
+        self._setup_event_subscriptions()
+
+
     def _track_after(self, ms, callback=None, *args):
         after_id = self._orig_after(ms, callback, *args)
         self._after_ids.add(after_id)
@@ -157,69 +160,364 @@ class MainWindow(ctk.CTk):
         self._after_ids.clear()
 
     def construct_tabviews(self):
-        """Crea tutte le tabview e le impacchetta"""
+        """Crea solo la struttura delle tab, non il contenuto - Lazy Loading"""
         self.tab_instances = {}
+        self.current_tab = "Utenti"  # Tab iniziale
 
-        self.tab_instances["Utenti"] = UsersView(self.db_model, self.user_controller, self.account_controller,
-                                  self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"),
-                                  self.analyzer, self.event_bus, self.logged_user_id, self.login_status)
-        self.tab_instances["Clienti"] = ClientsView(self.db_model, self.client_controller, self.production_controller,
-                                                    self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
-                                                    self.config_manager, self.tabview.tab("Clienti"), self.event_bus, self.analyzer)
-        self.tab_instances["Fatture"] = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
-                                        self.client_controller, self.production_controller, self.payment_controller,
-                                        self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
-                                        self.historical_financial_data_settings, self.event_bus, self.analyzer)
-        self.tab_instances["Pagamenti"] = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller,
-                                        self.user_controller, self.client_controller, self.production_controller,
-                                        self.account_controller, self.update_controller, self.tabview,
-                                        self.event_bus)
-        self.tab_instances["Rimborsi"] = RefundsView(self.db_model, self.refund_controller, self.client_controller,
-                                      self.account_controller, self.update_controller, self.tabview, self.analyzer,
-                                      self.event_bus)
-        self.tab_instances["Produzioni"] = ProductionsView(self.db_model, self.production_controller, self.payment_controller,
-                                              self.invoice_controller, self.user_controller, self.client_controller,
-                                              self.catalogo_elenchi, self.config_manager,
-                                              self.tabview, self.event_bus, self.update_controller)
-        self.tab_instances["Spese"] = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
-                                        self.account_controller, self.supplier_controller, self.invoice_controller,
-                                        self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
-                                        self.config_manager, self.tabview, self.event_bus)
-        self.tab_instances["Fornitori"] = SuppliersView(self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
-                                          self.config_manager, self.catalogo_elenchi, self.tabview,
-                                          self.event_bus, self.analyzer)
-        self.tab_instances["Conti"] = AccountsView(self.db_model, self.account_controller, self.update_controller,
-                                        self.transfer_controller, self.config_manager, self.catalogo_elenchi,
-                                        self.analyzer, self.tabview, self.event_bus)
-        self.tab_instances["Salario"] = SalariesView(self.db_model, self.salary_controller, self.user_controller,
-                                       self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
-                                       self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus)
-        self.tab_instances["Iva"] = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller,
-                                            self.expense_controller, self.update_controller, self.analyzer,
-                                            self.tabview, self.event_bus)
-        self.tab_instances["Tasse"] = TaxesView(self.db_model, self.analyzer, self.update_controller,
-                                          self.config_manager, self.catalogo_elenchi, self.tabview,
-                                          self.event_bus)
-        self.tab_instances["Report"] = ReportView(self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
-                                                  self.event_bus, self.update_controller)
+        # Definisci la factory per le view
+        self.view_factory = {
+            "Utenti": lambda tab: UsersView(
+                self.db_model, self.user_controller, self.account_controller,
+                self.production_controller, self.fiscal_settings, tab,
+                self.analyzer, self.event_bus, self.logged_user_id, self.login_status
+            ),
+            "Clienti": lambda tab: ClientsView(
+                self.db_model, self.client_controller, self.production_controller,
+                self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
+                self.config_manager, tab, self.event_bus, self.analyzer
+            ),
+            "Fatture": lambda tab, invoice_id=None: InvoicesView(
+                self.db_model, self.invoice_controller, self.user_controller,
+                self.client_controller, self.production_controller, self.payment_controller,
+                self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
+                self.historical_financial_data_settings, self.event_bus, self.analyzer,
+                initial_invoice_id=invoice_id  # Nuovo parametro
+            ),
+            "Pagamenti": lambda tab, payment_id=None: PaymentsView(
+                self.db_model, self.payment_controller, self.invoice_controller,
+                self.user_controller, self.client_controller, self.production_controller,
+                self.account_controller, self.update_controller, self.tabview,
+                self.event_bus, initial_payment_id=payment_id
+            ),
+            "Rimborsi": lambda tab, refund_id=None: RefundsView(
+                self.db_model, self.refund_controller, self.client_controller,
+                self.account_controller, self.update_controller, self.tabview, self.analyzer,
+                self.event_bus, initial_refund_id=refund_id
+            ),
+            "Produzioni": lambda tab, production_id=None: ProductionsView(
+                self.db_model, self.production_controller, self.payment_controller,
+                self.invoice_controller, self.user_controller, self.client_controller,
+                self.catalogo_elenchi, self.config_manager,
+                self.tabview, self.event_bus, self.update_controller,
+                initial_production_id=production_id
+            ),
+            "Spese": lambda tab, expense_id=None: ExpensesView(
+                self.db_model, self.expense_controller, self.user_controller,
+                self.account_controller, self.supplier_controller, self.invoice_controller,
+                self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
+                self.config_manager, self.tabview, self.event_bus, initial_expense_id = expense_id
+            ),
+            "Fornitori": lambda tab: SuppliersView(
+                self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
+                self.config_manager, self.catalogo_elenchi, self.tabview,
+                self.event_bus, self.analyzer
+            ),
+            "Conti": lambda tab: AccountsView(
+                self.db_model, self.account_controller, self.update_controller,
+                self.transfer_controller, self.config_manager, self.catalogo_elenchi,
+                self.analyzer, self.tabview, self.event_bus
+            ),
+            "Salario": lambda tab, salary_id=None: SalariesView(
+                self.db_model, self.salary_controller, self.user_controller,
+                self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
+                self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus,
+                initial_salary_id=salary_id
+            ),
+            "Iva": lambda tab: IvaTrimesView(
+                self.db_model, self.invoice_controller, self.user_controller,
+                self.expense_controller, self.update_controller, self.analyzer,
+                self.tabview, self.event_bus
+            ),
+            "Tasse": lambda tab: TaxesView(
+                self.db_model, self.analyzer, self.update_controller,
+                self.config_manager, self.catalogo_elenchi, self.tabview,
+                self.event_bus
+            ),
+            "Report": lambda tab: ReportView(
+                self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
+                self.event_bus, self.update_controller
+            )
+        }
 
-        # Impacchettamento nelle rispettive tab
-        for tab_name, instance in self.tab_instances.items():
-            tab_frame = self.tabview.tab(tab_name)
-            instance.pack(in_=tab_frame, fill="both", expand=True)
+        # MONITORAGGIO DEL CAMBIO TAB - APPROCCIO ALTERNATIVO
+        self._setup_tab_monitoring()
+
+        # Carica solo la tab iniziale
+        self.load_tab(self.current_tab)
 
     def refresh_tabviews(self):
-        """Aggiorna tutte le tabview distruggendo e ricreando il contenuto"""
-        # 1. Distruggi tutte le tabview esistenti
-        for instance in self.tab_instances.values():
-            if instance.winfo_exists():
+        """Aggiorna solo la tab corrente invece di tutte le tab"""
+        if self.current_tab in self.tab_instances:
+            print(f"Ricarico tab: {self.current_tab}")
+            # Ricarica solo la tab corrente
+            current_tab_name = self.current_tab
+            self.destroy_tab(current_tab_name)
+            self.load_tab(current_tab_name)
+
+            # Forza l'aggiornamento della GUI
+            self.update_idletasks()
+
+    def _on_tab_click(self, event):
+        """Gestisce il click sulle tab per il lazy loading"""
+        # Ottieni l'indice del tab cliccato
+        tab_index = self.tabview._segmented_button.index(f"@{event.x},{event.y}")
+        if tab_index is not None:
+            tab_names = list(self.view_factory.keys())
+            if tab_index < len(tab_names):
+                new_tab = tab_names[tab_index]
+                self._switch_to_tab(new_tab)
+
+    def load_tab(self, tab_name, **kwargs):
+        """Carica una tab solo se non è già caricata, con parametri aggiuntivi"""
+        if tab_name not in self.tab_instances and tab_name in self.view_factory:
+            print(f"Caricamento tab: {tab_name} con parametri: {kwargs}")
+            tab_frame = self.tabview.tab(tab_name)
+
+            # Pulisci il frame della tab prima di aggiungere nuovi widget
+            for widget in tab_frame.winfo_children():
+                widget.destroy()
+
+            # Crea l'istanza della view passando i kwargs
+            instance = self.view_factory[tab_name](tab_frame, **kwargs)
+            instance.pack(in_=tab_frame, fill="both", expand=True)
+            self.tab_instances[tab_name] = instance
+
+            # Forza il rendering
+            self.update_idletasks()
+
+    def destroy_tab(self, tab_name):
+        """Distrugge completamente una tab per liberare memoria"""
+        if tab_name in self.tab_instances:
+            print(f"Distruzione tab: {tab_name}")
+            try:
+                instance = self.tab_instances[tab_name]
+
+                # Chiama cleanup se esiste
+                if hasattr(instance, 'cleanup'):
+                    instance.cleanup()
+
+                # Distruggi l'istanza
                 instance.destroy()
 
-        # 2. Ricrea tutte le tabview
-        self.construct_tabviews()
+            except Exception as e:
+                print(f"Errore nel distruggere {tab_name}: {e}")
+            finally:
+                # Rimuovi dal dizionario
+                del self.tab_instances[tab_name]
 
-        # 3. Forza l'aggiornamento della GUI
-        self.update_idletasks()
+                # Forza garbage collection
+                import gc
+                gc.collect()
+
+    def _setup_tab_monitoring(self):
+        """Configura il monitoraggio del cambio tab usando un approccio alternativo"""
+        # Crea una variabile per tracciare il tab precedente
+        self._previous_tab = self.current_tab
+
+        # Avvia il monitoraggio periodico
+        self._monitor_tab_changes()
+
+    def _monitor_tab_changes(self):
+        """Monitora i cambi di tab periodicamente"""
+        current_tab = self.tabview.get()
+
+        # Se il tab è cambiato
+        if current_tab != self._previous_tab:
+            self._switch_to_tab(current_tab)
+            self._previous_tab = current_tab
+
+        # Continua il monitoraggio ogni 100ms
+        self.after(100, self._monitor_tab_changes)
+
+    def _switch_to_tab(self, new_tab):
+        """Cambia tab con lazy loading"""
+        if new_tab != self.current_tab:
+            print(f"Cambio tab: {self.current_tab} -> {new_tab}")
+
+            # Distruggi la tab precedente per liberare memoria
+            if self.current_tab in self.tab_instances:
+                self.destroy_tab(self.current_tab)
+
+            # Carica la nuova tab
+            self.load_tab(new_tab)
+            self.current_tab = new_tab
+
+            # Aggiorna la selezione del tabview
+            self.tabview.set(new_tab)
+
+            # Forza l'aggiornamento dell'interfaccia
+            self.update_idletasks()
+
+
+
+
+    def _setup_event_subscriptions(self):
+        """Configura tutte le sottoscrizioni agli eventi nella MainWindow"""
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self._handle_show_invoice_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, self._handle_show_salary_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self._handle_show_production_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self._handle_show_payment_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_REFUND_DETAIL, self._handle_show_refund_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self._handle_show_expense_detail)
+
+
+    def _handle_show_invoice_detail(self, invoice_id):
+        """Gestisce la navigazione verso una fattura - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio fattura: {invoice_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Fatture
+        self.tabview.set("Fatture")
+
+        # 2. Se la tab Fatture è già caricata, apri il dettaglio
+        if "Fatture" in self.tab_instances:
+            invoices_view = self.tab_instances["Fatture"]
+            if hasattr(invoices_view, 'open_invoice_detail_tab'):
+                invoices_view.open_invoice_detail_tab(invoice_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Fatture", invoice_id=invoice_id)
+
+    def _forward_to_invoice_detail(self, invoice_id):
+        """Inoltra la richiesta alla InvoicesView una volta caricata"""
+        if "Fatture" in self.tab_instances:
+            invoices_view = self.tab_instances["Fatture"]
+            if hasattr(invoices_view, 'open_invoice_detail_tab'):
+                invoices_view.open_invoice_detail_tab(invoice_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_invoice_detail(invoice_id))
+
+    def _handle_show_salary_detail(self, salary_id):
+        """Gestisce la navigazione verso uno stipendio - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Salario: {salary_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Stipendi
+        self.tabview.set("Salario")
+
+        # 2. Se la tab Salario è già caricata, apri il dettaglio
+        if "Salario" in self.tab_instances:
+            salaries_view = self.tab_instances["Salario"]
+            if hasattr(salaries_view, 'open_salary_detail_tab'):
+                salaries_view.open_salary_detail_tab(salary_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Salario", salary_id=salary_id)
+
+    def _forward_to_salary_detail(self, salary_id):
+        """Inoltra la richiesta alla SalariesView una volta caricata"""
+        if "Salario" in self.tab_instances:
+            salaries_view = self.tab_instances["Salario"]
+            if hasattr(salaries_view, 'open_salary_detail_tab'):
+                salaries_view.open_salary_detail_tab(salary_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_salary_detail(salary_id))
+
+    def _handle_show_production_detail(self, production_id):
+        """Gestisce la navigazione verso una produzione - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Produzione: {production_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Produzioni
+        self.tabview.set("Produzioni")
+
+        # 2. Se la tab Produzioni è già caricata, apri il dettaglio
+        if "Produzioni" in self.tab_instances:
+            productions_view = self.tab_instances["Produzioni"]
+            if hasattr(productions_view, 'open_production_detail_tab'):
+                productions_view.open_production_detail_tab(production_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Produzioni", production_id=production_id)
+
+    def _forward_to_production_detail(self, production_id):
+        """Inoltra la richiesta alla ProductionsView una volta caricata"""
+        if "Produzioni" in self.tab_instances:
+            productions_view = self.tab_instances["Produzioni"]
+            if hasattr(productions_view, 'open_production_detail_tab'):
+                productions_view.open_production_detail_tab(production_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_production_detail(production_id))
+
+    def _handle_show_payment_detail(self, payment_id):
+        """Gestisce la navigazione verso un pagamento - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Pagamento: {payment_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Pagamenti
+        self.tabview.set("Pagamenti")
+
+        # 2. Se la tab Pagamenti è già caricata, apri il dettaglio
+        if "Pagamenti" in self.tab_instances:
+            payments_view = self.tab_instances["Pagamenti"]
+            if hasattr(payments_view, 'open_payment_detail_tab'):
+                payments_view.open_payment_detail_tab(payment_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Pagamenti", payment_id=payment_id)
+
+    def _forward_to_payment_detail(self, payment_id):
+        """Inoltra la richiesta alla PaymentsView una volta caricata"""
+        if "Pagamenti" in self.tab_instances:
+            payments_view = self.tab_instances["Pagamenti"]
+            if hasattr(payments_view, 'open_payment_detail_tab'):
+                payments_view.open_payment_detail_tab(payment_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_payment_detail(payment_id))
+
+    def _handle_show_refund_detail(self, refund_id):
+        """Gestisce la navigazione verso un rimborso - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Rimborso: {refund_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Rimborsi
+        self.tabview.set("Rimborsi")
+
+        # 2. Se la tab Rimborsi è già caricata, apri il dettaglio
+        if "Rimborsi" in self.tab_instances:
+            refunds_view = self.tab_instances["Rimborsi"]
+            if hasattr(refunds_view, 'open_refund_detail_tab'):
+                refunds_view.open_refund_detail_tab(refund_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Rimborsi", refund_id=refund_id)
+
+    def _forward_to_refund_detail(self, refund_id):
+        """Inoltra la richiesta alla RefundsView una volta caricata"""
+        if "Rimborsi" in self.tab_instances:
+            refunds_view = self.tab_instances["Rimborsi"]
+            if hasattr(refunds_view, 'open_refund_detail_tab'):
+                refunds_view.open_refund_detail_tab(refund_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_refund_detail(refund_id))
+
+    def _handle_show_expense_detail(self, expense_id):
+        """Gestisce la navigazione verso una spesa - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Spesa: {expense_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Spese
+        self.tabview.set("Spese")
+
+        # 2. Se la tab Spese è già caricata, apri il dettaglio
+        if "Spese" in self.tab_instances:
+            expenses_view = self.tab_instances["Spese"]
+            if hasattr(expenses_view, 'open_expense_detail_tab'):
+                expenses_view.open_expense_detail_tab(expense_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Spese", expense_id=expense_id)
+
+    def _forward_to_expense_detail(self, expense_id):
+        """Inoltra la richiesta alla ExpensesView una volta caricata"""
+        if "Spese" in self.tab_instances:
+            expenses_view = self.tab_instances["Spese"]
+            if hasattr(expenses_view, 'open_expense_detail_tab'):
+                expenses_view.open_expense_detail_tab(expense_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_expense_detail(expense_id))
+
+
 
 
 

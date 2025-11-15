@@ -12,7 +12,11 @@ from datetime import datetime, timedelta, date
 
 class ExpensesView(ctk.CTkFrame):
 
-    def __init__(self, db_model, expense_controller, user_controller, account_controller, supplier_controller, invoice_controller, update_controller, analyzer, fiscal_settings, catalogo_elenchi, config_manager, tab_view, event_bus):
+    def __init__(self, db_model, expense_controller, user_controller,
+                 account_controller, supplier_controller, invoice_controller,
+                 update_controller, analyzer, fiscal_settings, catalogo_elenchi,
+                 config_manager, tab_view, event_bus, initial_expense_id=None):
+
         super().__init__(tab_view.tab("Spese"))
 
         self.db_model = db_model
@@ -41,7 +45,9 @@ class ExpensesView(ctk.CTkFrame):
         self.expense_card_labels_status = {}
         self.cards_warnings = {}
 
-        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self.handle_show_expense_detail)
+        self.current_chunk_index = 0
+
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self.handle_show_expense_detail)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -62,8 +68,13 @@ class ExpensesView(ctk.CTkFrame):
             catalogo_elenchi=self.catalogo_elenchi
         )
 
+
         self.create_expenses_tab()
-        self.show_main_view()
+
+        if initial_expense_id is not None:
+            self.after(100, lambda: self.open_expense_detail_tab(initial_expense_id))
+        else:
+            self.show_main_view()
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -71,10 +82,36 @@ class ExpensesView(ctk.CTkFrame):
         self.main_container.pack(fill='both', expand=True)
 
     def open_expense_detail_tab(self, expense_id):
-        """Mostra la vista dettaglio utente"""
-        self.main_container.pack_forget()
-        self.expense_detail_view.pack(fill='both', expand=True)
-        self.expense_detail_view.create_detail_tab(expense_id)  # Ricrea i contenuti ogni volta
+        """Mostra la vista dettaglio spesa con controlli di sicurezza"""
+        try:
+            # Verifica che i widget esistano
+            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+                self.main_container.pack_forget()
+
+            # Se expense_detail_view non esiste, crealo
+            if not hasattr(self, 'expense_detail_view') or not self.expense_detail_view.winfo_exists():
+                self.expense_detail_view = ExpenseDetailView(
+                    parent=self,
+                    invoice_controller=self.invoice_controller,
+                    supplier_controller=self.supplier_controller,
+                    back_callback=self.show_main_view,
+                    account_controller=self.account_controller,
+                    user_controller=self.user_controller,
+                    expense_controller=self.expense_controller,
+                    update_controller=self.update_controller,
+                    db_model=self.db_model,
+                    event_bus=self.event_bus,
+                    catalogo_elenchi=self.catalogo_elenchi
+                )
+
+            # Mostra il dettaglio
+            self.expense_detail_view.pack(fill='both', expand=True)
+            self.expense_detail_view.create_detail_tab(expense_id)
+
+        except Exception as e:
+            print(f"Errore in open_expense_detail_tab: {e}")
+            # Fallback: mostra la vista principale
+            self.show_main_view()
 
     def create_expenses_tab(self):
         self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
@@ -103,11 +140,24 @@ class ExpensesView(ctk.CTkFrame):
         self.order_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Ordina per ", font=("Arial", 14))
         self.order_bar_label.pack(padx=5, anchor="s", side="right")
 
+        self.show_last_cards_optionMenu_values = {
+            "30 GG": "30 GG",
+            "60 GG": "60 GG",
+            "90 GG": "90 GG",
+            "365 GG": "365 GG"
+        }
+        self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
+        self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
+        self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
         # Aggiungi evento alla barra di ricerca
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         self.order_bar_optionMenu.configure(command=lambda _: self.sort_cards())
         self.order_bar_optionMenu_types.configure(command=lambda _: self.sort_cards())
+        self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
 
         self.populate_global_infos()
 
@@ -159,30 +209,53 @@ class ExpensesView(ctk.CTkFrame):
                                          command=self.open_add_expense_window)
         self.save_button.pack()
 
-        for expense in self.expense_controller.retrieve_expenses_map_list(True):
-            if expense:
-                expense_id = expense[DBExpensesColumns.ID.value]
-                name = expense[DBExpensesColumns.NAME.value]
-                net_amount = expense[DBExpensesColumns.NET_AMOUNT.value]
-                amount = expense[DBExpensesColumns.TOT_AMOUNT.value]
-                supplier_id = expense[DBExpensesColumns.SUPPLIER_ID.value]
-                supplier = self.supplier_controller.retrieve_supplier_map_by_id(supplier_id)
-                supplier_name = supplier[DBSuppliersColumns.NAME.value]
-                date = expense[DBExpensesColumns.DATE.value]
-                category = expense[DBExpensesColumns.CATEGORY.value]
-                deducibile = expense[DBExpensesColumns.DEDUCIBILE.value]
-                user_id = expense[DBExpensesColumns.USER_ID_DEDUZIONE.value]
-                if user_id:
-                    user = self.user_controller.retrieve_user_map_by_id(user_id)
-                    user_first = user[DBUsersColumns.FIRST_NAME.value]
-                    user_second = user[DBUsersColumns.LAST_NAME.value]
-                    user_name = user_first + " " + user_second
-                else:
-                    user_name = " ---- "
-                account = self.account_controller.retrieve_account_map_by_id(expense[DBExpensesColumns.ACCOUNT_ID.value])
-                account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
+        self.show_last_cards()
 
-                self.add_expense_card(expense_id, name, supplier_name, net_amount, amount, category, date, deducibile, user_name, account_name)
+    def show_last_cards(self):
+        """Mostra solo le spese degli ultimi giorni selezionati dall'utente"""
+        # Ottieni il valore selezionato dal menu
+        selected = self.show_last_cards_optionMenu.get()
+
+        # Mappa la selezione al numero di giorni
+        days_map = {
+            "30 GG": 30,
+            "60 GG": 60,
+            "90 GG": 90,
+            "365 GG": 365
+        }
+        days = days_map.get(selected, 30)
+
+        # Calcola la data limite (oggi - giorni)
+        from datetime import datetime, timedelta
+        limit_date = datetime.now() - timedelta(days=days)
+
+        # Recupera tutte le spese dell'anno corrente
+        all_expenses = self.expense_controller.retrieve_expenses_map_list(True)
+
+        # Filtra le spese: solo quelle con data di emissione >= limit_date
+        filtered_expenses = []
+        for expense in all_expenses:
+            date_str = expense.get(DBExpensesColumns.DATE.value)
+            if date_str:
+                try:
+                    # Prova a parsare la data in formato yyyy-mm-dd o yyyy-mm-dd hh:mm:ss
+                    try:
+                        expense_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        expense_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+                    if expense_date >= limit_date:
+                        filtered_expenses.append(expense)
+                except Exception as e:
+                    print(f"Errore nel parsare la data {date_str}: {e}")
+
+        # Svuota le cards attuali
+        for card in self.expenses_card_list.values():
+            card.destroy()
+        self.expenses_card_list.clear()
+
+        # Ricarica le cards con le spese filtrate
+        self.load_expenses_chunked(filtered_expenses)
 
         self.sort_cards()
 
@@ -473,22 +546,60 @@ class ExpensesView(ctk.CTkFrame):
     def sort_cards(self):
         """Ordina le cards delle spese in base ai criteri selezionati nei menu di ordinamento."""
 
-        # Funzioni di supporto per la conversione dei valori
+        # Funzioni di supporto per la conversione dei valori - VERSIONE MIGLIORATA
         def _convert_to_currency(currency_str):
             """Converte una stringa di valuta in un numero float per l'ordinamento."""
-            # Rimuovi il simbolo dell'euro, gli spazi, e gestisci separatori
-            cleaned = currency_str.strip().replace('€', '').replace(' ', '').replace('.', '').replace(',', '.')
-            return float(cleaned)
+            if not currency_str or not currency_str.strip():
+                return None
+
+            try:
+                # Rimuovi il simbolo dell'euro e gli spazi
+                cleaned = currency_str.strip().replace('€', '').replace(' ', '')
+
+                # Gestione dei numeri negativi
+                negative = False
+                if cleaned.startswith('-'):
+                    negative = True
+                    cleaned = cleaned[1:]
+
+                # Gestione di formati con separatori delle migliaia e decimali
+                # Cerca l'ultimo separatore (potrebbe essere punto o virgola per i decimali)
+                last_comma = cleaned.rfind(',')
+                last_dot = cleaned.rfind('.')
+
+                # Determina il separatore decimale (l'ultimo punto o virgola)
+                if last_comma > last_dot:
+                    # Virgola come separatore decimale, punti come separatori delle migliaia
+                    cleaned = cleaned.replace('.', '').replace(',', '.')
+                elif last_dot > last_comma:
+                    # Punto come separatore decimale, virgole come separatori delle migliaia
+                    cleaned = cleaned.replace(',', '').replace('.', '.')
+                else:
+                    # Nessun separatore decimale, rimuovi tutti i separatori
+                    cleaned = cleaned.replace(',', '').replace('.', '')
+
+                # Converti in float e gestisci il segno
+                result = float(cleaned) * (-1 if negative else 1)
+                return result
+
+            except (ValueError, TypeError):
+                return None
 
         def _convert_to_datetime(datetime_str):
             """Converte una stringa in formato yyyy-mm-dd hh:mm:ss in un oggetto datetime per l'ordinamento."""
             from datetime import datetime
-            return datetime.strptime(datetime_str.strip(), "%Y-%m-%d %H:%M:%S")
+            try:
+                return datetime.strptime(datetime_str.strip(), "%Y-%m-%d %H:%M:%S")
+            except (ValueError, TypeError):
+                return None
 
         def _convert_to_date(date_str):
             """Converte una stringa in formato dd-mm-yyyy in un oggetto date per l'ordinamento."""
             from datetime import datetime
-            return datetime.strptime(date_str.strip(), "%d-%m-%Y")
+            try:
+                return datetime.strptime(date_str.strip(), "%d-%m-%Y")
+            except (ValueError, TypeError):
+                return None
 
         # Ottieni i criteri di ordinamento
         sort_by = self.order_bar_optionMenu.get()
@@ -513,7 +624,7 @@ class ExpensesView(ctk.CTkFrame):
 
         # Raccogli tutte le cards e i loro valori di ordinamento
         cards_with_values = []
-        for key, card in self.expenses_card_list.items():  # Assumendo che la lista si chiami expenses_card_list
+        for key, card in self.expenses_card_list.items():
             children = card.winfo_children()
             sort_value = ""
 
@@ -524,17 +635,18 @@ class ExpensesView(ctk.CTkFrame):
             elif access_type == "database":
                 # Accesso al valore tramite database
                 if len(children) > 0:
-                    expense_name = children[0].cget("text")  # Nome spesa dal primo child
-                    # Assumendo che esista un controller per le spese con un metodo retrieve_expense_map_by_name
+                    expense_name = children[0].cget("text")
                     expense_map = self.expense_controller.retrieve_expense_map_by_name(expense_name)
                     if expense_map and db_column:
                         sort_value = expense_map.get(db_column, "")
 
-            # Converti il valore nel tipo appropriato (applicando strip per rimuovere spazi)
-            try:
-                converted_value = converter(sort_value) if sort_value.strip() else None
-            except (ValueError, TypeError):
-                converted_value = None
+            # Converti il valore nel tipo appropriato
+            converted_value = None
+            if sort_value and sort_value.strip():
+                try:
+                    converted_value = converter(sort_value)
+                except Exception:
+                    converted_value = None
 
             cards_with_values.append((key, card, converted_value))
 
@@ -555,6 +667,26 @@ class ExpensesView(ctk.CTkFrame):
 
         # Forza l'aggiornamento dell'interfaccia
         self.update_idletasks()
+
+    def load_expenses_chunked(self, expenses_list):
+        all_expenses = self.expense_controller.retrieve_expenses_map_list(True)
+
+        # Crea l'estrattore specifico per le spese
+        extractor = ViewUtils.create_extractor_for_expenses(
+            self.expense_controller,
+            self.supplier_controller,
+            self.user_controller,
+            self.account_controller
+        )
+
+        # Usa la funzione generalizzata
+        ViewUtils.process_items_in_chunks(
+            widget=self,  # o un qualsiasi widget CTk
+            items_list=expenses_list,
+            add_card_callback=self.add_expense_card,
+            extract_args_callback=extractor,
+            cards_frame=self.cards_frame
+        )
 
     def add_expense_card(self, expense_id, name, supplier_name, net_amount, amount, category, date, deducibile, user_name, account_name):
         card = ctk.CTkFrame(self.cards_frame, fg_color="dimgray")
@@ -749,6 +881,83 @@ class ExpensesView(ctk.CTkFrame):
 
     def open_modify_expense(self, expense_id):
         return
+
+    def cleanup(self):
+        """Pulizia completa per liberare memoria - DA AGGIUNGERE IN OGNI VIEW"""
+        try:
+            print(f"Cleanup di {self.__class__.__name__}")
+
+            # 1. Cancella tutti gli after scheduled
+            if hasattr(self, '_after_ids'):
+                for after_id in self._after_ids:
+                    try:
+                        self.after_cancel(after_id)
+                    except:
+                        pass
+                self._after_ids.clear()
+
+            # 2. Distruggi tutte le card e widget dinamici
+            card_lists = [
+                'payment_card_list', 'invoice_card_list', 'client_card_list',
+                'supplier_card_list', 'production_card_list', 'expenses_card_list',
+                'salaries_card_list', 'refund_card_list', 'account_card_list'
+            ]
+
+            for card_attr in card_lists:
+                if hasattr(self, card_attr):
+                    card_dict = getattr(self, card_attr)
+                    for card_name, card in card_dict.items():
+                        try:
+                            card.destroy()
+                        except:
+                            pass
+                    card_dict.clear()
+
+            # 3. Pulisci dizionari e liste
+            data_attrs = [
+                'cards_warnings', 'global_infos', 'amount_aggregate_labels',
+                'payment_card_labels_status', 'invoice_card_labels_status',
+                'production_card_labels_status'
+            ]
+
+            for attr in data_attrs:
+                if hasattr(self, attr):
+                    getattr(self, attr).clear()
+
+            # 4. Distruggi i container principali se esistono
+            container_attrs = [
+                'main_container', 'detail_container', 'payments_cards_frame',
+                'invoices_cards_frame', 'clients_cards_frame', 'suppliers_cards_frame',
+                'productions_cards_frame', 'expenses_cards_frame', 'refunds_cards_frame',
+                'accounts_cards_frame', 'salaries_cards_frame'
+            ]
+
+            for attr in container_attrs:
+                if hasattr(self, attr):
+                    container = getattr(self, attr)
+                    try:
+                        # Distruggi solo se il container esiste ancora
+                        if container.winfo_exists():
+                            for widget in container.winfo_children():
+                                try:
+                                    widget.destroy()
+                                except:
+                                    pass
+                    except:
+                        pass
+
+            # 5. Pulisci i riferimenti ai controller (opzionale)
+            if hasattr(self, 'db_model'):
+                self.db_model = None
+
+        except Exception as e:
+            print(f"Errore durante il cleanup di {self.__class__.__name__}: {e}")
+
+    def _track_after(self, ms, func, *args):
+        """Versione tracciata di after()"""
+        after_id = self._orig_after(ms, func, *args)
+        self._after_ids.add(after_id)
+        return after_id
 
 
 

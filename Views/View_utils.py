@@ -4,6 +4,8 @@ import tkinter as tk
 from PIL import Image
 import os
 
+from Model import DBExpensesColumns, DBSuppliersColumns, DBUsersColumns, DBAccountsColumns, DBSalariesColumns, DBRefundsColumns
+from Model import DBProductionsColumns, DBPaymentsColumns, DBInvoicesColumns, DBClientsColumns, DBTransfersColumns
 
 class ViewUtils(ctk.CTk):
 
@@ -498,3 +500,343 @@ class ViewUtils(ctk.CTk):
             entry_widget.configure(show="*")  # Nascondi il testo
         else:
             entry_widget.configure(show="")  # Mostra il testo in chiaro
+
+    @staticmethod
+    def process_items_in_chunks(widget, items_list, add_card_callback, extract_args_callback,
+                                chunk_size=25, delay=50, cleanup_callback=None, cards_frame=None):
+        """
+        Versione migliorata con cleanup e gestione memoria
+        """
+        # Rimuovi tutti i widget figli esistenti solo dal frame delle cards
+        for child in cards_frame.winfo_children():
+            child.destroy()
+
+        if not items_list or len(items_list) == 0:
+            if cards_frame is not None:
+                # Mostra messaggio per lista vuota
+                empty_label = ctk.CTkLabel(
+                    cards_frame,
+                    text="Nessun item presente nel periodo di tempo selezionato",
+                    font=("Arial", 16),
+                    text_color="gray",
+                    height=100
+                )
+                empty_label.pack(fill="both", expand=True, pady=50)
+            return
+
+        chunks = [
+            items_list[i:i + chunk_size]
+            for i in range(0, len(items_list), chunk_size)
+        ]
+
+        current_chunk_index = 0
+        processed_items = 0
+
+        def process_next_chunk():
+            nonlocal current_chunk_index, processed_items
+
+            if current_chunk_index >= len(chunks):
+                if cleanup_callback:
+                    cleanup_callback()
+                return
+
+            current_chunk = chunks[current_chunk_index]
+
+            for item in current_chunk:
+                try:
+                    args = extract_args_callback(item)
+                    add_card_callback(*args)
+                    processed_items += 1
+                except Exception as e:
+                    print(f"Errore nel processare item: {e}")
+
+            # Force UI update
+            widget.update_idletasks()
+
+            # Cleanup periodico ogni 3 chunk
+            if current_chunk_index % 3 == 0 and cleanup_callback:
+                cleanup_callback()
+
+            current_chunk_index += 1
+            if current_chunk_index < len(chunks):
+                widget.after(delay, process_next_chunk)
+            else:
+                if cleanup_callback:
+                    cleanup_callback()
+                print(f"Processati {processed_items} elementi in {len(chunks)} chunk")
+
+        process_next_chunk()
+
+    @staticmethod
+    def create_extractor_for_expenses(expense_controller, supplier_controller, user_controller, account_controller):
+        """
+        Crea una funzione di estrazione parametri specifica per le spese
+        Restituisce una funzione che può essere usata come extract_args_callback
+        """
+
+        def extract_expense_args(expense):
+            expense_id = expense[DBExpensesColumns.ID.value]
+            name = expense[DBExpensesColumns.NAME.value]
+            net_amount = expense[DBExpensesColumns.NET_AMOUNT.value]
+            amount = expense[DBExpensesColumns.TOT_AMOUNT.value]
+            supplier_id = expense[DBExpensesColumns.SUPPLIER_ID.value]
+            supplier = supplier_controller.retrieve_supplier_map_by_id(supplier_id)
+            supplier_name = supplier[DBSuppliersColumns.NAME.value]
+            date = expense[DBExpensesColumns.DATE.value]
+            category = expense[DBExpensesColumns.CATEGORY.value]
+            deducibile = expense[DBExpensesColumns.DEDUCIBILE.value]
+            user_id = expense[DBExpensesColumns.USER_ID_DEDUZIONE.value]
+
+            if user_id:
+                user = user_controller.retrieve_user_map_by_id(user_id)
+                user_first = user[DBUsersColumns.FIRST_NAME.value]
+                user_second = user[DBUsersColumns.LAST_NAME.value]
+                user_name = user_first + " " + user_second
+            else:
+                user_name = " ---- "
+
+            account = account_controller.retrieve_account_map_by_id(
+                expense[DBExpensesColumns.ACCOUNT_ID.value]
+            )
+            account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
+
+            return (expense_id, name, supplier_name, net_amount, amount,
+                    category, date, deducibile, user_name, account_name)
+
+        return extract_expense_args
+
+    @staticmethod
+    def create_extractor_for_clients(client_controller):
+        """
+        Crea una funzione di estrazione parametri specifica per i clienti
+        """
+
+        def extract_client_args(client):
+            client_id = client[DBClientsColumns.ID.value]
+            name = client[DBClientsColumns.NAME.value]
+
+            # Costruisci i dati aggregati per singolo cliente
+            aggregate_data = client_controller.construct_client_map_aggregate_data(client_id)
+
+            return (
+                client_id,
+                name,
+                round(aggregate_data[client_controller.Aggregate_data.TOT_ENTRATE.value], 2),
+                aggregate_data[client_controller.Aggregate_data.NUM_FATTURE.value],
+                round(aggregate_data[client_controller.Aggregate_data.MEDIA_FATTURE.value], 2),
+                round(aggregate_data[client_controller.Aggregate_data.TOT_CREDITI.value], 2),
+                round(client_controller.calcola_tot_rimborsi_by_client(client_id)),
+                round(aggregate_data[client_controller.Aggregate_data.PAGAM_ORARIO_MEDIO.value], 2),
+                aggregate_data[client_controller.Aggregate_data.TOT_GIORNI_RIT.value],
+                round(aggregate_data[client_controller.Aggregate_data.MEDIA_RITARDO.value], 2)
+            )
+
+        return extract_client_args
+
+    @staticmethod
+    def create_extractor_for_invoices(invoice_controller, client_controller, user_controller, production_controller):
+        """
+        Crea una funzione di estrazione parametri specifica per le fatture
+        """
+
+        def extract_invoice_args(invoice):
+            invoice_id = invoice[DBInvoicesColumns.ID.value]
+            invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
+            invoice_client_ID = invoice[DBInvoicesColumns.ID_CLIENTE.value]
+            invoice_client_name = client_controller.retrieve_client_map_by_id(invoice_client_ID)[
+                DBClientsColumns.NAME.value]
+            invoice_user_id = invoice[DBInvoicesColumns.ID_UTENTE.value]
+            user_map = user_controller.retrieve_user_map_by_id(invoice_user_id)
+            invoice_user_name = f"{user_map[DBUsersColumns.FIRST_NAME.value]} {user_map[DBUsersColumns.LAST_NAME.value]}"
+            invoice_creation_date = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
+            invoice_state = invoice[DBInvoicesColumns.STATUS.value]
+            invoice_rate = invoice[DBInvoicesColumns.NUMERO_RATE.value]
+            invoice_tot_documento = invoice[DBInvoicesColumns.NETTO_A_PAGARE.value]
+            invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
+            invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+
+            production = production_controller.retrieve_production_map_by_id(invoice_production_id)
+            if production:
+                invoice_production_name = production[DBProductionsColumns.NAME.value]
+            else:
+                invoice_production_name = "Produzione non trovata"
+
+            return (
+                invoice_id,
+                invoice_name,
+                invoice_client_name,
+                invoice_user_name,
+                invoice_production_name,
+                invoice_creation_date,
+                invoice_state,
+                invoice_rate,
+                invoice_tot_documento,
+                invoice_tipologia
+            )
+
+        return extract_invoice_args
+
+    @staticmethod
+    def create_extractor_for_payments(payment_controller, invoice_controller, client_controller, production_controller,
+                                      account_controller):
+        """
+        Crea una funzione di estrazione parametri specifica per i pagamenti
+        """
+
+        def extract_payment_args(payment):
+            payment_id = payment[DBPaymentsColumns.ID.value]
+            name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
+            amount = payment[DBPaymentsColumns.PAYMENT_AMOUNT.value]
+            payment_date = payment[DBPaymentsColumns.PAYMENT_DATE.value]
+            linked_rata = payment[DBPaymentsColumns.LINKED_RATA.value]
+            invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
+            invoice = invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+            invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
+            cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
+            client = client_controller.retrieve_client_map_by_id(cliente_id)
+            client_name = client[DBClientsColumns.NAME.value]
+            production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+            production = production_controller.retrieve_production_map_by_id(production_id)
+            production_name = production[DBProductionsColumns.NAME.value] if production else "Produzione non trovata"
+            conto = account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
+            nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
+
+            return (
+                payment_id,
+                name,
+                amount,
+                payment_date,
+                linked_rata,
+                client_name,
+                production_name,
+                invoice_name,
+                nome_conto
+            )
+
+        return extract_payment_args
+
+    @staticmethod
+    def create_extractor_for_productions(production_controller, client_controller):
+        """
+        Crea una funzione di estrazione parametri specifica per le produzioni
+        """
+
+        def extract_production_args(production):
+            production_id = production[DBProductionsColumns.ID.value]
+            production_name = production[DBProductionsColumns.NAME.value]
+            client_id = production[DBProductionsColumns.CLIENT_ID.value]
+            client_name = client_controller.retrieve_client_map_by_id(client_id)[DBClientsColumns.NAME.value]
+            tipologia_produzione = production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value]
+            tipologia_output = production[DBProductionsColumns.TIPOLOGIA_OUTPUT.value]
+            produzione_stato = production[DBProductionsColumns.STATO.value]
+            data_di_consegna = production[DBProductionsColumns.END_DATE.value]
+            totale_preventivo = production[DBProductionsColumns.TOTALE_PREVENTIVO.value]
+            durata_produzione = production[DBProductionsColumns.HOURS.value]
+            prezzo_orario = production_controller.calculate_production_cost_per_hour(production_id)
+
+            return (
+                production_id,
+                production_name,
+                client_name,
+                tipologia_produzione,
+                tipologia_output,
+                produzione_stato,
+                data_di_consegna,
+                totale_preventivo,
+                durata_produzione,
+                prezzo_orario
+            )
+
+        return extract_production_args
+
+    @staticmethod
+    def create_extractor_for_refunds(refunds_controller, client_controller, account_controller):
+        """
+        Crea una funzione di estrazione parametri specifica per i rimborsi
+        """
+
+        def extract_refund_args(refund):
+            refund_id = refund[DBRefundsColumns.ID.value]
+            refund_name = refund[DBRefundsColumns.REFUND_NAME.value]
+            amount = refund[DBRefundsColumns.REFUND_AMOUNT.value]
+            refund_date = refund[DBRefundsColumns.REFUND_DATE.value]
+            cliente_id = refund[DBRefundsColumns.CLIENT_ID.value]
+            client = client_controller.retrieve_client_map_by_id(cliente_id)
+            client_name = client[DBClientsColumns.NAME.value]
+            conto = account_controller.retrieve_account_map_by_id(refund[DBRefundsColumns.CONTO_ID.value])
+            nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
+
+            return (
+                refund_id,
+                refund_name,
+                amount,
+                refund_date,
+                client_name,
+                nome_conto
+            )
+
+        return extract_refund_args
+
+    @staticmethod
+    def create_extractor_for_salaries(salary_controller, user_controller, account_controller):
+        """
+        Crea una funzione di estrazione parametri specifica per gli stipendi
+        """
+
+        def extract_salary_args(salary):
+            salary_id = salary[DBSalariesColumns.ID.value]
+            salary_name = salary[DBSalariesColumns.NAME.value]
+            amount = salary[DBSalariesColumns.AMOUNT.value]
+            date = salary[DBSalariesColumns.DATE.value]
+            user_id = salary[DBSalariesColumns.USER_ID.value]
+
+            if user_id:
+                user = user_controller.retrieve_user_map_by_id(user_id)
+                user_first = user[DBUsersColumns.FIRST_NAME.value]
+                user_second = user[DBUsersColumns.LAST_NAME.value]
+                user_name = user_first + " " + user_second
+            else:
+                user_name = " ---- "
+
+            account = account_controller.retrieve_account_map_by_id(salary[DBSalariesColumns.ACCOUNT_ID.value])
+            account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
+
+            return (
+                salary_id,
+                salary_name,
+                user_name,
+                amount,
+                date,
+                account_name
+            )
+
+        return extract_salary_args
+
+    @staticmethod
+    def create_extractor_for_suppliers(supplier_controller):
+        """
+        Crea una funzione di estrazione parametri specifica per i fornitori
+        """
+
+        def extract_supplier_args(supplier):
+            supplier_id = supplier[DBSuppliersColumns.ID.value]
+            supplier_name = supplier[DBSuppliersColumns.NAME.value]
+            partita_iva = supplier[DBSuppliersColumns.PARTITA_IVA.value]
+            note = supplier[DBSuppliersColumns.NOTE.value]
+            contatto = supplier[DBSuppliersColumns.CONTATTO.value]
+
+            # Costruisci i dati aggregati per singolo fornitore
+            aggregate_data = supplier_controller.construct_supplier_map_aggregate_data(supplier_id)
+
+            return (
+                supplier_id,
+                supplier_name,
+                partita_iva,
+                aggregate_data[supplier_controller.Aggregate_data.NUM_SPESE.value],
+                round(aggregate_data[supplier_controller.Aggregate_data.MEDIA_SPESE.value], 2),
+                round(aggregate_data[supplier_controller.Aggregate_data.TOT_SPESE.value], 2),
+                note,
+                contatto
+            )
+
+        return extract_supplier_args

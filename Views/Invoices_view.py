@@ -18,7 +18,11 @@ class InvoicesView(ctk.CTkFrame):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller, production_controller, payment_controller, account_controller, update_controller, tabview, fiscal_settings, historical_financial_data_settings, event_bus, analyzer):
+    def __init__(self, db_model, invoice_controller, user_controller, client_controller,
+                 production_controller, payment_controller, account_controller,
+                 update_controller, tabview, fiscal_settings, historical_financial_data_settings,
+                 event_bus, analyzer, initial_invoice_id=None):
+
         super().__init__(tabview.tab("Fatture"))
 
         self.db_model = db_model
@@ -36,7 +40,7 @@ class InvoicesView(ctk.CTkFrame):
         self.event_bus = event_bus
         self.analyzer = analyzer
 
-        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self.handle_show_invoice_detail)
+        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self.handle_show_invoice_detail)
 
         self.invoices_card_list = {}
         self.invoice_card_labels_status = {}
@@ -79,9 +83,12 @@ class InvoicesView(ctk.CTkFrame):
             event_bus = self.event_bus
         )
 
-        # Inizializza la vista principale
         self.create_invoices_tab()
-        self.show_main_view()
+
+        if initial_invoice_id is not None:
+            self.after(100, lambda: self.open_invoice_detail_tab(initial_invoice_id))
+        else:
+            self.show_main_view()
 
     def create_invoices_tab(self):
 
@@ -120,11 +127,25 @@ class InvoicesView(ctk.CTkFrame):
         self.order_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Ordina per ", font=("Arial", 14))
         self.order_bar_label.pack(padx=5, anchor="s", side="right")
 
+        self.show_last_cards_optionMenu_values = {
+            "30 GG": "30 GG",
+            "60 GG": "60 GG",
+            "90 GG": "90 GG",
+            "365 GG": "365 GG"
+        }
+        self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
+        self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
+        self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
         # Aggiungi evento alla barra di ricerca
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
 
         self.order_bar_optionMenu.configure(command=lambda _: self.sort_cards())
         self.order_bar_optionMenu_types.configure(command=lambda _: self.sort_cards())
+        self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
+
 
         # Ottieni il valore di default dei corner radius dai pulsanti
         default_corner_radius = ctk.ThemeManager.theme["CTkButton"]["corner_radius"]
@@ -188,47 +209,66 @@ class InvoicesView(ctk.CTkFrame):
                                          command=self.open_suggest_user_window)
         self.suggest_user.pack(padx=20)
 
-        #aggiungo una tab per ogni fattura presente nel database
-        invoice_map_list = self.invoice_controller.retrieve_invoices_map_list(True)
-        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
-        invoice_map_list.sort(
-            key=lambda x: datetime.strptime(
-                x[DBInvoicesColumns.UPDATED_AT.value],
-                "%Y-%m-%d %H:%M:%S"
-            ) if " " in x[DBInvoicesColumns.UPDATED_AT.value] else datetime.strptime(
-                x[DBInvoicesColumns.UPDATED_AT.value],
-                "%Y-%m-%d"
-            ),
-            reverse=True
-        )
-        for invoice in invoice_map_list:
-            invoice_id = invoice[DBInvoicesColumns.ID.value]
-            invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
-            invoice_client_ID = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-            invoice_client_name = self.client_controller.retrieve_client_map_by_id(invoice_client_ID)[DBClientsColumns.NAME.value]
-            invoice_user_id = invoice[DBInvoicesColumns.ID_UTENTE.value]
-            invoice_user_name = self.user_controller.retrieve_user_map_by_id(invoice_user_id)[DBUsersColumns.FIRST_NAME.value] + " " + self.user_controller.retrieve_user_map_by_id(invoice_user_id)[DBUsersColumns.LAST_NAME.value]
-            invoice_creation_date = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
-            invoice_state = invoice[DBInvoicesColumns.STATUS.value]
-            invoice_rate = invoice[DBInvoicesColumns.NUMERO_RATE.value]
-            invoice_tot_documento = invoice[DBInvoicesColumns.NETTO_A_PAGARE.value]
-            invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
-            invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-            production = self.production_controller.retrieve_production_map_by_id(invoice_production_id)
-            if production:
-                invoice_production_name = production[DBProductionsColumns.NAME.value]
-            else:
-                invoice_production_name = "Produzione non trovata"
-                self.cards_warnings[invoice_name] = "La produzione associata a questa fattura non esiste nel database.\n"\
-                                                     "Provvedere alla modifica o allo storno di questa fattura."
+        self.show_last_cards()
 
-            self.add_invoice_card(invoice_id, invoice_name, invoice_client_name, invoice_user_name, invoice_production_name, invoice_creation_date, invoice_state, invoice_rate, invoice_tot_documento, invoice_tipologia)
-            self.toggle_specific_invoice_rate_color_2(invoice_id)
-            self.toggle_specific_invoice_status_color(invoice_id)
+        #warnings launch
+        for card in self.invoices_card_list.values():
+            ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
+
+        # Sistema per tracciare gli after()
+        self._after_ids = set()
+        self._orig_after = self.after
+        self.after = self._track_after
+
+    def show_last_cards(self):
+        """Mostra solo le fatture degli ultimi giorni selezionati dall'utente"""
+        # Ottieni il valore selezionato dal menu
+        selected = self.show_last_cards_optionMenu.get()
+
+        # Mappa la selezione al numero di giorni
+        days_map = {
+            "30 GG": 30,
+            "60 GG": 60,
+            "90 GG": 90,
+            "365 GG": 365
+        }
+        days = days_map.get(selected, 30)
+
+        # Calcola la data limite (oggi - giorni)
+        from datetime import datetime, timedelta
+        limit_date = datetime.now() - timedelta(days=days)
+
+        # Recupera tutte le fatture dell'anno corrente
+        all_invoices = self.invoice_controller.retrieve_invoices_map_list(True)
+
+        # Filtra le fatture: solo quelle con data di emissione >= limit_date
+        filtered_invoices = []
+        for invoice in all_invoices:
+            date_str = invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value)
+            if date_str:
+                try:
+                    # Prova a parsare la data in formato yyyy-mm-dd o yyyy-mm-dd hh:mm:ss
+                    try:
+                        invoice_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        invoice_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+                    if invoice_date >= limit_date:
+                        filtered_invoices.append(invoice)
+                except Exception as e:
+                    print(f"Errore nel parsare la data {date_str}: {e}")
+
+        # Svuota le cards attuali
+        for card in self.invoices_card_list.values():
+            card.destroy()
+        self.invoices_card_list.clear()
+
+        # Ricarica le cards con le fatture filtrate
+        self.load_invoices_chunked(filtered_invoices)
 
         self.sort_cards()
 
-        #warnings launch
+        # Riacquista i warnings per le nuove cards
         for card in self.invoices_card_list.values():
             ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
 
@@ -238,14 +278,42 @@ class InvoicesView(ctk.CTkFrame):
         self.main_container.pack(fill='both', expand=True)
 
     def open_invoice_detail_tab(self, invoice_id):
-        """Mostra la vista dettaglio utente"""
-        self.main_container.pack_forget()
-        self.invoice_detail_view.pack(fill='both', expand=True)
-        self.invoice_detail_view.create_detail_tab(invoice_id)  # Ricrea i contenuti ogni volta
+        """Mostra la vista dettaglio fattura con controlli di sicurezza"""
+        try:
+            # Verifica che i widget esistano
+            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+                self.main_container.pack_forget()
+
+            # Se invoice_detail_view non esiste, crealo
+            if not hasattr(self, 'invoice_detail_view') or not self.invoice_detail_view.winfo_exists():
+                self.invoice_detail_view = InvoiceDetailView(
+                    parent=self,
+                    invoice_controller=self.invoice_controller,
+                    back_callback=self.show_main_view,
+                    user_controller=self.user_controller,
+                    client_controller=self.client_controller,
+                    account_controller=self.account_controller,
+                    production_controller=self.production_controller,
+                    update_controller=self.update_controller,
+                    db_model=self.db_model,
+                    fiscal_settings=self.fiscal_settings,
+                    historical_financial_data_settings=self.historical_financial_data_settings,
+                    event_bus=self.event_bus
+                )
+
+            # Mostra il dettaglio
+            self.invoice_detail_view.pack(fill='both', expand=True)
+            self.invoice_detail_view.create_detail_tab(invoice_id)
+
+        except Exception as e:
+            print(f"Errore in open_invoice_detail_tab: {e}")
+            # Fallback: mostra la vista principale
+            self.show_main_view()
 
     def handle_show_invoice_detail(self, invoice_id):
         self.tabview.set("Fatture")  # Cambia tab
-        self.open_invoice_detail_tab(invoice_id)  # Mostra il dettaglio
+        #self.open_invoice_detail_tab(invoice_id)  # Mostra il dettaglio
+        self.after(150, lambda: self.open_invoice_detail_tab(invoice_id))
 
     def populate_global_infos(self):
         self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
@@ -448,6 +516,50 @@ class InvoicesView(ctk.CTkFrame):
             )
         )
 
+    def load_invoices_chunked(self, invoices_list):
+        """Versione di load_invoices_chunked che accetta una lista specifica di fatture"""
+        # Ordina la lista in ordine decrescente (dal più recente al più vecchio)
+        invoices_list.sort(
+            key=lambda x: datetime.strptime(
+                x[DBInvoicesColumns.UPDATED_AT.value],
+                "%Y-%m-%d %H:%M:%S"
+            ) if " " in x[DBInvoicesColumns.UPDATED_AT.value] else datetime.strptime(
+                x[DBInvoicesColumns.UPDATED_AT.value],
+                "%Y-%m-%d"
+            ),
+            reverse=True
+        )
+
+        # Pre-processing: raccogli i warnings
+        self.collect_invoice_warnings(invoices_list)
+
+        extractor = ViewUtils.create_extractor_for_invoices(
+            self.invoice_controller,
+            self.client_controller,
+            self.user_controller,
+            self.production_controller
+        )
+
+        ViewUtils.process_items_in_chunks(
+            widget=self,
+            items_list=invoices_list,
+            add_card_callback=self.add_invoice_card,
+            extract_args_callback=extractor,
+            cards_frame=self.invoices_cards_frame
+        )
+
+    def collect_invoice_warnings(self, invoice_map_list):
+        """Raccoglie tutti i warnings per le fatture prima del processing"""
+        self.cards_warnings.clear()
+        for invoice in invoice_map_list:
+            invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+            production = self.production_controller.retrieve_production_map_by_id(invoice_production_id)
+            if not production:
+                invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
+                self.cards_warnings[
+                    invoice_name] = "La produzione associata a questa fattura non esiste nel database.\n" \
+                                    "Provvedere alla modifica o allo storno di questa fattura."
+
     def add_invoice_card(self, invoice_id, nome, cliente, utente, produzione, data_creazione, stato, rate, tot_documento, tipologia):
         """
         Aggiunge una singola card con i dati forniti alla scrollable frame,
@@ -551,20 +663,58 @@ class InvoicesView(ctk.CTkFrame):
 
         # Funzioni di supporto per la conversione dei valori
         def _convert_to_date(date_str):
-            """Converte una stringa in formato dd-mm-yyyy in un oggetto data per l'ordinamento."""
+            """Converte una stringa in formato dd-mm-yyyy in un oggetto date per l'ordinamento."""
             from datetime import datetime
-            return datetime.strptime(date_str, "%d-%m-%Y")
+            try:
+                return datetime.strptime(date_str.strip(), "%d-%m-%Y")
+            except (ValueError, TypeError):
+                return None
 
         def _convert_to_currency(currency_str):
             """Converte una stringa di valuta in un numero float per l'ordinamento."""
-            # Rimuovi il simbolo dell'euro, gli spazi, e gestisci separatori
-            cleaned = currency_str.replace('€', '').replace(' ', '').replace('.', '').replace(',', '.')
-            return float(cleaned)
+            if not currency_str or not currency_str.strip():
+                return None
+
+            try:
+                # Rimuovi il simbolo dell'euro e gli spazi
+                cleaned = currency_str.strip().replace('€', '').replace(' ', '')
+
+                # Gestione dei numeri negativi
+                negative = False
+                if cleaned.startswith('-'):
+                    negative = True
+                    cleaned = cleaned[1:]
+
+                # Gestione di formati con separatori delle migliaia e decimali
+                # Cerca l'ultimo separatore (potrebbe essere punto o virgola per i decimali)
+                last_comma = cleaned.rfind(',')
+                last_dot = cleaned.rfind('.')
+
+                # Determina il separatore decimale (l'ultimo punto o virgola)
+                if last_comma > last_dot:
+                    # Virgola come separatore decimale, punti come separatori delle migliaia
+                    cleaned = cleaned.replace('.', '').replace(',', '.')
+                elif last_dot > last_comma:
+                    # Punto come separatore decimale, virgole come separatori delle migliaia
+                    cleaned = cleaned.replace(',', '').replace('.', '.')
+                else:
+                    # Nessun separatore decimale, rimuovi tutti i separatori
+                    cleaned = cleaned.replace(',', '').replace('.', '')
+
+                # Converti in float e gestisci il segno
+                result = float(cleaned) * (-1 if negative else 1)
+                return result
+
+            except (ValueError, TypeError):
+                return None
 
         def _convert_to_datetime(datetime_str):
             """Converte una stringa in formato yyyy-mm-dd hh:mm:ss in un oggetto datetime per l'ordinamento."""
             from datetime import datetime
-            return datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
+            try:
+                return datetime.strptime(datetime_str.strip(), "%Y-%m-%d %H:%M:%S")
+            except (ValueError, TypeError):
+                return None
 
         # Ottieni i criteri di ordinamento
         sort_by = self.order_bar_optionMenu.get()
@@ -606,10 +756,12 @@ class InvoicesView(ctk.CTkFrame):
                         sort_value = invoice_map.get(param, "")
 
             # Converti il valore nel tipo appropriato
-            try:
-                converted_value = converter(sort_value) if sort_value else None
-            except (ValueError, TypeError):
-                converted_value = None  # Gestisci i valori non convertibili
+            converted_value = None
+            if sort_value and sort_value.strip():
+                try:
+                    converted_value = converter(sort_value)
+                except Exception:
+                    converted_value = None
 
             cards_with_values.append((key, card, converted_value))
 
@@ -1288,6 +1440,83 @@ class InvoicesView(ctk.CTkFrame):
                         continue
 
         ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
+
+    def cleanup(self):
+        """Pulizia completa per liberare memoria - DA AGGIUNGERE IN OGNI VIEW"""
+        try:
+            print(f"Cleanup di {self.__class__.__name__}")
+
+            # 1. Cancella tutti gli after scheduled
+            if hasattr(self, '_after_ids'):
+                for after_id in self._after_ids:
+                    try:
+                        self.after_cancel(after_id)
+                    except:
+                        pass
+                self._after_ids.clear()
+
+            # 2. Distruggi tutte le card e widget dinamici
+            card_lists = [
+                'payment_card_list', 'invoice_card_list', 'client_card_list',
+                'supplier_card_list', 'production_card_list', 'expenses_card_list',
+                'salaries_card_list', 'refund_card_list', 'account_card_list'
+            ]
+
+            for card_attr in card_lists:
+                if hasattr(self, card_attr):
+                    card_dict = getattr(self, card_attr)
+                    for card_name, card in card_dict.items():
+                        try:
+                            card.destroy()
+                        except:
+                            pass
+                    card_dict.clear()
+
+            # 3. Pulisci dizionari e liste
+            data_attrs = [
+                'cards_warnings', 'global_infos', 'amount_aggregate_labels',
+                'payment_card_labels_status', 'invoice_card_labels_status',
+                'production_card_labels_status'
+            ]
+
+            for attr in data_attrs:
+                if hasattr(self, attr):
+                    getattr(self, attr).clear()
+
+            # 4. Distruggi i container principali se esistono
+            container_attrs = [
+                'main_container', 'detail_container', 'payments_cards_frame',
+                'invoices_cards_frame', 'clients_cards_frame', 'suppliers_cards_frame',
+                'productions_cards_frame', 'expenses_cards_frame', 'refunds_cards_frame',
+                'accounts_cards_frame', 'salaries_cards_frame'
+            ]
+
+            for attr in container_attrs:
+                if hasattr(self, attr):
+                    container = getattr(self, attr)
+                    try:
+                        # Distruggi solo se il container esiste ancora
+                        if container.winfo_exists():
+                            for widget in container.winfo_children():
+                                try:
+                                    widget.destroy()
+                                except:
+                                    pass
+                    except:
+                        pass
+
+            # 5. Pulisci i riferimenti ai controller (opzionale)
+            if hasattr(self, 'db_model'):
+                self.db_model = None
+
+        except Exception as e:
+            print(f"Errore durante il cleanup di {self.__class__.__name__}: {e}")
+
+    def _track_after(self, ms, func, *args):
+        """Versione tracciata di after()"""
+        after_id = self._orig_after(ms, func, *args)
+        self._after_ids.add(after_id)
+        return after_id
 
 
 class InvoiceDetailView(ctk.CTkFrame):

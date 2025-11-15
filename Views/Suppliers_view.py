@@ -46,6 +46,12 @@ class SuppliersView(ctk.CTkFrame):
             catalogo_elenchi=catalogo_elenchi
         )
 
+
+        # Sistema per tracciare gli after()
+        self._after_ids = set()
+        self._orig_after = self.after
+        self.after = self._track_after
+
         # Inizializza la vista principale
         self.create_suppliers_tab()
         self.show_main_view()
@@ -59,6 +65,19 @@ class SuppliersView(ctk.CTkFrame):
         self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per nome:", font=("Arial", 14))
         self.search_bar_label.pack(padx=5, anchor="e")
 
+        self.show_last_cards_optionMenu_values = {
+            "30 GG": "30 GG",
+            "60 GG": "60 GG",
+            "90 GG": "90 GG",
+            "365 GG": "365 GG"
+        }
+        self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
+                                                       values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
+        self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
+        self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
+        self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
 
         # Aggiungi evento alla barra di ricerca
         self.search_bar.bind("<KeyRelease>", self.filter_cards)
@@ -93,21 +112,65 @@ class SuppliersView(ctk.CTkFrame):
         self.save_button = ctk.CTkButton(self.add_supplier_frame, text="Aggiungi Fornitore", command=self.open_add_supplier_window)
         self.save_button.pack()
 
-        supplier_list = self.supplier_controller.retrieve_suppliers_map_list()
+        self.show_last_cards()
 
-        for supplier in supplier_list:
-            #costruisco i dati aggregati per singolo cliente
-            aggregate_data = self.supplier_controller.construct_supplier_map_aggregate_data(supplier[DBSuppliersColumns.ID.value])
+    def show_last_cards(self):
+        """Mostra solo i supplier con almeno una spesa negli ultimi giorni selezionati"""
+        # Ottieni il valore selezionato dal menu
+        selected = self.show_last_cards_optionMenu.get()
 
-            self.add_supplier_card(supplier[f"{DBSuppliersColumns.ID.value}"],
-                                   supplier[f"{DBSuppliersColumns.NAME.value}"],
-                                   supplier[f"{DBSuppliersColumns.PARTITA_IVA.value}"],
-                                   aggregate_data[SupplierController.Aggregate_data.NUM_SPESE.value],
-                                   round(aggregate_data[SupplierController.Aggregate_data.MEDIA_SPESE.value], 2),
-                                   round(aggregate_data[SupplierController.Aggregate_data.TOT_SPESE.value], 2),
-                                   supplier[f"{DBSuppliersColumns.NOTE.value}"],
-                                   supplier[f"{DBSuppliersColumns.CONTATTO.value}"]
-                                   )
+        # Mappa la selezione al numero di giorni
+        days_map = {
+            "30 GG": 30,
+            "60 GG": 60,
+            "90 GG": 90,
+            "365 GG": 365
+        }
+        days = days_map.get(selected, 30)
+
+        # Calcola la data limite (oggi - giorni)
+        from datetime import datetime, timedelta
+        limit_date = datetime.now() - timedelta(days=days)
+
+        # Recupera tutti i supplier
+        all_suppliers = self.supplier_controller.retrieve_suppliers_map_list()
+
+        # Filtra i supplier: solo quelli con almeno una spesa >= limit_date
+        filtered_suppliers = []
+        for supplier in all_suppliers:
+            supplier_id = supplier[DBSuppliersColumns.ID.value]
+
+            # Recupera tutte le spese di questo supplier
+            supplier_expenses = self.supplier_controller.retrieve_supplier_with_expenses_map_list(supplier_id)
+
+            # Verifica se almeno una spesa è nell'intervallo temporale
+            has_recent_expense = False
+            for expense in supplier_expenses:
+                date_str = expense.get(DBExpensesColumns.DATE.value)
+                if date_str:
+                    try:
+                        # Prova a parsare la data in formato yyyy-mm-dd o yyyy-mm-dd hh:mm:ss
+                        try:
+                            expense_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                        except ValueError:
+                            expense_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+                        if expense_date >= limit_date:
+                            has_recent_expense = True
+                            break  # Basta una spesa recente
+                    except Exception as e:
+                        print(f"Errore nel parsare la data {date_str}: {e}")
+
+            if has_recent_expense:
+                filtered_suppliers.append(supplier)
+
+        # Svuota le cards attuali
+        for card in self.suppliers_card_list.values():
+            card.destroy()
+        self.suppliers_card_list.clear()
+
+        # Ricarica le cards con i supplier filtrati
+        self.load_suppliers_chunked(filtered_suppliers)
 
     def show_main_view(self):
         """Torna alla vista principale"""
@@ -193,6 +256,20 @@ class SuppliersView(ctk.CTkFrame):
             self.error_labels[DBSuppliersColumns.NAME.value],
             "Il nome non può essere vuoto."
         ))
+
+    def load_suppliers_chunked(self, suppliers_list):
+
+        extractor = ViewUtils.create_extractor_for_suppliers(
+            self.supplier_controller
+        )
+
+        ViewUtils.process_items_in_chunks(
+            widget=self,
+            items_list=suppliers_list,
+            add_card_callback=self.add_supplier_card,
+            extract_args_callback=extractor,
+            cards_frame=self.suppliers_cards_frame
+        )
 
     def add_supplier_card(self, supplier_id, supplier_name, partita_iva, num_spese, spesa_media, tot_spese, note, contatto):
         # Creazione della card
@@ -315,6 +392,86 @@ class SuppliersView(ctk.CTkFrame):
 
         self.suppliers_widgets[DBSuppliersColumns.CATEGORIA.value].set(new_sector)
         self.add_sector_window.destroy()
+
+    def cleanup(self):
+        """Pulizia completa per liberare memoria - DA AGGIUNGERE IN OGNI VIEW"""
+        try:
+            print(f"Cleanup di {self.__class__.__name__}")
+
+            # 1. Cancella tutti gli after scheduled
+            if hasattr(self, '_after_ids'):
+                for after_id in self._after_ids:
+                    try:
+                        self.after_cancel(after_id)
+                    except:
+                        pass
+                self._after_ids.clear()
+
+            # 2. Distruggi tutte le card e widget dinamici
+            card_lists = [
+                'payment_card_list', 'invoice_card_list', 'client_card_list',
+                'supplier_card_list', 'production_card_list', 'expenses_card_list',
+                'salaries_card_list', 'refund_card_list', 'account_card_list'
+            ]
+
+            for card_attr in card_lists:
+                if hasattr(self, card_attr):
+                    card_dict = getattr(self, card_attr)
+                    for card_name, card in card_dict.items():
+                        try:
+                            card.destroy()
+                        except:
+                            pass
+                    card_dict.clear()
+
+            # 3. Pulisci dizionari e liste
+            data_attrs = [
+                'cards_warnings', 'global_infos', 'amount_aggregate_labels',
+                'payment_card_labels_status', 'invoice_card_labels_status',
+                'production_card_labels_status'
+            ]
+
+            for attr in data_attrs:
+                if hasattr(self, attr):
+                    getattr(self, attr).clear()
+
+            # 4. Distruggi i container principali se esistono
+            container_attrs = [
+                'main_container', 'detail_container', 'payments_cards_frame',
+                'invoices_cards_frame', 'clients_cards_frame', 'suppliers_cards_frame',
+                'productions_cards_frame', 'expenses_cards_frame', 'refunds_cards_frame',
+                'accounts_cards_frame', 'salaries_cards_frame'
+            ]
+
+            for attr in container_attrs:
+                if hasattr(self, attr):
+                    container = getattr(self, attr)
+                    try:
+                        # Distruggi solo se il container esiste ancora
+                        if container.winfo_exists():
+                            for widget in container.winfo_children():
+                                try:
+                                    widget.destroy()
+                                except:
+                                    pass
+                    except:
+                        pass
+
+            # 5. Pulisci i riferimenti ai controller (opzionale)
+            if hasattr(self, 'db_model'):
+                self.db_model = None
+
+        except Exception as e:
+            print(f"Errore durante il cleanup di {self.__class__.__name__}: {e}")
+
+    def _track_after(self, ms, func, *args):
+        """Versione tracciata di after()"""
+        after_id = self._orig_after(ms, func, *args)
+        self._after_ids.add(after_id)
+        return after_id
+
+
+
 
 
 class SupplierDetailView(ctk.CTkFrame):

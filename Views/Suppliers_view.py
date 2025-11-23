@@ -59,11 +59,11 @@ class SuppliersView(ctk.CTkFrame):
     def create_suppliers_tab(self):
 
         self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        self.search_bar_frame.pack(pady=10, fill="x", anchor="n")
+        self.search_bar_frame.pack(pady=30, fill="x", anchor="n")
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
         self.search_bar.pack(padx=(5,35), anchor="e", side="right")
         self.search_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Filtra per nome:", font=("Arial", 14))
-        self.search_bar_label.pack(padx=5, anchor="e")
+        self.search_bar_label.pack(padx=5, anchor="s", side="right")
 
         self.show_last_cards_optionMenu_values = {
             "30 GG": "30 GG",
@@ -73,7 +73,7 @@ class SuppliersView(ctk.CTkFrame):
         }
         self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.show_last_cards_optionMenu_values.values()))
-        self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
+        self.show_last_cards_optionMenu.pack(padx=(5, 200), anchor="s", side="right")
         self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
         self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
 

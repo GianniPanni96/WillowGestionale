@@ -327,6 +327,7 @@ class ExpensesView(ctk.CTkFrame):
             elif label_text == self.aliquota_iva_string:
                 #ottengo una lista di aliquote
                 aliquote_list = [
+                    self.fiscal_settings.aliquota_iva.no_iva,
                     self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
                     self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
                     self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
@@ -334,6 +335,7 @@ class ExpensesView(ctk.CTkFrame):
                 ]
 
                 widget = widget_class(self.expense_window_scrollableFrame, values=[str(aliquota) for aliquota in aliquote_list])
+                widget.set(self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria)
 
             elif label_text == DBExpensesColumns.CATEGORY.value:
                 widget = widget_class(self.expense_window_scrollableFrame,

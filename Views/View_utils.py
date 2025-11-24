@@ -1,6 +1,7 @@
 from enum import Enum
 import customtkinter as ctk
 import tkinter as tk
+from tkinter import Toplevel
 from PIL import Image
 import os
 
@@ -840,3 +841,399 @@ class ViewUtils(ctk.CTk):
             )
 
         return extract_supplier_args
+
+
+class FilterableComboBox(ctk.CTkFrame):
+    def __init__(self, parent, values, placeholder="Seleziona...", autofill=False, command=None, **kwargs):
+        super().__init__(parent, **kwargs)
+
+        self.all_values = sorted(values) if values else []
+        self.filtered_values = self.all_values.copy()
+        self.autofill = autofill
+        self.command = command
+        self.current_value = ""
+        self.parent = parent
+
+        self.interaction_frame = ctk.CTkFrame(self)
+        self.interaction_frame.pack(fill="x")
+        # Entry per la ricerca
+        if not autofill:
+            self.entry = ctk.CTkEntry(self.interaction_frame, placeholder_text=placeholder)
+        else:
+            try:
+                self.entry = ctk.CTkEntry(self.interaction_frame)
+                self.current_value = self.all_values[0]
+                self.entry.insert(0, self.all_values[0])
+
+            except IndexError:
+                self.entry = ctk.CTkEntry(self, placeholder_text="NO VALUES")
+                return
+
+        self.entry.pack(fill="x", expand=True, side="left")
+
+        self.dropdown_button_status = False
+
+        self.dropdown_button = ctk.CTkButton(self.interaction_frame, text=">", command=self._on_dropdown_icon_click, width=30)
+        self.dropdown_button.pack(fill="x", side="right")
+
+        self.message_label = ctk.CTkLabel(self, text="", anchor="w")
+        self.message_label.pack(fill="x", expand=True)
+
+
+        self.entry.bind("<KeyRelease>", self._on_key_release)
+        # apri dropdown anche su click esplicito nell'entry
+        self.entry.bind("<Button-1>", self._on_entry_click, add="+")
+        self.entry.bind("<FocusOut>", self._on_focus_out)
+
+        #colors
+        self.default_border_color = self.entry.cget("border_color")
+        self.warning_color = "#e39e27"
+
+        # Dropdown
+        self.dropdown_window = None
+        self.dropdown_frame = None
+        self.dropdown_visible = False
+        self.current_selection_index = -1
+        self.dropdown_buttons = []
+
+        # Tracciamento movimento
+        self._last_x = None
+        self._last_y = None
+        self._tracking_movement = False
+
+        # Per gestire i bind mousewheel fatti sul dropdown e figli (per poterli rimuovere)
+        self._mousewheel_bound_widgets = []
+
+        # Per bind di eventi sul parent (bind una tantum)
+        self._parent_events_bound = False
+
+    # --- Entry click: mostra sempre il dropdown (evita dipendere solo da focus events) ---
+    def _on_entry_click(self, event):
+        #self.after(1, self._show_dropdown_with_current_filter)
+        self._show_dropdown_with_current_filter()
+        return None
+
+    def _on_dropdown_icon_click(self):
+
+        if not self.dropdown_visible:
+            self._show_dropdown_with_current_filter()
+        else:
+            self._close_dropdown()
+
+    def _configure_dropdown_button(self):
+        if self.dropdown_visible:
+            self.dropdown_button.configure(text="<")
+        else:
+            self.dropdown_button.configure(text=">")
+
+    def _on_focus_out(self, event):
+        # Ritarda la chiusura per permettere click su elementi del dropdown
+        self.after(200, self._check_focus)
+
+    def _check_focus(self):
+        focused_widget = self.focus_get()
+
+        entry_has_focus = (focused_widget == self.entry)
+        dropdown_has_focus = focused_widget in self._get_dropdown_widgets()
+
+        # Se né entry né dropdown hanno focus → chiudi dropdown
+        if not entry_has_focus and not dropdown_has_focus:
+
+            # Ora chiudiamo il dropdown
+            self._close_dropdown()
+
+    def _close_dropdown(self):
+        # Prima di chiudere: validiamo il contenuto dell'entry
+        self._validate_or_autofix_entry_value()
+
+        # Ora chiudiamo il dropdown
+        x, y = self.winfo_pointerx(), self.winfo_pointery()
+        widget_under_pointer = self.winfo_containing(x, y)
+
+        if widget_under_pointer is None or widget_under_pointer not in self._get_dropdown_widgets():
+            self._hide_dropdown()
+
+        self._configure_dropdown_button()
+
+    def _validate_or_autofix_entry_value(self):
+        current = self.entry.get().strip()
+
+        # Lista dei valori compatibili col filtro attuale
+        valid_values = self.filtered_values
+
+        if current not in valid_values:
+            # Imposta il primo valore valido
+            self.entry.delete(0, ctk.END)
+            self.entry.insert(0, valid_values[0] if valid_values else self.all_values[0])
+            self.entry.configure(border_color=self.warning_color)
+            self.message_label.configure(text="Selezione dell'utente assente: valore selezionato in automatico dalla lista", text_color=self.warning_color)
+        else:
+            self.entry.configure(border_color=self.default_border_color)
+            self.message_label.configure(text="",
+                                         text_color="white")
+
+
+    def _on_key_release(self, event):
+        search_text = self.entry.get().lower()
+        if not search_text:
+            self.filtered_values = self.all_values.copy()
+        else:
+            self.filtered_values = [v for v in self.all_values if search_text in v.lower()]
+
+        self._update_dropdown()
+        if not self.dropdown_visible and self.filtered_values:
+            self._show_dropdown()
+
+    def _show_dropdown_with_current_filter(self):
+        current_text = self.entry.get().lower()
+        if not current_text:
+            self.filtered_values = self.all_values.copy()
+        else:
+            self.filtered_values = [value for value in self.all_values if current_text in value.lower()]
+
+        self._update_dropdown()
+        self._show_dropdown()
+        self._configure_dropdown_button()
+
+    def _update_dropdown(self):
+        if self.dropdown_frame is None:
+            return
+
+        for widget in self.dropdown_frame.winfo_children():
+            widget.destroy()
+
+        if not self.filtered_values:
+            empty_label = ctk.CTkLabel(self.dropdown_frame, text="Nessun risultato", text_color="gray", height=30)
+            empty_label.pack(fill="x", padx=2, pady=1)
+            self.dropdown_buttons = []
+            return
+
+        self.dropdown_buttons = []
+        for i, value in enumerate(self.filtered_values):
+            btn = ctk.CTkButton(
+                self.dropdown_frame,
+                text=value,
+                fg_color="transparent",
+                text_color=("black", "white"),
+                hover_color=("#F0F0F0", "#2A2A2A"),
+                anchor="w",
+                height=30,
+                command=lambda v=value: self._on_dropdown_button_clicked(v)  # <- usa command
+            )
+
+            btn.pack(fill="x", padx=2, pady=1)
+
+            self.dropdown_buttons.append(btn)
+
+        self.current_selection_index = -1
+
+    def _on_dropdown_button_clicked(self, value):
+        # aggiorna l'entry PRIMA di nascondere per evitare race con focus/close
+        self.entry.delete(0, "end")
+        self.entry.insert(0, value)
+        self.current_value = value
+        if self.command:
+            try:
+                self.command(value)
+            except Exception:
+                pass
+        # nascondi solo DOPO aver aggiornato
+        self._hide_dropdown()
+
+    def _show_dropdown(self):
+        if self.dropdown_visible:
+            self._update_dropdown_position()
+            return
+
+        x = self.winfo_rootx()
+        y = self.winfo_rooty() + self.winfo_height()
+
+        self.dropdown_window = Toplevel(self)
+        self.dropdown_window.wm_overrideredirect(True)
+        self.dropdown_window.wm_geometry(f"+{x}+{y}")
+
+        # tenta tema
+        try:
+            bg_color = self._get_single_bg_color()
+            self.dropdown_window.configure(background=bg_color)
+        except Exception:
+            self.dropdown_window.configure(background="white")
+
+        self.dropdown_window.configure(borderwidth=1, relief="solid")
+        self.dropdown_window.attributes("-topmost", True)
+
+        self.dropdown_frame = ctk.CTkScrollableFrame(
+            self.dropdown_window,
+            width=self.winfo_width(),
+            height=min(200, len(self.filtered_values) * 32 + 10)
+        )
+        self.dropdown_frame.pack(fill="both", expand=True)
+
+        self._update_dropdown()
+
+        self.dropdown_visible = True
+
+        # Bind locali: focusout del dropdown e mouse wheel su dropdown
+        self.dropdown_window.bind("<FocusOut>", lambda e: self.after(100, self._check_focus), add="+")
+        self.dropdown_window.bind("<MouseWheel>", self._on_mousewheel, add="+")
+        self.dropdown_window.bind("<Button-4>", self._on_mousewheel_linux, add="+")
+        self.dropdown_window.bind("<Button-5>", self._on_mousewheel_linux, add="+")
+
+        # Bindiamo la rotella su tutti i figli del dropdown (non globalmente)
+        self._bind_mousewheel_to_children(self.dropdown_window)
+
+        # Bind agli eventi parent (una tantum)
+        self._bind_to_parent_events()
+
+        # Inizia a tracciare la posizione
+        self._start_tracking_movement()
+
+    def _bind_to_parent_events(self):
+        # Assicuriamoci di bindare gli eventi del parent solo una volta
+        if self._parent_events_bound:
+            return
+        parent_window = self.winfo_toplevel()
+        parent_window.bind("<Configure>", self._on_parent_configure, add="+")
+        # Non bindiamo ButtonPress globali che causano conflitti
+        self._parent_events_bound = True
+
+    def _on_parent_configure(self, event):
+        if self.dropdown_visible:
+            # se la finestra si sposta/ridimensiona, chiudiamo il dropdown
+            self._hide_dropdown()
+
+    # --- binding mousewheel solo sui widget del dropdown (non globali) ---
+    def _bind_mousewheel_to_children(self, widget):
+        # pulisci lista precedente (se presente)
+        self._mousewheel_bound_widgets = []
+
+        def _bind_recursive(w):
+            try:
+                # bind mousewheel per Windows/Mac
+                w.bind("<MouseWheel>", self._on_mousewheel, add="+")
+                w.bind("<Button-4>", self._on_mousewheel_linux, add="+")
+                w.bind("<Button-5>", self._on_mousewheel_linux, add="+")
+                self._mousewheel_bound_widgets.append(w)
+            except Exception:
+                pass
+            for child in w.winfo_children():
+                _bind_recursive(child)
+
+        _bind_recursive(widget)
+
+    def _unbind_mousewheel_from_children(self):
+        # rimuovi i binding che abbiamo aggiunto sui widget creati
+        for w in self._mousewheel_bound_widgets:
+            try:
+                w.unbind("<MouseWheel>")
+                w.unbind("<Button-4>")
+                w.unbind("<Button-5>")
+            except Exception:
+                pass
+        self._mousewheel_bound_widgets = []
+
+    def _on_mousewheel(self, event):
+        # scrolla il canvas del dropdown e interrompi la propagazione
+        if self.dropdown_frame:
+            try:
+                scroll_amount = int(-25 * (event.delta / 120))
+                self.dropdown_frame._parent_canvas.yview_scroll(scroll_amount, "units")
+            except Exception:
+                # fallback generico: prova spostare di 1 unità
+                try:
+                    self.dropdown_frame._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+                except Exception:
+                    pass
+        return "break"
+
+    def _on_mousewheel_linux(self, event):
+        if self.dropdown_frame:
+            try:
+                if event.num == 4:
+                    self.dropdown_frame._parent_canvas.yview_scroll(-25, "units")
+                elif event.num == 5:
+                    self.dropdown_frame._parent_canvas.yview_scroll(25, "units")
+            except Exception:
+                pass
+        return "break"
+
+    def _start_tracking_movement(self):
+        self._last_x = self.winfo_rootx()
+        self._last_y = self.winfo_rooty()
+        self._tracking_movement = True
+        self._check_movement()
+
+    def _check_movement(self):
+        if not self._tracking_movement or not self.dropdown_visible:
+            return
+        current_x = self.winfo_rootx()
+        current_y = self.winfo_rooty()
+        if current_x != self._last_x or current_y != self._last_y:
+            self._last_x = current_x
+            self._last_y = current_y
+            self._update_dropdown_position()
+        self.after(50, self._check_movement)
+
+    def _update_dropdown_position(self):
+        if self.dropdown_window and self.dropdown_visible:
+            x = self.winfo_rootx()
+            y = self.winfo_rooty() + self.winfo_height()
+            self.dropdown_window.wm_geometry(f"+{x}+{y}")
+
+    def _hide_dropdown(self):
+        if self.dropdown_visible:
+            self._tracking_movement = False
+            # rimuovi i binding mousewheel che abbiamo applicato
+            try:
+                self._unbind_mousewheel_from_children()
+            except Exception:
+                pass
+
+            if self.dropdown_window:
+                try:
+                    self.dropdown_window.destroy()
+                except Exception:
+                    pass
+                self.dropdown_window = None
+                self.dropdown_frame = None
+            self.dropdown_visible = False
+            self.current_selection_index = -1
+            self.dropdown_buttons = []
+
+    def _get_dropdown_widgets(self):
+        widgets = []
+        if self.dropdown_window:
+            widgets.append(self.dropdown_window)
+            widgets.extend(self.dropdown_window.winfo_children())
+            if self.dropdown_frame:
+                widgets.extend(self.dropdown_frame.winfo_children())
+        return widgets
+
+    def get_value(self):
+        return self.current_value
+
+    def set_value(self, value, safe_mode=True):
+        if safe_mode:
+            if value in self.all_values:
+                self.entry.delete(0, "end")
+                self.entry.insert(0, value)
+                self.current_value = value
+        else:
+            self.entry.delete(0, "end")
+            self.entry.insert(0, value)
+            self.current_value = value
+
+    def clear_value(self):
+        self.entry.delete(0, "end")
+        self.current_value = ""
+
+    def destroy(self):
+        # rimuovi binding e dropdown in modo sicuro
+        try:
+            self._hide_dropdown()
+        except Exception:
+            pass
+        super().destroy()
+
+
+

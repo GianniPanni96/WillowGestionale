@@ -1,12 +1,8 @@
 import customtkinter as ctk
-import tkinter as tk
-from tkcalendar import Calendar
-from Views.View_utils import ViewUtils
-from Controllers import PaymentsController, InvoiceController, UserController, ControllerUtils, SupplierController
-from Model import DBExpensesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBSuppliersColumns
-from datetime import datetime
-import re
-from enum import Enum
+from Views.View_utils import ViewUtils, FilterableComboBox
+from Controllers import ControllerUtils, SupplierController
+from Model import DBExpensesColumns, DBSuppliersColumns
+
 
 class SuppliersView(ctk.CTkFrame):
 
@@ -198,7 +194,7 @@ class SuppliersView(ctk.CTkFrame):
             DBSuppliersColumns.PARTITA_IVA.value: ctk.CTkEntry,
             DBSuppliersColumns.SEDE.value: ctk.CTkEntry,
             DBSuppliersColumns.CONTATTO.value: ctk.CTkEntry,
-            DBSuppliersColumns.CATEGORIA.value: ctk.CTkOptionMenu,
+            DBSuppliersColumns.CATEGORIA.value: FilterableComboBox,
             DBSuppliersColumns.NOTE.value: ctk.CTkTextbox,
         }
 
@@ -221,10 +217,11 @@ class SuppliersView(ctk.CTkFrame):
 
             # Widget
             if label_text == DBSuppliersColumns.CATEGORIA.value:
-                widget = widget_class(self.supplier_window_scrollableFrame,
+                widget = widget_class(parent=self.supplier_window_scrollableFrame, placeholder="Cerca", autofill=True,
                                       values=[value for key, value in
                                               self.catalogo_elenchi["clients_business_sectors"]],
                                       command=lambda selected_value: self.open_add_business_sector(selected_value))
+                widget.set_value(dict(self.catalogo_elenchi["clients_business_sectors"])["ENERGY"])  # Imposta valore predefinito
 
             else:
                 widget = widget_class(self.supplier_window_scrollableFrame)
@@ -305,6 +302,11 @@ class SuppliersView(ctk.CTkFrame):
 
     def save_supplier_data(self):
         supplier_data = {}
+
+        #controllo sulla categoria
+        if self.suppliers_widgets[DBSuppliersColumns.CATEGORIA.value].get_value() == dict(self.catalogo_elenchi["clients_business_sectors"]).get("ADD_SECTOR"):
+            ViewUtils.show_error_popup(self.add_supplier_window, "SALVATAGGIO NON RIUSCITO", "Categoria non valida")
+            return
 
         # Riempi il dizionario con i dati dai widget
         for label_text, widget in self.suppliers_widgets.items():

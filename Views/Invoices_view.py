@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar, DateEntry
-from Views.View_utils import ViewUtils
+from Views.View_utils import ViewUtils, FilterableComboBox
 from Controllers import ValidationUtils, InvoiceController, UserController, ControllerUtils
 from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns
 from datetime import datetime
@@ -356,7 +356,7 @@ class InvoicesView(ctk.CTkFrame):
 
         self.entry_fields = {
             self.nome_utente_string: ctk.CTkOptionMenu,
-            self.nome_cliente_string: ctk.CTkOptionMenu,
+            self.nome_cliente_string: FilterableComboBox,
             self.nome_produzione_string: ctk.CTkOptionMenu,
             DBInvoicesColumns.NUMERO_FATTURA.value: ctk.CTkEntry,
             DBInvoicesColumns.DATA_CREAZIONE.value: Calendar,
@@ -402,7 +402,7 @@ class InvoicesView(ctk.CTkFrame):
                                       values=[f"{item[DBUsersColumns.FIRST_NAME.value]} {item[DBUsersColumns.LAST_NAME.value]}" for item in self.user_controller.retrieve_users_map_list()],
                                       command=lambda selected_value: self.update_entries_on_regime_fiscale(selected_value))
             elif label_text == self.nome_cliente_string:
-                widget = widget_class(self.invoice_window_scrollableFrame,
+                widget = widget_class(parent=self.invoice_window_scrollableFrame, placeholder="Cerca", autofill=True,
                                       values=[f"{item[DBClientsColumns.NAME.value]}" for item in self.client_controller.retrieve_clients_map_list()],
                                       command=lambda selected_value: self.update_productions_list(selected_value))
             elif label_text == self.nome_produzione_string:
@@ -452,8 +452,23 @@ class InvoicesView(ctk.CTkFrame):
                 self.error_labels[label_text] = error_label
 
         self.auto_compile_invoice_name(self.invoice_widgets[self.nome_utente_string].get())
-        self.update_productions_list(self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
+
+        selected_client_name = self.invoice_widgets[self.nome_cliente_string].get_value()
+
+        client_list = self.client_controller.retrieve_clients_map_list()
+
+        # imposto la lista delle fatture in funzione del cliente impostato
+        matched_client = next(
+            (client for client in client_list if client[DBClientsColumns.NAME.value] == selected_client_name),
+            None
+        )
+        if matched_client:
+            self.update_productions_list(matched_client[DBClientsColumns.NAME.value])
+        else:
+            self.update_productions_list(self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
+
         self.prod_already_invoiced_control(self.invoice_widgets[self.nome_produzione_string].get())
+
 
         self.selected_user = self.invoice_widgets[self.nome_utente_string].get()
         users_regime_fiscale = self.get_regime_fiscale_from_view(self.selected_user)
@@ -1022,12 +1037,10 @@ class InvoicesView(ctk.CTkFrame):
             invoice_number = invoice_name_splitted[1].split("FPR")[1]
             user_invoice_numbers.append(int(invoice_number))
 
-        last_invoice_number = max(user_invoice_numbers) + 1 if len(user_invoice_numbers) != 0 else 0
-        last_invoice_number_str = str(last_invoice_number)
-        if len(last_invoice_number_str) < 2 and last_invoice_number != 0:
-            last_invoice_number_str = "0" + last_invoice_number_str
-        else:
-            last_invoice_number_str = "01"
+        last_invoice_number = max(user_invoice_numbers) + 1 if user_invoice_numbers else 0
+
+        # Converti a stringa con lunghezza 2, padding con zero
+        last_invoice_number_str = str(last_invoice_number).zfill(2)
 
         self.invoice_widgets[DBInvoicesColumns.NUMERO_FATTURA.value].delete(0, tk.END)
         #check if it is a NDC

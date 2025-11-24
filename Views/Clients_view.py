@@ -1,12 +1,6 @@
 import customtkinter as ctk
-import tkinter as tk
-from tkinter import filedialog
-from PIL import Image, ImageTk
-from datetime import datetime
 import re
-from enum import Enum
-
-from Views.View_utils import ViewUtils
+from Views.View_utils import ViewUtils, FilterableComboBox
 from Controllers import ControllerUtils, ClientController
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
 
@@ -168,7 +162,6 @@ class ClientsView(ctk.CTkFrame):
         # Ricarica le cards con i clienti filtrati
         self.load_clients_chunked(filtered_clients)
 
-
     def show_main_view(self):
         """Torna alla vista principale"""
         self.client_detail_view.pack_forget()
@@ -275,7 +268,7 @@ class ClientsView(ctk.CTkFrame):
             DBClientsColumns.PARTITA_IVA.value: ctk.CTkEntry,
             DBClientsColumns.EMAIL.value: ctk.CTkEntry,
             DBClientsColumns.SEDE_LEGALE.value: ctk.CTkEntry,
-            DBClientsColumns.SETTORE.value: ctk.CTkOptionMenu,
+            DBClientsColumns.SETTORE.value: FilterableComboBox,
             DBClientsColumns.REFERENTE.value: ctk.CTkEntry,
             DBClientsColumns.CONTATTO_REFERENTE.value: ctk.CTkEntry,
             DBClientsColumns.NOTE.value: ctk.CTkTextbox,
@@ -308,10 +301,10 @@ class ClientsView(ctk.CTkFrame):
                                       values=[item.value for item in self.client_controller.TipologiaCliente])
                 widget.set(self.client_controller.TipologiaCliente.PRIVATO.value)  # Imposta valore predefinito
             elif label_text == DBClientsColumns.SETTORE.value:
-                widget = widget_class(self.client_window_scrollableFrame,
+                widget = widget_class(parent=self.client_window_scrollableFrame, placeholder="Cerca", autofill=True,
                                       values=[value for key, value in self.catalogo_elenchi["clients_business_sectors"]],
                                       command = lambda selected_value : self.open_add_business_sector(selected_value))
-                widget.set(self.client_controller.BusinessSector.CREATIVE_AGENCY.value)  # Imposta valore predefinito
+                widget.set_value(self.client_controller.BusinessSector.CREATIVE_AGENCY.value)  # Imposta valore predefinito
             else:
                 widget = widget_class(self.client_window_scrollableFrame)
 
@@ -360,6 +353,11 @@ class ClientsView(ctk.CTkFrame):
 
     def save_client_data(self):
         client_data = {}
+
+        #controllo sul settore
+        if self.client_widgets[DBClientsColumns.SETTORE.value].get_value() == dict(self.catalogo_elenchi["clients_business_sectors"]).get("ADD_SECTOR"):
+            ViewUtils.show_error_popup(self.add_client_window, "SALVATAGGIO NON RIUSCITO", "Settore di business non valido")
+            return
 
         # Riempi il dizionario con i dati dai widget
         for label_text, widget in self.client_widgets.items():
@@ -411,6 +409,7 @@ class ClientsView(ctk.CTkFrame):
     def open_add_business_sector(self, selected_value):
         sector_dict = dict(self.catalogo_elenchi["clients_business_sectors"])
         if selected_value == sector_dict.get("ADD_SECTOR"):
+
             self.add_sector_window = ctk.CTkToplevel(self)
             self.add_sector_window.title("Aggiungi un nuovo settore di business")
 
@@ -430,6 +429,7 @@ class ClientsView(ctk.CTkFrame):
 
             ctk.CTkButton(self.business_sector_window_Frame, text="Aggiungi settore", command=self.save_business_sector).pack(padx=10, pady=(15, 10))
 
+
         else: return
 
     def save_business_sector(self):
@@ -441,7 +441,7 @@ class ClientsView(ctk.CTkFrame):
             ViewUtils.show_error_popup(self.add_sector_window, "Errore", f"Impossibile aggiungere il nuovo settore: {str(e)}")
             return
 
-        self.client_widgets[DBClientsColumns.SETTORE.value].set(new_sector)
+        self.client_widgets[DBClientsColumns.SETTORE.value].set_value(new_sector, safe_mode=False)
         self.add_sector_window.destroy()
 
 

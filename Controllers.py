@@ -1278,7 +1278,7 @@ class ClientController:
         :return: Tuple (success, message), dove success è True/False
         """
         # Campi obbligatori
-        required_fields = {DBClientsColumns.NAME.value, DBClientsColumns.TIPOLOGIA.value}
+        required_fields = {DBClientsColumns.SETTORE.value, DBClientsColumns.NAME.value, DBClientsColumns.TIPOLOGIA.value}
 
         # Validazione dei campi obbligatori
         missing_fields = [field for field in required_fields if not client_data.get(field)]
@@ -1757,7 +1757,7 @@ class InvoiceController:
         """
 
         # Campi obbligatori (solo quelli modellati tramite entry)
-        required_fields = {DBInvoicesColumns.NUMERO_FATTURA.value, DBInvoicesColumns.SERVIZI.value, DBInvoicesColumns.RIMBORSI.value}
+        required_fields = {"NOME CLIENTE", DBInvoicesColumns.NUMERO_FATTURA.value, DBInvoicesColumns.SERVIZI.value, DBInvoicesColumns.RIMBORSI.value}
 
         # Validazione dei campi obbligatori
         missing_fields = [field for field in required_fields if not invoice_data.get(field)]
@@ -2956,7 +2956,7 @@ class PaymentsController:
         """
 
         # Campi obbligatori (solo quelli modellati tramite entry)
-        self.required_fields = {DBPaymentsColumns.PAYMENT_NAME.value, DBPaymentsColumns.PAYMENT_AMOUNT.value}
+        self.required_fields = {"NOME FATTURA", DBPaymentsColumns.PAYMENT_NAME.value, DBPaymentsColumns.PAYMENT_AMOUNT.value}
 
         # Validazione dei campi obbligatori
         missing_fields = [field for field in self.required_fields if not payment_data.get(field)]
@@ -3622,7 +3622,7 @@ class ProductionController:
         """
 
         # Campi obbligatori (solo quelli modellati tramite entry)
-        self.required_fields = {DBProductionsColumns.NAME.value, DBProductionsColumns.HOURS.value, DBProductionsColumns.TOTALE_PREVENTIVO.value}
+        self.required_fields = {"NOME CLIENTE", DBProductionsColumns.NAME.value, DBProductionsColumns.HOURS.value, DBProductionsColumns.TOTALE_PREVENTIVO.value}
 
         # Validazione dei campi obbligatori
         missing_fields = [field for field in self.required_fields if not production_data.get(field)]

@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
-from Views.View_utils import ViewUtils
+from Views.View_utils import ViewUtils, FilterableComboBox
 from Controllers import PaymentsController, InvoiceController, UserController, ControllerUtils
 from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns
 from datetime import datetime
@@ -503,7 +503,7 @@ class PaymentsView(ctk.CTkFrame):
         self.nome_conto_string = "NOME CONTO"
 
         self.entry_fields = {
-            self.nome_fattura_string: ctk.CTkOptionMenu,
+            self.nome_fattura_string: FilterableComboBox,
             DBPaymentsColumns.LINKED_RATA.value: ctk.CTkOptionMenu,
             DBPaymentsColumns.PAYMENT_NAME.value: ctk.CTkEntry,
             DBPaymentsColumns.PAYMENT_AMOUNT.value: ctk.CTkEntry,
@@ -537,7 +537,7 @@ class PaymentsView(ctk.CTkFrame):
             if label_text == self.nome_fattura_string:
                 VF_invoice_list = self.construct_invoices_list_view_friendly()
                 reversed_invoices = list(VF_invoice_list.values())[::-1]
-                widget = widget_class(self.payment_window_scrollableFrame,
+                widget = widget_class(parent=self.payment_window_scrollableFrame, placeholder="Cerca", autofill=True,
                                       values=reversed_invoices, command=lambda selected_value: self.toggle_linked_rata(selected_value))
             elif label_text == self.nome_conto_string:
                 widget = widget_class(self.payment_window_scrollableFrame,
@@ -572,7 +572,7 @@ class PaymentsView(ctk.CTkFrame):
         )
         self.save_button.pack(pady=(35, 15))
 
-        self.toggle_linked_rata(self.payment_widgets[self.nome_fattura_string].get())
+        self.toggle_linked_rata(self.payment_widgets[self.nome_fattura_string].get_value())
 
         # Aggiungi validazione agli eventi di perdita del focus
         self.payment_widgets[DBPaymentsColumns.PAYMENT_NAME.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
@@ -738,7 +738,7 @@ class PaymentsView(ctk.CTkFrame):
 
     def autofill_payment_amount(self):
         # prendo la fattura di riferimento del pagamento
-        VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
+        VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get_value()
         invoice_name_array = VF_invoice_name.split(" - ")
         invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1] + " - " + invoice_name_array[2] if len(invoice_name_array) == 4 else invoice_name_array[0] + " - " + invoice_name_array[1]
         invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
@@ -754,7 +754,7 @@ class PaymentsView(ctk.CTkFrame):
 
     def control_linked_rata(self, selected_value):
         # prendo la fattura di riferimento del pagamento
-        VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get()
+        VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get_value()
         invoice_name_array = VF_invoice_name.split(" - ")
         invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1] + " - " + invoice_name_array[2]
         invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)

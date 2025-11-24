@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
-from Views.View_utils import ViewUtils
+from Views.View_utils import ViewUtils, FilterableComboBox
 from Controllers import ProductionController, PaymentsController, InvoiceController, UserController, ControllerUtils
 from Model import DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBInvoicesColumns
 from datetime import datetime
@@ -299,7 +299,7 @@ class ProductionsView(ctk.CTkFrame):
         self.nome_produzione_string = "NOME PRODUZIONE"
 
         self.entry_fields = {
-            self.nome_cliente_string : ctk.CTkOptionMenu,
+            self.nome_cliente_string : FilterableComboBox,
             DBProductionsColumns.NAME.value: ctk.CTkEntry,
             DBProductionsColumns.HOURS.value : ctk.CTkEntry,
             DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value: ctk.CTkOptionMenu,
@@ -332,7 +332,7 @@ class ProductionsView(ctk.CTkFrame):
 
             #creo i widgets
             if label_text == self.nome_cliente_string:
-                widget = widget_class(self.production_window_scrollableFrame,
+                widget = widget_class(parent=self.production_window_scrollableFrame, placeholder="Cerca", autofill=True,
                                       values=[f"{item[DBClientsColumns.NAME.value]}" for item in self.client_controller.retrieve_clients_map_list()],
                                       command=lambda selected_value: self.auto_compile_name_entry(selected_value))
             elif label_text == DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value:

@@ -854,6 +854,8 @@ class FilterableComboBox(ctk.CTkFrame):
         self.current_value = ""
         self.parent = parent
 
+        self.y_shift = 27
+
         self.interaction_frame = ctk.CTkFrame(self)
         self.interaction_frame.pack(fill="x")
         # Entry per la ricerca
@@ -1046,26 +1048,25 @@ class FilterableComboBox(ctk.CTkFrame):
             return
 
         x = self.winfo_rootx()
-        y = self.winfo_rooty() + self.winfo_height()
+        y = self.winfo_rooty() + self.winfo_height() - self.y_shift
 
-        self.dropdown_window = Toplevel(self)
+        dropdown_width = int(self.winfo_width() *8/ 9)
+        dropdown_height = min(42, len(self.filtered_values) * 32 + 10)
+
+        # Crea una finestra Toplevel con larghezza personalizzata
+        self.dropdown_window = Toplevel(self, bg="#545454", height=dropdown_height)
         self.dropdown_window.wm_overrideredirect(True)
         self.dropdown_window.wm_geometry(f"+{x}+{y}")
 
-        # tenta tema
-        try:
-            bg_color = self._get_single_bg_color()
-            self.dropdown_window.configure(background=bg_color)
-        except Exception:
-            self.dropdown_window.configure(background="white")
 
-        self.dropdown_window.configure(borderwidth=1, relief="solid")
+        self.dropdown_window.configure(borderwidth=2)
         self.dropdown_window.attributes("-topmost", True)
 
         self.dropdown_frame = ctk.CTkScrollableFrame(
             self.dropdown_window,
-            width=self.winfo_width(),
-            height=min(200, len(self.filtered_values) * 32 + 10)
+            width=dropdown_width,
+            height=dropdown_height,
+            fg_color="#3d3d3d"
         )
         self.dropdown_frame.pack(fill="both", expand=True)
 
@@ -1177,7 +1178,7 @@ class FilterableComboBox(ctk.CTkFrame):
     def _update_dropdown_position(self):
         if self.dropdown_window and self.dropdown_visible:
             x = self.winfo_rootx()
-            y = self.winfo_rooty() + self.winfo_height()
+            y = self.winfo_rooty() + self.winfo_height() - self.y_shift
             self.dropdown_window.wm_geometry(f"+{x}+{y}")
 
     def _hide_dropdown(self):

@@ -135,6 +135,7 @@ class PaymentsView(ctk.CTkFrame):
         }
         self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.set("60 GG")
         self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
         self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
         self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
@@ -652,6 +653,8 @@ class PaymentsView(ctk.CTkFrame):
                 payment_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):
                 payment_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+            elif isinstance(widget, FilterableComboBox):
+                payment_data[label_text] = widget.get_value()
 
         #sistemo il nome della fattura che è ViewFriendly:
         nome_fattura_array = payment_data[self.nome_fattura_string].strip().split(" - ")
@@ -701,6 +704,7 @@ class PaymentsView(ctk.CTkFrame):
 
             self.clear_class_variable()
             self.add_payment_window.destroy()
+            self.show_last_cards()
         else:
             print(message)
             ViewUtils.show_error_popup(self.add_payment_window, "ERRORE", message)

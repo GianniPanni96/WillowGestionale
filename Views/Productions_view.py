@@ -145,6 +145,7 @@ class ProductionsView(ctk.CTkFrame):
         }
         self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.set("60 GG")
         self.show_last_cards_optionMenu.pack(padx=(5, 50), anchor="s", side="right")
         self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
         self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
@@ -270,7 +271,6 @@ class ProductionsView(ctk.CTkFrame):
         self.load_productions_chunked(filtered_productions)
 
         self.sort_cards()
-
 
     def populate_global_infos(self):
         #self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value}"] = self.production_controller.count_productions(True)
@@ -626,6 +626,8 @@ class ProductionsView(ctk.CTkFrame):
                 production_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):
                 production_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+            elif isinstance(widget, FilterableComboBox):
+                production_data[label_text] = widget.get_value()
 
         # chiamata al controller per salvare i dati
         success, message = self.production_controller.save_production(production_data)
@@ -652,6 +654,7 @@ class ProductionsView(ctk.CTkFrame):
 
             self.clear_class_variable()
             self.add_production_window.destroy()
+            self.show_last_cards()
             self.update_global_infos()
         else:
             print(message)

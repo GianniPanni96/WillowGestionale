@@ -61,6 +61,7 @@ class ClientsView(ctk.CTkFrame):
         }
         self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.set("60 GG")
         self.show_last_cards_optionMenu.pack(padx=(5, 200), anchor="s", side="right")
         self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
         self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
@@ -365,6 +366,8 @@ class ClientsView(ctk.CTkFrame):
                 client_data[label_text] = widget.get().strip()  # Recupera il testo o il valore selezionato
             elif isinstance(widget, ctk.CTkTextbox):
                 client_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+            elif isinstance(widget, FilterableComboBox):
+                client_data[label_text] = widget.get_value()
 
         print("Dati cliente:", client_data)
 
@@ -391,6 +394,7 @@ class ClientsView(ctk.CTkFrame):
             self.client_controller.print_clienti()
 
             self.add_client_window.destroy()
+            self.show_last_cards()
         else:
             print(message)
             ViewUtils.show_error_popup(self.add_client_window, "ERRORE", message)

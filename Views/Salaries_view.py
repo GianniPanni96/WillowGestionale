@@ -106,6 +106,7 @@ class SalariesView(ctk.CTkFrame):
         }
         self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.set("60 GG")
         self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
         self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
         self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
@@ -222,7 +223,6 @@ class SalariesView(ctk.CTkFrame):
         self.load_salaries_chunked(filtered_salaries)
 
         self.sort_cards()
-
 
     def filter_cards(self, event):
         """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""
@@ -605,6 +605,7 @@ class SalariesView(ctk.CTkFrame):
 
             self.clear_class_variable()
             self.add_salary_window.destroy()
+            self.show_last_cards()
             self.update_global_infos()
         else:
             print(message)

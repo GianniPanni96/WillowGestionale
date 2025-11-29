@@ -59,7 +59,7 @@ class InvoicesView(ctk.CTkFrame):
             self.populate_production_list_by_selected_client(self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
 
         #self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
-        self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color_2, self.toggle_aggregate_data)
+        #self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color_2, self.toggle_aggregate_data)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -135,6 +135,7 @@ class InvoicesView(ctk.CTkFrame):
         }
         self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.set("60 GG")
         self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
         self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
         self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
@@ -806,6 +807,8 @@ class InvoicesView(ctk.CTkFrame):
                 invoice_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):
                 invoice_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+            elif isinstance(widget, FilterableComboBox):
+                invoice_data[label_text] = widget.get_value()
 
         invoice_data[DBInvoicesColumns.NUMERO_FATTURA.value] = invoice_data[DBInvoicesColumns.NUMERO_FATTURA.value] + " - " + str(datetime.today().date().year)
 
@@ -836,6 +839,7 @@ class InvoicesView(ctk.CTkFrame):
             self.invoice_controller.print_invoices()
             self.clear_class_variable()
             self.add_invoice_window.destroy()
+            self.show_last_cards()
         else:
             print(message)
             ViewUtils.show_error_popup(self.add_invoice_window, "ERRORE", message)

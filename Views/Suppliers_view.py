@@ -69,6 +69,7 @@ class SuppliersView(ctk.CTkFrame):
         }
         self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.set("60 GG")
         self.show_last_cards_optionMenu.pack(padx=(5, 200), anchor="s", side="right")
         self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
         self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
@@ -314,6 +315,8 @@ class SuppliersView(ctk.CTkFrame):
                 supplier_data[label_text] = widget.get().strip()  # Recupera il testo o il valore selezionato
             elif isinstance(widget, ctk.CTkTextbox):
                 supplier_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+            elif isinstance(widget, FilterableComboBox):
+                supplier_data[label_text] = widget.get_value()
 
         print("Dati fornitore:", supplier_data)
 
@@ -335,6 +338,7 @@ class SuppliersView(ctk.CTkFrame):
                 supplier_data[DBSuppliersColumns.CONTATTO.value],
             )
             self.add_supplier_window.destroy()
+            self.show_last_cards()
         else:
             print(message)
             ViewUtils.show_error_popup(self.add_supplier_window, "ERRORE", message)

@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
-from Views.View_utils import ViewUtils
+from Views.View_utils import ViewUtils, FilterableComboBox
 from Controllers import PaymentsController, ExpenseController, InvoiceController, UserController, ControllerUtils
 from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
 import re
@@ -148,6 +148,7 @@ class ExpensesView(ctk.CTkFrame):
         }
         self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.set("60 GG")
         self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
         self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
         self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
@@ -281,8 +282,8 @@ class ExpensesView(ctk.CTkFrame):
         self.nome_utente_deduz_string = "DEDUZIONE A CARICO"
 
         self.entry_fields = {
-            self.nome_fornitore_string: ctk.CTkOptionMenu,
-            DBExpensesColumns.CATEGORY.value: ctk.CTkOptionMenu,
+            self.nome_fornitore_string: FilterableComboBox,
+            DBExpensesColumns.CATEGORY.value: FilterableComboBox,
             DBExpensesColumns.NAME.value : ctk.CTkEntry,
             DBExpensesColumns.DATE.value: Calendar,
             DBExpensesColumns.DEDUCIBILE.value: ctk.CTkOptionMenu,
@@ -320,7 +321,7 @@ class ExpensesView(ctk.CTkFrame):
                 suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
                 suppliers_name_list = [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]
                 reversed_suppliers = suppliers_name_list[::-1]
-                widget = widget_class(self.expense_window_scrollableFrame,
+                widget = widget_class(parent=self.expense_window_scrollableFrame, placeholder="Cerca", autofill=True,
                                       values=reversed_suppliers,
                                       command=lambda selected_value: self.autofill_expense_name(selected_value))
 
@@ -338,9 +339,10 @@ class ExpensesView(ctk.CTkFrame):
                 widget.set(self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria)
 
             elif label_text == DBExpensesColumns.CATEGORY.value:
-                widget = widget_class(self.expense_window_scrollableFrame,
+                widget = widget_class(parent=self.expense_window_scrollableFrame, placeholder="Cerca", autofill=True,
                                       values=[value for key, value in self.catalogo_elenchi["expenses_category"]],
                                       command = lambda selected_value : self.expense_category_optionMenu_behaviour(selected_value))
+                widget.set_value(dict(self.catalogo_elenchi["expenses_category"])["CONSUMABLE_FOR_STUDIO"])
 
             elif label_text == DBExpensesColumns.NAME.value:
                 self.name_frame = ctk.CTkFrame(self.expense_window_scrollableFrame)
@@ -412,8 +414,7 @@ class ExpensesView(ctk.CTkFrame):
         self.save_button.pack(pady=(50, 15))
 
         suppliers_list = self.supplier_controller.retrieve_suppliers_map_list()
-        self.autofill_expense_name(suppliers_list[len(suppliers_list) - 1][DBSuppliersColumns.NAME.value] if
-                                   len(suppliers_list) > 0 else "    ")
+        self.autofill_expense_name(self.expenses_widgets[self.nome_fornitore_string].get_value())
 
         # Aggiungi validazione agli eventi di perdita del focus
         self.expenses_widgets[DBExpensesColumns.NAME.value].bind("<FocusOut>",
@@ -445,18 +446,25 @@ class ExpensesView(ctk.CTkFrame):
     def save_expense_data(self):
         expense_data = {}
 
+        #controllo sulla categoria
+        if self.expenses_widgets[DBExpensesColumns.CATEGORY.value].get_value() == dict(self.catalogo_elenchi["clients_business_sectors"]).get("ADD_SECTOR"):
+            ViewUtils.show_error_popup(self.add_expense_window, "SALVATAGGIO NON RIUSCITO", "Categoria non valida")
+            return
+
         # riempi il dizionario con i dati dei widgets primari
         for label_text, widget in self.expenses_widgets.items():
             if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
-                expense_data[label_text] = widget.get().strip()
+                expense_data[label_text] = str(widget.get()).strip()
             elif isinstance(widget, Calendar):
                 expense_data[label_text] = widget.get_date()
             elif isinstance(widget, ctk.CTkTextbox):
                 expense_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+            elif isinstance(widget, FilterableComboBox):
+                expense_data[label_text] = widget.get_value()
 
         #filtro i dati
         category_dict = dict(self.catalogo_elenchi["expenses_category"])
-        if str(self.expenses_widgets[DBExpensesColumns.CATEGORY.value].get()) != str(category_dict.get("PRODUCTION_EXPENSE")):
+        if str(self.expenses_widgets[DBExpensesColumns.CATEGORY.value].get_value()) != str(category_dict.get("PRODUCTION_EXPENSE")):
             expense_data.pop(self.nome_fattura_string)
 
         if self.expenses_widgets[DBExpensesColumns.DEDUCIBILE.value].get() == "No":
@@ -502,6 +510,7 @@ class ExpensesView(ctk.CTkFrame):
 
             self.clear_class_variable()
             self.add_expense_window.destroy()
+            self.show_last_cards()
             self.update_global_infos()
         else:
             print(message)

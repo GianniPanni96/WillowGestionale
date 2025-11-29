@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
-from Views.View_utils import ViewUtils
+from Views.View_utils import ViewUtils, FilterableComboBox
 from Controllers import PaymentsController, InvoiceController, UserController, ControllerUtils, RefundController
 from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBRefundsColumns
 from datetime import datetime
@@ -94,6 +94,7 @@ class RefundsView(ctk.CTkFrame):
         }
         self.show_last_cards_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
                                                        values=list(self.show_last_cards_optionMenu_values.values()))
+        self.show_last_cards_optionMenu.set("60 GG")
         self.show_last_cards_optionMenu.pack(padx=(5, 100), anchor="s", side="right")
         self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ", font=("Arial", 14))
         self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
@@ -453,7 +454,7 @@ class RefundsView(ctk.CTkFrame):
             DBRefundsColumns.REFUND_NAME.value: ctk.CTkEntry,
             DBRefundsColumns.REFUND_AMOUNT.value: ctk.CTkEntry,
             DBRefundsColumns.REFUND_DATE.value: Calendar,
-            self.nome_cliente_string: ctk.CTkOptionMenu,
+            self.nome_cliente_string: FilterableComboBox,
             self.nome_conto_string: ctk.CTkOptionMenu,
         }
 
@@ -484,7 +485,7 @@ class RefundsView(ctk.CTkFrame):
                                       values=[f"{item[DBAccountsColumns.NAME.value]}" for item in
                                               self.account_controller.retrieve_accounts_map_list()])
             elif label_text == self.nome_cliente_string:
-                widget = widget_class(self.refund_window_scrollableFrame,
+                widget = widget_class(parent=self.refund_window_scrollableFrame, placeholder="Cerca", autofill=True,
                                       values=[f"{item[DBClientsColumns.NAME.value]}" for item in
                                               self.client_controller.retrieve_clients_map_list()])
             elif label_text == DBRefundsColumns.REFUND_DATE.value:
@@ -614,12 +615,15 @@ class RefundsView(ctk.CTkFrame):
 
         # riempi il dizionario con i dati dei widgets primari
         for label_text, widget in self.refund_widgets.items():
-            if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
-                refund_data[label_text] = widget.get().strip()
-            elif isinstance(widget, Calendar):
-                refund_data[label_text] = widget.get_date()
-            elif isinstance(widget, ctk.CTkTextbox):
-                refund_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+            for label_text, widget in self.refund_widgets.items():
+                if isinstance(widget, ctk.CTkEntry) or isinstance(widget, ctk.CTkOptionMenu):
+                    refund_data[label_text] = str(widget.get()).strip()
+                elif isinstance(widget, Calendar):
+                    refund_data[label_text] = widget.get_date()
+                elif isinstance(widget, ctk.CTkTextbox):
+                    refund_data[label_text] = widget.get("1.0", "end-1c").strip()  # Recupera il testo dal Textbox
+                elif isinstance(widget, FilterableComboBox):
+                    refund_data[label_text] = widget.get_value()
 
         success, message = self.refunds_controller.save_refund(refund_data)
 
@@ -645,6 +649,8 @@ class RefundsView(ctk.CTkFrame):
 
             self.clear_class_variable()
             self.add_refund_window.destroy()
+            self.show_last_cards()
+
         else:
             print(message)
             ViewUtils.show_error_popup(self.add_refund_window, "ERRORE", message)

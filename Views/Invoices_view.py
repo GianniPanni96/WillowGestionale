@@ -413,8 +413,8 @@ class InvoicesView(ctk.CTkFrame):
             elif label_text == DBInvoicesColumns.NUMERO_FATTURA.value:
                 self.name_frame = ctk.CTkFrame(self.invoice_window_scrollableFrame)
                 self.name_frame.pack(pady=0, padx=0, fill="x", expand=True)
-                last_part_name_label = ctk.CTkLabel(self.name_frame, text=f"{datetime.today().date().year}")
-                last_part_name_label.pack(side=tk.RIGHT, pady=5, padx=(0, 40))
+                self.last_part_name_label = ctk.CTkLabel(self.name_frame, text=f"{datetime.today().date().year}")
+                self.last_part_name_label.pack(side=tk.RIGHT, pady=5, padx=(0, 40))
                 widget = widget_class(self.name_frame)
             elif label_text == DBInvoicesColumns.DATA_CREAZIONE.value:
                 widget = widget_class(self.invoice_window_scrollableFrame, date_pattern=ViewUtils.date_pattern)
@@ -531,6 +531,8 @@ class InvoicesView(ctk.CTkFrame):
                 "Inserimento non valido: inserire un numero monetario con due cifre decimali (es. 123.45)"
             )
         )
+
+        self.invoice_widgets[DBInvoicesColumns.DATA_CREAZIONE.value].bind("<<CalendarSelected>>", self.on_calendar_date_selected)
 
     def load_invoices_chunked(self, invoices_list):
         """Versione di load_invoices_chunked che accetta una lista specifica di fatture"""
@@ -969,6 +971,26 @@ class InvoicesView(ctk.CTkFrame):
             self.save_button.pack(pady=(35, 15))
 
             self.auto_set_importi_for_nota_di_credito(self.invoice_widgets[DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value].get())
+
+    def on_calendar_date_selected(self, event):
+        """Callback chiamata quando una data viene selezionata nel calendario"""
+        try:
+            # Ottieni il widget calendario che ha generato l'evento
+            calendar_widget = event.widget
+
+            # Ottieni la data selezionata come oggetto date (non come stringa)
+            selected_date = calendar_widget.selection_get()
+
+            if selected_date:
+                # Estrai direttamente l'anno dall'oggetto date
+                year = selected_date.year
+                self.toggle_year_label_in_numero_fattura(str(year))
+
+        except Exception as e:
+            print(f"Errore durante l'aggiornamento dell'anno: {e}")
+
+    def toggle_year_label_in_numero_fattura(self, year):
+        self.last_part_name_label.configure(text=year)
 
     def auto_set_importi_for_nota_di_credito(self, selected_value=None):
         invoice = self.invoice_controller.retrieve_invoice_map_by_name(selected_value)

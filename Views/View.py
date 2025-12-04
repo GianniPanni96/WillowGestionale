@@ -12,8 +12,10 @@ from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersC
 
 from Book_closer import BookCloser
 
+
 from Views.Users_view import UsersView
 from Views.Clients_view import ClientsView
+from Views.Clients_view_H import ClientsViewH
 from Views.Invoices_view import InvoicesView
 from Views.Payments_view import PaymentsView
 from Views.Productions_view import ProductionsView
@@ -160,6 +162,7 @@ class MainWindow(ctk.CTk):
 
         self.tabview.add("Utenti")
         self.tabview.add("Clienti")
+        self.tabview.add("Clienti_H")
         self.tabview.add("Fornitori")
         self.tabview.add("Produzioni")
         self.tabview.add("Conti")
@@ -209,6 +212,8 @@ class MainWindow(ctk.CTk):
             "Utenti": lambda tab: UsersView(self.app_context, tab, self.logged_user_id, self.login_status),
 
             "Clienti": lambda tab: ClientsView(self.app_context, tab),
+
+            "Clienti_H": lambda tab: ClientsViewH(self.app_context, tab),
 
             "Fatture": lambda tab, invoice_id=None: InvoicesView(self.app_context, self.tabview, initial_invoice_id=invoice_id),
 

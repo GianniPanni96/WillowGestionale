@@ -834,7 +834,7 @@ class ExpensesView(ctk.CTkFrame):
                 self.expenses_widgets[key].pack(pady=5, padx=10, fill="x", expand=True)
                 if key == DBExpensesColumns.TOT_AMOUNT.value:
                     self.error_labels[DBExpensesColumns.TOT_AMOUNT.value].pack(pady=(0, 15))
-                a = self.expenses_widgets[DBExpensesColumns.CATEGORY.value].get()
+                a = self.expenses_widgets[DBExpensesColumns.CATEGORY.value].get_value()
                 b = dict(self.catalogo_elenchi["expenses_category"])
                 if key == self.nome_fattura_string and a != b["PRODUCTION_EXPENSE"]:
                     self.expenses_labels[key].pack_forget()

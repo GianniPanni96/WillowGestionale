@@ -1,1 +1,1 @@
-pyinstaller --onefile --windowed Main.py
+pyinstaller --onefile --windowed --icon=Data/images/WillowLogo.ico Main.py

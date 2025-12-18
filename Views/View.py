@@ -45,6 +45,12 @@ class MainWindow(ctk.CTk):
         self.data_path = data_path
         self.images_path = os.path.join(self.data_path, "images")
 
+        #Imposta l'icona della finestra
+        try:
+            self.iconbitmap(os.path.join(self.images_path, "WillowLogo.ico"))
+        except Exception as e:
+            print(f"Errore nell'impostazione dell'icona della finestra: {e}")
+
         self.login_status = False
         self.logged_user_id = -1
 

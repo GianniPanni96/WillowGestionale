@@ -18,6 +18,7 @@ if __name__ == "__main__":
 
     db_path = os.path.join(path, "gestionale.db")
     data_path = os.path.join(path, "Data")
+    images_path = os.path.join(data_path, "images")
     backup_path = os.path.join(path, "backups")
 
 

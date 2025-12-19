@@ -22,6 +22,8 @@ class BaseListView(ctk.CTkFrame):
     # Esempio: {"NOME FATTURA": (0, ctk.CTkButton), ...} [32-35]
     FILTER_MAPPING = {}
 
+    SHOW_LAST_CARDS_OPTIONS = {}
+
     # 5. Nome del frame contenitore delle cards (per il cleanup)
     CARDS_FRAME_NAME = None  # Esempio: 'invoices_cards_frame' [36]
 
@@ -76,7 +78,7 @@ class BaseListView(ctk.CTkFrame):
     def _create_search_and_filter_bar(self):
         """Crea la barra di ricerca, il menu di filtro e il menu di ordinamento."""
         self.search_bar_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
-        self.search_bar_frame.pack(pady=(5, 10), fill="x", anchor="s")
+        self.search_bar_frame.pack(pady=(25, 10), fill="x", anchor="s")
 
         # Filtra per testo
         self.search_bar = ctk.CTkEntry(self.search_bar_frame)
@@ -108,6 +110,23 @@ class BaseListView(ctk.CTkFrame):
             self.order_bar_optionMenu.pack(padx=5, anchor="s", side="right")
             self.order_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Ordina per ", font=("Arial", 14))
             self.order_bar_label.pack(padx=5, anchor="s", side="right")
+
+        # Aggiunta: Filtro per periodo di tempo (Mostra gli ultimi...)
+        if self.SHOW_LAST_CARDS_OPTIONS:
+            self.show_last_cards_optionMenu = ctk.CTkOptionMenu(
+                self.search_bar_frame,
+                values=list(self.SHOW_LAST_CARDS_OPTIONS.keys())  # Usa le chiavi come etichette
+            )
+
+                # Posizionamento del widget (si assume un layout da destra a sinistra)
+            self.show_last_cards_optionMenu.pack(padx=(5, 50), anchor="s", side="right")
+
+            self.show_last_cards_label = ctk.CTkLabel(self.search_bar_frame, text="Mostra gli ultimi ",
+                                                      font=("Arial", 14))
+            self.show_last_cards_label.pack(padx=5, anchor="s", side="right")
+
+            # Collega il comando al metodo astratto della classe base
+            self.show_last_cards_optionMenu.configure(command=lambda _: self.show_last_cards())
 
     def _display_global_infos_cards(self):
         """Visualizza le card aggregate, usando la logica in ViewUtils."""
@@ -203,7 +222,15 @@ class BaseListView(ctk.CTkFrame):
         """Logica di ordinamento (varia a seconda dei dati/controller)."""
         pass  # Può essere opzionale o lasciata vuota se si utilizza solo il filtro predefinito
 
-    # --- Implementazione del Filtraggio (Meccanismo Comune) ---
+    def show_last_cards(self):
+        """
+        Logica per filtrare gli item per data (ultimi N giorni).
+        DEVE ESSERE IMPLEMENTATA NELLA CLASSE FIGLIA.
+        """
+        # Questo metodo implementa il comportamento visibile in ClientsView.show_last_cards [5]
+        raise NotImplementedError("La logica di filtraggio temporale 'show_last_cards' deve essere implementata nella classe figlia.")
+
+        # --- Implementazione del Filtraggio (Meccanismo Comune) ---
 
     def filter_cards(self, event):
         """Filtra le card in base al testo e al tipo di filtro configurato."""

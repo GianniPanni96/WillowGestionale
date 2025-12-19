@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import re, os
-from Views.View_utils import ViewUtils
-
+from Views.View_utils import ViewUtils, customTKMenuButton
+from datetime import datetime
 
 
 from Controllers import UserController, AccountController, ClientController, InvoiceController, \
@@ -25,7 +25,7 @@ from Views.Report_view import ReportView
 
 
 class MainWindow(ctk.CTk):
-    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings, data_path):
+    def __init__(self, config_manager, backup_importer, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings, data_path):
         super().__init__()
 
         self._after_ids = set()
@@ -36,6 +36,7 @@ class MainWindow(ctk.CTk):
 
         # ConfigManager per la gestione della configurazione
         self.config_manager = config_manager
+        self.backup_importer = backup_importer
 
         self.fiscal_settings = fiscal_settings
         self.catalogo_elenchi = catalogo_elenchi
@@ -89,17 +90,35 @@ class MainWindow(ctk.CTk):
         self.toolbar_frame = ctk.CTkFrame(self)
         self.toolbar_frame.pack(side="top", fill="x")
 
-        # Menu "File" personalizzato
-        self.file_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Backups", command=self.open_backups_window)
-        self.file_menu_button.pack(side="left", padx=15, pady=15)
+        self.backup_menu = customTKMenuButton(
+            self.toolbar_frame,
+            text="Gestione Backup",
+            items=[
+                ("Impostazioni backup", self.open_backups_window),
+                ("Carica un backup", self.open_load_backup),
+            ],
+        )
+        self.backup_menu.pack(side="left", padx=15, pady=15)
 
-        # Menu "File" personalizzato
-        self.fiscal_settings_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Dati Fiscali", command=self.open_fiscal_settings_window)
-        self.fiscal_settings_menu_button.pack(side="left", padx=15, pady=15)
 
-        # Menu "File" personalizzato
-        self.recurring_expenses_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Spese Ricorrenti", command=self.open_recurring_expenses_window)
-        self.recurring_expenses_menu_button.pack(side="left", padx=15, pady=15)
+        self.fiscal_settings_menu_button = customTKMenuButton(
+            self.toolbar_frame,
+            text="Gestione Dati Fiscali",
+            items=[
+                ("Modifica dati fiscali", self.open_fiscal_settings_window)
+            ],
+        )
+        self.fiscal_settings_menu_button.pack(side="left", padx=(0, 15), pady=15)
+
+        self.recurring_expenses_menu_button = customTKMenuButton(
+            self.toolbar_frame,
+            text="Gestione Spese Ricorrenti",
+            items=[
+                ("Modifica Spese Ricorrenti", self.open_recurring_expenses_window)
+            ],
+        )
+        self.recurring_expenses_menu_button.pack(side="left", padx=(0, 15), pady=15)
+
 
         self.refresh_view_button = ctk.CTkButton(self.toolbar_frame, text="🔄", font=("Segoe UI Emoji", 20), command=self.refresh_tabviews, width=30)
         self.refresh_view_button.pack(side="right", padx=15, pady=15)
@@ -752,6 +771,132 @@ class MainWindow(ctk.CTk):
                 "Errore salvataggio configurazione",
                 f"Impossibile salvare la configurazione: {str(e)}"
             )
+
+    def open_load_backup(self):
+        """Apre la finestra per selezionare e importare un backup dell'anno corrente."""
+
+        # Evita doppia apertura
+        if hasattr(self, "backup_window") and self.backup_window.winfo_exists():
+            self.backup_window.lift()
+            return
+
+        self.backup_window = ctk.CTkToplevel(self)
+        self.backup_window.title("Carica un vecchio database tra i backup")
+        self.backup_window.geometry("720x450")
+        self.backup_window.grab_set()
+        self.backup_window.lift()
+
+        # ---------- Frame principale ----------
+        main_frame = ctk.CTkFrame(self.backup_window)
+        main_frame.pack(fill="both", expand=True, padx=12, pady=12)
+
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="Seleziona un backup dell'anno corrente da importare",
+            anchor="w",
+            font=("Segoe UI", 14, "bold")
+        )
+        title_label.pack(fill="x", pady=(0, 10))
+
+        # ---------- Lista backup (scrollabile CTk) ----------
+        list_frame = ctk.CTkScrollableFrame(main_frame)
+        list_frame.pack(fill="both", expand=True)
+
+        # Stato selezione
+        selected_backup = {
+            "path": None,
+            "datetime": None
+        }
+
+        # ---------- Bottoni ----------
+        buttons_frame = ctk.CTkFrame(main_frame)
+        buttons_frame.pack(fill="x", pady=(10, 0))
+
+        import_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Importa backup selezionato",
+            state="disabled"
+        )
+        import_btn.pack(side="right", padx=(6, 0))
+
+        refresh_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Aggiorna lista"
+        )
+        refresh_btn.pack(side="right", padx=(6, 0))
+
+        # ---------- Helpers UI ----------
+        def clear_list():
+            for widget in list_frame.winfo_children():
+                widget.destroy()
+            selected_backup["path"] = None
+            selected_backup["datetime"] = None
+            import_btn.configure(state="disabled")
+
+        def populate_list():
+            clear_list()
+            year = datetime.now().year
+            backups = self.backup_importer.list_backups_for_year(year)
+
+            if not backups:
+                ctk.CTkLabel(
+                    list_frame,
+                    text=f"Nessun backup trovato per l'anno {year}",
+                    anchor="w"
+                ).pack(fill="x", padx=6, pady=6)
+                return
+
+            for entry in backups:
+                dt = entry["datetime"]
+                label_text = dt.strftime("%Y-%m-%d %H:%M:%S")
+
+                btn = ctk.CTkButton(
+                    list_frame,
+                    text=label_text,
+                    anchor="w",
+                    fg_color="transparent",
+                    hover_color="#2a2a2a",
+                    command=lambda e=entry: on_select(e)
+                )
+                btn.pack(fill="x", padx=4, pady=2)
+
+        def on_select(entry):
+            selected_backup["path"] = entry["path"]
+            selected_backup["datetime"] = entry["datetime"]
+            import_btn.configure(state="normal")
+
+        def do_import():
+            if not selected_backup["path"]:
+                return
+
+            backup_date = selected_backup["datetime"].strftime("%d/%m/%Y %H:%M")
+
+            confirm = ViewUtils.ask_confirmation_popup(
+                parent=self.backup_window,
+                message=(
+                    f"Importare un vecchio backup comporta la perdita dei dati inseriti "
+                    f"da {backup_date} ad oggi.\n\n"
+                    f"Desideri continuare?"
+                ),
+                title="CONFERMA IMPORT BACKUP"
+            )
+
+            if not confirm:
+                return
+
+            success, msg = self.backup_importer.import_backup(selected_backup["path"])
+
+            if success:
+                ViewUtils.show_confirm_popup(self.backup_window)
+            else:
+                ViewUtils.show_error_popup(self.backup_window, "", f"Si è verificato un errore: {msg}")
+
+
+        # ---------- Bind ----------
+        import_btn.configure(command=do_import)
+        refresh_btn.configure(command=populate_list)
+
+        populate_list()
 
 
 

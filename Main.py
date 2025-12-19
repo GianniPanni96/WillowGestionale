@@ -1,8 +1,8 @@
 import threading
 from Views.View import MainWindow
 import os
-from Config import BackupScheduler, ConfigManager, RecurringExpense, FiscalSettings, PartitaIVAOrdinaria, PartitaIVAForfettaria, AliquotaIva, ScaglioneIrpef, HistoricalFinancialData
-
+from Config import ConfigManager, RecurringExpense, FiscalSettings, PartitaIVAOrdinaria, PartitaIVAForfettaria, AliquotaIva, ScaglioneIrpef, HistoricalFinancialData
+from Backup_manager import BackupScheduler, BackupImporter
 
 # Avvia l'applicazione
 if __name__ == "__main__":
@@ -88,8 +88,14 @@ if __name__ == "__main__":
     backup_thread = threading.Thread(target=scheduler.start, daemon=True)
     backup_thread.start()
 
+    #inzializza il backup importer da passare alla main view
+    backup_importer = BackupImporter(
+        backup_base_path=backup_base_path,
+        db_path=db_path
+    )
+
     # Avvia il frontend
-    app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings, data_path)
+    app = MainWindow(config_manager, backup_importer, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings, data_path)
 
 
     def on_closing():

@@ -1,5 +1,3 @@
-import threading
-from Model import DatabaseModel
 import os, re, json
 from typing import List
 from dataclasses import dataclass, field
@@ -8,83 +6,6 @@ from typing import Optional, Union
 
 from typing import Dict
 from dataclasses import dataclass
-
-
-class BackupScheduler:
-    def __init__(self, interval_minutes, max_backups, backup_base_path, delta_days):
-        """
-        Gestisce il scheduling di backup in un thread separato.
-        :param interval_minutes: Intervallo tra backup, in minuti.
-        :param max_backups: Numero massimo di backup da mantenere.
-        :param backup_base_path: Cartella base dove salvare i backup.
-        :param delta_days: Intervallo di giorni per suddividere i backup in sub‐cartelle.
-        """
-        self.interval_seconds = interval_minutes * 60
-        self.max_backups = max_backups
-        self.backup_base_path = backup_base_path
-        self.delta_days = delta_days
-
-        self.stop_event = threading.Event()
-        self.backup_timer = None
-
-    def start(self):
-        """Avvia il ciclo di backup pianificato."""
-        self.stop_event.clear()
-        self._schedule_backup()
-
-    def stop(self):
-        """
-        Ferma la pianificazione e esegue un ultimo backup sincrono.
-        Chiamala prima di distruggere la GUI.
-        """
-        # 1) Evita ulteriori pianificazioni
-        self.stop_event.set()
-
-        # 2) Annulla il timer pendente
-        if self.backup_timer:
-            self.backup_timer.cancel()
-            self.backup_timer = None
-
-        # 3) Esegui un ultimo backup subito
-        try:
-            print("Esecuzione backup finale prima della chiusura…")
-            os.makedirs(self.backup_base_path, exist_ok=True)
-            DatabaseModel.backup_gestionale_db(
-                self.max_backups,
-                self.backup_base_path,
-                self.delta_days
-            )
-            print("Backup finale completato.")
-        except Exception as e:
-            print(f"Errore durante il backup finale: {e}")
-
-    def _schedule_backup(self):
-        """Pianifica il prossimo timer di backup se non fermato."""
-        if not self.stop_event.is_set():
-            t = threading.Timer(self.interval_seconds, self._execute_backup)
-            t.daemon = True             # <— rendilo daemon
-            self.backup_timer = t
-            t.start()
-
-    def _execute_backup(self):
-        """
-        Esegue il backup programmato e, se non fermato, ripianifica il successivo.
-        """
-        try:
-            print("Esecuzione del backup programmato…")
-            os.makedirs(self.backup_base_path, exist_ok=True)
-            DatabaseModel.backup_gestionale_db(
-                self.max_backups,
-                self.backup_base_path,
-                self.delta_days
-            )
-            print("Backup completato.")
-        except Exception as e:
-            print(f"Errore durante il backup programmato: {e}")
-        finally:
-            # Ripianifica solo se non abbiamo chiamato stop()
-            if not self.stop_event.is_set():
-                self._schedule_backup()
 
 
 class ConfigManager:

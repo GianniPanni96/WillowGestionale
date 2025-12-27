@@ -386,6 +386,7 @@ class MainWindow(ctk.CTk):
         self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self._handle_show_expense_detail)
 
 
+
     def _handle_show_invoice_detail(self, invoice_id):
         """Gestisce la navigazione verso una fattura - APRE DIRETTAMENTE IL DETTAGLIO"""
         print(f"Navigazione diretta a dettaglio fattura: {invoice_id}")
@@ -782,12 +783,12 @@ class MainWindow(ctk.CTk):
 
         self.backup_window = ctk.CTkToplevel(self)
         self.backup_window.title("Carica un vecchio database tra i backup")
-        self.backup_window.geometry("720x450")
+        self.backup_window.geometry("720x650")
         self.backup_window.grab_set()
         self.backup_window.lift()
 
         # ---------- Frame principale ----------
-        main_frame = ctk.CTkFrame(self.backup_window)
+        main_frame = ctk.CTkFrame(self.backup_window, fg_color="transparent")
         main_frame.pack(fill="both", expand=True, padx=12, pady=12)
 
         title_label = ctk.CTkLabel(
@@ -808,9 +809,22 @@ class MainWindow(ctk.CTk):
             "datetime": None
         }
 
+        selected_bk_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        selected_bk_frame.pack(pady=10, fill="x")
+        selected_label_1 = ctk.CTkLabel(selected_bk_frame, text="Backup selezionato: ")
+        selected_label_1.pack(side="left", pady=10)
+        selected_label_2 = ctk.CTkLabel(selected_bk_frame, text="", font=("Arial", 16))
+        selected_label_2.pack(side="left", pady=10, padx=(15, 0))
+
         # ---------- Bottoni ----------
-        buttons_frame = ctk.CTkFrame(main_frame)
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         buttons_frame.pack(fill="x", pady=(10, 0))
+
+        refresh_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Aggiorna lista"
+        )
+        refresh_btn.pack(side="left", padx=(6, 0))
 
         import_btn = ctk.CTkButton(
             buttons_frame,
@@ -819,13 +833,35 @@ class MainWindow(ctk.CTk):
         )
         import_btn.pack(side="right", padx=(6, 0))
 
-        refresh_btn = ctk.CTkButton(
-            buttons_frame,
-            text="Aggiorna lista"
-        )
-        refresh_btn.pack(side="right", padx=(6, 0))
-
         # ---------- Helpers UI ----------
+        def format_interval_name(interval_name):
+            """Formatta il nome dell'intervallo nel formato '10-20 Dec'"""
+            try:
+                # Estrai le date dal nome della cartella
+                # Formato: YYYYMMDD_to_YYYYMMDD
+                parts = interval_name.split("_to_")
+                if len(parts) != 2:
+                    return interval_name
+
+                start_date = datetime.strptime(parts[0], "%Y%m%d")
+                end_date = datetime.strptime(parts[1], "%Y%m%d")
+
+                # Formatta nel formato "10-20 Dec"
+                month_names_ita = {
+                    1: "Gen", 2: "Feb", 3: "Mar", 4: "Apr", 5: "Mag", 6: "Giu",
+                    7: "Lug", 8: "Ago", 9: "Set", 10: "Ott", 11: "Nov", 12: "Dic"
+                }
+
+                # Se è lo stesso mese: "10-20 Ott"
+                if start_date.month == end_date.month:
+                    return f"{start_date.day}-{end_date.day} {month_names_ita[start_date.month]}"
+                # Altrimenti: "20 Ott - 30 Nov"
+                else:
+                    return f"{start_date.day} {month_names_ita[start_date.month]} - {end_date.day} {month_names_ita[end_date.month]}"
+
+            except Exception as e:
+                return interval_name
+
         def clear_list():
             for widget in list_frame.winfo_children():
                 widget.destroy()
@@ -846,24 +882,68 @@ class MainWindow(ctk.CTk):
                 ).pack(fill="x", padx=6, pady=6)
                 return
 
-            for entry in backups:
-                dt = entry["datetime"]
-                label_text = dt.strftime("%Y-%m-%d %H:%M:%S")
+            # Raggruppa i backup per cartella di intervallo
+            backups_by_interval = {}
 
-                btn = ctk.CTkButton(
+            for entry in backups:
+                # Estrai il nome della cartella di intervallo dal path
+                # Il path è strutturato come: .../intervallo_folder/sub_folder/file
+                path_parts = entry["path"].split(os.sep)
+                if len(path_parts) >= 2:
+                    interval_folder = path_parts[-2]  # -2 perché: .../interval_folder/sub_folder/file.db
+                else:
+                    interval_folder = "Unknown"
+
+                if interval_folder not in backups_by_interval:
+                    backups_by_interval[interval_folder] = []
+                backups_by_interval[interval_folder].append(entry)
+
+            # Ordina gli intervalli per data (dal più recente)
+            sorted_intervals = sorted(
+                backups_by_interval.keys(),
+                key=lambda x: datetime.strptime(x.split("_to_")[0], "%Y%m%d") if "_to_" in x else datetime.min,
+                reverse=True
+            )
+
+            # Per ogni intervallo, crea un label separatore e poi i bottoni dei backup
+            for interval in sorted_intervals:
+                # Label separatore per l'intervallo
+                formatted_interval = format_interval_name(interval)
+                separator_label = ctk.CTkLabel(
                     list_frame,
-                    text=label_text,
-                    anchor="w",
-                    fg_color="transparent",
-                    hover_color="#2a2a2a",
-                    command=lambda e=entry: on_select(e)
+                    text=f"--------------------------       {formatted_interval}       --------------------------",
+                    font=("Segoe UI", 15, "italic"),
+                    text_color="#808080"  # Grigio per differenziare
                 )
-                btn.pack(fill="x", padx=4, pady=2)
+                separator_label.pack(fill="x", padx=6, pady=(15, 5))
+
+                # Ordina i backup di questo intervallo per data (dal più recente)
+                interval_backups = sorted(
+                    backups_by_interval[interval],
+                    key=lambda x: x["datetime"],
+                    reverse=True
+                )
+
+                # Aggiungi i bottoni per ogni backup in questo intervallo
+                for entry in interval_backups:
+                    dt = entry["datetime"]
+                    label_text = dt.strftime("%Y-%m-%d %H:%M:%S")
+
+                    btn = ctk.CTkButton(
+                        list_frame,
+                        text=f"    {label_text}",  # Indentazione per differenziare
+                        anchor="w",
+                        fg_color="transparent",
+                        hover_color="#212121",
+                        command=lambda e=entry: on_select(e)
+                    )
+                    btn.pack(fill="x", padx=10, pady=2)
 
         def on_select(entry):
             selected_backup["path"] = entry["path"]
             selected_backup["datetime"] = entry["datetime"]
             import_btn.configure(state="normal")
+            selected_label_2.configure(text=f"{selected_backup['datetime']}")
 
         def do_import():
             if not selected_backup["path"]:
@@ -874,7 +954,7 @@ class MainWindow(ctk.CTk):
             confirm = ViewUtils.ask_confirmation_popup(
                 parent=self.backup_window,
                 message=(
-                    f"Importare un vecchio backup comporta la perdita dei dati inseriti "
+                    f"Importare questo backup comporta la perdita dei dati inseriti "
                     f"da {backup_date} ad oggi.\n\n"
                     f"Desideri continuare?"
                 ),
@@ -890,7 +970,6 @@ class MainWindow(ctk.CTk):
                 ViewUtils.show_confirm_popup(self.backup_window)
             else:
                 ViewUtils.show_error_popup(self.backup_window, "", f"Si è verificato un errore: {msg}")
-
 
         # ---------- Bind ----------
         import_btn.configure(command=do_import)

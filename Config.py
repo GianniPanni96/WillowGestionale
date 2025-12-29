@@ -482,6 +482,45 @@ class ConfigManager:
 
         self.save_config(cfg)
 
+    def update_historical_financial_data(self, historical_data: dict):
+        """
+        Aggiorna la sezione historical_financial_data della configurazione.
+
+        :param historical_data: Dizionario con le chiavi "revenues" e "deducted_expenses"
+        """
+        try:
+            # Carica la configurazione corrente
+            current_config = self.load_config()
+
+            # Inizializza la sezione se non esiste
+            if "historical_financial_data" not in current_config:
+                current_config["historical_financial_data"] = {
+                    "revenues": {},
+                    "deducted_expenses": {}
+                }
+
+            # Aggiorna i dati, mantenendo quelli esistenti degli altri anni
+            if "revenues" in historical_data:
+                for year, year_data in historical_data["revenues"].items():
+                    if year not in current_config["historical_financial_data"]["revenues"]:
+                        current_config["historical_financial_data"]["revenues"][year] = {}
+
+                    # Sostituisce i dati per l'anno specifico (aggiorna completamente)
+                    current_config["historical_financial_data"]["revenues"][year] = year_data
+
+            if "deducted_expenses" in historical_data:
+                for year, amount in historical_data["deducted_expenses"].items():
+                    current_config["historical_financial_data"]["deducted_expenses"][year] = float(amount)
+
+            # Salva la configurazione aggiornata
+            self.save_config(current_config)
+
+            years_updated = list(historical_data.get("revenues", {}).keys())
+            print(f"Dati finanziari storici aggiornati per l'anno {years_updated}")
+
+        except Exception as e:
+            raise Exception(f"Errore durante l'aggiornamento dei dati finanziari storici: {str(e)}")
+
 
 @dataclass
 class PartitaIVAForfettaria:

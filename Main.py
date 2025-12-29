@@ -3,6 +3,7 @@ from Views.View import MainWindow
 import os
 from Config import ConfigManager, RecurringExpense, FiscalSettings, PartitaIVAOrdinaria, PartitaIVAForfettaria, AliquotaIva, ScaglioneIrpef, HistoricalFinancialData
 from Backup_manager import BackupScheduler, BackupImporter
+from App_context import AppContext
 
 # Avvia l'applicazione
 if __name__ == "__main__":
@@ -94,8 +95,21 @@ if __name__ == "__main__":
         db_path=db_path
     )
 
+    app_context = AppContext(fiscal_settings,
+                                historical_financial_data_settings,
+                                recurring_expenses_settings,
+                                catalogo_elenchi,
+                                config_manager,
+                                backup_importer,
+                                path,
+                                db_path,
+                                data_path,
+                                images_path,
+                                backup_path
+                             )
+
     # Avvia il frontend
-    app = MainWindow(config_manager, backup_importer, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings, data_path)
+    app = MainWindow(app_context)
 
 
     def on_closing():

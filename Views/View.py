@@ -4,10 +4,10 @@ from Views.View_utils import ViewUtils, customTKMenuButton
 from datetime import datetime
 
 
-from Controllers import UserController, AccountController, ClientController, InvoiceController, \
-    PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
-    Analyzer, TransfersController, SalaryController, RefundController
-from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns, DBExpensesColumns, DBUsersColumns
+from Controllers import ExpenseController, ControllerUtils
+from Model import DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
+
+from Book_closer import BookCloser
 
 from Views.Users_view import UsersView
 from Views.Clients_view import ClientsView
@@ -25,7 +25,7 @@ from Views.Report_view import ReportView
 
 
 class MainWindow(ctk.CTk):
-    def __init__(self, config_manager, backup_importer, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings, data_path):
+    def __init__(self, app_context):
         super().__init__()
 
         self._after_ids = set()
@@ -34,17 +34,20 @@ class MainWindow(ctk.CTk):
         self._orig_after = self.after
         self.after = self._track_after
 
+        self.app_context = app_context
+        self.event_bus = app_context.event_bus
+
         # ConfigManager per la gestione della configurazione
-        self.config_manager = config_manager
-        self.backup_importer = backup_importer
+        self.config_manager = app_context.config_manager
+        self.backup_importer = app_context.backup_importer
 
-        self.fiscal_settings = fiscal_settings
-        self.catalogo_elenchi = catalogo_elenchi
-        self.recurring_expenses_settings = recurring_expenses_settings
-        self.historical_financial_data_settings = historical_financial_data_settings
+        self.fiscal_settings = app_context.fiscal_settings
+        self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.recurring_expenses_settings = app_context.recurring_expenses_settings
+        self.historical_financial_data_settings = app_context.historical_financial_data_settings
 
-        self.data_path = data_path
-        self.images_path = os.path.join(self.data_path, "images")
+        self.data_path = app_context.data_path
+        self.images_path = app_context.images_path
 
         #Imposta l'icona della finestra
         try:
@@ -55,34 +58,21 @@ class MainWindow(ctk.CTk):
         self.login_status = False
         self.logged_user_id = -1
 
-        # inizializzatori oggetti controllers e model
-        self.db_model = DatabaseModel(db_path)  # Istanzia il modello
-        self.fiscal_settings = fiscal_settings
-        self.user_controller = UserController(self.db_model, self.fiscal_settings)  # Crea il controller per gli utenti
-        self.account_controller = AccountController(self.db_model, self.user_controller)
-        self.salary_controller = SalaryController(self.db_model, self.user_controller, self.account_controller)
-        self.transfer_controller = TransfersController(self.db_model, self.account_controller)
-        self.client_controller = ClientController(self.db_model)
-        self.supplier_controller = SupplierController(self.db_model)
-        self.payment_controller = PaymentsController(self.db_model, self.account_controller)
-        self.production_controller = ProductionController(self.db_model, self.client_controller)
-        self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, fiscal_settings, self.historical_financial_data_settings)
-        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller, self.recurring_expenses_settings, self.catalogo_elenchi)
-        self.refund_controller = RefundController(self.db_model, self.client_controller, self.account_controller)
-        self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
-        self.analyzer = Analyzer(self.user_controller,
-                 self.client_controller,
-                 self.account_controller,
-                 self.invoice_controller,
-                 self.transfer_controller,
-                 self.supplier_controller,
-                 self.production_controller,
-                 self.payment_controller,
-                 self.expense_controller,
-                 self.salary_controller,
-                 self.refund_controller,
-                 self.fiscal_settings,
-                 self.recurring_expenses_settings)
+
+        self.db_model = app_context.db_model  # Istanzia il modello
+        self.user_controller = app_context.user_controller  # Crea il controller per gli utenti
+        self.account_controller = app_context.account_controller
+        self.salary_controller = app_context.salary_controller
+        self.transfer_controller = app_context.transfer_controller
+        self.client_controller = app_context.client_controller
+        self.supplier_controller = app_context.supplier_controller
+        self.payment_controller = app_context.payment_controller
+        self.production_controller = app_context.production_controller
+        self.invoice_controller = app_context.invoice_controller
+        self.expense_controller = app_context.expense_controller
+        self.refund_controller = app_context.refund_controller
+        self.update_controller = app_context.update_controller
+        self.analyzer = app_context.analyzer
 
         self.title("Gestionale Willow")
 
@@ -115,6 +105,15 @@ class MainWindow(ctk.CTk):
             text="Gestione Spese Ricorrenti",
             items=[
                 ("Modifica Spese Ricorrenti", self.open_recurring_expenses_window)
+            ],
+        )
+        self.recurring_expenses_menu_button.pack(side="left", padx=(0, 15), pady=15)
+
+        self.recurring_expenses_menu_button = customTKMenuButton(
+            self.toolbar_frame,
+            text="Gestione Esercizio",
+            items=[
+                (f"Chiusura Esercizio {datetime.now().strftime('%Y')}", self.open_fiscal_year_closer_window)
             ],
         )
         self.recurring_expenses_menu_button.pack(side="left", padx=(0, 15), pady=15)
@@ -161,15 +160,12 @@ class MainWindow(ctk.CTk):
         self.custom_font = ctk.CTkFont("Arial", 20)
         self.tabview._segmented_button.configure(font=self.custom_font)
 
-        self.event_bus = EventBus()
-
         self.construct_tabviews()
 
         self.update_idletasks()
         self.after(100, lambda: self.state("zoomed"))
 
         self._setup_event_subscriptions()
-
 
     def _track_after(self, ms, callback=None, *args):
         after_id = self._orig_after(ms, callback, *args)
@@ -1847,17 +1843,161 @@ class MainWindow(ctk.CTk):
             self.expense_widgets[expense_key][field] = widget
 
 
+    #funzioni per la chiusura dell'esercizio contabile
+    def open_fiscal_year_closer_window(self):
+        """Apre una finestra per gestire la chiusura dell'anno contabile."""
+        # Crea la finestra di dialogo
+        self.fiscal_year_closer_window = ctk.CTkToplevel(self)
+        self.fiscal_year_closer_window.title("Chiusura anno contabile")
+        self.fiscal_year_closer_window.lift()
+        self.fiscal_year_closer_window.grab_set()
 
-class EventBus:
-    def __init__(self):
-        self.subscribers = {}
+        # ---------- helper function -----------
+        def determine_current_exercise_year() -> int:
+            """
+            Determina l'anno dell'esercizio corrente in base alla data odierna.
+            Se siamo a dicembre: anno corrente
+            Se siamo a gennaio o febbraio: anno precedente
+            Altrimenti: anno corrente
+            """
+            now = datetime.now()
+            current_month = now.month
 
-    def subscribe(self, event_type, handler):
-        if event_type not in self.subscribers:
-            self.subscribers[event_type] = []
-        self.subscribers[event_type].append(handler)
+            if current_month == 12:  # Dicembre
+                return now.year
+            elif current_month in [1, 2]:  # Gennaio o Febbraio
+                return now.year - 1
+            else:  # Marzo-Novembre
+                # Per sicurezza usiamo l'anno precedente se siamo nei primi mesi
+                # ma non gennaio/febbraio (questa logica può essere modificata)
+                return now.year
 
-    def publish(self, event_type, data):
-        if event_type in self.subscribers:
-            for handler in self.subscribers[event_type]:
-                handler(data)
+        # ---------- Frame principale ----------
+        self.current_exercise_year = determine_current_exercise_year()
+        main_frame = ctk.CTkFrame(self.fiscal_year_closer_window, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=12, pady=12)
+
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text=f"Stai per eseguire la chiusura dell'anno fiscale {self.current_exercise_year}.",
+            anchor="w",
+            font=("Segoe UI", 18, "bold")
+        )
+        title_label.pack(fill="x", pady=(0, 10), padx=5)
+
+        description_label_1 = ctk.CTkLabel(
+            main_frame,
+            text="Quest'operazione comporta:\n\n"
+                 "- esportazione dei dati aggregati annuali su file .csv\n"
+                 "- esportazione dei dati aggregati mensili su file .csv\n"
+                 "- salvataggio e aggiornamento del saldo dei conti al 31/12\n"
+                 "- esportazione del'elenco dei movimenti bancari su file .csv\n",
+            justify="left",
+            anchor="w",
+            font=("Segoe UI", 15)
+        )
+        description_label_1.pack(fill="x", pady=(15, 15), padx=5)
+
+        description_label_2 = ctk.CTkLabel(
+            main_frame,
+            text="A PARTIRE DAL 01/12 ed indipendentemente dall'avvenuta chiusura contabile dell'anno:\n\n"
+                 "- non sarà più possibile modificare i campi di oggetti relativi all'anno contabile passato\n"
+                 "- l'interfaccia mostrerà solo i dati relativi al nuovo esercizio contabile\n"
+                 "- il database in backend rimarrà sempre lo stesso, contenente tutti i campi inseriti, \n di tutti gli anni contabili\n"
+                 "- sarà possibile visualizzare i vecchi esercizi contabili tramite un software \n di time machine per la sola lettura/consultazione\n"
+                 "- i dati aggregati esportati saranno utilizzati per il plotting dell'andamento nella tab apposita\n"
+                 "- NON SPOSTARE I FILE DEI DATI ESPORTATI DALLA LORO CARTELLA\n",
+            justify="left",
+            anchor="w",
+            font=("Segoe UI", 15)
+        )
+        description_label_2.pack(fill="x", pady=(15, 10), padx=5)
+
+        ctk.CTkLabel(main_frame, text="Desideri continuare?", font=("Segoe UI", 16, "bold")).pack(fill="x", pady=(15, 15), padx=5)
+        ctk.CTkButton(main_frame, text="Non ora", command=lambda: self.fiscal_year_closer_window.destroy(), fg_color="gray").pack(
+            fill="x", pady=(15, 20), padx=55, side="left")
+        ctk.CTkButton(main_frame, text="Avanti", command=self.close_fiscal_year).pack(fill="x", pady=(15, 20), padx=(0, 55), side="right")
+
+
+    def close_fiscal_year(self):
+        book_closer = BookCloser(self, self.app_context)
+        book_closer.set_current_exercise_year(self.current_exercise_year)
+
+        # Lista delle operazioni con descrizioni
+        operations = [
+            ("Esportazione movimenti bancari", book_closer.export_accounts_movements),
+            ("Aggiornamento dati finanziari storici", book_closer.update_historical_financial_data),
+            ("Esportazione dati annuali aggregati", book_closer.export_annual_data),
+            ("Esportazione dati mensili aggregati", book_closer.export_monthly_data),
+            ("Impoprtazione saldi bancari iniziali", book_closer.import_initial_balances)
+        ]
+
+        results = []
+
+        # Esegui ogni operazione e cattura il risultato
+        for description, operation in operations:
+            try:
+                # Esegui l'operazione
+                result = operation()
+
+                # Considera l'operazione riuscita se:
+                # 1. Non ci sono state eccezioni
+                # 2. Per export_accounts_movements: deve restituire un percorso (non None)
+                if description == "Esportazione movimenti bancari" and result is None:
+                    results.append((description, False, "Restituito None"))
+                else:
+                    results.append((description, True, "Successo"))
+
+            except Exception as e:
+                results.append((description, False, str(e)))
+
+        # Calcola statistiche
+        success_count = sum(1 for _, success, _ in results if success)
+        total_count = len(results)
+
+        # Mostra popup riepilogativo finale
+        if success_count == total_count:
+            # Crea messaggio dettagliato con risultati
+            details = "\n".join([
+                f"✓ {desc}" if success else f"✗ {desc}: {msg}"
+                for desc, success, msg in results
+            ])
+
+            ViewUtils.show_confirm_popup(
+                self.fiscal_year_closer_window,
+                f"Chiusura esercizio completata ({success_count}/{total_count})",
+                f"Operazioni completate:\n\n{details}"
+            )
+        else:
+            # Crea messaggio dettagliato con risultati
+            details = "\n".join([
+                f"✓ {desc}" if success else f"✗ {desc}: {msg}"
+                for desc, success, msg in results
+            ])
+
+            ViewUtils.show_error_popup(
+                self.fiscal_year_closer_window,
+                f"Chiusura esercizio parziale ({success_count}/{total_count})",
+                f"Operazioni completate:\n\n{details}"
+            )
+
+        # Stampa log dettagliato nella console
+        print("\n" + "=" * 60)
+        print("RIEPILOGO CHIUSURA ESERCIZIO")
+        print("=" * 60)
+        for desc, success, msg in results:
+            status = "✓ SUCCESSO" if success else "✗ FALLITO"
+            print(f"{status}: {desc}")
+            if not success and msg:
+                print(f"  Motivo: {msg}")
+        print("=" * 60)
+        print(f"Operazioni completate con successo: {success_count}/{total_count}")
+
+
+
+
+
+
+
+
+

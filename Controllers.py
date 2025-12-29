@@ -1215,7 +1215,6 @@ class UserController:
             return False, "Password errata!", -1
 
 
-
 class ClientController:
 
     class TipologiaCliente(Enum):
@@ -3379,17 +3378,6 @@ class AccountController:
         # Supponiamo che la colonna 'name' sia al secondo posto nella tabella
         return [account[1] for account in accounts]
 
-    def calcola_saldo_attuale_conto(self, account_id):
-        account = self.retrieve_account_by_id(account_id)
-        if account:
-            saldo = float(account[DBAccountsColumns.INIT_BALANCE.value])
-
-
-
-            return saldo
-        else:
-            return None
-
     @staticmethod
     def get_accounts_mapping(db_model):
         """
@@ -4826,6 +4814,61 @@ class SalaryController:
     def sum_salaries_for_account(self, account_id):
         return self.db_model.sum_salaries_by_account(account_id)
 
+    def calculate_mean_salary_by_month(self, month: int) -> float | None:
+        """
+        Calculates the mean salary across all users for a specific month.
+
+        :param month: Month as integer (1-12)
+        :return: Mean salary as float, or None if no data or invalid month
+        """
+        # Validate month input
+        if month < 1 or month > 12:
+            print(f"SalaryController.calculate_mean_salary_by_month(): Invalid month {month}. Must be between 1-12.")
+            return None
+
+        try:
+            # Retrieve all salaries
+            salaries = self.retrieve_salaries_map_list()
+
+            # Early return if no salaries
+            if not salaries:
+                print(f"SalaryController.calculate_mean_salary_by_month(): No salary data found.")
+                return None
+
+            monthly_tot = 0.0
+            count = 0
+
+            for salary in salaries:
+                # Get the date safely
+                date_str = salary.get(DBSalariesColumns.DATE.value)
+                if not date_str:
+                    continue
+
+                try:
+                    date = datetime.strptime(date_str, '%Y-%m-%d')
+                    if date.month == month:
+                        amount = salary.get(DBSalariesColumns.AMOUNT.value)
+                        if amount is not None:
+                            monthly_tot += float(amount)
+                            count += 1
+                except (ValueError, TypeError) as e:
+                    print(f"Warning: Invalid date format for salary: {date_str} - {e}")
+                    continue
+
+            # Return None if no salaries for this month
+            if count == 0:
+                print(f"No salary data found for month {month}")
+                return None
+
+            # Calculate and return mean
+            mean = monthly_tot / count
+            return mean
+
+        except Exception as e:
+            print(f"Error in calculate_mean_salary_by_month: {e}")
+            return None
+
+
 
 class RefundController:
 
@@ -5885,4 +5928,5 @@ class Analyzer:
             }
 
         return result
+
 

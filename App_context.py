@@ -3,6 +3,8 @@ from Controllers import UserController, AccountController, ClientController, Inv
     Analyzer, TransfersController, SalaryController, RefundController
 from Model import DatabaseModel
 from Event_bus import EventBus
+from Books_retriever import BooksRetriever
+
 
 
 class AppContext:
@@ -63,3 +65,4 @@ class AppContext:
         self.backup_importer = backup_importer
         self.historical_financial_data_settings = historical_financial_data_settings
         self.recurring_expenses_settings = recurring_expenses_settings
+        self.books_retriever = BooksRetriever(self.environment_db_variable)

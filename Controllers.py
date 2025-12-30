@@ -4869,7 +4869,6 @@ class SalaryController:
             return None
 
 
-
 class RefundController:
 
     class RefundsAggregateData(Enum):

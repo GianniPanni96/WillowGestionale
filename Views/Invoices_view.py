@@ -58,9 +58,6 @@ class InvoicesView(ctk.CTkFrame):
         if len(self.client_controller.retrieve_clients_map_list()) > 0:
             self.populate_production_list_by_selected_client(self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
 
-        #self.payment_controller.register_on_adding_payment_callbacks(self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color)
-        #self.invoice_controller.register_on_updating_invoice_controller_callbacks(self.toggle_specific_invoice_status, self.toggle_specific_invoice_status_color, self.toggle_specific_invoice_rate_color_2, self.toggle_aggregate_data)
-
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
         self.detail_container = ctk.CTkFrame(self, fg_color="transparent")

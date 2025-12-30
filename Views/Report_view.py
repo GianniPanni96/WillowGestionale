@@ -6,12 +6,12 @@ from datetime import datetime
 
 class ReportView (ctk.CTkFrame):
     def __init__(self, db_model, fiscal_settings, tabview, analyzer, event_bus, update_controller):
-        super().__init__(tabview.tab("Report"))
+        super().__init__(tabview.tab(f"Report {datetime.now().strftime('%Y')}"))
 
         self.db_model = db_model
         self.update_controller = update_controller
         self.tabview = tabview
-        self.tab = tabview.tab("Report")
+        self.tab = tabview.tab(f"Report {datetime.now().strftime('%Y')}")
         self.fiscal_settings = fiscal_settings
         self.analyzer = analyzer
         self.event_bus = event_bus
@@ -19,9 +19,6 @@ class ReportView (ctk.CTkFrame):
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="#2b2b2b")
         self.main_container.pack(fill='both', expand=True)
-        #self.detail_container = ctk.CTkFrame(self, fg_color="#2b2b2b")
-
-        # Inizializza la vista principale
 
         # Sistema per tracciare gli after()
         self._after_ids = set()

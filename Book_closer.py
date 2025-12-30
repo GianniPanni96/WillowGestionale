@@ -19,6 +19,7 @@ class BookCloser:
             print(f"Creata directory: {self.books_dir}")
 
         self.annual_data_file_path = os.path.join(self.books_dir, "annual_aggregated_data.csv")
+        self.monthly_data_file_path = os.path.join(self.books_dir, "monthly_aggregated_data.csv")
 
         # Recupera tutti i conti
         self.accounts = self.app_context.account_controller.retrieve_accounts_map_list()
@@ -194,6 +195,8 @@ class BookCloser:
             account_name = account.get(DBAccountsColumns.NAME.value)
             balances[account_name] = self.app_context.analyzer.calculate_account_balance_by_account_id(account_id)
 
+        tot_fatturato = self.app_context.invoice_controller.calculate_FATT_LORDO_invoiced()
+        tot_spese = self.app_context.expense_controller.calculate_tot_expenses()
         media_fatture = self.app_context.invoice_controller.calculate_MEDIA_FATTURA_LORDO_invoiced()
         media_ore_per_produzione = self.app_context.production_controller.mean_hours_for_production()
         media_prezzo_orario_produzione = self.app_context.production_controller.mean_prezzo_orario()
@@ -206,12 +209,16 @@ class BookCloser:
 
         # Prepara i dati per il CSV
         row_data = {
+            'data_esportazione': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'anno': self.current_exercise_year,
+            'totale_fatturato': tot_fatturato,
+            'totale_spese': tot_spese,
             'media_fatture': media_fatture,
             'media_ore_per_produzione': media_ore_per_produzione,
             'media_prezzo_orario_produzione': media_prezzo_orario_produzione,
+            'numero_conti': len(balances),
             'irpef_willow': irpef_willow,
-            'inps_willow': inps_willow,
+            'inps_willow': inps_willow
         }
 
         # Aggiungi i saldi dei conti
@@ -219,21 +226,6 @@ class BookCloser:
             # Sostituisci spazi con underscore per nomi colonna più leggibili
             column_name = f"saldo_{account_name.replace(' ', '_').lower()}"
             row_data[column_name] = balance
-
-        # Aggiungi altre statistiche utili
-        try:
-            # Totale fatturato dell'anno
-            totale_fatturato = sum(balances.values())
-            row_data['totale_fatturato'] = totale_fatturato
-
-            # Numero di conti attivi
-            row_data['numero_conti'] = len(balances)
-
-            # Data di esportazione
-            row_data['data_esportazione'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        except Exception as e:
-            print(f"Errore nel calcolo delle statistiche aggiuntive: {e}")
 
         # MODIFICA: Gestione aggiornamento se la riga esiste già
         if file_exists:
@@ -308,11 +300,8 @@ class BookCloser:
         # Recupera i dati mensili dall'analyzer
         monthly_data = self.app_context.analyzer.retrieve_monthly_data()
 
-        # Prepara il percorso del file
-        file_path = os.path.join(self.books_dir, "monthly_aggregated_data.csv")
-
         # Verifica se il file esiste per determinare se scrivere l'header
-        file_exists = os.path.isfile(file_path)
+        file_exists = os.path.isfile(self.monthly_data_file_path)
 
         # Dati da raccogliere per ogni mese
         monthly_rows = []
@@ -401,7 +390,7 @@ class BookCloser:
         if file_exists:
             try:
                 # Leggi il file esistente
-                with open(file_path, 'r', newline='', encoding='utf-8') as csvfile:
+                with open(self.monthly_data_file_path, 'r', newline='', encoding='utf-8') as csvfile:
                     reader = csv.DictReader(csvfile)
                     existing_rows = list(reader)
 
@@ -419,7 +408,7 @@ class BookCloser:
                     filtered_rows.sort(key=lambda x: (int(x.get('anno', 0)), int(x.get('mese', 0))))
 
                     # Riscrivi tutto il file con tutte le righe
-                    with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                    with open(self.monthly_data_file_path, 'w', newline='', encoding='utf-8') as csvfile:
                         # Prepara l'header con tutte le chiavi (unione di tutte le righe)
                         all_keys = set()
                         for row in filtered_rows:
@@ -434,7 +423,7 @@ class BookCloser:
                     print(f"Aggiornati dati mensili per l'anno {self.current_exercise_year} ({replaced_months} mesi)")
                 else:
                     # File esiste ma è vuoto o ha solo header
-                    with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                    with open(self.monthly_data_file_path, 'w', newline='', encoding='utf-8') as csvfile:
                         if monthly_rows:
                             fieldnames = list(monthly_rows[0].keys())
                             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -446,7 +435,7 @@ class BookCloser:
             except Exception as e:
                 print(f"Errore nell'aggiornamento del file mensile esistente: {e}")
                 # Fallback: sovrascrivi il file con i nuovi dati
-                with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                with open(self.monthly_data_file_path, 'w', newline='', encoding='utf-8') as csvfile:
                     if monthly_rows:
                         fieldnames = list(monthly_rows[0].keys())
                         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -457,7 +446,7 @@ class BookCloser:
 
         else:
             # File non esiste: crealo con i dati
-            with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+            with open(self.monthly_data_file_path, 'w', newline='', encoding='utf-8') as csvfile:
                 if monthly_rows:
                     fieldnames = list(monthly_rows[0].keys())
                     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -468,7 +457,7 @@ class BookCloser:
 
         return {
             'monthly_data': monthly_rows,
-            'file_path': file_path
+            'file_path': self.monthly_data_file_path
         }
 
     def import_initial_balances(self):

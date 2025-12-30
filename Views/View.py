@@ -22,6 +22,7 @@ from Views.Iva_trimes_view import IvaTrimesView
 from Views.Refunds_view import RefundsView
 from Views.Taxes_view import TaxesView
 from Views.Report_view import ReportView
+from Plot_view import PlotView
 
 
 class MainWindow(ctk.CTk):
@@ -154,7 +155,9 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Iva")
         self.tabview.add("Salario")
         self.tabview.add("Tasse")
-        self.tabview.add("Report")
+        self.tabview.add(f"Report {datetime.now().strftime('%Y')}")
+        self.tabview.add("Plots")
+
 
 
         self.custom_font = ctk.CTkFont("Arial", 20)
@@ -254,9 +257,12 @@ class MainWindow(ctk.CTk):
                 self.config_manager, self.catalogo_elenchi, self.tabview,
                 self.event_bus
             ),
-            "Report": lambda tab: ReportView(
+            f"Report {datetime.now().strftime('%Y')}": lambda tab: ReportView(
                 self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
                 self.event_bus, self.update_controller
+            ),
+            "Plots": lambda tab: PlotView(
+                self.app_context, self.tabview
             )
         }
 

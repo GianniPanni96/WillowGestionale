@@ -3,6 +3,8 @@ from Views.View_utils import ViewUtils, FilterableComboBox
 from Controllers import ControllerUtils, SupplierController
 from Model import DBExpensesColumns, DBSuppliersColumns
 
+from datetime import datetime, timedelta
+
 
 class SuppliersView(ctk.CTkFrame):
 
@@ -126,11 +128,10 @@ class SuppliersView(ctk.CTkFrame):
         days = days_map.get(selected, 30)
 
         # Calcola la data limite (oggi - giorni)
-        from datetime import datetime, timedelta
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutti i supplier
-        all_suppliers = self.supplier_controller.retrieve_suppliers_map_list()
+        all_suppliers = self.supplier_controller.retrieve_suppliers_map_list(year=-1)
 
         # Filtra i supplier: solo quelli con almeno una spesa >= limit_date
         filtered_suppliers = []

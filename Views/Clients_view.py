@@ -132,7 +132,7 @@ class ClientsView(ctk.CTkFrame):
             client_id = client[DBClientsColumns.ID.value]
 
             # Recupera tutte le produzioni di questo cliente
-            client_productions = self.production_controller.retrieve_productions_map_list_by_client_id(client_id)
+            client_productions = self.production_controller.retrieve_productions_map_list_by_client_id(client_id, year=-1)
 
             # Verifica se almeno una produzione è nell'intervallo temporale
             has_recent_production = False

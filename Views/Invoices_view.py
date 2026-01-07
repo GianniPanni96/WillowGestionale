@@ -1194,7 +1194,7 @@ class InvoicesView(ctk.CTkFrame):
 
         # cerco i pagamenti associati a questa fattura
         pagamenti = []
-        for payment in self.payment_controller.retrieve_payments_map_list(current_year=True):
+        for payment in self.payment_controller.retrieve_payments_map_list():
             if int(payment[DBPaymentsColumns.INVOICE_ID.value]) == int(invoice_id):
                 pagamenti.append(payment)
 

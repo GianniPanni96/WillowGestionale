@@ -227,11 +227,10 @@ class ExpensesView(ctk.CTkFrame):
         days = days_map.get(selected, 30)
 
         # Calcola la data limite (oggi - giorni)
-        from datetime import datetime, timedelta
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutte le spese dell'anno corrente
-        all_expenses = self.expense_controller.retrieve_expenses_map_list(True)
+        all_expenses = self.expense_controller.retrieve_expenses_map_list()
 
         # Filtra le spese: solo quelle con data di emissione >= limit_date
         filtered_expenses = []
@@ -680,8 +679,6 @@ class ExpensesView(ctk.CTkFrame):
         self.update_idletasks()
 
     def load_expenses_chunked(self, expenses_list):
-        all_expenses = self.expense_controller.retrieve_expenses_map_list(True)
-
         # Crea l'estrattore specifico per le spese
         extractor = ViewUtils.create_extractor_for_expenses(
             self.expense_controller,

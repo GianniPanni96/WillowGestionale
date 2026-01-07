@@ -276,42 +276,70 @@ class ControllerUtils:
         return filtered
 
     @staticmethod
-    def filter_payments(payments, db_model, year: int = None):
+    def filter_payments(
+            payments,
+            db_model,
+            year: int = None,
+            include_unpaid_invoice_payments: bool = True
+    ):
         """
-        Filtra i pagamenti in base all'anno e include quelli legati a fatture con rate non pagate.
+        Filtra i pagamenti in base all'anno e, opzionalmente, include quelli
+        collegati a fatture non completamente saldate.
+
+        Regole:
+        - Un pagamento è SEMPRE incluso se la sua data è nell'anno richiesto
+        - Se NON è nell'anno richiesto:
+            - viene incluso SOLO se include_unpaid_invoice_payments=True
+            - e la fattura collegata ha almeno una rata non pagata
 
         :param payments: Lista di pagamenti (dizionari)
-        :param db_model: Istanza del DatabaseModel per accedere a produzioni/fatture/pagamenti
+        :param db_model: Istanza del DatabaseModel
         :param year:
             - None → anno corrente
             - -1   → nessun filtro
             - altro int → anno specifico
+        :param include_unpaid_invoice_payments: abilita il recupero dei pagamenti
+            legati a fatture non completamente saldate anche fuori anno
         :return: Lista filtrata di pagamenti
         """
         if not payments or year == -1:
             return payments
 
         target_year = year if year is not None else datetime.now().year
-        filtered = []
 
-        # --- Recupera tutte le fatture e converti in dizionari ---
+        # -------------------------
+        # Fatture (map per ID)
+        # -------------------------
         invoices = db_model.fetch_invoices()
-        invoices_dict_list = [ValidationUtils._row_to_map(inv, DBInvoicesColumns) for inv in invoices]
-        invoices_map = {inv[DBInvoicesColumns.ID.value]: inv for inv in invoices_dict_list}
+        invoices_map = {
+            inv_map[DBInvoicesColumns.ID.value]: inv_map
+            for inv_map in (
+                ValidationUtils._row_to_map(inv, DBInvoicesColumns)
+                for inv in invoices
+            )
+        }
 
-        # --- Recupera tutti i pagamenti già presenti per costruire lo stato delle rate ---
+        # -------------------------
+        # Pagamenti raggruppati per fattura
+        # -------------------------
         all_payments = db_model.fetch_payments()
-        payments_map = {}
+        payments_by_invoice = {}
+
         for p in all_payments:
             p_map = ValidationUtils._row_to_map(p, DBPaymentsColumns)
             inv_id = p_map[DBPaymentsColumns.INVOICE_ID.value]
-            payments_map.setdefault(inv_id, []).append(p_map)
+            payments_by_invoice.setdefault(inv_id, []).append(p_map)
 
-        # --- Itera i pagamenti da filtrare ---
+        # -------------------------
+        # Filtro principale
+        # -------------------------
+        filtered = []
+
         for payment in payments:
-            # Parsing data pagamento
-            date_str = payment.get(DBPaymentsColumns.PAYMENT_DATE.value)
             include = False
+
+            # --- 1. Controllo anno pagamento ---
+            date_str = payment.get(DBPaymentsColumns.PAYMENT_DATE.value)
             if date_str:
                 try:
                     dt = ControllerUtils._parse_date(date_str)
@@ -320,14 +348,20 @@ class ControllerUtils:
                 except Exception as e:
                     print(f"Errore parsing data pagamento '{date_str}': {e}")
 
-            # Controllo fattura collegata: includi se ha almeno una rata non pagata
-            invoice_id = payment.get(DBPaymentsColumns.INVOICE_ID.value)
-            if invoice_id in invoices_map:
-                invoice = invoices_map[invoice_id]
-                num_rate = invoice.get(DBInvoicesColumns.NUMERO_RATE.value) or 1
-                paid_rates = {p[DBPaymentsColumns.LINKED_RATA.value] for p in payments_map.get(invoice_id, [])}
-                if len(paid_rates) < num_rate:
-                    include = True
+            # --- 2. Controllo fattura non saldata (opzionale) ---
+            if not include and include_unpaid_invoice_payments:
+                invoice_id = payment.get(DBPaymentsColumns.INVOICE_ID.value)
+                invoice = invoices_map.get(invoice_id)
+
+                if invoice:
+                    num_rate = invoice.get(DBInvoicesColumns.NUMERO_RATE.value) or 1
+                    paid_rates = {
+                        p[DBPaymentsColumns.LINKED_RATA.value]
+                        for p in payments_by_invoice.get(invoice_id, [])
+                    }
+
+                    if len(paid_rates) < num_rate:
+                        include = True
 
             if include:
                 filtered.append(payment)
@@ -3179,7 +3213,7 @@ class PaymentsController:
 
         return payment_dict
 
-    def retrieve_payments_map_list(self, year: int = None):
+    def retrieve_payments_map_list(self, year: int = None, include_unpaid_invoice_payments: bool = True):
         """
         Recupera tutti i pagamenti come lista di dizionari,
         filtrandoli per l'anno specificato.
@@ -3193,7 +3227,7 @@ class PaymentsController:
         rows = self.db_model.fetch_payments()
         payments = [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
 
-        return ControllerUtils.filter_payments(payments, self.db_model, year)
+        return ControllerUtils.filter_payments(payments, self.db_model, year, include_unpaid_invoice_payments)
 
     def retrieve_payments_map_list_by_invoice_id(self, invoice_id, year: int = None):
         """
@@ -3291,8 +3325,11 @@ class PaymentsController:
     def register_on_adding_payment_callbacks(self, *callbacks):
         self.on_adding_payment_callbacks = list(callbacks)
 
-    def sum_payments_for_account(self, account_id):
-        return self.db_model.sum_payments_by_account(account_id)
+    def sum_payments_for_account(self, account_id, year:int = None):
+
+        target_year = year if year is not None else datetime.now().year
+
+        return self.db_model.sum_payments_by_account(account_id, year=target_year)
 
     # Controller corretto
     def delete_payment(self, payment_id):
@@ -4398,8 +4435,9 @@ class ExpenseController:
             except Exception as e:
                 print(f"Errore creando spesa '{nominal}': {e}")
 
-    def sum_expenses_for_account(self, account_id):
-        return self.db_model.sum_expenses_by_account(account_id)
+    def sum_expenses_for_account(self, account_id, year:int = None):
+        target_year = year if year is not None else datetime.now().year
+        return self.db_model.sum_expenses_by_account(account_id, year = target_year)
 
     def add_DB_voices_for_recurring_expenses(self):
         # Estraggo la chiave del settore di default
@@ -4873,8 +4911,9 @@ class SalaryController:
             total += float(sal[DBSalariesColumns.AMOUNT.value])
         return total
 
-    def sum_salaries_for_account(self, account_id):
-        return self.db_model.sum_salaries_by_account(account_id)
+    def sum_salaries_for_account(self, account_id, year:int = None):
+        target_year = year if year is not None else datetime.now().year
+        return self.db_model.sum_salaries_by_account(account_id, year = target_year)
 
     def calculate_mean_salary_by_month(self, month: int) -> float | None:
         """
@@ -5181,14 +5220,16 @@ class RefundController:
         except Exception as e:
             return False, f"Errore durante l'aggiornamento del rimborso: {str(e)}"
 
-    def sum_refunds_for_account(self, account_id):
+    def sum_refunds_for_account(self, account_id, year:int = None):
         """
         Restituisce la somma totale dei rimborsi associati a un conto specifico.
 
         :param account_id: ID del conto
         :return: Somma degli importi dei rimborsi (float)
         """
-        return self.db_model.sum_refunds_by_account(account_id)
+        target_year = year if year is not None else datetime.now().year
+
+        return self.db_model.sum_refunds_by_account(account_id, year=target_year)
 
 
 
@@ -5321,7 +5362,7 @@ class Analyzer:
         movements = []
 
         # Payments (+) - Entrate
-        payments = self.payment_controller.retrieve_payments_map_list()
+        payments = self.payment_controller.retrieve_payments_map_list(include_unpaid_invoice_payments = False)
         filtered_payments = [p for p in payments if p[DBPaymentsColumns.CONTO_ID.value] == account_id]
         for payment in filtered_payments:
             movements.append({

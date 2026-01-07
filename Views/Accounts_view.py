@@ -368,10 +368,6 @@ class AccountsView(ctk.CTkFrame):
 
 
 
-
-
-
-
 class AccountDetailView(ctk.CTkFrame):
     def __init__(self, parent, back_callback, account_controller, update_controller, db_model, event_bus, catalogo_elenchi, analyzer):
         super().__init__(parent)
@@ -433,7 +429,6 @@ class AccountDetailView(ctk.CTkFrame):
         # 4. Creazione contenuti dinamici
         self._create_account_info_section(self.account)
         self.toggle_edit(self.content_frame)
-
 
     def _create_account_info_section(self, account_data):
         # Recupera i movimenti del conto
@@ -708,14 +703,6 @@ class AccountDetailView(ctk.CTkFrame):
         self._clear_content()
         self.pack_forget()
         self.back_callback()
-
-
-
-
-
-
-
-
 
 
 

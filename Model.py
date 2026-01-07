@@ -1002,28 +1002,41 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchall()
 
-    def sum_payments_by_account(self, account_id: int) -> float:
+    def sum_payments_by_account(self, account_id: int, year: int) -> float:
         """
         Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
 
-        :param account_id: l'ID del conto (DBAccountsColumns.ID)
+        :param account_id: ID del conto (DBAccountsColumns.ID)
+        :param year:
+            - -1 → somma tutti i pagamenti
+            - altro int → somma solo i pagamenti con PAYMENT_DATE nell'anno indicato
         :return: somma (float), 0.0 se non ci sono pagamenti
         """
-        # Nome colonna importo e colonna conto
         amt_col = DBPaymentsColumns.PAYMENT_AMOUNT.value
         conto_col = DBPaymentsColumns.CONTO_ID.value
+        date_col = DBPaymentsColumns.PAYMENT_DATE.value
+
+        params = [account_id]
 
         query = f"""
-        SELECT SUM({amt_col})
-        FROM payments
-        WHERE {conto_col} = ?
+            SELECT SUM({amt_col})
+            FROM payments
+            WHERE {conto_col} = ?
         """
+
+        # Applica filtro per anno solo se richiesto
+        if year != -1:
+            query += f"""
+                AND strftime('%Y', {date_col}) = ?
+            """
+            params.append(str(year))
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute(query, (account_id,))
+            cur.execute(query, params)
             result = cur.fetchone()[0]
-            return result if result is not None else 0.0
+
+        return float(result) if result is not None else 0.0
 
     def delete_payment(self, payment_id):
         """
@@ -1220,24 +1233,40 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchall()
 
-    def sum_refunds_by_account(self, account_id: int) -> float:
+    def sum_refunds_by_account(self, account_id: int, year: int) -> float:
         """
         Restituisce la somma degli importi dei rimborsi effettuati su uno specifico conto.
+
+        :param account_id: ID del conto
+        :param year:
+            - -1 → somma tutti i rimborsi
+            - altro int → somma solo i rimborsi dell'anno indicato
+        :return: somma (float), 0.0 se non ci sono rimborsi
         """
         amt_col = DBRefundsColumns.REFUND_AMOUNT.value
         conto_col = DBRefundsColumns.CONTO_ID.value
+        date_col = DBRefundsColumns.REFUND_DATE.value
+
+        params = [account_id]
 
         query = f"""
-        SELECT SUM({amt_col})
-        FROM refunds
-        WHERE {conto_col} = ?
+            SELECT SUM({amt_col})
+            FROM refunds
+            WHERE {conto_col} = ?
         """
+
+        if year != -1:
+            query += f"""
+                AND strftime('%Y', {date_col}) = ?
+            """
+            params.append(str(year))
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute(query, (account_id,))
+            cur.execute(query, params)
             result = cur.fetchone()[0]
-            return result if result is not None else 0.0
+
+        return float(result) if result is not None else 0.0
 
     @staticmethod
     def _fetch_recent_refunds(db_model, months=12):
@@ -1396,33 +1425,41 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchone()
 
-    def sum_expenses_by_account(self, account_id: int) -> float:
+    def sum_expenses_by_account(self, account_id: int, year: int) -> float:
         """
-        Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
+        Restituisce la somma degli importi delle spese associate a uno specifico conto.
 
-        :param account_id: l'ID del conto (DBAccountsColumns.ID)
-        :return: somma (float), 0.0 se non ci sono pagamenti
+        :param account_id: ID del conto (DBAccountsColumns.ID)
+        :param year:
+            - -1 → somma tutte le spese
+            - altro int → somma solo le spese con DATE nell'anno indicato
+        :return: somma (float), 0.0 se non ci sono spese
         """
-        # Nome colonna importo e colonna conto
         amt_col = DBExpensesColumns.TOT_AMOUNT.value
         conto_col = DBExpensesColumns.ACCOUNT_ID.value
+        date_col = DBExpensesColumns.DATE.value
+
+        params = [account_id]
 
         query = f"""
-        SELECT SUM({amt_col})
-        FROM expenses
-        WHERE {conto_col} = ?
+            SELECT SUM({amt_col})
+            FROM expenses
+            WHERE {conto_col} = ?
         """
+
+        # Filtro per anno solo se richiesto
+        if year != -1:
+            query += f"""
+                AND strftime('%Y', {date_col}) = ?
+            """
+            params.append(str(year))
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute(query, (account_id,))
+            cur.execute(query, params)
             result = cur.fetchone()[0]
-            return result if result is not None else 0.0
 
-
-
-
-
+        return float(result) if result is not None else 0.0
 
     def fetch_suppliers(self):
         """Recupera tutti i suppliers."""
@@ -2112,28 +2149,40 @@ class DatabaseModel:
             cur.execute(query, (user_id,))
             return cur.fetchall()
 
-    def sum_salaries_by_account(self, account_id: int) -> float:
+    def sum_salaries_by_account(self, account_id: int, year: int) -> float:
         """
-        Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
+        Restituisce la somma degli importi dei versamenti-salario associati a uno specifico conto.
 
-        :param account_id: l'ID del conto (DBAccountsColumns.ID)
-        :return: somma (float), 0.0 se non ci sono pagamenti
+        :param account_id: ID del conto (DBAccountsColumns.ID)
+        :param year:
+            - -1 → somma tutti i versamenti
+            - altro int → somma solo i versamenti dell'anno indicato
+        :return: somma (float), 0.0 se non ci sono versamenti
         """
-        # Nome colonna importo e colonna conto
         amt_col = DBSalariesColumns.AMOUNT.value
         conto_col = DBSalariesColumns.ACCOUNT_ID.value
+        date_col = DBSalariesColumns.DATE.value
+
+        params = [account_id]
 
         query = f"""
-        SELECT SUM({amt_col})
-        FROM salaries
-        WHERE {conto_col} = ?
+            SELECT SUM({amt_col})
+            FROM salaries
+            WHERE {conto_col} = ?
         """
+
+        if year != -1:
+            query += f"""
+                AND strftime('%Y', {date_col}) = ?
+            """
+            params.append(str(year))
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute(query, (account_id,))
+            cur.execute(query, params)
             result = cur.fetchone()[0]
-            return result if result is not None else 0.0
+
+        return float(result) if result is not None else 0.0
 
 
 

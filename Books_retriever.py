@@ -19,12 +19,15 @@ class BooksRetriever:
         self.books_dir = os.path.join(self.environment_db_variable, "Books")
         self.annual_data_file_path = os.path.join(self.books_dir, "annual_aggregated_data.csv")
         self.monthly_data_file_path = os.path.join(self.books_dir, "monthly_aggregated_data.csv")
+        self.iva_data_file_path = os.path.join(self.books_dir, "iva_aggregated_data.csv")
 
         # Cache per i dati caricati
         self._annual_data = None
         self._monthly_data = None
         self._annual_df = None
         self._monthly_df = None
+        self._iva_data = None
+        self._iva_df = None
 
     def load_annual_data(self) -> List[Dict[str, Any]]:
         """
@@ -100,6 +103,42 @@ class BooksRetriever:
             print(f"Errore nel caricamento dei dati mensili: {e}")
             return []
 
+    def load_iva_data(self) -> List[Dict[str, Any]]:
+        """
+        Carica i dati IVA trimestrali dal file CSV.
+
+        Returns:
+            Lista di dizionari con i dati IVA trimestrali
+        """
+        if not os.path.exists(self.iva_data_file_path):
+            print(f"File dati IVA non trovato: {self.iva_data_file_path}")
+            return []
+
+        try:
+            data = []
+            with open(self.iva_data_file_path, 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    converted_row = {}
+                    for key, value in row.items():
+                        if key in ['anno', 'trimestre']:
+                            converted_row[key] = int(value) if value else 0
+                        elif value and value.replace('.', '', 1).isdigit():
+                            try:
+                                converted_row[key] = float(value)
+                            except ValueError:
+                                converted_row[key] = value
+                        else:
+                            converted_row[key] = value
+                    data.append(converted_row)
+
+            self._iva_data = data
+            return data
+
+        except Exception as e:
+            print(f"Errore nel caricamento dei dati IVA: {e}")
+            return []
+
     def get_annual_dataframe(self) -> pd.DataFrame:
         """
         Restituisce i dati annuali come DataFrame pandas.
@@ -142,6 +181,28 @@ class BooksRetriever:
 
         return self._monthly_df
 
+    def get_iva_dataframe(self) -> pd.DataFrame:
+        """
+        Restituisce i dati IVA trimestrali come DataFrame pandas.
+
+        Returns:
+            DataFrame con i dati IVA
+        """
+        if self._iva_df is None:
+            if self._iva_data is None:
+                self.load_iva_data()
+
+            if self._iva_data:
+                self._iva_df = pd.DataFrame(self._iva_data)
+                if {'anno', 'utente', 'trimestre'}.issubset(self._iva_df.columns):
+                    self._iva_df = self._iva_df.sort_values(
+                        ['anno', 'utente', 'trimestre']
+                    )
+            else:
+                self._iva_df = pd.DataFrame()
+
+        return self._iva_df
+
     def get_years_available(self) -> List[int]:
         """
         Restituisce la lista degli anni disponibili nei dati.
@@ -155,6 +216,66 @@ class BooksRetriever:
 
         years = sorted(df['anno'].unique().tolist())
         return years
+
+    def get_iva_data_for_year(self, year: int) -> List[Dict[str, Any]]:
+        """
+        Restituisce i dati IVA trimestrali per un anno specifico.
+
+        Args:
+            year: Anno di riferimento
+
+        Returns:
+            Lista di dizionari IVA per l'anno
+        """
+        if self._iva_data is None:
+            self.load_iva_data()
+
+        return [row for row in self._iva_data if row.get('anno') == year]
+
+    def get_iva_data_for_year_user(self, year: int, user_name: str) -> List[Dict[str, Any]]:
+        """
+        Restituisce i dati IVA trimestrali per anno e utente.
+
+        Args:
+            year: Anno
+            user_name: Nome utente (es. "Mario Rossi")
+
+        Returns:
+            Lista di trimestri IVA
+        """
+        data = self.get_iva_data_for_year(year)
+        return [row for row in data if row.get('utente') == user_name]
+
+    def get_iva_summary_for_year(self, year: int) -> Dict[str, Any]:
+        """
+        Restituisce un riepilogo IVA annuale aggregato per utente.
+
+        Args:
+            year: Anno
+
+        Returns:
+            Dict {utente: {debito, credito, da_pagare}}
+        """
+        iva_data = self.get_iva_data_for_year(year)
+        summary = {}
+
+        for row in iva_data:
+            user = row.get('utente')
+            if not user:
+                continue
+
+            if user not in summary:
+                summary[user] = {
+                    'iva_debito': 0.0,
+                    'iva_credito': 0.0,
+                    'iva_da_pagare': 0.0
+                }
+
+            summary[user]['iva_debito'] += row.get('iva_debito', 0.0)
+            summary[user]['iva_credito'] += row.get('iva_credito', 0.0)
+            summary[user]['iva_da_pagare'] += row.get('iva_da_pagare', 0.0)
+
+        return summary
 
     def get_annual_data_for_year(self, year: int) -> Optional[Dict[str, Any]]:
         """
@@ -313,6 +434,42 @@ class BooksRetriever:
 
         return trends
 
+    def get_iva_trimestral_trends(self, year: int, user_name: str = None) -> Dict[str, Any]:
+        """
+        Restituisce i trend IVA trimestrali per visualizzazione.
+
+        Args:
+            year: Anno
+            user_name: (opzionale) filtro per utente
+
+        Returns:
+            Dizionario pronto per grafici
+        """
+        data = self.get_iva_data_for_year(year)
+        if user_name:
+            data = [d for d in data if d.get('utente') == user_name]
+
+        if not data:
+            return {}
+
+        trends = {
+            'year': year,
+            'trimesters': [],
+            'iva_debito': [],
+            'iva_credito': [],
+            'iva_da_pagare': []
+        }
+
+        data.sort(key=lambda x: x.get('trimestre', 0))
+
+        for row in data:
+            trends['trimesters'].append(row.get('nome_trimestre'))
+            trends['iva_debito'].append(row.get('iva_debito', 0))
+            trends['iva_credito'].append(row.get('iva_credito', 0))
+            trends['iva_da_pagare'].append(row.get('iva_da_pagare', 0))
+
+        return trends
+
     def get_comparison_data(self, years: List[int] = None) -> Dict[str, Any]:
         """
         Restituisce dati comparativi tra anni diversi.
@@ -394,6 +551,8 @@ class BooksRetriever:
                 'records') if not self.get_annual_dataframe().empty else [],
             'monthly_data': self.get_monthly_dataframe().to_dict(
                 'records') if not self.get_monthly_dataframe().empty else [],
+            'iva_data': self.get_iva_dataframe().to_dict(
+                'records') if not self.get_iva_dataframe().empty else [],
             'financial_indicators': self.get_financial_indicators(),
             'available_years': self.get_years_available(),
             'latest_year_trends': self.get_monthly_trends(),
@@ -405,5 +564,6 @@ class BooksRetriever:
         if summary['available_years']:
             latest_year = summary['available_years'][-1]
             summary['latest_year_data'] = self.get_annual_data_for_year(latest_year)
+            summary['iva_latest_year'] = self.get_iva_summary_for_year(latest_year)
 
         return summary

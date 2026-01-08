@@ -247,11 +247,9 @@ class MainWindow(ctk.CTk):
                 self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus,
                 initial_salary_id=salary_id
             ),
-            "Iva": lambda tab: IvaTrimesView(
-                self.db_model, self.invoice_controller, self.user_controller,
-                self.expense_controller, self.update_controller, self.analyzer,
-                self.tabview, self.event_bus
-            ),
+
+            "Iva": lambda tab: IvaTrimesView(self.app_context, self.tabview),
+
             "Tasse": lambda tab: TaxesView(
                 self.db_model, self.analyzer, self.update_controller,
                 self.config_manager, self.catalogo_elenchi, self.tabview,
@@ -1935,6 +1933,7 @@ class MainWindow(ctk.CTk):
             ("Aggiornamento dati finanziari storici", book_closer.update_historical_financial_data),
             ("Esportazione dati annuali aggregati", book_closer.export_annual_data),
             ("Esportazione dati mensili aggregati", book_closer.export_monthly_data),
+            ("Esportazione dati IVA aggregati", book_closer.export_trimestral_iva_data),
             ("Impoprtazione saldi bancari iniziali", book_closer.import_initial_balances)
         ]
 
@@ -1998,12 +1997,3 @@ class MainWindow(ctk.CTk):
                 print(f"  Motivo: {msg}")
         print("=" * 60)
         print(f"Operazioni completate con successo: {success_count}/{total_count}")
-
-
-
-
-
-
-
-
-

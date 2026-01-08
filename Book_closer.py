@@ -20,6 +20,7 @@ class BookCloser:
 
         self.annual_data_file_path = os.path.join(self.books_dir, "annual_aggregated_data.csv")
         self.monthly_data_file_path = os.path.join(self.books_dir, "monthly_aggregated_data.csv")
+        self.iva_data_file_path = os.path.join(self.books_dir, "iva_aggregated_data.csv")
 
         # Recupera tutti i conti
         self.accounts = self.app_context.account_controller.retrieve_accounts_map_list()
@@ -36,13 +37,13 @@ class BookCloser:
             print("Inizio esportazione movimenti conti...")
 
             # Crea il percorso completo del file
-            dir_path = os.path.join(self.books_dir, str(self.current_exercise_year))
+            dir_path = os.path.join(self.books_dir, "Accounts_movements")
 
             if not os.path.exists(dir_path):
                 os.makedirs(dir_path, exist_ok=True)
                 print(f"Creata directory: {dir_path}")
 
-            file_path = os.path.join(dir_path, f"Accounts_movements_{datetime.now().strftime('%Y')}.csv")
+            file_path = os.path.join(dir_path, f"Accounts_movements_{self.current_exercise_year}.csv")
 
             # Apre il file CSV per la scrittura
             with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
@@ -72,7 +73,7 @@ class BookCloser:
                         continue
 
                     # Recupera i movimenti per questo conto
-                    movements = self.app_context.analyzer.retrieve_account_movements_by_account_id(account_id)
+                    movements = self.app_context.analyzer.retrieve_account_movements_by_account_id(account_id, year = self.current_exercise_year)
 
                     if not movements:
                         continue
@@ -110,7 +111,7 @@ class BookCloser:
 
         year_str = str(self.current_exercise_year)
 
-        revenues = self.app_context.user_controller.retrieve_users_with_tot_fatturato()
+        revenues = self.app_context.user_controller.retrieve_users_with_tot_fatturato(year = self.current_exercise_year)
         users = self.app_context.user_controller.retrieve_users_map_list()
 
         # Crea una mappa ID -> nome completo per facilitare la ricerca
@@ -128,7 +129,7 @@ class BookCloser:
             user_id = user.get(DBUsersColumns.ID.value)
             if user.get(
                     DBUsersColumns.REGIME_FISCALE.value) == self.app_context.user_controller.RegimeFiscale.ORDINARIO.value:
-                spese_dedotte_tot += self.app_context.user_controller.calcola_tot_spese_utente_dedotte(user_id)
+                spese_dedotte_tot += self.app_context.user_controller.calcola_tot_spese_utente_dedotte(user_id, year = self.current_exercise_year)
 
         # Prepara i dati per la sezione historical_financial_data
         historical_data = {
@@ -193,14 +194,14 @@ class BookCloser:
         for account in self.accounts:
             account_id = account.get(DBAccountsColumns.ID.value)
             account_name = account.get(DBAccountsColumns.NAME.value)
-            balances[account_name] = self.app_context.analyzer.calculate_account_balance_by_account_id(account_id)
+            balances[account_name] = self.app_context.analyzer.calculate_account_balance_by_account_id(account_id, year = self.current_exercise_year)
 
-        tot_fatturato = self.app_context.invoice_controller.calculate_FATT_LORDO_invoiced()
-        tot_spese = self.app_context.expense_controller.calculate_tot_expenses()
-        media_fatture = self.app_context.invoice_controller.calculate_MEDIA_FATTURA_LORDO_invoiced()
-        media_ore_per_produzione = self.app_context.production_controller.mean_hours_for_production()
-        media_prezzo_orario_produzione = self.app_context.production_controller.mean_prezzo_orario()
-        previsione_tasse = self.app_context.analyzer.calculate_previsione_tasse_willow()
+        tot_fatturato = self.app_context.invoice_controller.calculate_FATT_LORDO_invoiced(year = self.current_exercise_year)
+        tot_spese = self.app_context.expense_controller.calculate_tot_expenses(year = self.current_exercise_year)
+        media_fatture = self.app_context.invoice_controller.calculate_MEDIA_FATTURA_LORDO_invoiced(year = self.current_exercise_year)
+        media_ore_per_produzione = self.app_context.production_controller.mean_hours_for_production(year = self.current_exercise_year)
+        media_prezzo_orario_produzione = self.app_context.production_controller.mean_prezzo_orario(year = self.current_exercise_year)
+        previsione_tasse = self.app_context.analyzer.calculate_previsione_tasse_willow(year = self.current_exercise_year)
         irpef_willow = previsione_tasse["TOTALE"].get("IRPEF WILLOW", 0.0)
         inps_willow = previsione_tasse["TOTALE"].get("INPS WILLOW", 0.0)
 
@@ -253,11 +254,17 @@ class BookCloser:
                 # Scrivi di nuovo tutto il file
                 with open(self.annual_data_file_path, 'w', newline='', encoding='utf-8') as csvfile:
                     if rows:
-                        # Prepara l'header con tutte le chiavi (unione di tutte le righe)
-                        all_keys = set()
+                        # Ordine colonne: preserva quello originale
+                        existing_fieldnames = reader.fieldnames or []
+
+                        # Individua eventuali nuove colonne (es. nuovi conti)
+                        new_fieldnames = []
                         for row in rows:
-                            all_keys.update(row.keys())
-                        fieldnames = sorted(all_keys)  # Ordina per avere ordine consistente
+                            for key in row.keys():
+                                if key not in existing_fieldnames and key not in new_fieldnames:
+                                    new_fieldnames.append(key)
+
+                        fieldnames = existing_fieldnames + new_fieldnames
 
                         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                         writer.writeheader()
@@ -298,7 +305,7 @@ class BookCloser:
         """
 
         # Recupera i dati mensili dall'analyzer
-        monthly_data = self.app_context.analyzer.retrieve_monthly_data()
+        monthly_data = self.app_context.analyzer.retrieve_monthly_data(year = self.current_exercise_year)
 
         # Verifica se il file esiste per determinare se scrivere l'header
         file_exists = os.path.isfile(self.monthly_data_file_path)
@@ -309,7 +316,7 @@ class BookCloser:
         for month in range(1, 13):
             # Recupera il salario medio per il mese
             try:
-                mean_salary = self.app_context.salary_controller.calculate_mean_salary_by_month(month)
+                mean_salary = self.app_context.salary_controller.calculate_mean_salary_by_month(month = month, year = self.current_exercise_year)
                 if mean_salary is None:
                     mean_salary = 0.0
             except Exception as e:
@@ -410,12 +417,19 @@ class BookCloser:
                     # Riscrivi tutto il file con tutte le righe
                     with open(self.monthly_data_file_path, 'w', newline='', encoding='utf-8') as csvfile:
                         # Prepara l'header con tutte le chiavi (unione di tutte le righe)
-                        all_keys = set()
-                        for row in filtered_rows:
-                            all_keys.update(row.keys())
-                        #fieldnames = sorted(all_keys)  # Ordina per avere ordine consistente
+                        # Ordine colonne: preserva quello originale
+                        existing_fieldnames = reader.fieldnames or []
 
-                        writer = csv.DictWriter(csvfile, fieldnames=all_keys)
+                        # Trova eventuali nuove colonne non presenti nel file originale
+                        new_fieldnames = []
+                        for row in filtered_rows:
+                            for key in row.keys():
+                                if key not in existing_fieldnames and key not in new_fieldnames:
+                                    new_fieldnames.append(key)
+
+                        fieldnames = existing_fieldnames + new_fieldnames
+
+                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                         writer.writeheader()
                         writer.writerows(filtered_rows)
 
@@ -458,6 +472,124 @@ class BookCloser:
         return {
             'monthly_data': monthly_rows,
             'file_path': self.monthly_data_file_path
+        }
+
+    def export_trimestral_iva_data(self):
+        """
+        Create / update CSV file with trimestral IVA data aggregated by user and year
+        :return: dict con i dati IVA trimestrali esportati
+        """
+
+        # Recupera i dati IVA trimestrali dall'analyzer
+        iva_data = self.app_context.analyzer.calculate_tot_trimestral_iva(year = self.current_exercise_year)
+
+        # Verifica se il file esiste
+        file_exists = os.path.isfile(self.iva_data_file_path)
+
+        trimestral_rows = []
+
+        trimestri_order = [
+            ("Gen-Marz", 1),
+            ("Apr-Giu", 2),
+            ("Lug-Sett", 3),
+            ("Ott-Dic", 4)
+        ]
+
+        export_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Costruzione righe
+        for user_name, trimestri in iva_data.items():
+            for trimestre_name, trimestre_num in trimestri_order:
+                valori = trimestri.get(trimestre_name, {})
+
+                debito = float(valori.get("debito", 0.0))
+                credito = float(valori.get("credito", 0.0))
+                da_pagare = float(valori.get("da_pagare", 0.0))
+
+                row = {
+                    "anno": self.current_exercise_year,
+                    "trimestre": trimestre_num,
+                    "nome_trimestre": trimestre_name,
+                    "utente": user_name,
+                    "iva_debito": round(debito, 2),
+                    "iva_credito": round(credito, 2),
+                    "iva_da_pagare": round(da_pagare, 2),
+                    "data_esportazione": export_timestamp
+                }
+
+                trimestral_rows.append(row)
+
+        # Ordina per anno, utente, trimestre
+        trimestral_rows.sort(
+            key=lambda x: (
+                int(x["anno"]),
+                x["utente"],
+                int(x["trimestre"])
+            )
+        )
+
+        # =========================
+        # SCRITTURA / AGGIORNAMENTO FILE
+        # =========================
+
+        if file_exists:
+            try:
+                with open(self.iva_data_file_path, 'r', newline='', encoding='utf-8') as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    existing_rows = list(reader)
+                    existing_fieldnames = reader.fieldnames or []
+
+                # Rimuovi righe dell'anno corrente
+                filtered_rows = [
+                    row for row in existing_rows
+                    if str(row.get("anno")) != str(self.current_exercise_year)
+                ]
+
+                # Aggiungi nuove righe
+                filtered_rows.extend(trimestral_rows)
+
+                # Ricalcola fieldnames (mantiene ordine originale)
+                new_fieldnames = []
+                for row in filtered_rows:
+                    for key in row.keys():
+                        if key not in existing_fieldnames and key not in new_fieldnames:
+                            new_fieldnames.append(key)
+
+                fieldnames = existing_fieldnames + new_fieldnames
+
+                # Riscrittura completa file
+                with open(self.iva_data_file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(filtered_rows)
+
+                print(f"Aggiornati dati IVA trimestrali per l'anno {self.current_exercise_year}")
+
+            except Exception as e:
+                print(f"Errore aggiornamento file IVA trimestrale: {e}")
+                # Fallback: sovrascrittura completa
+                with open(self.iva_data_file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                    fieldnames = list(trimestral_rows[0].keys()) if trimestral_rows else []
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(trimestral_rows)
+
+                print(f"Creato nuovo file IVA trimestrale (fallback)")
+
+        else:
+            # File non esiste
+            with open(self.iva_data_file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                if trimestral_rows:
+                    fieldnames = list(trimestral_rows[0].keys())
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(trimestral_rows)
+
+            print(f"Creato nuovo file IVA trimestrale per l'anno {self.current_exercise_year}")
+
+        return {
+            "trimestral_iva_data": trimestral_rows,
+            "file_path": self.iva_data_file_path
         }
 
     def import_initial_balances(self):

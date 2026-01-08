@@ -166,82 +166,83 @@ class ControllerUtils:
         return None
 
     @staticmethod
-    def filter_invoices(invoices, db_model, year: int = None):
+    def filter_invoices(
+            invoices,
+            db_model,
+            year: int = None,
+            include_unpaid_invoices: bool = True
+    ):
         """
-        Filtra le fatture mantenendo:
-          - Tutte le fatture emesse nell'anno richiesto
-          - Fatture di altri anni SOLO se hanno almeno una rata non saldata
+        Filtra le fatture in base all'anno e, opzionalmente, include
+        quelle non completamente saldate anche se di anni diversi.
 
-        Se year == -1, non viene applicato alcun filtro.
+        Regole:
+        - Una fattura è SEMPRE inclusa se l'anno di emissione è quello richiesto
+        - Se NON è dell'anno richiesto:
+            - viene inclusa SOLO se include_unpaid_invoices=True
+            - e la fattura ha almeno una rata non pagata
 
-        Funziona sia con liste che con singole fatture.
-
-        :param invoices: Singola fattura o lista di fatture (tuple)
-        :param db_model: Istanza del DatabaseModel per accedere ai dati
-        :param year: Anno di riferimento (int). Default: anno corrente. -1 = nessun filtro
-        :return: Lista filtrata di fatture o singola fattura
+        :param invoices: Lista di fatture (dizionari)
+        :param db_model: Istanza del DatabaseModel
+        :param year:
+            - None → anno corrente
+            - -1   → nessun filtro
+            - altro int → anno specifico
+        :param include_unpaid_invoices: include fatture non saldate fuori anno
+        :return: Lista filtrata di fatture
         """
-        # Gestione singolo elemento
-        single_item = not isinstance(invoices, list)
-        if single_item:
-            invoices = [invoices]
+        if not invoices or year == -1:
+            return invoices
 
-        if not invoices:
-            return invoices[0] if single_item else invoices
+        target_year = year if year is not None else datetime.now().year
 
-        # Default: anno corrente
-        if year is None:
-            year = datetime.now().year
-
-        # Nessun filtro
-        if year == -1:
-            return invoices[0] if single_item else invoices
-
-        # Recupera TUTTI i pagamenti
+        # -------------------------
+        # Pagamenti raggruppati per fattura
+        # -------------------------
         all_payments = db_model.fetch_payments()
-        payments_map = [ValidationUtils._row_to_map(p, DBPaymentsColumns) for p in all_payments]
+        payments_by_invoice = {}
 
-        # Preparazione colonne
-        columns = [col.value for col in DBInvoicesColumns]
-        creation_index = columns.index(DBInvoicesColumns.DATA_CREAZIONE.value)
-        id_index = columns.index(DBInvoicesColumns.ID.value)
-        rate_index = columns.index(DBInvoicesColumns.NUMERO_RATE.value)
+        for p in all_payments:
+            p_map = ValidationUtils._row_to_map(p, DBPaymentsColumns)
+            inv_id = p_map[DBPaymentsColumns.INVOICE_ID.value]
+            payments_by_invoice.setdefault(inv_id, []).append(p_map)
 
-        # Mappa invoice_id → pagamenti
-        invoice_payments = {}
-        for payment in payments_map:
-            invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
-            invoice_payments.setdefault(invoice_id, []).append(payment)
+        # -------------------------
+        # Filtro principale
+        # -------------------------
+        filtered = []
 
-        filtered_rows = []
+        for invoice in invoices:
+            include = False
 
-        for row in invoices:
-            invoice_id = row[id_index]
-            num_rate = row[rate_index] if row[rate_index] is not None else 1
+            invoice_id = invoice.get(DBInvoicesColumns.ID.value)
+            num_rate = invoice.get(DBInvoicesColumns.NUMERO_RATE.value) or 1
 
-            # Parsing data creazione
-            date_str = row[creation_index]
-            try:
-                creation_dt = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                creation_dt = datetime.strptime(date_str, "%Y-%m-%d")
+            # --- 1. Controllo anno fattura ---
+            date_str = invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value)
+            if date_str:
+                try:
+                    creation_dt = ControllerUtils._parse_date(date_str)
+                    if creation_dt.year == target_year:
+                        include = True
+                except Exception as e:
+                    print(f"Errore parsing data fattura '{date_str}': {e}")
 
-            # Fatture dell'anno richiesto: sempre incluse
-            if creation_dt.year == year:
-                filtered_rows.append(row)
-                continue
+            # --- 2. Controllo rate non saldate (opzionale) ---
+            if not include and include_unpaid_invoices:
+                payments = payments_by_invoice.get(invoice_id, [])
+                paid_rates = {
+                    p.get(DBPaymentsColumns.LINKED_RATA.value)
+                    for p in payments
+                }
 
-            # Fatture di altri anni → includi solo se ci sono rate non pagate
-            payments = invoice_payments.get(invoice_id, [])
-            paid_rates = {
-                p[DBPaymentsColumns.LINKED_RATA.value]
-                for p in payments
-            }
+                if len(paid_rates) < num_rate:
+                    include = True
 
-            if len(paid_rates) < num_rate:
-                filtered_rows.append(row)
+            if include:
+                filtered.append(invoice)
 
-        return filtered_rows[0] if single_item and filtered_rows else filtered_rows
+        return filtered
 
     @staticmethod
     def filter_expenses(expenses, year: int = None):
@@ -760,9 +761,6 @@ class UserController:
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
 
-    def retrieve_users(self):
-        return self.db_model.fetch_users()
-
     def retrieve_user_by_id(self, user_id):
         return self.db_model.fetch_user_by_id(user_id)
 
@@ -807,24 +805,34 @@ class UserController:
         rows = self.db_model.fetch_users()
         return [ValidationUtils._row_to_map(row, DBUsersColumns) for row in rows]
 
-    def retrieve_user_with_invoices_map_list(self, user_id):
+    def retrieve_user_with_invoices_map_list(self, user_id, include_unpaid_invoices:bool = True, year: int = None):
         """
         Recupera lo specifico user unito alle rispettive fatture e
-        li restituisce come lista di dizionari.
+        li restituisce come lista di dizionari, filtrando opzionalmente
+        per anno di emissione.
 
-        Utilizza la funzione fetch_user_with_invoices per ottenere le righe,
-        quindi combina le colonne dei client e delle invoices per convertire
-        ogni riga in un dizionario tramite _row_to_map.
+        :param user_id: ID dello user
+        :param include_unpaid_invoices: booleano per includere le fatture non saldate ma di esercizi passati
+        :param year:
+            - None → anno corrente
+            - -1   → nessun filtro
+            - altro int → anno specifico
+        :return: Lista di dizionari user + invoice
         """
-        # Recupera le righe dal database per lo specifico client
         rows = self.db_model.fetch_user_with_invoices(user_id)
+        if not rows:
+            return []
 
         all_columns = list(DBUsersColumns) + list(DBInvoicesColumns)
 
-        # Converte ogni riga in un dizionario
-        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+        mapped_rows = [
+            ValidationUtils._row_to_map(row, all_columns)
+            for row in rows
+        ]
 
-    def retrieve_users_with_tot_fatturato(self) -> dict[str, dict[str, float]]:
+        return ControllerUtils.filter_invoices(mapped_rows, self.db_model, year, include_unpaid_invoices=include_unpaid_invoices)
+
+    def retrieve_users_with_tot_fatturato(self, year: int = None) -> dict[str, dict[str, float]]:
         output_map = {
             self.RegimeFiscale.FORFETTARIO.value : {},
             self.RegimeFiscale.ORDINARIO.value: {}
@@ -832,13 +840,13 @@ class UserController:
 
         for user in self.retrieve_users_map_list():
             if user[DBUsersColumns.REGIME_FISCALE.value] == self.RegimeFiscale.FORFETTARIO.value:
-                output_map[self.RegimeFiscale.FORFETTARIO.value][user[DBUsersColumns.LAST_NAME.value]] = self.calcola_tot_fatturato_utente(user[DBUsersColumns.ID.value])
+                output_map[self.RegimeFiscale.FORFETTARIO.value][user[DBUsersColumns.LAST_NAME.value]] = self.calcola_tot_fatturato_utente(user[DBUsersColumns.ID.value], year = year)
             elif user[DBUsersColumns.REGIME_FISCALE.value] == self.RegimeFiscale.ORDINARIO.value:
-                output_map[self.RegimeFiscale.ORDINARIO.value][user[DBUsersColumns.LAST_NAME.value]] = self.calcola_tot_fatturato_utente(user[DBUsersColumns.ID.value])
+                output_map[self.RegimeFiscale.ORDINARIO.value][user[DBUsersColumns.LAST_NAME.value]] = self.calcola_tot_fatturato_utente(user[DBUsersColumns.ID.value], year = year)
 
         return output_map
 
-    def retrieve_users_with_tot_spese(self) -> dict[str, float]:
+    def retrieve_users_with_tot_spese(self, year:int = None) -> dict[str, float]:
         output_map: dict[str, float] = {}
 
         for user in self.retrieve_users_map_list():
@@ -846,11 +854,11 @@ class UserController:
             cognome = user[DBUsersColumns.LAST_NAME.value]
             chiave = f"{cognome}"
 
-            output_map[chiave] = self.calcola_tot_spese_utente_dedotte(user_id)
+            output_map[chiave] = self.calcola_tot_spese_utente_dedotte(user_id, year = year)
 
         return output_map
 
-    def retrieve_user_with_anticipated_expenses_map_list(self, user_id):
+    def retrieve_user_with_anticipated_expenses_map_list(self, user_id, year:int = None):
         """
         Recupera lo specifico user unito alle rispettive spese anticipate e
         li restituisce come lista di dizionari.
@@ -865,26 +873,38 @@ class UserController:
         all_columns = list(DBUsersColumns) + list(DBExpensesColumns)
 
         # Converte ogni riga in un dizionario
-        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+        mapped_rows = [ValidationUtils._row_to_map(row, all_columns) for row in rows]
 
-    def retrieve_user_with_deducted_expenses_map_list(self, user_id):
+        return ControllerUtils.filter_expenses(mapped_rows, year = year)
+
+    def retrieve_user_with_deducted_expenses_map_list(self, user_id, year: int = None):
         """
         Recupera lo specifico user unito alle rispettive spese in deduzione e
-        li restituisce come lista di dizionari.
+        li restituisce come lista di dizionari, filtrando opzionalmente per anno
+        di emissione della spesa.
 
-        Utilizza la funzione fetch_user_with_expenses per ottenere le righe,
-        quindi combina le colonne dei client e delle invoices per convertire
-        ogni riga in un dizionario tramite _row_to_map.
+        :param user_id: ID dello user
+        :param year:
+            - None → anno corrente
+            - -1   → nessun filtro
+            - altro int → anno specifico
+        :return: Lista di dizionari user + expense
         """
-        # Recupera le righe dal database per lo specifico client
         rows = self.db_model.fetch_user_with_deducted_expenses(user_id)
+        if not rows:
+            return []
 
         all_columns = list(DBUsersColumns) + list(DBExpensesColumns)
 
-        # Converte ogni riga in un dizionario
-        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+        mapped_rows = [
+            ValidationUtils._row_to_map(row, all_columns)
+            for row in rows
+        ]
 
-    def retrieve_user_with_salaries_map_list(self, user_id):
+        # Riutilizzo diretto del filtro centralizzato
+        return ControllerUtils.filter_expenses(mapped_rows, year = year)
+
+    def retrieve_user_with_salaries_map_list(self, user_id, year:int = None):
         """
         Recupera lo specifico user unito ai rispettivi salari e
         li restituisce come lista di dizionari.
@@ -894,8 +914,10 @@ class UserController:
 
         all_columns = list(DBUsersColumns) + list(DBSalariesColumns)
 
+        mapped_rows = [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
         # Converte ogni riga in un dizionario
-        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+        return ControllerUtils.filter_salaries(mapped_rows, year = year)
 
     def delete_user_by_ID(self, user_id):
         """Elimina un utente dato un certo user"""
@@ -1000,7 +1022,7 @@ class UserController:
         except Exception as e:
             return False, f"Errore durante l'aggiornamento dell'utente: {str(e)}"
 
-    def calcola_reddito_tot_utente(self, user_id):
+    def calcola_reddito_tot_utente(self, user_id, year:int = None):
         """
         Calcola il reddito di un utente a partire da un reddito esterno e la somma dei lordi delle fatture
         :param user_id: ID dell'utente
@@ -1010,20 +1032,29 @@ class UserController:
         reddito_esterno = self.retrieve_user_map_by_id(user_id)[DBUsersColumns.REDDITO_ESTERNO.value]
         reddito = reddito_esterno
 
+        filter_invoices = True
+
+        if year is not None:
+            selected_year = year
+            if year == -1:
+                filter_invoices = False
+        else:
+            selected_year = datetime.now().year
+
         # Filtro le fatture emesse solo nell'anno corrente
-        current_year_value = datetime.now().year
-        invoices = [
-            invoice
-            for invoice in invoices
-            if datetime.strptime(invoice[DBInvoicesColumns.DATA_CREAZIONE.value], "%Y-%m-%d").year == current_year_value
-        ]
+        if filter_invoices:
+            invoices = [
+                invoice
+                for invoice in invoices
+                if datetime.strptime(invoice[DBInvoicesColumns.DATA_CREAZIONE.value], "%Y-%m-%d").year == selected_year
+            ]
 
         for invoice in invoices:
             reddito = reddito + invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]
 
         return reddito
 
-    def calcola_tot_fatturato_utente(self, user_id):
+    def calcola_tot_fatturato_utente(self, user_id, year:int = None):
         """
         Calcola il fatturato di un utente come somma delle fatture
         emesse nell'anno corrente, sfruttando il join user‑invoices.
@@ -1032,12 +1063,12 @@ class UserController:
         :return: il fatturato (float)
         """
         # Recupera l'utente + tutte le sue fatture
-        rows = self.retrieve_user_with_invoices_map_list(user_id)
+        rows = self.retrieve_user_with_invoices_map_list(user_id, year = year)
         if not rows:
             return 0.0
 
         # Estraggo il regime fiscale dall'utente (prendo il primo row)
-        regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
+        #regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
 
         # Calcolo l'anno corrente
         current_year = datetime.now().year
@@ -1063,7 +1094,7 @@ class UserController:
 
         return fatturato
 
-    def calcola_tot_spese_utente_anticipate(self, user_id):
+    def calcola_tot_spese_utente_anticipate(self, user_id, year:int = None):
         """
         Calcola le spese anticipate di un utente come somma delle expenses
         emesse nell'anno corrente, sfruttando il join user‑expenses.
@@ -1072,7 +1103,7 @@ class UserController:
         :return: il totale delle spese (float)
         """
         # Recupera l'utente + tutte le sue spese
-        rows = self.retrieve_user_with_anticipated_expenses_map_list(user_id)
+        rows = self.retrieve_user_with_anticipated_expenses_map_list(user_id, year = year)
         if not rows:
             return 0.0
 
@@ -1103,7 +1134,7 @@ class UserController:
 
         return tot_spese
 
-    def calcola_tot_spese_utente_dedotte(self, user_id):
+    def calcola_tot_spese_utente_dedotte(self, user_id, year:int = None):
         """
         Calcola le spese in deduzione di un utente come somma delle expenses
         emesse nell'anno corrente, sfruttando il join user‑expenses.
@@ -1112,7 +1143,7 @@ class UserController:
         :return: il totale delle spese (float)
         """
         # Recupera l'utente + tutte le sue spese
-        rows = self.retrieve_user_with_deducted_expenses_map_list(user_id)
+        rows = self.retrieve_user_with_deducted_expenses_map_list(user_id, year = year)
         if not rows:
             return 0.0
 
@@ -1143,7 +1174,7 @@ class UserController:
 
         return tot_spese
 
-    def calcola_tot_salari_utente(self, user_id):
+    def calcola_tot_salari_utente(self, user_id, year:int = None):
         """
         Calcola gli ingressi di un utente come somma dei salari
         emesse nell'anno corrente, sfruttando il join user‑expenses.
@@ -1152,7 +1183,7 @@ class UserController:
         :return: il totale delle spese (float)
         """
         # Recupera l'utente + tutte le sue spese
-        rows = self.retrieve_user_with_salaries_map_list(user_id)
+        rows = self.retrieve_user_with_salaries_map_list(user_id, year = year)
         if not rows:
             return 0.0
 
@@ -1183,8 +1214,8 @@ class UserController:
 
         return tot_salary
 
-    def calcola_tot_ritenuta_acconto_ordinaria(self, user_id):
-        invoices = self.retrieve_user_with_invoices_map_list(user_id)
+    def calcola_tot_ritenuta_acconto_ordinaria(self, user_id, year:int = None):
+        invoices = self.retrieve_user_with_invoices_map_list(user_id, year = year)
         invoices = ControllerUtils.clear_invoices_list_from_NDC_and_stornate(invoices)
 
         tot = 0.0
@@ -1194,7 +1225,6 @@ class UserController:
                 tot = tot + float(i[DBInvoicesColumns.RITENUTA.value])
 
         return tot
-
 
     def get_regime_fiscale_by_id(self, user_id):
         user_map = self.retrieve_user_map_by_id(user_id)
@@ -2236,10 +2266,18 @@ class InvoiceController:
         :return: Lista di dizionari contenenti i dati delle fatture.
         """
         rows = self.db_model.fetch_invoices_by_user_id(user_id)
+        if not rows:
+            return []
+
+        # 1️ Converti subito le tuple in mappe
+        invoice_maps = [
+            ValidationUtils._row_to_map(row, DBInvoicesColumns)
+            for row in rows
+        ]
 
         if rows:
             rows = ControllerUtils.filter_invoices(
-                invoices=rows,
+                invoices=invoice_maps,
                 db_model=self.db_model,
                 year=year
             )
@@ -2256,10 +2294,18 @@ class InvoiceController:
         :return: Lista di dizionari contenenti i dati delle fatture.
         """
         rows = self.db_model.fetch_invoices_by_prod_id(prod_id)
+        if not rows:
+            return []
+
+        # 1️ Converti subito le tuple in mappe
+        invoice_maps = [
+            ValidationUtils._row_to_map(row, DBInvoicesColumns)
+            for row in rows
+        ]
 
         if rows:
             rows = ControllerUtils.filter_invoices(
-                invoices=rows,
+                invoices=invoice_maps,
                 db_model=self.db_model,
                 year=year
             )
@@ -2276,31 +2322,48 @@ class InvoiceController:
         :return: Lista di dizionari contenenti i dati delle fatture.
         """
         rows = self.db_model.fetch_invoices_by_client_id(client_id)
+        if not rows:
+            return []
+
+        # 1️ Converti subito le tuple in mappe
+        invoice_maps = [
+            ValidationUtils._row_to_map(row, DBInvoicesColumns)
+            for row in rows
+        ]
 
         if rows:
             rows = ControllerUtils.filter_invoices(
-                invoices=rows,
+                invoices=invoice_maps,
                 db_model=self.db_model,
                 year=year
             )
 
         return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
 
-    def retrieve_invoices_map_list(self, year: int = None):
+    def retrieve_invoices_map_list(self, year: int = None, include_unpaid_invoices:bool = True):
         """
         Recupera tutte le fatture e le restituisce come lista di dizionari,
-        filtrandole per l'anno corrente o mantenendo quelle con rate non pagate.
+        filtrandole per l'anno richiesto e mantenendo quelle con rate non pagate.
         """
         rows = self.db_model.fetch_invoices()
+        if not rows:
+            return []
 
-        if rows:
-            rows = ControllerUtils.filter_invoices(
-                invoices=rows,
-                db_model=self.db_model,
-                year=year
-            )
+        # 1️ Converti subito le tuple in mappe
+        invoice_maps = [
+            ValidationUtils._row_to_map(row, DBInvoicesColumns)
+            for row in rows
+        ]
 
-        return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
+        # 2️ Applica il filtro (ora coerente)
+        filtered_invoices = ControllerUtils.filter_invoices(
+            invoices=invoice_maps,
+            db_model=self.db_model,
+            year=year,
+            include_unpaid_invoices = include_unpaid_invoices
+        )
+
+        return filtered_invoices
 
     def retrieve_last_invoice_insert_map(self):
         row = self.db_model.fetch_last_invoice_insert()
@@ -2438,8 +2501,8 @@ class InvoiceController:
         """
         Calcola il fatturato lordo (totale documento - IVA).
         """
-        tot_documento = self.calculate_TOT_DOCUMENTO_invoiced(year)
-        iva = self.calculate_IVA_invoiced(year)
+        tot_documento = self.calculate_TOT_DOCUMENTO_invoiced(year = year)
+        iva = self.calculate_IVA_invoiced(year = year)
         return tot_documento - iva
 
     def calculate_FATT_NETTO_invoiced(self, year : int = None):
@@ -2736,17 +2799,23 @@ class InvoiceController:
         num_invoice_cols = len(DBInvoicesColumns)
 
         # Estrai solo la parte fatture (senza pagamenti) per il filtraggio
-        invoice_tuples = [row[0:num_invoice_cols] for row in rows]
+        invoice_maps = [
+            ValidationUtils._row_to_map(row[0:num_invoice_cols], DBInvoicesColumns)
+            for row in rows
+        ]
 
         # Applica il filtro utilizzando ControllerUtils
-        filtered_invoice_tuples = ControllerUtils.filter_invoices(
-            invoice_tuples,
+        filtered_invoice_maps = ControllerUtils.filter_invoices(
+            invoice_maps,
             self.db_model,
             year=year
         )
 
         # Crea un set con gli ID delle fatture filtrate
-        filtered_ids = {t[0] for t in filtered_invoice_tuples}  # ID è il primo elemento
+        filtered_ids = {
+            inv[DBInvoicesColumns.ID.value]
+            for inv in filtered_invoice_maps
+        }
 
         # Filtra le righe originali mantenendo solo quelle delle fatture filtrate
         filtered_rows = [row for row in rows if row[0] in filtered_ids]
@@ -3227,7 +3296,11 @@ class PaymentsController:
         rows = self.db_model.fetch_payments()
         payments = [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
 
-        return ControllerUtils.filter_payments(payments, self.db_model, year, include_unpaid_invoice_payments)
+        return ControllerUtils.filter_payments(
+            payments = payments,
+            db_model = self.db_model,
+            year = year,
+            include_unpaid_invoice_payments = include_unpaid_invoice_payments)
 
     def retrieve_payments_map_list_by_invoice_id(self, invoice_id, year: int = None):
         """
@@ -4915,7 +4988,7 @@ class SalaryController:
         target_year = year if year is not None else datetime.now().year
         return self.db_model.sum_salaries_by_account(account_id, year = target_year)
 
-    def calculate_mean_salary_by_month(self, month: int) -> float | None:
+    def calculate_mean_salary_by_month(self, month: int, year:int = None) -> float | None:
         """
         Calculates the mean salary across all users for a specific month.
 
@@ -4929,17 +5002,20 @@ class SalaryController:
 
         try:
             # Retrieve all salaries
-            salaries = self.retrieve_salaries_map_list()
+            salaries = self.retrieve_salaries_map_list(year = year)
 
             # Early return if no salaries
             if not salaries:
                 print(f"SalaryController.calculate_mean_salary_by_month(): No salary data found.")
                 return None
 
+            #filter salaries based on the year
+            filtered_salaries = ControllerUtils.filter_salaries(salaries = salaries, year = year)
+
             monthly_tot = 0.0
             count = 0
 
-            for salary in salaries:
+            for salary in filtered_salaries:
                 # Get the date safely
                 date_str = salary.get(DBSalariesColumns.DATE.value)
                 if not date_str:
@@ -5264,18 +5340,18 @@ class Analyzer:
         self.fiscal_settings = fiscal_settings
         self.recurring_expenses_settings = recurring_expenses_settings
 
-    def calculate_account_balance_by_account_id(self, account_id):
+    def calculate_account_balance_by_account_id(self, account_id, year:int = None):
         account = self.account_controller.retrieve_account_map_by_id(account_id)
         balance = 0.0
         if account:
             init_balance = float(account[DBAccountsColumns.INIT_BALANCE.value])
 
-            tot_payments = self.payment_controller.sum_payments_for_account(account_id)
-            tot_expenses = self.expenses_controller.sum_expenses_for_account(account_id)
-            tot_rec_transf = self.transfer_controller.calculate_tot_amount_received_transfers_by_account(account_id)
-            tot_sent_transf = self.transfer_controller.calculate_tot_amount_sent_transfers_by_account(account_id)
-            tot_salaries = self.salary_controller.sum_salaries_for_account(account_id)
-            tot_refunds = self.refunds_controller.sum_refunds_for_account(account_id)
+            tot_payments = self.payment_controller.sum_payments_for_account(account_id, year = year)
+            tot_expenses = self.expenses_controller.sum_expenses_for_account(account_id, year = year)
+            tot_rec_transf = self.transfer_controller.calculate_tot_amount_received_transfers_by_account(account_id, year = year)
+            tot_sent_transf = self.transfer_controller.calculate_tot_amount_sent_transfers_by_account(account_id, year = year)
+            tot_salaries = self.salary_controller.sum_salaries_for_account(account_id, year = year)
+            tot_refunds = self.refunds_controller.sum_refunds_for_account(account_id, year = year)
 
             tot_entrate = tot_payments + tot_rec_transf + tot_refunds
             tot_uscite = tot_expenses + tot_sent_transf + tot_salaries
@@ -5284,7 +5360,7 @@ class Analyzer:
 
         return balance
 
-    def calculate_trimestral_iva_by_account_id(self, account_id):
+    def calculate_trimestral_iva_by_account_id(self, account_id, year:int = None):
         # Dizionario di output con i trimestri
         output_dict = {
             "Gen-Marz": {"debito": 0.0, "credito": 0.0, "da_pagare": 0.0},
@@ -5305,8 +5381,8 @@ class Analyzer:
                 return "Ott-Dic"
 
         # Recupera le spese deducibili e le fatture
-        deducted_expenses = self.user_controller.retrieve_user_with_deducted_expenses_map_list(account_id)
-        invoices = self.user_controller.retrieve_user_with_invoices_map_list(account_id)
+        deducted_expenses = self.user_controller.retrieve_user_with_deducted_expenses_map_list(account_id, year=year)
+        invoices = self.user_controller.retrieve_user_with_invoices_map_list(account_id, include_unpaid_invoices=False, year=year)
         invoices = self.invoice_controller.clear_invoices_list_from_NDC_and_stornate(invoices)
 
         # Elabora le spese (IVA a credito)
@@ -5347,22 +5423,22 @@ class Analyzer:
 
         return output_dict
 
-    def calculate_tot_trimestral_iva(self):
+    def calculate_tot_trimestral_iva(self, year:int = None):
         output_map = {}
 
         for user in self.user_controller.retrieve_users_map_list():
             if user[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value:
                 user_name = user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
                 user_id = user[DBUsersColumns.ID.value]
-                output_map[user_name] = self.calculate_trimestral_iva_by_account_id(user_id)
+                output_map[user_name] = self.calculate_trimestral_iva_by_account_id(user_id, year=year)
 
         return output_map
 
-    def retrieve_account_movements_by_account_id(self, account_id):
+    def retrieve_account_movements_by_account_id(self, account_id, year:int = None):
         movements = []
 
         # Payments (+) - Entrate
-        payments = self.payment_controller.retrieve_payments_map_list(include_unpaid_invoice_payments = False)
+        payments = self.payment_controller.retrieve_payments_map_list(year = year, include_unpaid_invoice_payments = False)
         filtered_payments = [p for p in payments if p[DBPaymentsColumns.CONTO_ID.value] == account_id]
         for payment in filtered_payments:
             movements.append({
@@ -5374,7 +5450,7 @@ class Analyzer:
             })
 
         # Refunds (+) - Entrate
-        refunds = self.refunds_controller.retrieve_refunds_map_list()
+        refunds = self.refunds_controller.retrieve_refunds_map_list(year = year)
         filtered_refunds = [r for r in refunds if r[DBRefundsColumns.CONTO_ID.value] == account_id]
         for refund in filtered_refunds:
             movements.append({
@@ -5386,7 +5462,7 @@ class Analyzer:
             })
 
         # Expenses (-) - Uscite
-        expenses = self.expenses_controller.retrieve_expenses_map_list()
+        expenses = self.expenses_controller.retrieve_expenses_map_list(year = year)
         filtered_expenses = [e for e in expenses if e[DBExpensesColumns.ACCOUNT_ID.value] == account_id]
         for expense in filtered_expenses:
             movements.append({
@@ -5398,7 +5474,7 @@ class Analyzer:
             })
 
         # Salaries (-) - Uscite
-        salaries = self.salary_controller.retrieve_salaries_map_list()
+        salaries = self.salary_controller.retrieve_salaries_map_list(year = year)
         filtered_salaries = [s for s in salaries if s[DBSalariesColumns.ACCOUNT_ID.value] == account_id]
         for salary in filtered_salaries:
             movements.append({
@@ -5410,7 +5486,7 @@ class Analyzer:
             })
 
         # Transfers (bonifici) - Possono essere entrate o uscite
-        transfers = self.transfer_controller.retrieve_transfers_map_list()
+        transfers = self.transfer_controller.retrieve_transfers_map_list(year = year)
 
         # Bonifici in entrata (ricevuti)
         incoming_transfers = [t for t in transfers if t[DBTransfersColumns.RECEIVER_ACCOUNT_ID.value] == account_id]
@@ -5439,13 +5515,13 @@ class Analyzer:
 
         return movements
 
-    def calculate_previsione_tasse_forfettaria(self, user_id):
+    def calculate_previsione_tasse_forfettaria(self, user_id, year:int = None):
         user = self.user_controller.retrieve_user_map_by_id(user_id)
         reddito_esterno = 0.0
         fatturato_willow = 0.0
         if user:
             reddito_esterno = float(user[DBUsersColumns.REDDITO_ESTERNO.value])
-            fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id)
+            fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id, year = year)
             anno_apertura = int(user[DBUsersColumns.ANNO_APERTURA_PIVA.value])
         else:
             return
@@ -5579,7 +5655,7 @@ class Analyzer:
             "INPS WILLOW": round(inps_w, 2)
         }, versamenti_map, output_map
 
-    def calculate_previsione_tasse_ordinaria(self, user_id):
+    def calculate_previsione_tasse_ordinaria(self, user_id, year:int = None):
         user = self.user_controller.retrieve_user_map_by_id(user_id)
         if not user:
             return {}
@@ -5587,9 +5663,9 @@ class Analyzer:
         # Recupero dati utente
         reddito_esterno = float(user.get(DBUsersColumns.REDDITO_ESTERNO.value, 0.0))
         spese_esterne = float(user.get(DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value, 0.0))
-        fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id)
-        spese_willow = self.user_controller.calcola_tot_spese_utente_dedotte(user_id)
-        tot_ritenuta = self.user_controller.calcola_tot_ritenuta_acconto_ordinaria(user_id)
+        fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id, year = year)
+        spese_willow = self.user_controller.calcola_tot_spese_utente_dedotte(user_id, year = year)
+        tot_ritenuta = self.user_controller.calcola_tot_ritenuta_acconto_ordinaria(user_id, year = year)
         acconto_anno_precedente_IRPEF = float(user.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value, 0.0))
         acconto_anno_precedente_INPS = float(user.get(DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value, 0.0))
         acconto_anno_precedente = acconto_anno_precedente_IRPEF + acconto_anno_precedente_INPS
@@ -5794,7 +5870,7 @@ class Analyzer:
             "WILLOW IRPEF": round(max(0, irpef_willow - tot_ritenuta), 2)
         }, versamenti_map, output_map
 
-    def calculate_previsione_tasse_willow(self):
+    def calculate_previsione_tasse_willow(self, year:int = None):
         list_of_users = self.user_controller.retrieve_users_map_list()
         result_map = {}
         total_saldo_willow = 0.0
@@ -5814,14 +5890,14 @@ class Analyzer:
 
             try:
                 if regime_fiscale == self.user_controller.RegimeFiscale.ORDINARIO.value:
-                    tasse_map, versamenti, _ = self.calculate_previsione_tasse_ordinaria(user_id)
+                    tasse_map, versamenti, _ = self.calculate_previsione_tasse_ordinaria(user_id, year = year)
                     saldo_willow = versamenti.get("SALDO WILLOW", 0.0)
                     acconto_willow = versamenti.get("ACCONTO WILLOW", 0.0)
                     irpef_willow = tasse_map.get("WILLOW IRPEF", 0.0)
                     inps_willow = tasse_map.get("WILLOW INPS", 0.0)
 
                 elif regime_fiscale == self.user_controller.RegimeFiscale.FORFETTARIO.value:
-                    tasse_map, versamenti, _ = self.calculate_previsione_tasse_forfettaria(user_id)
+                    tasse_map, versamenti, _ = self.calculate_previsione_tasse_forfettaria(user_id, year = year)
                     saldo_willow = versamenti.get("SALDO WILLOW", 0.0)
                     acconto_willow = versamenti.get("ACCONTO WILLOW", 0.0)
                     irpef_willow = tasse_map.get("IRPEF WILLOW", 0.0)
@@ -5887,29 +5963,19 @@ class Analyzer:
         return irpef
 
     def calculate_totale_crediti(self, year: int = None):
-        tot_fatture = self.invoice_controller.calculate_TOT_DOCUMENTO_invoiced(year)
-        tot_ritenuta = self.invoice_controller.calculate_RITENUTA_ACCONTO_invoiced(year)
-        tot_pagamenti = self.payment_controller.calculate_tot_payments(year)
+        tot_fatture = self.invoice_controller.calculate_TOT_DOCUMENTO_invoiced(year = year)
+        tot_ritenuta = self.invoice_controller.calculate_RITENUTA_ACCONTO_invoiced(year = year)
+        tot_pagamenti = self.payment_controller.calculate_tot_payments(year = year)
 
         return round(tot_fatture - tot_ritenuta - tot_pagamenti, 2)
 
     def retrieve_monthly_data(self, year: int = None):
         # Recupera i dati per l'anno corrente
-        invoices = self.invoice_controller.retrieve_invoices_map_list(year)
-        payments = self.payment_controller.retrieve_payments_map_list(year)
-        expenses = self.expenses_controller.retrieve_expenses_map_list(year)
-        salaries = self.salary_controller.retrieve_salaries_map_list(year)
-        refunds = self.refunds_controller.retrieve_refunds_map_list(year)
-
-        #filter the invoices
-        current_year = datetime.now().year
-
-        # Filtrare le fatture convertendo la stringa in data
-        filtered_invoices = [
-            invoice for invoice in invoices
-            if invoice[DBInvoicesColumns.DATA_CREAZIONE.value] and
-               datetime.strptime(invoice[DBInvoicesColumns.DATA_CREAZIONE.value], "%Y-%m-%d").year == current_year
-        ]
+        invoices = self.invoice_controller.retrieve_invoices_map_list(year = year, include_unpaid_invoices = False)
+        payments = self.payment_controller.retrieve_payments_map_list(year = year, include_unpaid_invoice_payments= False)
+        expenses = self.expenses_controller.retrieve_expenses_map_list(year = year)
+        salaries = self.salary_controller.retrieve_salaries_map_list(year = year)
+        refunds = self.refunds_controller.retrieve_refunds_map_list(year = year)
 
         # Inizializza la struttura per i dati mensili
         monthly_data = {month: {
@@ -5929,7 +5995,7 @@ class Analyzer:
                 return datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S").month
 
         # 1. Calcola il fatturato (TOT_DOCUMENTO - IVA)
-        for inv in filtered_invoices:
+        for inv in invoices:
             month = extract_month(inv[DBInvoicesColumns.DATA_CREAZIONE.value])
             tot_doc = float(inv[DBInvoicesColumns.TOT_DOCUMENTO.value])
             iva = float(inv[DBInvoicesColumns.IVA.value])
@@ -5958,8 +6024,12 @@ class Analyzer:
             month = extract_month(sal[DBSalariesColumns.DATE.value])
             monthly_data[month]['outcomes'] += float(sal[DBSalariesColumns.AMOUNT.value])
 
-        # Calcola le medie mensili (solo per i mesi passati)
-        current_month = datetime.now().month
+        # Calcola le medie mensili (solo per i mesi passati se la funzione è chiamata per retrievare i dati dell'esercizio corrente, altrimenti di tutti i mesi)
+        if year == datetime.now().year or year is None:
+            current_month = datetime.now().month
+        else:
+            current_month = 12
+
         passed_months = [m for m in range(1, current_month + 1)]
 
         # Calcola i totali per i mesi passati
@@ -5969,9 +6039,10 @@ class Analyzer:
                 totals[key] += monthly_data[month][key]
 
         # Calcola le medie
-        averages = {}
-        for key in totals:
-            averages[key] = totals[key] / len(passed_months) if passed_months else 0.0
+        averages = {
+            key: (totals[key] / len(passed_months)) if passed_months else 0.0
+            for key in totals
+        }
 
         # Costruisci il risultato finale con deviazioni
         result = {}
@@ -5979,18 +6050,15 @@ class Analyzer:
             month_data = monthly_data[month]
             deviations = {}
 
-            # Calcola le deviazioni solo per i mesi passati
-            if month <= current_month:
-                for key in month_data:
-                    if averages[key] != 0:
-                        deviation = ((month_data[key] - averages[key]) / averages[key]) * 100
+            if month in passed_months:
+                for key, value in month_data.items():
+                    avg = averages[key]
+                    if avg != 0:
+                        deviations[key] = round(((value - avg) / avg) * 100, 2)
                     else:
-                        deviation = 0.0 if month_data[key] == 0 else float('inf')
-                    deviations[key] = round(deviation, 2)
+                        deviations[key] = 0.0
             else:
-                # Per i mesi futuri non calcolare le deviazioni
-                for key in month_data:
-                    deviations[key] = None
+                deviations = {k: None for k in month_data}
 
             result[month] = {
                 'values': {k: round(v, 2) for k, v in month_data.items()},

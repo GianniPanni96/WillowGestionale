@@ -20,6 +20,7 @@ class BooksRetriever:
         self.annual_data_file_path = os.path.join(self.books_dir, "annual_aggregated_data.csv")
         self.monthly_data_file_path = os.path.join(self.books_dir, "monthly_aggregated_data.csv")
         self.iva_data_file_path = os.path.join(self.books_dir, "iva_aggregated_data.csv")
+        self.taxes_data_file_path = os.path.join(self.books_dir, "taxes_aggregated_data.csv")
 
         # Cache per i dati caricati
         self._annual_data = None
@@ -28,6 +29,8 @@ class BooksRetriever:
         self._monthly_df = None
         self._iva_data = None
         self._iva_df = None
+        self._taxes_data = None
+        self._taxes_df = None
 
     def load_annual_data(self) -> List[Dict[str, Any]]:
         """
@@ -139,6 +142,44 @@ class BooksRetriever:
             print(f"Errore nel caricamento dei dati IVA: {e}")
             return []
 
+    def load_taxes_data(self) -> List[Dict[str, Any]]:
+        """
+        Carica i dati delle tasse dal file CSV.
+
+        Returns:
+            Lista di dizionari con i dati delle tasse
+        """
+        if not os.path.exists(self.taxes_data_file_path):
+            print(f"File dati tasse non trovato: {self.taxes_data_file_path}")
+            return []
+
+        try:
+            data = []
+            with open(self.taxes_data_file_path, 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    converted_row = {}
+                    for key, value in row.items():
+                        if key in ['anno', 'user_id']:
+                            converted_row[key] = int(value) if value else None
+                        elif key == 'is_totale':
+                            converted_row[key] = value.lower() == 'true'
+                        elif value and value.replace('.', '', 1).isdigit():
+                            try:
+                                converted_row[key] = float(value)
+                            except ValueError:
+                                converted_row[key] = value
+                        else:
+                            converted_row[key] = value
+                    data.append(converted_row)
+
+            self._taxes_data = data
+            return data
+
+        except Exception as e:
+            print(f"Errore nel caricamento dei dati tasse: {e}")
+            return []
+
     def get_annual_dataframe(self) -> pd.DataFrame:
         """
         Restituisce i dati annuali come DataFrame pandas.
@@ -202,6 +243,28 @@ class BooksRetriever:
                 self._iva_df = pd.DataFrame()
 
         return self._iva_df
+
+    def get_taxes_dataframe(self) -> pd.DataFrame:
+        """
+        Restituisce i dati delle tasse come DataFrame pandas.
+
+        Returns:
+            DataFrame con i dati delle tasse
+        """
+        if self._taxes_df is None:
+            if self._taxes_data is None:
+                self.load_taxes_data()
+
+            if self._taxes_data:
+                self._taxes_df = pd.DataFrame(self._taxes_data)
+
+                sort_cols = [c for c in ['anno', 'utente'] if c in self._taxes_df.columns]
+                if sort_cols:
+                    self._taxes_df = self._taxes_df.sort_values(sort_cols)
+            else:
+                self._taxes_df = pd.DataFrame()
+
+        return self._taxes_df
 
     def get_years_available(self) -> List[int]:
         """
@@ -317,6 +380,83 @@ class BooksRetriever:
         # Ordina per mese
         monthly_data.sort(key=lambda x: x.get('mese', 0))
         return monthly_data
+
+    def get_taxes_data_for_year(self, year: int) -> List[Dict[str, Any]]:
+        """
+        Restituisce i dati delle tasse per un anno specifico.
+
+        Args:
+            year: Anno di riferimento
+
+        Returns:
+            Lista di dizionari con i dati delle tasse
+        """
+        if self._taxes_data is None:
+            self.load_taxes_data()
+
+        return [row for row in self._taxes_data if row.get('anno') == year]
+
+    def get_taxes_data_for_year_user(self, year: int, user_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Restituisce i dati delle tasse per anno e utente.
+
+        Args:
+            year: Anno
+            user_name: Nome utente ("Nome Cognome")
+
+        Returns:
+            Dizionario con i dati fiscali o None
+        """
+        data = self.get_taxes_data_for_year(year)
+        for row in data:
+            # MODIFICA: usa nome_utente invece di utente
+            if row.get('nome_utente') == user_name and row.get('nome_utente') != 'TOTALE':
+                return row
+        return None
+
+    def get_taxes_totals_for_year(self, year: int) -> Optional[Dict[str, Any]]:
+        """
+        Restituisce i totali fiscali aggregati per un anno.
+
+        Args:
+            year: Anno
+
+        Returns:
+            Dizionario con i totali o None
+        """
+        data = self.get_taxes_data_for_year(year)
+        for row in data:
+            # MODIFICA: controlla se nome_utente è 'TOTALE'
+            if row.get('nome_utente') == 'TOTALE':
+                return row
+        return None
+
+    def get_taxes_summary_for_year(self, year: int) -> Dict[str, Any]:
+        """
+        Restituisce un riepilogo fiscale per anno, separando utenti e totale.
+
+        Returns:
+            {
+                "users": { user_name: {...} },
+                "totale": {...}
+            }
+        """
+        data = self.get_taxes_data_for_year(year)
+
+        summary = {
+            "users": {},
+            "totale": None
+        }
+
+        for row in data:
+            if row.get('nome_utente') == 'TOTALE':  # MODIFICA: usa nome_utente
+                summary['totale'] = row
+            else:
+                user_name = row.get('nome_utente')  # MODIFICA: usa nome_utente
+                if user_name:
+                    summary['users'][user_name] = row
+
+        return summary
 
     def get_monthly_data_for_year_month(self, year: int, month: int) -> Optional[Dict[str, Any]]:
         """
@@ -553,6 +693,8 @@ class BooksRetriever:
                 'records') if not self.get_monthly_dataframe().empty else [],
             'iva_data': self.get_iva_dataframe().to_dict(
                 'records') if not self.get_iva_dataframe().empty else [],
+            'taxes_data': self.get_taxes_dataframe().to_dict(
+                'records') if not self.get_taxes_dataframe().empty else [],
             'financial_indicators': self.get_financial_indicators(),
             'available_years': self.get_years_available(),
             'latest_year_trends': self.get_monthly_trends(),
@@ -565,5 +707,7 @@ class BooksRetriever:
             latest_year = summary['available_years'][-1]
             summary['latest_year_data'] = self.get_annual_data_for_year(latest_year)
             summary['iva_latest_year'] = self.get_iva_summary_for_year(latest_year)
+            summary['taxes_latest_year'] = self.get_taxes_summary_for_year(latest_year)
+
 
         return summary

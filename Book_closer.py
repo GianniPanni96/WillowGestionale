@@ -21,6 +21,7 @@ class BookCloser:
         self.annual_data_file_path = os.path.join(self.books_dir, "annual_aggregated_data.csv")
         self.monthly_data_file_path = os.path.join(self.books_dir, "monthly_aggregated_data.csv")
         self.iva_data_file_path = os.path.join(self.books_dir, "iva_aggregated_data.csv")
+        self.taxes_data_file_path = os.path.join(self.books_dir, "taxes_aggregated_data.csv")
 
         # Recupera tutti i conti
         self.accounts = self.app_context.account_controller.retrieve_accounts_map_list()
@@ -590,6 +591,169 @@ class BookCloser:
         return {
             "trimestral_iva_data": trimestral_rows,
             "file_path": self.iva_data_file_path
+        }
+
+    def export_tax_data(self):
+        """
+        Esporta i dati previsionali delle tasse (WILLOW) in un file CSV.
+        I dati sono aggregati per utente e per anno, includendo anche la riga TOTALE.
+        """
+
+        # Recupera i dati dall'analyzer
+        tax_data = self.app_context.analyzer.calculate_previsione_tasse_willow(year=self.current_exercise_year)
+
+        # Verifica se il file esiste
+        file_exists = os.path.isfile(self.taxes_data_file_path)
+
+        export_rows = []
+        export_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        total_inps = 0.0
+        total_irpef = 0.0
+
+
+        for user_name, values in tax_data.items():
+
+            # Riga TOTALE (non ha user_id)
+            if user_name == "TOTALE":
+                row = {
+                    "anno": self.current_exercise_year,
+                    "user_id": None,
+                    "nome_utente": "TOTALE",
+                    "tipo_riga": "TOTALE",
+
+                    "saldo_willow": values.get("SALDO WILLOW", 0.0),
+                    "acconto_willow": values.get("ACCONTO WILLOW", 0.0),
+                    "irpef_willow": values.get("IRPEF WILLOW", 0.0),
+                    "inps_willow": values.get("INPS WILLOW", 0.0),
+
+                    # >>> NUOVI TOTALI <<<
+                    "inps_totale": total_inps,
+                    "irpef_totale": total_irpef,
+
+                    "data_esportazione": export_timestamp
+                }
+                export_rows.append(row)
+                continue
+
+            # Recupera user_id dal nome esteso
+            try:
+                user_map = self.app_context.user_controller.retrieve_user_map_by_extended_name(user_name)
+                user_id = user_map.get(DBUsersColumns.ID.value)
+            except Exception as e:
+                print(f"Impossibile risalire all'ID per l'utente '{user_name}': {e}")
+                user_id = None
+
+            # Recupera regime fiscale
+            user_map = self.app_context.user_controller.retrieve_user_map_by_id(user_id)
+            regime_fiscale = user_map.get(DBUsersColumns.REGIME_FISCALE.value)
+
+            inps_totale = 0.0
+            irpef_totale = 0.0
+
+            try:
+                if regime_fiscale == self.app_context.user_controller.RegimeFiscale.FORFETTARIO.value:
+                    tasse_map, _, _ = self.app_context.analyzer.calculate_previsione_tasse_forfettaria(
+                        user_id, year=self.current_exercise_year
+                    )
+                    inps_totale = tasse_map.get("INPS", 0.0)
+                    irpef_totale = tasse_map.get("IRPEF", 0.0)
+
+                elif regime_fiscale == self.app_context.user_controller.RegimeFiscale.ORDINARIO.value:
+                    tasse_map, _, _ = self.app_context.analyzer.calculate_previsione_tasse_ordinaria(
+                        user_id, year=self.current_exercise_year
+                    )
+                    inps_totale = tasse_map.get("INPS", 0.0)
+                    irpef_totale = tasse_map.get("IRPEF NETTA", 0.0)
+
+            except Exception as e:
+                print(f"Errore recupero tasse base per {user_name}: {e}")
+
+            row = {
+                "anno": self.current_exercise_year,
+                "user_id": user_id,
+                "nome_utente": user_name,
+                "tipo_riga": "UTENTE",
+                "saldo_willow": values.get("SALDO WILLOW", 0.0),
+                "acconto_willow": values.get("ACCONTO WILLOW", 0.0),
+                "irpef_willow": values.get("IRPEF WILLOW", 0.0),
+                "inps_willow": values.get("INPS WILLOW", 0.0),
+                "inps_totale": inps_totale,
+                "irpef_totale": irpef_totale,
+                "data_esportazione": export_timestamp
+            }
+
+            total_inps += inps_totale
+            total_irpef += irpef_totale
+
+            export_rows.append(row)
+
+        # ==========================
+        # SCRITTURA / AGGIORNAMENTO CSV
+        # ==========================
+
+        if file_exists:
+            try:
+                with open(self.taxes_data_file_path, "r", newline="", encoding="utf-8") as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    existing_rows = list(reader)
+                    existing_fieldnames = reader.fieldnames or []
+
+                # Rimuove righe dello stesso anno (replace-by-year)
+                filtered_rows = [
+                    r for r in existing_rows
+                    if str(r.get("anno")) != str(self.current_exercise_year)
+                ]
+
+                filtered_rows.extend(export_rows)
+
+                # Ordina per anno, tipo_riga (UTENTE prima, TOTALE dopo), nome
+                filtered_rows.sort(
+                    key=lambda r: (
+                        int(r.get("anno", 0)),
+                        1 if r.get("tipo_riga") == "TOTALE" else 0,
+                        r.get("nome_utente", "")
+                    )
+                )
+
+                # Union delle colonne
+                new_fields = []
+                for r in filtered_rows:
+                    for k in r.keys():
+                        if k not in existing_fieldnames and k not in new_fields:
+                            new_fields.append(k)
+
+                fieldnames = existing_fieldnames + new_fields
+
+                with open(self.taxes_data_file_path, "w", newline="", encoding="utf-8") as csvfile:
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(filtered_rows)
+
+                print(f"Aggiornati dati tasse per l'anno {self.current_exercise_year}")
+
+            except Exception as e:
+                print(f"Errore aggiornamento file tasse: {e}")
+                with open(self.taxes_data_file_path, "w", newline="", encoding="utf-8") as csvfile:
+                    fieldnames = list(export_rows[0].keys())
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(export_rows)
+
+                print(f"Creato file tasse (fallback) per l'anno {self.current_exercise_year}")
+
+        else:
+            with open(self.taxes_data_file_path, "w", newline="", encoding="utf-8") as csvfile:
+                fieldnames = list(export_rows[0].keys())
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(export_rows)
+
+            print(f"Creato nuovo file tasse per l'anno {self.current_exercise_year}")
+
+        return {
+            "tax_data": export_rows,
+            "file_path": self.taxes_data_file_path
         }
 
     def import_initial_balances(self):

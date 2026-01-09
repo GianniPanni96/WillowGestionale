@@ -250,11 +250,8 @@ class MainWindow(ctk.CTk):
 
             "Iva": lambda tab: IvaTrimesView(self.app_context, self.tabview),
 
-            "Tasse": lambda tab: TaxesView(
-                self.db_model, self.analyzer, self.update_controller,
-                self.config_manager, self.catalogo_elenchi, self.tabview,
-                self.event_bus
-            ),
+            "Tasse": lambda tab: TaxesView(self.app_context, self.tabview),
+
             f"Report {datetime.now().strftime('%Y')}": lambda tab: ReportView(
                 self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
                 self.event_bus, self.update_controller
@@ -1934,6 +1931,7 @@ class MainWindow(ctk.CTk):
             ("Esportazione dati annuali aggregati", book_closer.export_annual_data),
             ("Esportazione dati mensili aggregati", book_closer.export_monthly_data),
             ("Esportazione dati IVA aggregati", book_closer.export_trimestral_iva_data),
+            ("Esportazione dati TASSE aggregati", book_closer.export_tax_data),
             ("Impoprtazione saldi bancari iniziali", book_closer.import_initial_balances)
         ]
 

@@ -1054,7 +1054,7 @@ class UserController:
 
         return reddito
 
-    def calcola_tot_fatturato_utente(self, user_id, year:int = None):
+    def calcola_tot_fatturato_utente(self, user_id, include_unpaid_invoices:bool = True, year:int = None):
         """
         Calcola il fatturato di un utente come somma delle fatture
         emesse nell'anno corrente, sfruttando il join user‑invoices.
@@ -1063,15 +1063,10 @@ class UserController:
         :return: il fatturato (float)
         """
         # Recupera l'utente + tutte le sue fatture
-        rows = self.retrieve_user_with_invoices_map_list(user_id, year = year)
+        rows = self.retrieve_user_with_invoices_map_list(user_id, include_unpaid_invoices = include_unpaid_invoices, year = year)
         if not rows:
             return 0.0
 
-        # Estraggo il regime fiscale dall'utente (prendo il primo row)
-        #regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
-
-        # Calcolo l'anno corrente
-        current_year = datetime.now().year
 
         fatturato = 0.0
         for row in rows:
@@ -1087,7 +1082,7 @@ class UserController:
                 # formato data non valido: skip
                 continue
 
-            if anno == current_year:
+            if anno == year:
                 # Sommo il totale del documento
                 tot = row.get(DBInvoicesColumns.TOT_DOCUMENTO.value) or 0.0
                 fatturato += float(tot)
@@ -1147,12 +1142,6 @@ class UserController:
         if not rows:
             return 0.0
 
-        # Estraggo il regime fiscale dall'utente (prendo il primo row)
-        regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
-
-        # Calcolo l'anno corrente
-        current_year = datetime.now().year
-
         tot_spese = 0.0
         for row in rows:
             # Se la fattura non c'è (outer join), salto
@@ -1167,7 +1156,7 @@ class UserController:
                 # formato data non valido: skip
                 continue
 
-            if anno == current_year:
+            if anno == year:
                 # Sommo il totale del documento
                 tot = row.get(DBExpensesColumns.TOT_AMOUNT.value) or 0.0
                 tot_spese += float(tot)
@@ -5663,7 +5652,7 @@ class Analyzer:
         # Recupero dati utente
         reddito_esterno = float(user.get(DBUsersColumns.REDDITO_ESTERNO.value, 0.0))
         spese_esterne = float(user.get(DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value, 0.0))
-        fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id, year = year)
+        fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id, year = year, include_unpaid_invoices = False)
         spese_willow = self.user_controller.calcola_tot_spese_utente_dedotte(user_id, year = year)
         tot_ritenuta = self.user_controller.calcola_tot_ritenuta_acconto_ordinaria(user_id, year = year)
         acconto_anno_precedente_IRPEF = float(user.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value, 0.0))

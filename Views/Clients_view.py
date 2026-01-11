@@ -1,24 +1,27 @@
 import customtkinter as ctk
 import re
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import ControllerUtils, ClientController
+from Controllers import ControllerUtils, ClientController, ProductionController, InvoiceController, RefundController, DatabaseModel, Analyzer
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
 
+from App_context import AppContext
 
 class ClientsView(ctk.CTkFrame):
-    def __init__(self, db_model, client_controller, production_controller, invoice_controller, refund_controller, catalogo_elenchi, config_manager, tab, event_bus, analyzer):
+    def __init__(self, app_context:AppContext, tab):
         super().__init__(tab)
 
-        self.db_model = db_model
-        self.client_controller = client_controller
+
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.client_controller:ClientController = app_context.client_controller
         self.tab = tab
-        self.catalogo_elenchi = catalogo_elenchi
-        self.config_manager = config_manager
-        self.production_controller = production_controller
-        self.invoice_controller = invoice_controller
-        self.refund_controller = refund_controller
-        self.event_bus = event_bus
-        self.analyzer = analyzer
+        self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.config_manager = app_context.config_manager
+        self.production_controller:ProductionController = app_context.production_controller
+        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.refund_controller:RefundController = app_context.refund_controller
+        self.event_bus = app_context.event_bus
+        self.analyzer:Analyzer = app_context.analyzer
 
         self.clients_card_list = {}
 
@@ -31,13 +34,13 @@ class ClientsView(ctk.CTkFrame):
             parent=self,
             back_callback=self.show_main_view,
             client_controller=self.client_controller,
-            production_controller=production_controller,
-            invoice_controller=invoice_controller,
-            refund_controller=refund_controller,
-            db_model=db_model,
+            production_controller=self.production_controller,
+            invoice_controller=self.invoice_controller,
+            refund_controller=self.refund_controller,
+            db_model=self.db_model,
             analyzer=self.analyzer,
             event_bus = self.event_bus,
-            catalogo_elenchi=catalogo_elenchi
+            catalogo_elenchi=self.catalogo_elenchi
         )
 
         # Inizializza la vista principale
@@ -454,15 +457,15 @@ class ClientsView(ctk.CTkFrame):
 class ClientDetailView(ctk.CTkFrame):
     def __init__(self, parent, back_callback, client_controller, production_controller, invoice_controller, refund_controller, db_model, analyzer, event_bus, catalogo_elenchi):
         super().__init__(parent)
-        self.invoice_controller = invoice_controller
-        self.refund_controller = refund_controller
-        self.db_model = db_model
+        self.invoice_controller:InvoiceController = invoice_controller
+        self.refund_controller:RefundController = refund_controller
+        self.db_model:DatabaseModel = db_model
         self.back_callback = back_callback
-        self.client_controller = client_controller
-        self.production_controller = production_controller
+        self.client_controller:ClientController = client_controller
+        self.production_controller:ProductionController = production_controller
         self.event_bus = event_bus
         self.current_client_id = None
-        self.analyzer = analyzer
+        self.analyzer:Analyzer = analyzer
         self.catalogo_elenchi = catalogo_elenchi
 
         self.configure(fg_color="transparent")
@@ -817,7 +820,7 @@ class ClientDetailView(ctk.CTkFrame):
 
         global_infos = {
             "TOTALE FATTURATO": {
-                "value": self.client_controller.calcola_tot_entrate_cliente(self.current_client_id),
+                "value": self.client_controller.calcola_tot_entrate_cliente(self.current_client_id, include_unpaid_invoices = True, year = -1),
                 "uom": "€"
             }
         }
@@ -829,7 +832,7 @@ class ClientDetailView(ctk.CTkFrame):
         invoices_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
-        invoices = self.client_controller.retrieve_client_with_invoices_map_list(self.current_client_id)
+        invoices = self.client_controller.retrieve_client_with_invoices_map_list(self.current_client_id, include_unpaid_invoices = True, year = -1)
         for invoice in invoices:
             if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None:
                 nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]

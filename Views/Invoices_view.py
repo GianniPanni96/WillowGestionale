@@ -1,12 +1,14 @@
 import customtkinter as ctk
 import tkinter as tk
-from tkcalendar import Calendar, DateEntry
+from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import ValidationUtils, InvoiceController, UserController, ControllerUtils
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns
-from datetime import datetime
+from Controllers import InvoiceController, UserController, ControllerUtils
+from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns, DBInvoicesColumns
+from datetime import datetime, timedelta
 import re
 from enum import Enum
+
+from App_context import AppContext
 
 class InvoicesView(ctk.CTkFrame):
 
@@ -18,29 +20,25 @@ class InvoicesView(ctk.CTkFrame):
         STORNATA = "#2444d4"
         NOT_EXISTING = "#424242"
 
-    def __init__(self, db_model, invoice_controller, user_controller, client_controller,
-                 production_controller, payment_controller, account_controller,
-                 update_controller, tabview, fiscal_settings, historical_financial_data_settings,
-                 event_bus, analyzer, initial_invoice_id=None):
+    def __init__(self, app_context:AppContext, tabview, initial_invoice_id=None):
 
         super().__init__(tabview.tab("Fatture"))
 
-        self.db_model = db_model
-        self.invoice_controller = invoice_controller
-        self.user_controller = user_controller
-        self.client_controller = client_controller
-        self.production_controller = production_controller
-        self.payment_controller = payment_controller
-        self.account_controller = account_controller
-        self.update_controller = update_controller
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.invoice_controller = app_context.invoice_controller
+        self.user_controller = app_context.user_controller
+        self.client_controller = app_context.client_controller
+        self.production_controller = app_context.production_controller
+        self.payment_controller = app_context.payment_controller
+        self.account_controller = app_context.account_controller
+        self.update_controller = app_context.update_controller
         self.tabview = tabview
         self.tab = tabview.tab("Fatture")
-        self.fiscal_settings = fiscal_settings
-        self.historical_financial_data_settings = historical_financial_data_settings
-        self.event_bus = event_bus
-        self.analyzer = analyzer
-
-        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self.handle_show_invoice_detail)
+        self.fiscal_settings = app_context.fiscal_settings
+        self.historical_financial_data_settings = app_context.historical_financial_data_settings
+        self.event_bus = app_context.event_bus
+        self.analyzer = app_context.analyzer
 
         self.invoices_card_list = {}
         self.invoice_card_labels_status = {}
@@ -69,12 +67,12 @@ class InvoicesView(ctk.CTkFrame):
             parent=self,
             invoice_controller=self.invoice_controller,
             back_callback=self.show_main_view,
-            user_controller=user_controller,
+            user_controller=self.user_controller,
             client_controller=self.client_controller,
-            account_controller=account_controller,
-            production_controller=production_controller,
+            account_controller=self.account_controller,
+            production_controller=self.production_controller,
             update_controller=self.update_controller,
-            db_model=db_model,
+            db_model=self.db_model,
             fiscal_settings=self.fiscal_settings,
             historical_financial_data_settings = self.historical_financial_data_settings,
             event_bus = self.event_bus
@@ -233,11 +231,10 @@ class InvoicesView(ctk.CTkFrame):
         days = days_map.get(selected, 30)
 
         # Calcola la data limite (oggi - giorni)
-        from datetime import datetime, timedelta
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutte le fatture dell'anno corrente
-        all_invoices = self.invoice_controller.retrieve_invoices_map_list(True)
+        all_invoices = self.invoice_controller.retrieve_invoices_map_list()
 
         # Filtra le fatture: solo quelle con data di emissione >= limit_date
         filtered_invoices = []
@@ -314,23 +311,20 @@ class InvoicesView(ctk.CTkFrame):
         self.after(150, lambda: self.open_invoice_detail_tab(invoice_id))
 
     def populate_global_infos(self):
-        self.global_infos_lordi["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
-        self.global_infos_lordi["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.FATT_LORDO.value]
-        self.global_infos_lordi["CREDITI"] = self.analyzer.calculate_totale_crediti()
-        self.global_infos_lordi["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_LORDO.value]
-        #self.global_infos_lordi["PAGAMENTO \n ORARIO"] = 0
 
-        self.global_infos_netti["# FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.NUMERO_FATTURE.value]
-        self.global_infos_netti["FATTURATO"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.FATT_NETTO.value]
-        self.global_infos_netti["CREDITI"] = self.analyzer.calculate_totale_crediti()
-        self.global_infos_netti["MEDIA FATTURE"] = self.invoice_controller.current_year_invoices_aggregated_data[
-            InvoiceController.InvoiceAggregatedData.MEDIA_FATTURA_NETTO.value]
-        #self.global_infos_netti["PAGAMENTO \n ORARIO"] = 0
+        self.global_infos_lordi["# FATTURE"] = self.invoice_controller.count_invoices(include_unpaid_invoices = False)
+        self.global_infos_lordi["FATTURATO"] = self.invoice_controller.calculate_FATT_LORDO_invoiced(include_unpaid_invoices = False)
+        self.global_infos_lordi["CREDITI"] = self.invoice_controller.calculate_CRED_LORDO_invoiced(include_unpaid_invoices = False)
+        media_fatture_lordo = self.invoice_controller.calculate_MEDIA_FATTURA_LORDO_invoiced(include_unpaid_invoices = False)
+        self.global_infos_lordi["MEDIA FATTURE"] = media_fatture_lordo if media_fatture_lordo >= 0 else 0
+
+        self.global_infos_netti["# FATTURE"] = self.invoice_controller.count_invoices(include_unpaid_invoices = False)
+        self.global_infos_netti["FATTURATO"] = self.invoice_controller.calculate_FATT_NETTO_invoiced(include_unpaid_invoices = False)
+        self.global_infos_netti["CREDITI"] = self.invoice_controller.calculate_CRED_NETTO_invoiced(include_unpaid_invoices = False)
+        media_fatture_netto = self.invoice_controller.calculate_MEDIA_FATTURA_NETTO_invoiced(include_unpaid_invoices = False)
+        self.global_infos_netti["MEDIA FATTURE"] = media_fatture_netto if media_fatture_netto >= 0 else 0
+
+
 
     def open_add_invoice_window(self):
         """Apre una finestra per aggiungere un nuovo cliente"""
@@ -549,7 +543,6 @@ class InvoicesView(ctk.CTkFrame):
         self.collect_invoice_warnings(invoices_list)
 
         extractor = ViewUtils.create_extractor_for_invoices(
-            self.invoice_controller,
             self.client_controller,
             self.user_controller,
             self.production_controller
@@ -1018,7 +1011,7 @@ class InvoicesView(ctk.CTkFrame):
         self.invoice_widgets[DBInvoicesColumns.RIMBORSI.value].insert(0, rimborsi)
         self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
         self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].insert(0, rivalsa) if rivalsa else 0
-        self.invoice_widgets[self.nome_cliente_string].set(nome_cliente)
+        self.invoice_widgets[self.nome_cliente_string].set_value(nome_cliente)
         self.invoice_widgets[self.nome_produzione_string].set(nome_produzione)
         self.invoice_widgets[DBInvoicesColumns.METODO_PAGAMENTO.value].set(metodo_pagamento)
         self.invoice_widgets[DBInvoicesColumns.NUMERO_RATE.value].set(numero_rate)
@@ -1356,7 +1349,10 @@ class InvoicesView(ctk.CTkFrame):
 
     def prod_already_invoiced_control(self, selected_value):
         production = self.production_controller.retrieve_production_map_by_name(selected_value)
-        fatture_associate = self.invoice_controller.retrieve_invoice_map_list_by_production(production[DBProductionsColumns.ID.value])
+        if production:
+            fatture_associate = self.invoice_controller.retrieve_invoice_map_list_by_production(production.get(DBProductionsColumns.ID.value))
+        else:
+            return
 
         if len(fatture_associate) > 0:
             # Estrai i nomi dalle fatture associate
@@ -1553,6 +1549,9 @@ class InvoicesView(ctk.CTkFrame):
         after_id = self._orig_after(ms, func, *args)
         self._after_ids.add(after_id)
         return after_id
+
+
+
 
 
 class InvoiceDetailView(ctk.CTkFrame):

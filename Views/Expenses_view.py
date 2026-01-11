@@ -2,37 +2,39 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import PaymentsController, ExpenseController, InvoiceController, UserController, ControllerUtils
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
+from Controllers import AccountController, ExpenseController, InvoiceController, UserController, ControllerUtils, \
+    SupplierController, UpdatesController, Analyzer
+from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
 import re
-from enum import Enum
-from dataclasses import fields
-from datetime import datetime, timedelta, date
+
+from datetime import datetime, timedelta
+
+from Config import ConfigManager
+from App_context import AppContext
+from Event_bus import EventBus
 
 
 class ExpensesView(ctk.CTkFrame):
 
-    def __init__(self, db_model, expense_controller, user_controller,
-                 account_controller, supplier_controller, invoice_controller,
-                 update_controller, analyzer, fiscal_settings, catalogo_elenchi,
-                 config_manager, tab_view, event_bus, initial_expense_id=None):
+    def __init__(self, app_context:AppContext, tab_view, initial_expense_id=None):
 
         super().__init__(tab_view.tab("Spese"))
 
-        self.db_model = db_model
-        self.expense_controller = expense_controller
-        self.user_controller = user_controller
-        self.account_controller = account_controller
-        self.supplier_controller = supplier_controller
-        self.invoice_controller = invoice_controller
-        self.update_controller = update_controller
-        self.analyzer = analyzer
-        self.fiscal_settings = fiscal_settings
-        self.catalogo_elenchi = catalogo_elenchi
-        self.config_manager = config_manager
+        self.app_context:AppContext  = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.expense_controller:ExpenseController = app_context.expense_controller
+        self.user_controller:UserController = app_context.user_controller
+        self.account_controller:AccountController = app_context.account_controller
+        self.supplier_controller:SupplierController = app_context.supplier_controller
+        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.update_controller:UpdatesController = app_context.update_controller
+        self.analyzer:Analyzer = app_context.analyzer
+        self.fiscal_settings = app_context.fiscal_settings
+        self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.config_manager:ConfigManager = app_context.config_manager
         self.tab_view = tab_view
         self.tab = tab_view.tab("Spese")
-        self.event_bus = event_bus
+        self.event_bus:EventBus = app_context.event_bus
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -59,11 +61,11 @@ class ExpensesView(ctk.CTkFrame):
             invoice_controller=self.invoice_controller,
             supplier_controller=self.supplier_controller,
             back_callback=self.show_main_view,
-            account_controller=account_controller,
+            account_controller=self.account_controller,
             user_controller=self.user_controller,
             expense_controller=self.expense_controller,
             update_controller=self.update_controller,
-            db_model=db_model,
+            db_model=self.db_model,
             event_bus = self.event_bus,
             catalogo_elenchi=self.catalogo_elenchi
         )
@@ -681,7 +683,6 @@ class ExpensesView(ctk.CTkFrame):
     def load_expenses_chunked(self, expenses_list):
         # Crea l'estrattore specifico per le spese
         extractor = ViewUtils.create_extractor_for_expenses(
-            self.expense_controller,
             self.supplier_controller,
             self.user_controller,
             self.account_controller

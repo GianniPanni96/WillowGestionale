@@ -15,7 +15,6 @@ from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesCol
 DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, \
 DBSuppliersColumns, DBTransfersColumns, DBSalariesColumns, DBRefundsColumns
 
-from Views.View_utils import ViewUtils
 
 no_data_string = "no data"
 
@@ -402,22 +401,27 @@ class ControllerUtils:
         return filtered
 
     @staticmethod
-    def filter_productions(productions, db_model, year: int = None):
+    def filter_productions(
+            productions,
+            db_model,
+            year: int = None,
+            include_prod_with_unpaid_invoices: bool = False
+    ):
         """
         Filtra le produzioni mantenendo:
           - Tutte le produzioni create nell'anno richiesto
-          - Produzioni di altri anni SOLO se collegate a fatture con almeno una rata non saldata
+          - Produzioni di altri anni SOLO se:
+                include_prod_with_unpaid_invoices == True
+                E collegate a fatture con almeno una rata non saldata
 
         Se year == -1, non viene applicato alcun filtro.
 
         Gestisce sia liste che singole produzioni.
-
-        :param productions: Singola produzione o lista di produzioni (dict)
-        :param db_model: Istanza del DatabaseModel per accedere a produzioni/fatture/pagamenti
-        :param year: Anno di riferimento (int). Default: anno corrente. -1 = nessun filtro
-        :return: Lista filtrata o singola produzione
         """
+
+        # ----------------------------
         # Gestione singolo elemento
+        # ----------------------------
         single_item = not isinstance(productions, list)
         if single_item:
             productions = [productions]
@@ -425,7 +429,9 @@ class ControllerUtils:
         if not productions:
             return productions[0] if single_item else productions
 
+        # ----------------------------
         # Default: anno corrente
+        # ----------------------------
         if year is None:
             year = datetime.now().year
 
@@ -433,21 +439,26 @@ class ControllerUtils:
         if year == -1:
             return productions[0] if single_item else productions
 
-        # Recupera fatture e pagamenti
+        # ----------------------------
+        # Recupero fatture e pagamenti
+        # ----------------------------
         invoices = db_model.fetch_invoices()
         payments = db_model.fetch_payments()
 
         invoices_map = [ValidationUtils._row_to_map(inv, DBInvoicesColumns) for inv in invoices]
         payments_map = [ValidationUtils._row_to_map(p, DBPaymentsColumns) for p in payments]
 
-        # Mappa invoice_id → pagamenti
+        # invoice_id → lista pagamenti
         invoice_payments = {}
         for p in payments_map:
             invoice_id = p[DBPaymentsColumns.INVOICE_ID.value]
             invoice_payments.setdefault(invoice_id, []).append(p)
 
-        # Determina le fatture NON completamente saldate
+        # ----------------------------
+        # Fatture NON completamente saldate
+        # ----------------------------
         unpaid_invoice_ids = set()
+
         for inv in invoices_map:
             invoice_id = inv[DBInvoicesColumns.ID.value]
             num_rate = inv.get(DBInvoicesColumns.NUMERO_RATE.value) or 1
@@ -460,6 +471,9 @@ class ControllerUtils:
             if len(paid_rates) < num_rate:
                 unpaid_invoice_ids.add(invoice_id)
 
+        # ----------------------------
+        # Filtraggio produzioni
+        # ----------------------------
         filtered = []
 
         for prod in productions:
@@ -473,15 +487,21 @@ class ControllerUtils:
                 print(f"Errore durante il parsing della data '{date_str}': {e}")
                 continue
 
-            # Produzione dell'anno richiesto → sempre inclusa
+            # 1️ Produzione dell'anno richiesto → sempre inclusa
             if dt.year == year:
                 filtered.append(prod)
                 continue
 
-            # verifica se esiste almeno una fattura NON saldata collegata alla produzione
+            # 2️ Produzione di altro anno
+            if not include_prod_with_unpaid_invoices:
+                # flag False → ESCLUDI SEMPRE
+                continue
+
+            # flag True → includi solo se ha fatture non saldate
             has_unpaid_invoice = any(
                 inv[DBInvoicesColumns.ID.value] in unpaid_invoice_ids
-                and inv.get(DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value) == prod.get(DBProductionsColumns.ID.value)
+                and inv.get(DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value)
+                == prod.get(DBProductionsColumns.ID.value)
                 for inv in invoices_map
             )
 
@@ -1610,7 +1630,7 @@ class ClientController:
         rows = self.db_model.fetch_clients()
         return [ValidationUtils._row_to_map(row, DBClientsColumns) for row in rows]
 
-    def retrieve_client_with_invoices_map_list(self, client_id):
+    def retrieve_client_with_invoices_map_list(self, client_id, year:int = None, include_unpaid_invoices:bool = True):
         """
         Recupera lo specifico client unito alle rispettive fatture e
         li restituisce come lista di dizionari.
@@ -1627,19 +1647,29 @@ class ClientController:
         # poi quelle delle invoices.
         all_columns = list(DBClientsColumns) + list(DBInvoicesColumns)
 
-        # Converte ogni riga in un dizionario
-        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+        invoice_maps = [ValidationUtils._row_to_map(row, all_columns) for row in rows]
 
-    def construct_client_map_aggregate_data(self, client_id):
+        if rows:
+            rows = ControllerUtils.filter_invoices(
+                invoices=invoice_maps,
+                db_model=self.db_model,
+                year=year,
+                include_unpaid_invoices=include_unpaid_invoices
+            )
+
+        # Converte ogni riga in un dizionario
+        return rows
+
+    def construct_client_map_aggregate_data(self, client_id, include_unpaid_invoices:bool = True, year:int = None):
 
         client_aggregate_data = {
-            ClientController.Aggregate_data.TOT_ENTRATE.value: self.calcola_tot_entrate_cliente(client_id),
-            ClientController.Aggregate_data.NUM_FATTURE.value: self.calcola_numero_fatture_cliente(client_id),
-            ClientController.Aggregate_data.MEDIA_FATTURE.value: self.calcola_media_fatture_cliente(client_id),
-            ClientController.Aggregate_data.TOT_CREDITI.value: self.calcola_totale_crediti_cliente(client_id),
-            ClientController.Aggregate_data.PAGAM_ORARIO_MEDIO.value: self.calcola_pagam_orario_medio_cliente(client_id),
-            ClientController.Aggregate_data.TOT_GIORNI_RIT.value: self.calcola_totale_ritardi_cliente(client_id),
-            ClientController.Aggregate_data.MEDIA_RITARDO.value: self.calcola_ritardo_medio_cliente(client_id)
+            ClientController.Aggregate_data.TOT_ENTRATE.value: self.calcola_tot_entrate_cliente(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year),
+            ClientController.Aggregate_data.NUM_FATTURE.value: self.calcola_numero_fatture_cliente(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year),
+            ClientController.Aggregate_data.MEDIA_FATTURE.value: self.calcola_media_fatture_cliente(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year),
+            ClientController.Aggregate_data.TOT_CREDITI.value: self.calcola_totale_crediti_cliente(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year),
+            ClientController.Aggregate_data.PAGAM_ORARIO_MEDIO.value: self.calcola_pagam_orario_medio_cliente(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year),
+            ClientController.Aggregate_data.TOT_GIORNI_RIT.value: self.calcola_totale_ritardi_cliente(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year),
+            ClientController.Aggregate_data.MEDIA_RITARDO.value: self.calcola_ritardo_medio_cliente(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year)
         }
 
         return client_aggregate_data
@@ -1668,8 +1698,8 @@ class ClientController:
         for client in clients:
             self.print_cliente(client)
 
-    def calcola_tot_entrate_cliente(self, client_id):
-        client_with_invoices = self.retrieve_client_with_invoices_map_list(client_id)
+    def calcola_tot_entrate_cliente(self, client_id, include_unpaid_invoices:bool = True, year:int = None):
+        client_with_invoices = self.retrieve_client_with_invoices_map_list(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year)
         tot = 0.0
         for row in client_with_invoices: #in questo modo sto in realtà scorrendo le fatture
             if (row[DBInvoicesColumns.TIPO.value] != InvoiceController.Tipologia.NOTA_DI_CREDITO.value or
@@ -1678,8 +1708,8 @@ class ClientController:
 
         return tot
 
-    def calcola_numero_fatture_cliente(self, client_id):
-        client_with_invoices = self.retrieve_client_with_invoices_map_list(client_id)
+    def calcola_numero_fatture_cliente(self, client_id, include_unpaid_invoices:bool = True, year:int = None):
+        client_with_invoices = self.retrieve_client_with_invoices_map_list(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year)
         tot = 0
         for row in client_with_invoices:
             valid_row = row[DBInvoicesColumns.ID_CLIENTE.value] is not None
@@ -1689,27 +1719,37 @@ class ClientController:
 
         return tot
 
-    def calcola_media_fatture_cliente(self, client_id):
-        numero = self.calcola_numero_fatture_cliente(client_id)
-        tot = self.calcola_tot_entrate_cliente(client_id)
+    def calcola_media_fatture_cliente(self, client_id, include_unpaid_invoices:bool = True, year:int = None):
+        numero = self.calcola_numero_fatture_cliente(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year)
+        tot = self.calcola_tot_entrate_cliente(client_id, include_unpaid_invoices=include_unpaid_invoices, year=year)
 
         return tot/numero if numero > 0 else 0
 
-    def calcola_totale_crediti_cliente(self, client_id):
+    def calcola_totale_crediti_cliente(self, client_id, include_unpaid_invoices:bool = True, year:int = None):
         outstanding = self.db_model.fetch_outstanding_by_client(client_id)
         return sum(outstanding.values())
 
-    def calcola_pagam_orario_medio_cliente(self, client_id):
+    def calcola_pagam_orario_medio_cliente(self, client_id, include_unpaid_invoices:bool = True, year:int = None):
         invoices_with_prod = self.db_model.fetch_invoices_with_productions()
         all_columns = list(DBInvoicesColumns) + list(DBProductionsColumns)
 
         invoices_with_prod_maps = [ValidationUtils._row_to_map(row, all_columns) for row in invoices_with_prod]
         invoices_with_prod_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(invoices_with_prod_maps)
 
+        filtered_maps = {}
+
+        if invoices_with_prod_maps:
+            filtered_maps = ControllerUtils.filter_invoices(
+                invoices=invoices_with_prod_maps,
+                db_model=self.db_model,
+                year=year,
+                include_unpaid_invoices=include_unpaid_invoices
+            )
+
         tot_pagam = 0.0
         tot_orario = 0.0
         #ciclo sulle produzioni
-        for invoice in invoices_with_prod_maps:
+        for invoice in filtered_maps:
             if invoice[DBInvoicesColumns.ID_CLIENTE.value] == client_id:
                 tot_pagam = tot_pagam + float(invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]) #legito se esiste una sola produzione per fattura, altrimenti sommo più volte la stessa fattura
                 tot_orario = tot_orario + float(invoice[DBProductionsColumns.HOURS.value])
@@ -1717,197 +1757,234 @@ class ClientController:
         result = tot_pagam / tot_orario if tot_orario > 0 else -1
         return result
 
-    def calcola_ritardo_medio_cliente(self, client_id):
+    def calcola_ritardo_medio_cliente(
+            self,
+            client_id,
+            include_unpaid_invoices: bool = True,
+            year: int = None
+    ):
         """
-        Calcola il ritardo medio in giorni per un cliente, considerando:
-        - Pagamenti effettuati dopo la scadenza
-        - Rate non pagate con scadenza passata
+        Calcola il ritardo medio in giorni per un cliente.
+        """
 
-        Ritorna:
-        - Ritardo medio in giorni (float)
-        - 0 se non ci sono rate in ritardo
-        """
-        # 1. Recupera tutte le fatture del cliente
+        # 1. Recupero fatture cliente
         invoice_rows = self.db_model.fetch_invoices_by_client_id(client_id)
-        invoices_maps = [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in invoice_rows]
-        invoices_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(invoices_maps)
+        invoices_maps = [
+            ValidationUtils._row_to_map(row, DBInvoicesColumns)
+            for row in invoice_rows
+        ]
+        invoices_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
+            invoices_maps
+        )
 
-        # 2. Recupera tutti i pagamenti associati alle fatture del cliente
+        # 🔹 FILTRO FATTURE
+        invoices_maps = ControllerUtils.filter_invoices(
+            invoices_maps,
+            self.db_model,
+            year=year,
+            include_unpaid_invoices=include_unpaid_invoices
+        )
+
+        if not invoices_maps:
+            return 0
+
+        # 2. Recupero pagamenti collegati
         payment_rows = self.db_model.fetch_payments_with_invoice_for_client(client_id)
 
-        # 3. Organizza i pagamenti per fattura e rata
+        payments = []
         payments_dict = {}
+
         for row in payment_rows:
-            # Estrae i dati del pagamento (prima parte della tupla)
+            payment_data = row[:len(DBPaymentsColumns)]
+            payment_map = ValidationUtils._row_to_map(payment_data, DBPaymentsColumns)
+            payments.append(payment_map)
+
+        # 🔹 FILTRO PAGAMENTI
+        payments = ControllerUtils.filter_payments(
+            payments,
+            self.db_model,
+            year=year,
+            include_unpaid_invoice_payments=include_unpaid_invoices
+        )
+
+        # 3. Organizzazione pagamenti per fattura / rata
+        for row in payment_rows:
             payment_data = row[:len(DBPaymentsColumns)]
             payment_map = ValidationUtils._row_to_map(payment_data, DBPaymentsColumns)
 
-            # Estrae i dati della fattura (seconda parte della tupla)
+            if payment_map not in payments:
+                continue
+
             invoice_data = row[len(DBPaymentsColumns):len(DBPaymentsColumns) + len(DBInvoicesColumns)]
             invoice_map = ValidationUtils._row_to_map(invoice_data, DBInvoicesColumns)
 
             invoice_id = invoice_map[DBInvoicesColumns.ID.value]
             rata = payment_map[DBPaymentsColumns.LINKED_RATA.value]
 
-            if invoice_id not in payments_dict:
-                payments_dict[invoice_id] = {}
-
-            payments_dict[invoice_id][rata] = payment_map
+            payments_dict.setdefault(invoice_id, {})[rata] = payment_map
 
         totale_ritardo = 0
         conteggio_rate_in_ritardo = 0
-        date_format = "%Y-%m-%d"
         oggi = datetime.today()
+        date_format = "%Y-%m-%d"
 
         for invoice in invoices_maps:
-            try:
-                num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
-            except (ValueError, TypeError):
-                num_rate = 1  # Default a 1 rata se il valore non è valido
+            num_rate = invoice.get(DBInvoicesColumns.NUMERO_RATE.value) or 1
+            invoice_id = invoice[DBInvoicesColumns.ID.value]
 
             for rata in range(1, num_rate + 1):
-                # Recupera la data di scadenza della rata
-                if rata == 1:
-                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_1.value]
-                elif rata == 2:
-                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_2.value]
-                elif rata == 3:
-                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_3.value]
-                else:
-                    continue  # Supporta solo fino a 3 rate
-
+                due_date_str = invoice.get(
+                    getattr(DBInvoicesColumns, f"DATA_SCADENZA_{rata}").value,
+                    None
+                )
                 if not due_date_str:
-                    continue  # Salta se la data di scadenza non è presente
+                    continue
 
                 try:
                     due_date = datetime.strptime(due_date_str, date_format)
                 except ValueError:
-                    continue  # Salta se il formato della data non è valido
+                    continue
 
-                # Cerca un pagamento per questa rata
-                invoice_id = invoice[DBInvoicesColumns.ID.value]
                 payment = payments_dict.get(invoice_id, {}).get(rata)
-
-                ritardo_calcolato = 0
+                ritardo = 0
                 in_ritardo = False
 
                 if payment:
-                    # Calcola ritardo per pagamento effettuato
-                    payment_date_str = payment[DBPaymentsColumns.PAYMENT_DATE.value]
                     try:
-                        payment_date = datetime.strptime(payment_date_str, date_format)
+                        payment_date = datetime.strptime(
+                            payment[DBPaymentsColumns.PAYMENT_DATE.value],
+                            date_format
+                        )
                         if payment_date > due_date:
-                            ritardo_calcolato = (payment_date - due_date).days
+                            ritardo = (payment_date - due_date).days
                             in_ritardo = True
                     except ValueError:
-                        continue
+                        pass
                 else:
-                    # Calcola ritardo per rata non pagata (solo se scaduta)
                     if oggi > due_date:
-                        ritardo_calcolato = (oggi - due_date).days
+                        ritardo = (oggi - due_date).days
                         in_ritardo = True
 
                 if in_ritardo:
-                    totale_ritardo += ritardo_calcolato
+                    totale_ritardo += ritardo
                     conteggio_rate_in_ritardo += 1
 
-        # Calcola la media
-        if conteggio_rate_in_ritardo > 0:
-            return totale_ritardo / conteggio_rate_in_ritardo
-        else:
-            return 0  # Nessuna rata in ritardo
+        return totale_ritardo / conteggio_rate_in_ritardo if conteggio_rate_in_ritardo else 0
 
-    def calcola_totale_ritardi_cliente(self, client_id):
+    def calcola_totale_ritardi_cliente(
+            self,
+            client_id,
+            include_unpaid_invoices: bool = True,
+            year: int = None
+    ):
         """
-        Calcola il ritardo totale in giorni per un cliente, considerando:
-        - Pagamenti effettuati dopo la scadenza
-        - Rate non pagate con scadenza passata
+        Calcola il ritardo totale in giorni per un cliente.
         """
-        # 1. Recupera tutte le fatture del cliente
+
         invoice_rows = self.db_model.fetch_invoices_by_client_id(client_id)
-        invoices_maps = [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in invoice_rows]
-        invoices_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(invoices_maps)
+        invoices_maps = [
+            ValidationUtils._row_to_map(row, DBInvoicesColumns)
+            for row in invoice_rows
+        ]
+        invoices_maps = InvoiceController.clear_invoices_list_from_NDC_and_stornate(
+            invoices_maps
+        )
 
-        # 2. Recupera tutti i pagamenti associati alle fatture del cliente
+        invoices_maps = ControllerUtils.filter_invoices(
+            invoices_maps,
+            self.db_model,
+            year=year,
+            include_unpaid_invoices=include_unpaid_invoices
+        )
+
+        if not invoices_maps:
+            return 0
+
         payment_rows = self.db_model.fetch_payments_with_invoice_for_client(client_id)
 
-        # 3. Organizza i pagamenti per fattura e rata
+        payments = []
         payments_dict = {}
+
         for row in payment_rows:
-            # Estrae i dati del pagamento (prima parte della tupla)
+            payment_data = row[:len(DBPaymentsColumns)]
+            payment_map = ValidationUtils._row_to_map(payment_data, DBPaymentsColumns)
+            payments.append(payment_map)
+
+        payments = ControllerUtils.filter_payments(
+            payments,
+            self.db_model,
+            year=year,
+            include_unpaid_invoice_payments=include_unpaid_invoices
+        )
+
+        for row in payment_rows:
             payment_data = row[:len(DBPaymentsColumns)]
             payment_map = ValidationUtils._row_to_map(payment_data, DBPaymentsColumns)
 
-            # Estrae i dati della fattura (seconda parte della tupla)
+            if payment_map not in payments:
+                continue
+
             invoice_data = row[len(DBPaymentsColumns):len(DBPaymentsColumns) + len(DBInvoicesColumns)]
             invoice_map = ValidationUtils._row_to_map(invoice_data, DBInvoicesColumns)
 
             invoice_id = invoice_map[DBInvoicesColumns.ID.value]
             rata = payment_map[DBPaymentsColumns.LINKED_RATA.value]
 
-            if invoice_id not in payments_dict:
-                payments_dict[invoice_id] = {}
+            payments_dict.setdefault(invoice_id, {})[rata] = payment_map
 
-            payments_dict[invoice_id][rata] = payment_map
-
-        giorni_ritardo_totale = 0
-        date_format = "%Y-%m-%d"
         oggi = datetime.today()
+        date_format = "%Y-%m-%d"
+        totale = 0
 
         for invoice in invoices_maps:
-            try:
-                num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
-            except (ValueError, TypeError):
-                num_rate = 1  # Default a 1 rata se il valore non è valido
+            num_rate = invoice.get(DBInvoicesColumns.NUMERO_RATE.value) or 1
+            invoice_id = invoice[DBInvoicesColumns.ID.value]
 
             for rata in range(1, num_rate + 1):
-                # Recupera la data di scadenza della rata
-                if rata == 1:
-                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_1.value]
-                elif rata == 2:
-                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_2.value]
-                elif rata == 3:
-                    due_date_str = invoice[DBInvoicesColumns.DATA_SCADENZA_3.value]
-                else:
-                    continue  # Supporta solo fino a 3 rate
-
+                due_date_str = invoice.get(
+                    getattr(DBInvoicesColumns, f"DATA_SCADENZA_{rata}").value,
+                    None
+                )
                 if not due_date_str:
-                    continue  # Salta se la data di scadenza non è presente
+                    continue
 
                 try:
                     due_date = datetime.strptime(due_date_str, date_format)
                 except ValueError:
-                    continue  # Salta se il formato della data non è valido
+                    continue
 
-                # Cerca un pagamento per questa rata
-                invoice_id = invoice[DBInvoicesColumns.ID.value]
                 payment = payments_dict.get(invoice_id, {}).get(rata)
 
                 if payment:
-                    # Calcola ritardo per pagamento effettuato
-                    payment_date_str = payment[DBPaymentsColumns.PAYMENT_DATE.value]
                     try:
-                        payment_date = datetime.strptime(payment_date_str, date_format)
+                        payment_date = datetime.strptime(
+                            payment[DBPaymentsColumns.PAYMENT_DATE.value],
+                            date_format
+                        )
                         if payment_date > due_date:
-                            ritardo = (payment_date - due_date).days
-                            giorni_ritardo_totale += ritardo
+                            totale += (payment_date - due_date).days
                     except ValueError:
-                        continue
+                        pass
                 else:
-                    # Calcola ritardo per rata non pagata (solo se scaduta)
                     if oggi > due_date:
-                        ritardo = (oggi - due_date).days
-                        giorni_ritardo_totale += ritardo
+                        totale += (oggi - due_date).days
 
-        return giorni_ritardo_totale
+        return totale
 
-    def calcola_tot_rimborsi_by_client(self, client_id):
-        refunds = [ValidationUtils._row_to_map(row, DBRefundsColumns) for row in self.db_model.fetch_refunds_by_client_id(client_id)]
-        tot = 0.0
-        for r in refunds:
-            tot += float(r[DBRefundsColumns.REFUND_AMOUNT.value])
+    def calcola_tot_rimborsi_by_client(
+            self,
+            client_id,
+            include_unpaid_invoices: bool = True,
+            year: int = None
+    ):
+        refunds = [
+            ValidationUtils._row_to_map(row, DBRefundsColumns)
+            for row in self.db_model.fetch_refunds_by_client_id(client_id)
+        ]
 
-        return tot
+        refunds = ControllerUtils.filter_refunds(refunds, year=year)
+
+        return sum(float(r[DBRefundsColumns.REFUND_AMOUNT.value]) for r in refunds)
 
 
 class InvoiceController:
@@ -2271,7 +2348,7 @@ class InvoiceController:
                 year=year
             )
 
-        return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
+        return rows
 
     def retrieve_invoice_map_list_by_production(self, prod_id, year: int = None):
         """
@@ -2299,7 +2376,7 @@ class InvoiceController:
                 year=year
             )
 
-        return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
+        return rows
 
     def retrieve_invoice_map_list_by_client(self, client_id, year: int = None):
         """
@@ -2327,7 +2404,7 @@ class InvoiceController:
                 year=year
             )
 
-        return [ValidationUtils._row_to_map(row, DBInvoicesColumns) for row in rows]
+        return rows
 
     def retrieve_invoices_map_list(self, year: int = None, include_unpaid_invoices:bool = True):
         """
@@ -2419,7 +2496,7 @@ class InvoiceController:
         check = (total >= rimborsi) or (abs(total - rimborsi) < 5)
         return check, total
 
-    def count_invoices(self, year: int = None):
+    def count_invoices(self, year: int = None, include_unpaid_invoices:bool = False):
         """
         Conta il numero di fatture che non siano state stornate, applicando il filtro per l'anno corrente se specificato.
 
@@ -2427,12 +2504,12 @@ class InvoiceController:
         :return: Numero di fatture (int)
         """
         # Recupera le fatture già filtrate
-        invoices = self.retrieve_invoices_map_list(year)
+        invoices = self.retrieve_invoices_map_list(year=year, include_unpaid_invoices=include_unpaid_invoices)
         # Filtra ulteriormente per rimuovere NDC e stornate
         filtered_invoices = self.clear_invoices_list_from_NDC_and_stornate(invoices)
         return len(filtered_invoices)
 
-    def calculate_TOT_DOCUMENTO_invoiced(self, year: int = None):
+    def calculate_TOT_DOCUMENTO_invoiced(self, year: int = None, include_unpaid_invoices:bool = False):
         """
         Calcola il totale fatturato, escludendo NDC e fatture stornate.
 
@@ -2440,7 +2517,7 @@ class InvoiceController:
         :return: Totale fatturato (float)
         """
         # Recupera le fatture già filtrate
-        invoices = self.retrieve_invoices_map_list(year)
+        invoices = self.retrieve_invoices_map_list(year=year, include_unpaid_invoices=include_unpaid_invoices)
         # Filtra ulteriormente per rimuovere NDC e stornate
         filtered_invoices = self.clear_invoices_list_from_NDC_and_stornate(invoices)
 
@@ -2451,7 +2528,7 @@ class InvoiceController:
                 tot += float(amount)
         return tot
 
-    def calculate_IVA_invoiced(self, year: int = None):
+    def calculate_IVA_invoiced(self, year: int = None, include_unpaid_invoices:bool = False):
         """
         Calcola il totale IVA fatturata, escludendo NDC e fatture stornate.
 
@@ -2459,7 +2536,7 @@ class InvoiceController:
         :return: Totale IVA (float)
         """
         # Recupera le fatture già filtrate
-        invoices = self.retrieve_invoices_map_list(year)
+        invoices = self.retrieve_invoices_map_list(year=year, include_unpaid_invoices=include_unpaid_invoices)
         # Filtra ulteriormente per rimuovere NDC e stornate
         filtered_invoices = self.clear_invoices_list_from_NDC_and_stornate(invoices)
 
@@ -2470,12 +2547,12 @@ class InvoiceController:
                 iva_total += float(iva)
         return iva_total
 
-    def calculate_RITENUTA_ACCONTO_invoiced(self, year: int = None):
+    def calculate_RITENUTA_ACCONTO_invoiced(self, year: int = None, include_unpaid_invoices:bool = False):
         """
         Calcola il totale della ritenuta d'acconto fatturata.
         """
         # Recupera le fatture già filtrate
-        invoices = self.retrieve_invoices_map_list(year)
+        invoices = self.retrieve_invoices_map_list(year=year, include_unpaid_invoices=include_unpaid_invoices)
         # Filtra ulteriormente per rimuovere NDC e stornate
         filtered_invoices = self.clear_invoices_list_from_NDC_and_stornate(invoices)
 
@@ -2486,55 +2563,55 @@ class InvoiceController:
                 ritenuta += float(amount)
         return ritenuta
 
-    def calculate_FATT_LORDO_invoiced(self, year: int = None):
+    def calculate_FATT_LORDO_invoiced(self, year: int = None, include_unpaid_invoices:bool = False):
         """
         Calcola il fatturato lordo (totale documento - IVA).
         """
-        tot_documento = self.calculate_TOT_DOCUMENTO_invoiced(year = year)
-        iva = self.calculate_IVA_invoiced(year = year)
+        tot_documento = self.calculate_TOT_DOCUMENTO_invoiced(year = year, include_unpaid_invoices = include_unpaid_invoices)
+        iva = self.calculate_IVA_invoiced(year = year, include_unpaid_invoices = include_unpaid_invoices)
         return tot_documento - iva
 
-    def calculate_FATT_NETTO_invoiced(self, year : int = None):
+    def calculate_FATT_NETTO_invoiced(self, year : int = None, include_unpaid_invoices:bool = False):
         """
         Calcola il fatturato netto (totale documento - IVA - ritenuta).
         """
-        tot_documento = self.calculate_TOT_DOCUMENTO_invoiced(year)
-        iva = self.calculate_IVA_invoiced(year)
-        ritenuta = self.calculate_RITENUTA_ACCONTO_invoiced(year)
+        tot_documento = self.calculate_TOT_DOCUMENTO_invoiced(year=year, include_unpaid_invoices=include_unpaid_invoices)
+        iva = self.calculate_IVA_invoiced(year=year, include_unpaid_invoices=include_unpaid_invoices)
+        ritenuta = self.calculate_RITENUTA_ACCONTO_invoiced(year=year, include_unpaid_invoices=include_unpaid_invoices)
         return tot_documento - iva - ritenuta
 
-    def calculate_CRED_LORDO_invoiced(self, year: int = None):
+    def calculate_CRED_LORDO_invoiced(self, year: int = None, include_unpaid_invoices:bool = False):
         """
         Calcola i crediti lordi basandosi sulle fatture non pagate.
         """
         # Utilizza la funzione comune di processing
-        return self._process_crediti(year, netto=False)
+        return self._process_crediti(year, netto=False, include_unpaid_invoices=include_unpaid_invoices)
 
-    def calculate_CRED_NETTO_invoiced(self, year: int = None):
+    def calculate_CRED_NETTO_invoiced(self, year: int = None, include_unpaid_invoices:bool = False):
         """
         Calcola i crediti netti basandosi sulle fatture non pagate.
         """
         # Utilizza la funzione comune di processing
-        return self._process_crediti(year, netto=True)
+        return self._process_crediti(year, netto=True, include_unpaid_invoices=include_unpaid_invoices)
 
-    def calculate_MEDIA_FATTURA_LORDO_invoiced(self, year: int = None):
+    def calculate_MEDIA_FATTURA_LORDO_invoiced(self, year: int = None, include_unpaid_invoices:bool = False):
         """
         Calcola la media del fatturato lordo per fattura.
         """
-        fatt_lordo = self.calculate_FATT_LORDO_invoiced(year)
-        numero_fatt = self.count_invoices(year)
+        fatt_lordo = self.calculate_FATT_LORDO_invoiced(year=year, include_unpaid_invoices=include_unpaid_invoices)
+        numero_fatt = self.count_invoices(year=year, include_unpaid_invoices=include_unpaid_invoices)
         return fatt_lordo / numero_fatt if numero_fatt > 0 else -1
 
-    def calculate_MEDIA_FATTURA_NETTO_invoiced(self, year: int = None):
+    def calculate_MEDIA_FATTURA_NETTO_invoiced(self, year: int = None, include_unpaid_invoices:bool = False):
         """
         Calcola la media del fatturato netto per fattura.
         """
-        fatt_netto = self.calculate_FATT_NETTO_invoiced(year)
-        numero_fatt = self.count_invoices(year)
+        fatt_netto = self.calculate_FATT_NETTO_invoiced(year=year, include_unpaid_invoices=include_unpaid_invoices)
+        numero_fatt = self.count_invoices(year=year, include_unpaid_invoices=include_unpaid_invoices)
         return fatt_netto / numero_fatt if numero_fatt > 0 else -1
 
     # Funzione helper comune per il calcolo dei crediti
-    def _process_crediti(self, year: int, netto=True):
+    def _process_crediti(self, year: int, netto:bool=True, include_unpaid_invoices:bool = False):
         """
         Funzione comune per il calcolo dei crediti lordi o netti.
         """
@@ -2543,7 +2620,7 @@ class InvoiceController:
         num_invoice_cols = len(DBInvoicesColumns)
 
         # Crea un set di ID fatture da includere (usando la nuova logica di filtraggio)
-        included_ids = {inv[DBInvoicesColumns.ID.value] for inv in self.retrieve_invoices_map_list(year)}
+        included_ids = {inv[DBInvoicesColumns.ID.value] for inv in self.retrieve_invoices_map_list(year=year, include_unpaid_invoices=include_unpaid_invoices)}
 
         # Raggruppa per invoice_id
         grouped = {}
@@ -3315,7 +3392,7 @@ class PaymentsController:
         row = self.db_model.fetch_last_payment_insert()
         return ValidationUtils._row_to_map(row, DBPaymentsColumns)
 
-    def count_payments(self, year: int = None):
+    def count_payments(self, year: int = None, include_unpaid_invoice_payments:bool = False):
         """
         Conta il numero di pagamenti filtrati per anno.
 
@@ -3325,10 +3402,10 @@ class PaymentsController:
             - altro int → anno specifico
         :return: Numero di pagamenti
         """
-        payments = self.retrieve_payments_map_list(year=year)
+        payments = self.retrieve_payments_map_list(year=year, include_unpaid_invoice_payments=include_unpaid_invoice_payments)
         return len(payments)
 
-    def calculate_tot_payments(self, year: int = None):
+    def calculate_tot_payments(self, year: int = None, include_unpaid_invoice_payments:bool = False):
         """
         Somma gli importi dei pagamenti filtrati per anno.
 
@@ -3338,7 +3415,7 @@ class PaymentsController:
             - altro int → anno specifico
         :return: Totale importi pagamenti (float)
         """
-        payment_list = self.retrieve_payments_map_list(year=year)
+        payment_list = self.retrieve_payments_map_list(year=year, include_unpaid_invoice_payments=include_unpaid_invoice_payments)
         tot = 0.0
         for payment in payment_list:
             try:
@@ -3743,8 +3820,8 @@ class ProductionController:
         NUMERO_PRODUZIONI = "#PRODUZIONI"
         NUMERO_PRODUZIONI_ATTIVE = "#PRODUZIONI\nATTIVE"
         NUMERO_PRODUZIONI_CHIUSE = "#PRODUZIONI\nCHIUSE"
-        MEDIA_ORE_PRODUZIONE = ViewUtils.split_string_by_length("MEDIA ORE PER PRODUZIONE", 15)
-        MEDIA_PREZZO_ORARIO = ViewUtils.split_string_by_length("MEDIA PREZZO PER ORA DI PRODUZIONE", 17)
+        MEDIA_ORE_PRODUZIONE = "MEDIA ORE\nPER PRODUZIONE"
+        MEDIA_PREZZO_ORARIO = "MEDIA PREZZO PER\nORA DI PRODUZIONE"
 
     class TipologiaProduzione(Enum): #DA ESTENDERE CON FILE DI CONFIGURAZIONE MODIFICABILE DA UTENTE
         PRODUZIONE = "PRODUZIONE"
@@ -3920,7 +3997,7 @@ class ProductionController:
         row = self.db_model.fetch_production_by_id(production_id)
         return ValidationUtils._row_to_map(row, DBProductionsColumns)
 
-    def retrieve_productions_map_list(self, year: int = None):
+    def retrieve_productions_map_list(self, year: int = None, include_prod_with_unpaid_invoices:bool = False):
         """
         Recupera tutte le productions e le restituisce come lista di dizionari,
         filtrandole per l'anno richiesto e mantenendo quelle con fatture non saldate.
@@ -3938,7 +4015,8 @@ class ProductionController:
             productions = ControllerUtils.filter_productions(
                 productions=productions,
                 db_model=self.db_model,
-                year=year
+                year=year,
+                include_prod_with_unpaid_invoices=include_prod_with_unpaid_invoices
             )
 
         return productions
@@ -3957,7 +4035,7 @@ class ProductionController:
         row = self.db_model.fetch_last_production_insert()
         return ValidationUtils._row_to_map(row, DBProductionsColumns)
 
-    def retrieve_productions_map_list_by_client_id(self, client_id, year: int = None):
+    def retrieve_productions_map_list_by_client_id(self, client_id, year: int = None, include_prod_with_unpaid_invoices:bool = False):
         """
         Recupera tutte le produzioni di un certo cliente e le restituisce come lista di dizionari,
         filtrandole per l'anno richiesto e mantenendo quelle collegate a fatture
@@ -3981,7 +4059,8 @@ class ProductionController:
             productions = ControllerUtils.filter_productions(
                 productions=productions,
                 db_model=self.db_model,
-                year=year
+                year=year,
+                include_prod_with_unpaid_invoices=include_prod_with_unpaid_invoices
             )
 
         return productions
@@ -3994,7 +4073,7 @@ class ProductionController:
 
         return cost_per_hour
 
-    def count_productions(self, year: int = None):
+    def count_productions(self, year: int = None, include_prod_with_unpaid_invoices:bool = False):
         """
         Conta il numero di productions in base all'anno richiesto.
 
@@ -4004,24 +4083,25 @@ class ProductionController:
             - altro int → anno specifico
         :return: Numero di productions (int).
         """
-        productions = self.retrieve_productions_map_list(year=year)
+        productions = self.retrieve_productions_map_list(year=year, include_prod_with_unpaid_invoices = include_prod_with_unpaid_invoices)
         return len(productions)
 
-    def count_productions_of_client(self, client_id, year: int = None):
+    def count_productions_of_client(self, client_id, year: int = None, include_prod_with_unpaid_invoices:bool = False):
         """
         Conta il numero di productions di un cliente in base all'anno richiesto.
         """
         productions = self.retrieve_productions_map_list_by_client_id(
             client_id=client_id,
-            year=year
+            year=year,
+            include_prod_with_unpaid_invoices = include_prod_with_unpaid_invoices
         )
         return len(productions)
 
-    def count_active_productions(self, year: int = None):
+    def count_active_productions(self, include_prod_with_unpaid_invoices:bool = False, year: int = None):
         """
         Conta il numero di productions attive in base all'anno richiesto.
         """
-        productions = self.retrieve_productions_map_list(year=year)
+        productions = self.retrieve_productions_map_list(year=year, include_prod_with_unpaid_invoices = include_prod_with_unpaid_invoices)
 
         active = [
             prod for prod in productions
@@ -4030,11 +4110,11 @@ class ProductionController:
 
         return len(active)
 
-    def count_closed_productions(self, year: int = None):
+    def count_closed_productions(self, year: int = None, include_prod_with_unpaid_invoices:bool = False):
         """
         Conta il numero di productions chiuse in base all'anno richiesto.
         """
-        productions = self.retrieve_productions_map_list(year=year)
+        productions = self.retrieve_productions_map_list(year=year, include_prod_with_unpaid_invoices = include_prod_with_unpaid_invoices)
 
         closed = [
             prod for prod in productions
@@ -4043,11 +4123,11 @@ class ProductionController:
 
         return len(closed)
 
-    def mean_hours_for_production(self, year: int = None):
+    def mean_hours_for_production(self, year: int = None, include_prod_with_unpaid_invoices:bool = False):
         """
         Calcola la media delle ore per production.
         """
-        productions = self.retrieve_productions_map_list(year=year)
+        productions = self.retrieve_productions_map_list(year=year, include_prod_with_unpaid_invoices = include_prod_with_unpaid_invoices)
 
         if not productions:
             return 0
@@ -4059,11 +4139,11 @@ class ProductionController:
 
         return total_hours / len(productions)
 
-    def mean_prezzo_orario(self, year: int = None):
+    def mean_prezzo_orario(self, year: int = None, include_prod_with_unpaid_invoices:bool = False):
         """
         Calcola il prezzo orario medio delle productions.
         """
-        productions = self.retrieve_productions_map_list(year=year)
+        productions = self.retrieve_productions_map_list(year=year, include_prod_with_unpaid_invoices = include_prod_with_unpaid_invoices)
 
         if not productions:
             return 0

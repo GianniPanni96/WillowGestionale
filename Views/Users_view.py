@@ -5,31 +5,31 @@ from PIL import Image, ImageTk
 from datetime import datetime
 import os, re
 
-from customtkinter import CTkFrame
+from App_context import AppContext
+from Event_bus import EventBus
 
 from Views.View_utils import ViewUtils
 
-from Controllers import AccountController, ValidationUtils, UserController
-from Model import DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns, \
+from Controllers import AccountController, ValidationUtils, UserController, Analyzer, ProductionController
+from Model import DatabaseModel, DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns, \
     DBSalariesColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 
 
 class UsersView(ctk.CTkFrame):
-    def __init__(self, db_model, user_controller, account_controller,
-                 production_controller, fiscal_settings, tab, analyzer,
-                 event_bus, logged_user_id, login_status):
+    def __init__(self, app_context:AppContext, tab, logged_user_id, login_status):
         super().__init__(tab)
 
-        self.db_model = db_model
-        self.user_controller = user_controller
-        self.account_controller = account_controller
-        self.production_controller = production_controller
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.user_controller:UserController = app_context.user_controller
+        self.account_controller:AccountController = app_context.account_controller
+        self.production_controller:ProductionController = app_context.production_controller
         self.tab = tab
-        self.fiscal_settings = fiscal_settings
-        self.analyzer = analyzer
-        self.event_bus = event_bus
+        self.fiscal_settings = app_context.fiscal_settings
+        self.analyzer:Analyzer = app_context.analyzer
+        self.event_bus:EventBus = app_context.event_bus
 
         #tool variables
         self.no_data_string = "no data"
@@ -60,10 +60,10 @@ class UsersView(ctk.CTkFrame):
         self.user_detail_view = UserDetailView(
             parent=self,
             back_callback=self.show_main_view,
-            user_controller=user_controller,
-            account_controller=account_controller,
-            production_controller=production_controller,
-            db_model=db_model,
+            user_controller=self.user_controller,
+            account_controller=self.account_controller,
+            production_controller=self.production_controller,
+            db_model=self.db_model,
             fiscal_settings=self.fiscal_settings,
             analyzer=self.analyzer,
             event_bus = self.event_bus

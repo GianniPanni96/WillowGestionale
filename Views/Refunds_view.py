@@ -1,29 +1,30 @@
 import customtkinter as ctk
-import tkinter as tk
+
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import PaymentsController, InvoiceController, UserController, ControllerUtils, RefundController
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBRefundsColumns
+from Controllers import AccountController, RefundController, Analyzer, UpdatesController, ClientController
+from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBRefundsColumns
 from datetime import datetime
 import re
-from enum import Enum
+
+from App_context import AppContext
+from Event_bus import EventBus
 
 class RefundsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, refunds_controller, client_controller,
-                 account_controller, update_controller, tab_view,
-                 analyzer, event_bus, initial_refund_id=None):
+    def __init__(self, app_context:AppContext, tab_view, initial_refund_id=None):
         super().__init__(tab_view.tab("Rimborsi"))
 
-        self.db_model = db_model
-        self.refunds_controller = refunds_controller
-        self.client_controller = client_controller
-        self.account_controller = account_controller
-        self.update_controller = update_controller
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.refund_controller:RefundController = app_context.refund_controller
+        self.client_controller:ClientController = app_context.client_controller
+        self.account_controller:AccountController = app_context.account_controller
+        self.update_controller:UpdatesController = app_context.update_controller
         self.tab_view = tab_view
         self.tab = tab_view.tab("Rimborsi")
-        self.analyzer = analyzer
-        self.event_bus = event_bus
+        self.analyzer:Analyzer = app_context.analyzer
+        self.event_bus:EventBus = app_context.event_bus
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -43,9 +44,9 @@ class RefundsView(ctk.CTkFrame):
             parent=self,
             back_callback=self.show_main_view,
             client_controller=self.client_controller,
-            account_controller=account_controller,
-            refund_controller=refunds_controller,
-            db_model=db_model,
+            account_controller=self.account_controller,
+            refund_controller=self.refund_controller,
+            db_model=self.db_model,
             analyzer=self.analyzer,
             event_bus = self.event_bus,
         )
@@ -188,7 +189,7 @@ class RefundsView(ctk.CTkFrame):
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutte le fatture dell'anno corrente
-        all_refunds = self.refunds_controller.retrieve_refunds_map_list(True)
+        all_refunds = self.refund_controller.retrieve_refunds_map_list(True)
 
         # Filtra le fatture: solo quelle con data di emissione >= limit_date
         filtered_refunds = []
@@ -240,7 +241,7 @@ class RefundsView(ctk.CTkFrame):
                     back_callback=self.show_main_view,
                     client_controller=self.client_controller,
                     account_controller=self.account_controller,
-                    refund_controller=self.refunds_controller,
+                    refund_controller=self.refund_controller,
                     db_model=self.db_model,
                     analyzer=self.analyzer,
                     event_bus=self.event_bus,
@@ -398,7 +399,7 @@ class RefundsView(ctk.CTkFrame):
                 if len(children) > 0:
                     refund_name = children[0].cget("text")  # Nome rimborso dal primo child
                     # Assumendo che esista un controller per i rimborsi con un metodo retrieve_refund_map_by_name
-                    refund_map = self.refunds_controller.retrieve_refund_map_by_name(refund_name)
+                    refund_map = self.refund_controller.retrieve_refund_map_by_name(refund_name)
                     if refund_map and db_column:
                         sort_value = refund_map.get(db_column, "")
 
@@ -431,8 +432,8 @@ class RefundsView(ctk.CTkFrame):
         self.update_idletasks()
 
     def populate_global_infos(self):
-        self.global_infos[f"{RefundController.RefundsAggregateData.NUMERO_RIMBORSI.value}"] = self.refunds_controller.count_refunds(True)
-        self.global_infos[f"{RefundController.RefundsAggregateData.TOT_RIMBORSI.value}"] = self.refunds_controller.calculate_tot_refunds(True)
+        self.global_infos[f"{RefundController.RefundsAggregateData.NUMERO_RIMBORSI.value}"] = self.refund_controller.count_refunds(True)
+        self.global_infos[f"{RefundController.RefundsAggregateData.TOT_RIMBORSI.value}"] = self.refund_controller.calculate_tot_refunds(True)
 
     def open_add_refund_window(self):
         self.add_refund_window = ctk.CTkToplevel(self)
@@ -548,7 +549,6 @@ class RefundsView(ctk.CTkFrame):
         )
 
         extractor = ViewUtils.create_extractor_for_refunds(
-            self.refunds_controller,
             self.client_controller,
             self.account_controller
         )
@@ -625,11 +625,11 @@ class RefundsView(ctk.CTkFrame):
                 elif isinstance(widget, FilterableComboBox):
                     refund_data[label_text] = widget.get_value()
 
-        success, message = self.refunds_controller.save_refund(refund_data)
+        success, message = self.refund_controller.save_refund(refund_data)
 
         if success:
             # prendo l'ID della fattura appena creata
-            refund_map = self.refunds_controller.retrieve_last_refund_insert_map()
+            refund_map = self.refund_controller.retrieve_last_refund_insert_map()
             print(f"Rimborso {refund_data[DBRefundsColumns.REFUND_NAME.value]} salvato con successo")
 
 

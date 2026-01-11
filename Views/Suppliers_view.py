@@ -5,22 +5,25 @@ from Model import DBExpensesColumns, DBSuppliersColumns
 
 from datetime import datetime, timedelta
 
+from App_context import AppContext
+
 
 class SuppliersView(ctk.CTkFrame):
 
-    def __init__(self, db_model, supplier_controller, expense_controller, update_controller,  config_manager, catalogo_elenchi, tab_view, event_bus, analyzer):
+    def __init__(self, app_context:AppContext, tab_view):
         super().__init__(tab_view.tab("Fornitori"))
 
-        self.db_model = db_model
-        self.update_controller = update_controller
-        self.supplier_controller = supplier_controller
-        self.config_manager = config_manager
-        self.analyzer = analyzer
-        self.expense_controller = expense_controller
-        self.catalogo_elenchi = catalogo_elenchi
+        self.app_context:AppContext = app_context
+        self.db_model = app_context.db_model
+        self.update_controller = app_context.update_controller
+        self.supplier_controller = app_context.supplier_controller
+        self.config_manager = app_context.config_manager
+        self.analyzer = app_context.analyzer
+        self.expense_controller = app_context.expense_controller
+        self.catalogo_elenchi = app_context.catalogo_elenchi
         self.tab_view = tab_view
         self.tab = tab_view.tab("Fornitori")
-        self.event_bus = event_bus
+        self.event_bus = app_context.event_bus
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -38,12 +41,11 @@ class SuppliersView(ctk.CTkFrame):
             back_callback=self.show_main_view,
             supplier_controller=self.supplier_controller,
             expense_controller=self.expense_controller,
-            db_model=db_model,
+            db_model=self.db_model,
             analyzer=self.analyzer,
             event_bus = self.event_bus,
-            catalogo_elenchi=catalogo_elenchi
+            catalogo_elenchi=self.catalogo_elenchi
         )
-
 
         # Sistema per tracciare gli after()
         self._after_ids = set()

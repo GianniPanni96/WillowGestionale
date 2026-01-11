@@ -4,8 +4,11 @@ from Views.View_utils import ViewUtils, customTKMenuButton
 from datetime import datetime
 
 
-from Controllers import ExpenseController, ControllerUtils
-from Model import DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
+from Controllers import ExpenseController, ControllerUtils, SalaryController, TransfersController, \
+    UpdatesController, AccountController, UserController, ClientController, SupplierController, PaymentsController, \
+    ProductionController, InvoiceController, RefundController, Analyzer
+
+from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
 
 from Book_closer import BookCloser
 
@@ -22,11 +25,16 @@ from Views.Iva_trimes_view import IvaTrimesView
 from Views.Refunds_view import RefundsView
 from Views.Taxes_view import TaxesView
 from Views.Report_view import ReportView
-from Plot_view import PlotView
+from Views.Plot_view import PlotView
+
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from App_context import AppContext
 
 
 class MainWindow(ctk.CTk):
-    def __init__(self, app_context):
+    def __init__(self, app_context:"AppContext"):
         super().__init__()
 
         self._after_ids = set()
@@ -60,20 +68,20 @@ class MainWindow(ctk.CTk):
         self.logged_user_id = -1
 
 
-        self.db_model = app_context.db_model  # Istanzia il modello
-        self.user_controller = app_context.user_controller  # Crea il controller per gli utenti
-        self.account_controller = app_context.account_controller
-        self.salary_controller = app_context.salary_controller
-        self.transfer_controller = app_context.transfer_controller
-        self.client_controller = app_context.client_controller
-        self.supplier_controller = app_context.supplier_controller
-        self.payment_controller = app_context.payment_controller
-        self.production_controller = app_context.production_controller
-        self.invoice_controller = app_context.invoice_controller
-        self.expense_controller = app_context.expense_controller
-        self.refund_controller = app_context.refund_controller
-        self.update_controller = app_context.update_controller
-        self.analyzer = app_context.analyzer
+        self.db_model:DatabaseModel = app_context.db_model  # Istanzia il modello
+        self.user_controller:UserController = app_context.user_controller  # Crea il controller per gli utenti
+        self.account_controller:AccountController = app_context.account_controller
+        self.salary_controller:SalaryController = app_context.salary_controller
+        self.transfer_controller:TransfersController = app_context.transfer_controller
+        self.client_controller:ClientController = app_context.client_controller
+        self.supplier_controller:SupplierController = app_context.supplier_controller
+        self.payment_controller:PaymentsController = app_context.payment_controller
+        self.production_controller:ProductionController = app_context.production_controller
+        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.expense_controller:ExpenseController = app_context.expense_controller
+        self.refund_controller:RefundController = app_context.refund_controller
+        self.update_controller:UpdatesController = app_context.update_controller
+        self.analyzer:Analyzer = app_context.analyzer
 
         self.title("Gestionale Willow")
 
@@ -190,75 +198,34 @@ class MainWindow(ctk.CTk):
 
         # Definisci la factory per le view
         self.view_factory = {
-            "Utenti": lambda tab: UsersView(
-                self.db_model, self.user_controller, self.account_controller,
-                self.production_controller, self.fiscal_settings, tab,
-                self.analyzer, self.event_bus, self.logged_user_id, self.login_status
-            ),
-            "Clienti": lambda tab: ClientsView(
-                self.db_model, self.client_controller, self.production_controller,
-                self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
-                self.config_manager, tab, self.event_bus, self.analyzer
-            ),
-            "Fatture": lambda tab, invoice_id=None: InvoicesView(
-                self.db_model, self.invoice_controller, self.user_controller,
-                self.client_controller, self.production_controller, self.payment_controller,
-                self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
-                self.historical_financial_data_settings, self.event_bus, self.analyzer,
-                initial_invoice_id=invoice_id  # Nuovo parametro
-            ),
-            "Pagamenti": lambda tab, payment_id=None: PaymentsView(
-                self.db_model, self.payment_controller, self.invoice_controller,
-                self.user_controller, self.client_controller, self.production_controller,
-                self.account_controller, self.update_controller, self.tabview,
-                self.event_bus, initial_payment_id=payment_id
-            ),
-            "Rimborsi": lambda tab, refund_id=None: RefundsView(
-                self.db_model, self.refund_controller, self.client_controller,
-                self.account_controller, self.update_controller, self.tabview, self.analyzer,
-                self.event_bus, initial_refund_id=refund_id
-            ),
-            "Produzioni": lambda tab, production_id=None: ProductionsView(
-                self.db_model, self.production_controller, self.payment_controller,
-                self.invoice_controller, self.user_controller, self.client_controller,
-                self.catalogo_elenchi, self.config_manager,
-                self.tabview, self.event_bus, self.update_controller,
-                initial_production_id=production_id
-            ),
-            "Spese": lambda tab, expense_id=None: ExpensesView(
-                self.db_model, self.expense_controller, self.user_controller,
-                self.account_controller, self.supplier_controller, self.invoice_controller,
-                self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
-                self.config_manager, self.tabview, self.event_bus, initial_expense_id = expense_id
-            ),
-            "Fornitori": lambda tab: SuppliersView(
-                self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
-                self.config_manager, self.catalogo_elenchi, self.tabview,
-                self.event_bus, self.analyzer
-            ),
-            "Conti": lambda tab: AccountsView(
-                self.db_model, self.account_controller, self.update_controller,
-                self.transfer_controller, self.config_manager, self.catalogo_elenchi,
-                self.analyzer, self.tabview, self.event_bus
-            ),
-            "Salario": lambda tab, salary_id=None: SalariesView(
-                self.db_model, self.salary_controller, self.user_controller,
-                self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
-                self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus,
-                initial_salary_id=salary_id
-            ),
+
+            "Utenti": lambda tab: UsersView(self.app_context, tab, self.logged_user_id, self.login_status),
+
+            "Clienti": lambda tab: ClientsView(self.app_context, tab),
+
+            "Fatture": lambda tab, invoice_id=None: InvoicesView(self.app_context, self.tabview, initial_invoice_id=invoice_id),
+
+            "Pagamenti": lambda tab, payment_id=None: PaymentsView(self.app_context, self.tabview, initial_payment_id=payment_id),
+
+            "Rimborsi": lambda tab, refund_id=None: RefundsView(self.app_context, self.tabview, initial_refund_id=refund_id),
+
+            "Produzioni": lambda tab, production_id=None: ProductionsView(self.app_context, self.tabview, initial_production_id=production_id),
+
+            "Spese": lambda tab, expense_id=None: ExpensesView(self.app_context, self.tabview, initial_expense_id = expense_id),
+
+            "Fornitori": lambda tab: SuppliersView(self.app_context, self.tabview),
+
+            "Conti": lambda tab: AccountsView(self.app_context, self.tabview),
+
+            "Salario": lambda tab, salary_id=None: SalariesView(self.app_context, self.tabview,initial_salary_id=salary_id),
 
             "Iva": lambda tab: IvaTrimesView(self.app_context, self.tabview),
 
             "Tasse": lambda tab: TaxesView(self.app_context, self.tabview),
 
-            f"Report {datetime.now().strftime('%Y')}": lambda tab: ReportView(
-                self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
-                self.event_bus, self.update_controller
-            ),
-            "Plots": lambda tab: PlotView(
-                self.app_context, self.tabview
-            )
+            f"Report {datetime.now().strftime('%Y')}": lambda tab: ReportView(self.app_context, self.tabview),
+
+            "Plots": lambda tab: PlotView(self.app_context, self.tabview)
         }
 
         # MONITORAGGIO DEL CAMBIO TAB - APPROCCIO ALTERNATIVO
@@ -1847,6 +1814,13 @@ class MainWindow(ctk.CTk):
     #funzioni per la chiusura dell'esercizio contabile
     def open_fiscal_year_closer_window(self):
         """Apre una finestra per gestire la chiusura dell'anno contabile."""
+
+        #controllo sul mese in cui si tenta di fare chiusura contabile
+        today_month = datetime.today().month
+        if today_month <= 11 and today_month >= 3:
+            ViewUtils.show_error_popup(self, title="", message="Impossibile eseguire la chiusura del corrente esercizio tra marzo e novembre")
+            return
+
         # Crea la finestra di dialogo
         self.fiscal_year_closer_window = ctk.CTkToplevel(self)
         self.fiscal_year_closer_window.title("Chiusura anno contabile")
@@ -1918,6 +1892,7 @@ class MainWindow(ctk.CTk):
         ctk.CTkButton(main_frame, text="Non ora", command=lambda: self.fiscal_year_closer_window.destroy(), fg_color="gray").pack(
             fill="x", pady=(15, 20), padx=55, side="left")
         ctk.CTkButton(main_frame, text="Avanti", command=self.close_fiscal_year).pack(fill="x", pady=(15, 20), padx=(0, 55), side="right")
+
 
 
     def close_fiscal_year(self):

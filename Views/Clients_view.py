@@ -3,6 +3,8 @@ import re
 from Views.View_utils import ViewUtils, FilterableComboBox
 from Controllers import ControllerUtils, ClientController, ProductionController, InvoiceController, RefundController, DatabaseModel, Analyzer
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
+from datetime import datetime, timedelta
+
 
 from App_context import AppContext
 
@@ -813,20 +815,27 @@ class ClientDetailView(ctk.CTkFrame):
                                                                                             padx=10)
 
         global_infos = {
-            "TOTALE FATTURATO": {
+            "TOTALE FATTURATO (All Time)": {
                 "value": self.client_controller.calcola_tot_entrate_cliente(self.current_client_id, include_unpaid_invoices = True, year = -1),
+                "uom": "€"
+            },
+            f"TOTALE FATTURATO {datetime.now().year}": {
+                "value": self.client_controller.calcola_tot_entrate_cliente(self.current_client_id, include_unpaid_invoices=False),
                 "uom": "€"
             }
         }
 
         self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
 
+        ctk.CTkLabel(section_frame, text=f"- Elenco Fatture {datetime.now().year} -", font=("Arial", 14, "italic"), text_color="gray", justify="right"
+                     ).pack(anchor="w", padx=10, pady=(10, 0))
+
         # tabella invoices
         invoices_frame = ctk.CTkScrollableFrame(section_frame, height=300)
         invoices_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
-        invoices = self.client_controller.retrieve_client_with_invoices_map_list(self.current_client_id, include_unpaid_invoices = True, year = -1) #ottimizzare se sono troppe le fatture retrievate
+        invoices = self.client_controller.retrieve_client_with_invoices_map_list(self.current_client_id, include_unpaid_invoices = False) #ottimizzare se sono troppe le fatture retrievate
         for invoice in invoices:
             if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None:
                 nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
@@ -851,13 +860,20 @@ class ClientDetailView(ctk.CTkFrame):
                                                                                         padx=10)
 
         global_infos = {
-            "TOT RIMBORSI": {
+            "TOT RIMBORSI (All Time)": {
+                "value": self.refund_controller.calculate_tot_refunds_of_client(self.current_client_id, year=-1),
+                "uom": "€"
+            },
+            f"TOT RIMBORSI {datetime.now().year}": {
                 "value": self.refund_controller.calculate_tot_refunds_of_client(self.current_client_id),
                 "uom": "€"
             }
         }
 
         self.global_infos_refunds_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+        ctk.CTkLabel(section_frame, text=f"- Elenco Rimborsi {datetime.now().year} -", font=("Arial", 14, "italic"), text_color="gray", justify="right"
+                     ).pack(anchor="w", padx=10, pady=(10, 0))
 
         # tabella invoices
         refunds_frame = ctk.CTkScrollableFrame(section_frame, height=300)
@@ -886,20 +902,28 @@ class ClientDetailView(ctk.CTkFrame):
                                                                                      padx=10)
 
         global_infos = {
-            "# PRODUZIONI": {
+            "# PRODUZIONI (All time)": {
                 "value": self.production_controller.count_productions_of_client(self.current_client_id, year=-1),
+                "uom": ""
+            },
+            f"# PRODUZIONI {datetime.now().year}": {
+                "value": self.production_controller.count_productions_of_client(self.current_client_id, include_prod_with_unpaid_invoices=False),
                 "uom": ""
             }
         }
 
         self.global_infos_productions_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
 
+        ctk.CTkLabel(section_frame, text=f"- Elenco Produzioni {datetime.now().year} -", font=("Arial", 14, "italic"), text_color="gray", justify="right"
+                     ).pack(anchor="w", padx=10, pady=(10, 0))
+
+
         # tabella invoices
         productions_frame = ctk.CTkScrollableFrame(section_frame, height=300)
         productions_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
-        productions = self.production_controller.retrieve_productions_map_list_by_client_id(self.current_client_id, year=-1)
+        productions = self.production_controller.retrieve_productions_map_list_by_client_id(self.current_client_id, include_prod_with_unpaid_invoices=False)
         for production in productions:
             if production[DBProductionsColumns.NAME.value] is not None:
                 nome_produzione = production[DBProductionsColumns.NAME.value]

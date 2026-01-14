@@ -38,13 +38,8 @@ class SuppliersView(ctk.CTkFrame):
         # Vista dettaglio
         self.supplier_detail_view = SupplierDetailView(
             parent=self,
-            back_callback=self.show_main_view,
-            supplier_controller=self.supplier_controller,
-            expense_controller=self.expense_controller,
-            db_model=self.db_model,
-            analyzer=self.analyzer,
-            event_bus = self.event_bus,
-            catalogo_elenchi=self.catalogo_elenchi
+            app_context = self.app_context,
+            back_callback=self.show_main_view
         )
 
         # Sistema per tracciare gli after()
@@ -141,7 +136,7 @@ class SuppliersView(ctk.CTkFrame):
             supplier_id = supplier[DBSuppliersColumns.ID.value]
 
             # Recupera tutte le spese di questo supplier
-            supplier_expenses = self.supplier_controller.retrieve_supplier_with_expenses_map_list(supplier_id)
+            supplier_expenses = self.supplier_controller.retrieve_supplier_with_expenses_map_list(supplier_id, year=-1)
 
             # Verifica se almeno una spesa è nell'intervallo temporale
             has_recent_expense = False
@@ -484,16 +479,17 @@ class SuppliersView(ctk.CTkFrame):
 
 
 class SupplierDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, supplier_controller, expense_controller, db_model, analyzer, event_bus, catalogo_elenchi):
+    def __init__(self, parent, app_context:AppContext, back_callback):
         super().__init__(parent)
-        self.supplier_controller = supplier_controller
-        self.expense_controller = expense_controller
-        self.db_model = db_model
+        self.app_context:AppContext = app_context
+        self.supplier_controller = app_context.supplier_controller
+        self.expense_controller = app_context.expense_controller
+        self.db_model = app_context.db_model
         self.back_callback = back_callback
-        self.event_bus = event_bus
+        self.event_bus = app_context.event_bus
         self.current_client_id = None
-        self.analyzer = analyzer
-        self.catalogo_elenchi = catalogo_elenchi
+        self.analyzer = app_context.analyzer
+        self.catalogo_elenchi = app_context.catalogo_elenchi
 
         self.configure(fg_color="transparent")
 
@@ -761,13 +757,20 @@ class SupplierDetailView(ctk.CTkFrame):
                                                                                               padx=10)
 
         global_infos = {
-            "TOTALE SPESE": {
+            "TOTALE SPESE (All Time)": {
+                "value": self.supplier_controller.calcola_tot_spese_supplier(self.current_supplier_id, year=-1),
+                "uom": "€"
+            },
+            f"TOTALE SPESE {datetime.now().year}": {
                 "value": self.supplier_controller.calcola_tot_spese_supplier(self.current_supplier_id),
                 "uom": "€"
             }
         }
 
         self.global_infos_invoices_widgets = ViewUtils.construct_global_infos_cards(section_frame, global_infos)
+
+        ctk.CTkLabel(section_frame, text=f"- Elenco Spese {datetime.now().year} -", font=("Arial", 14, "italic"), text_color="gray", justify="right"
+                     ).pack(anchor="w", padx=10, pady=(10, 0))
 
         # tabella invoices
         expenses_frame = ctk.CTkScrollableFrame(section_frame, height=300)

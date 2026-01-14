@@ -190,12 +190,41 @@ class BookCloser:
         :return: saldo_conti, media_fatture, media_ore_per_produzione, media_prezzo_orario_produzione, irpef_willow, inps_willow
         """
 
+        previous_year = self.current_exercise_year - 1
+        previous_year_balances = {}
+
+        if os.path.isfile(self.annual_data_file_path):
+            try:
+                with open(self.annual_data_file_path, 'r', newline='', encoding='utf-8') as csvfile:
+                    reader = csv.DictReader(csvfile)
+
+                    for row in reader:
+                        if row.get('anno') == str(previous_year):
+                            # Estraggo solo le colonne saldo_*
+                            for key, value in row.items():
+                                if key.startswith("saldo_"):
+                                    previous_year_balances[key] = value or "0.00"
+                            break
+            except Exception as e:
+                print(f"Errore lettura saldi anno precedente: {e}")
+
         # Calcola i dati aggregati
         balances = {}
         for account in self.accounts:
             account_id = account.get(DBAccountsColumns.ID.value)
             account_name = account.get(DBAccountsColumns.NAME.value)
-            balances[account_name] = self.app_context.analyzer.calculate_account_balance_by_account_id(account_id, year = self.current_exercise_year)
+
+            column_name = f"saldo_{account_name.replace(' ', '_').lower()}"
+            init_balance = previous_year_balances.get(column_name, "0.00")
+
+            balances[account_name] = (
+                self.app_context.analyzer
+                .calculate_account_balance_by_account_id(
+                    account_id,
+                    year=self.current_exercise_year,
+                    init_balance_arg=init_balance
+                )
+            )
 
         tot_fatturato = self.app_context.invoice_controller.calculate_FATT_LORDO_invoiced(year = self.current_exercise_year)
         tot_spese = self.app_context.expense_controller.calculate_tot_expenses(year = self.current_exercise_year)
@@ -798,31 +827,23 @@ class BookCloser:
 
                     # Prendi il valore dal file
                     value_str = target_row.get(column_name)
+                    truncated_str = str(round(float(value_str), 2))
 
-                    if value_str is not None and value_str != '':
-                        try:
-                            value_from_file = float(value_str)
-                        except ValueError:
-                            errors.append(f"Valore non valido per {account_name}: '{value_str}'")
-                            continue
+                    # Prepara i dati per l'aggiornamento
+                    data = {
+                        DBAccountsColumns.INIT_BALANCE.value: truncated_str,
+                        DBAccountsColumns.UPDATED_AT.value: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        DBAccountsColumns.NAME.value: account.get(DBAccountsColumns.NAME.value)
+                    }
 
-                        # Prepara i dati per l'aggiornamento
-                        data = {
-                            DBAccountsColumns.INIT_BALANCE.value: value_from_file,
-                            DBAccountsColumns.UPDATED_AT.value: datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }
+                    # Chiama il controller per aggiornare il conto
+                    success, message = self.app_context.account_controller.update_account(account_id, data)
 
-                        # Chiama il controller per aggiornare il conto
-                        success, message = self.app_context.account_controller.update_account(account_id, data)
-
-                        if success:
-                            updated_count += 1
-                            print(f"Aggiornato saldo iniziale per '{account_name}': €{value_from_file:,.2f}")
-                        else:
-                            errors.append(f"Errore aggiornamento {account_name}: {message}")
+                    if success:
+                        updated_count += 1
+                        print(f"Aggiornato saldo iniziale per '{account_name}': €{value_str:,.2f}")
                     else:
-                        # Nessun valore per questo conto nel file
-                        continue
+                        errors.append(f"Errore aggiornamento {account_name}: {message}")
 
                 except Exception as e:
                     account_name = account.get(DBAccountsColumns.NAME.value, "Unknown")

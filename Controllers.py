@@ -53,7 +53,7 @@ class ValidationUtils:
             return False
 
         # Regex: una o più cifre, opzionalmente seguite da un punto e 1 o 2 cifre
-        pattern = r"^\d+(\.\d{1,2})?$"
+        pattern = r"^-?\d+(\.\d{1,2})?$"
         return re.fullmatch(pattern, amount) is not None
 
     @staticmethod
@@ -4738,7 +4738,7 @@ class SupplierController:
         row = self.db_model.fetch_last_supplier_insert()
         return ValidationUtils._row_to_map(row, DBSuppliersColumns)
 
-    def retrieve_supplier_with_expenses_map_list(self, supplier_id):
+    def retrieve_supplier_with_expenses_map_list(self, supplier_id, year:int = None):
         """ Recupera lo specifico supplier unito alle rispettive spese e
            li restituisce come lista di dizionari.
 
@@ -4751,8 +4751,16 @@ class SupplierController:
 
         all_columns = list(DBSuppliersColumns) + list(DBExpensesColumns)
 
+        expenses_map = [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+
+        if expenses_map:
+            expenses_map = ControllerUtils.filter_expenses(
+                expenses=expenses_map,
+                year=year
+            )
+
         # Converte ogni riga in un dizionario
-        return [ValidationUtils._row_to_map(row, all_columns) for row in rows]
+        return expenses_map
 
     def delete_supplier_by_id(self, supplier_id):
         """Elimina un supplier dato il suo ID."""
@@ -4766,32 +4774,32 @@ class SupplierController:
 
     def construct_supplier_map_aggregate_data(self, supplier_id):
         supplier_aggregate_data = {
-            SupplierController.Aggregate_data.TOT_SPESE.value: self.calcola_tot_spese_supplier(supplier_id),
-            SupplierController.Aggregate_data.NUM_SPESE.value: self.calcola_numero_spese_supplier(supplier_id),
-            SupplierController.Aggregate_data.MEDIA_SPESE.value: self.calcola_media_spese_supplier(supplier_id)
+            SupplierController.Aggregate_data.TOT_SPESE.value: self.calcola_tot_spese_supplier(supplier_id, year=-1),
+            SupplierController.Aggregate_data.NUM_SPESE.value: self.calcola_numero_spese_supplier(supplier_id, year=-1),
+            SupplierController.Aggregate_data.MEDIA_SPESE.value: self.calcola_media_spese_supplier(supplier_id, year=-1)
         }
 
         return supplier_aggregate_data
 
-    def calcola_tot_spese_supplier(self, supplier_id):
-        supplier_with_expenses = self.retrieve_supplier_with_expenses_map_list(supplier_id)
+    def calcola_tot_spese_supplier(self, supplier_id, year:int = None):
+        supplier_with_expenses = self.retrieve_supplier_with_expenses_map_list(supplier_id, year=year)
         tot = 0.0
         for row in supplier_with_expenses: #in questo modo sto in realtà scorrendo le fatture
             tot = tot + float(row[DBExpensesColumns.TOT_AMOUNT.value]) if row[DBExpensesColumns.TOT_AMOUNT.value] is not None else tot
 
         return tot
 
-    def calcola_numero_spese_supplier(self, supplier_id):
-        supplier_with_expenses = self.retrieve_supplier_with_expenses_map_list(supplier_id)
+    def calcola_numero_spese_supplier(self, supplier_id, year:int = None):
+        supplier_with_expenses = self.retrieve_supplier_with_expenses_map_list(supplier_id, year=year)
         tot = 0
         for row in supplier_with_expenses:
             tot = tot + 1
 
         return tot
 
-    def calcola_media_spese_supplier(self, supplier_id):
-        numero = self.calcola_numero_spese_supplier(supplier_id)
-        tot = self.calcola_tot_spese_supplier(supplier_id)
+    def calcola_media_spese_supplier(self, supplier_id, year:int = None):
+        numero = self.calcola_numero_spese_supplier(supplier_id, year=year)
+        tot = self.calcola_tot_spese_supplier(supplier_id, year=year)
 
         return tot/numero if numero > 0 else 0
 
@@ -5409,11 +5417,11 @@ class Analyzer:
         self.fiscal_settings = fiscal_settings
         self.recurring_expenses_settings = recurring_expenses_settings
 
-    def calculate_account_balance_by_account_id(self, account_id, year:int = None):
+    def calculate_account_balance_by_account_id(self, account_id, year:int = None, init_balance_arg:str = ""):
         account = self.account_controller.retrieve_account_map_by_id(account_id)
         balance = 0.0
         if account:
-            init_balance = float(account[DBAccountsColumns.INIT_BALANCE.value])
+            init_balance = float(account[DBAccountsColumns.INIT_BALANCE.value]) if init_balance_arg == "" else float(init_balance_arg)
 
             tot_payments = self.payment_controller.sum_payments_for_account(account_id, year = year)
             tot_expenses = self.expenses_controller.sum_expenses_for_account(account_id, year = year)

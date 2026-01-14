@@ -2,13 +2,14 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import InvoiceController, UserController, ControllerUtils
+from Controllers import InvoiceController, UserController, ControllerUtils, ProductionController, UpdatesController, ClientController, AccountController
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns, DBInvoicesColumns
 from datetime import datetime, timedelta
 import re
 from enum import Enum
 
 from App_context import AppContext
+from Event_bus import EventBus
 
 class InvoicesView(ctk.CTkFrame):
 
@@ -65,17 +66,8 @@ class InvoicesView(ctk.CTkFrame):
         # Vista dettaglio
         self.invoice_detail_view = InvoiceDetailView(
             parent=self,
-            invoice_controller=self.invoice_controller,
-            back_callback=self.show_main_view,
-            user_controller=self.user_controller,
-            client_controller=self.client_controller,
-            account_controller=self.account_controller,
-            production_controller=self.production_controller,
-            update_controller=self.update_controller,
-            db_model=self.db_model,
-            fiscal_settings=self.fiscal_settings,
-            historical_financial_data_settings = self.historical_financial_data_settings,
-            event_bus = self.event_bus
+            app_context=self.app_context,
+            back_callback=self.show_main_view
         )
 
         self.create_invoices_tab()
@@ -274,36 +266,27 @@ class InvoicesView(ctk.CTkFrame):
 
     def open_invoice_detail_tab(self, invoice_id):
         """Mostra la vista dettaglio fattura con controlli di sicurezza"""
-        try:
-            # Verifica che i widget esistano
-            if hasattr(self, 'main_container') and self.main_container.winfo_exists():
-                self.main_container.pack_forget()
+        #try:
+        # Verifica che i widget esistano
+        if hasattr(self, 'main_container') and self.main_container.winfo_exists():
+            self.main_container.pack_forget()
 
-            # Se invoice_detail_view non esiste, crealo
-            if not hasattr(self, 'invoice_detail_view') or not self.invoice_detail_view.winfo_exists():
-                self.invoice_detail_view = InvoiceDetailView(
-                    parent=self,
-                    invoice_controller=self.invoice_controller,
-                    back_callback=self.show_main_view,
-                    user_controller=self.user_controller,
-                    client_controller=self.client_controller,
-                    account_controller=self.account_controller,
-                    production_controller=self.production_controller,
-                    update_controller=self.update_controller,
-                    db_model=self.db_model,
-                    fiscal_settings=self.fiscal_settings,
-                    historical_financial_data_settings=self.historical_financial_data_settings,
-                    event_bus=self.event_bus
-                )
+        # Se invoice_detail_view non esiste, crealo
+        if not hasattr(self, 'invoice_detail_view') or not self.invoice_detail_view.winfo_exists():
+            self.invoice_detail_view = InvoiceDetailView(
+                parent=self,
+                app_context=self.app_context,
+                back_callback=self.show_main_view
+            )
 
-            # Mostra il dettaglio
-            self.invoice_detail_view.pack(fill='both', expand=True)
-            self.invoice_detail_view.create_detail_tab(invoice_id)
+        # Mostra il dettaglio
+        self.invoice_detail_view.pack(fill='both', expand=True)
+        self.invoice_detail_view.create_detail_tab(invoice_id)
 
-        except Exception as e:
-            print(f"Errore in open_invoice_detail_tab: {e}")
-            # Fallback: mostra la vista principale
-            self.show_main_view()
+        #except Exception as e:
+        #    print(f"Errore in open_invoice_detail_tab: {e}")
+        #    # Fallback: mostra la vista principale
+        #    self.show_main_view()
 
     def handle_show_invoice_detail(self, invoice_id):
         self.tabview.set("Fatture")  # Cambia tab
@@ -556,17 +539,28 @@ class InvoicesView(ctk.CTkFrame):
             cards_frame=self.invoices_cards_frame
         )
 
+        for inv_name, warning in self.cards_warnings.items():
+            self.attach_warning_on_a_card(inv_name, warning)
+
     def collect_invoice_warnings(self, invoice_map_list):
         """Raccoglie tutti i warnings per le fatture prima del processing"""
         self.cards_warnings.clear()
         for invoice in invoice_map_list:
-            invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-            production = self.production_controller.retrieve_production_map_by_id(invoice_production_id)
-            if not production:
+            if invoice:
+                invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
                 invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
-                self.cards_warnings[
-                    invoice_name] = "La produzione associata a questa fattura non esiste nel database.\n" \
-                                    "Provvedere alla modifica o allo storno di questa fattura."
+                inv_creation_date = datetime.strptime(invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value), '%Y-%m-%d')
+                production = self.production_controller.retrieve_production_map_by_id(invoice_production_id)
+                if not production:
+                    self.cards_warnings[
+                        invoice_name] = "La produzione associata a questa fattura non esiste nel database.\n" \
+                                        "Provvedere alla modifica o allo storno di questa fattura."
+
+                if inv_creation_date.year != datetime.now().year:
+                    self.cards_warnings[invoice_name] = f"Questa fattura riguarda l'anno contabile {inv_creation_date.year}.\n"\
+                                                        "Stai visualizzando questa fattura perché risulta non interamente "\
+                                                        "saldata durante il suo anno contabile di riferimento.\n"\
+                                                        "Questa fattura non viene conteggiata all'interno di questo anno contabile."
 
     def add_invoice_card(self, invoice_id, nome, cliente, utente, produzione, data_creazione, stato, rate, tot_documento, tipologia):
         """
@@ -627,6 +621,10 @@ class InvoicesView(ctk.CTkFrame):
         self.invoices_card_list[nome] = card
         self.toggle_specific_invoice_rate_color_2(invoice_id)
         self.toggle_specific_invoice_status_color(invoice_id)
+
+        # Se esiste un warning associato al nome del pagamento, aggiungi il tooltip
+        if nome in self.cards_warnings:
+            ViewUtils.add_tooltip(btn, self.cards_warnings[nome])
 
     def filter_cards(self, event):
         """Filtra le card in base al testo della barra di ricerca e al tipo di filtro scelto."""
@@ -1555,19 +1553,20 @@ class InvoicesView(ctk.CTkFrame):
 
 
 class InvoiceDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, invoice_controller, user_controller, client_controller, account_controller, production_controller, update_controller, db_model, fiscal_settings, historical_financial_data_settings, event_bus):
+    def __init__(self, parent, app_context:AppContext, back_callback):
         super().__init__(parent)
-        self.invoice_controller = invoice_controller
-        self.user_controller = user_controller
-        self.client_controller = client_controller
-        self.account_controller = account_controller
-        self.db_model = db_model
+        self.app_context:AppContext = app_context
+        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.user_controller:UserController = app_context.user_controller
+        self.client_controller:ClientController = app_context.client_controller
+        self.account_controller:AccountController = app_context.account_controller
+        self.db_model:DatabaseModel = app_context.db_model
         self.back_callback = back_callback
-        self.production_controller = production_controller
-        self.update_controller = update_controller
-        self.fiscal_settings = fiscal_settings
-        self.historical_financial_data_settings = historical_financial_data_settings
-        self.event_bus = event_bus
+        self.production_controller:ProductionController = app_context.production_controller
+        self.update_controller:UpdatesController = app_context.update_controller
+        self.fiscal_settings = app_context.fiscal_settings
+        self.historical_financial_data_settings = app_context.historical_financial_data_settings
+        self.event_bus:EventBus = app_context.event_bus
         self.current_invoice_id = None
 
         self.configure(fg_color="transparent")
@@ -1767,14 +1766,17 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "label": "Produzione Associata",
                 "section": "Collegamenti",
                 "values": [p[DBProductionsColumns.NAME.value] for p in
-                           self.production_controller.retrieve_productions_map_list_by_client_id(invoice_data[DBInvoicesColumns.ID_CLIENTE.value])]
+                           self.production_controller.retrieve_productions_map_list_by_client_id(
+                               invoice_data[DBInvoicesColumns.ID_CLIENTE.value],
+                               include_prod_with_unpaid_invoices = True
+                           )]
             },
             self.nome_fattura_associata_string: {
                 "type": ctk.CTkLabel,
                 "label": "Fattura Associata",
                 "section": "Collegamenti",
                 "values": [i[DBInvoicesColumns.NUMERO_FATTURA.value] for i in
-                           self.invoice_controller.retrieve_invoices_map_list()
+                           self.invoice_controller.retrieve_invoices_map_list(include_unpaid_invoices=True)
                            if i[DBInvoicesColumns.TIPO.value] != self.invoice_controller.Tipologia.NOTA_DI_CREDITO]
             },
 
@@ -1886,7 +1888,9 @@ class InvoiceDetailView(ctk.CTkFrame):
             else:
                 if config["type"] == ctk.CTkOptionMenu:
                     widget = config["type"](frame, values=config.get("values", []))
-                    widget.set(invoice_data.get(field, config.get("values", [""])[0]))
+                    values = config.get("values", [""])
+                    if len(values) > 0:
+                        widget.set(invoice_data.get(field, values[0]))
 
                     # Se il config ha una chiave "command", la assegna
                     if "command" in config:

@@ -38,7 +38,6 @@ class PaymentsView(ctk.CTkFrame):
         self.cards_warnings = {}
 
         self.update_controller.register_on_modify_invoice_view_cllbks(self.attach_warning_on_a_card)
-        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self.handle_show_payment_detail)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -461,6 +460,9 @@ class PaymentsView(ctk.CTkFrame):
             cards_frame=self.payments_cards_frame
         )
 
+        for pay_name, warning in self.cards_warnings.items():
+            self.attach_warning_on_a_card(pay_name, warning)
+
     def collect_payment_warnings(self, payments_map_list):
         """Raccoglie tutti i warnings per i pagamenti prima del processing"""
         for payment in payments_map_list:
@@ -468,6 +470,8 @@ class PaymentsView(ctk.CTkFrame):
                 payment_name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
                 invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
                 invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+                Invoice_creation_date = datetime.strptime(invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value),
+                                                          "%Y-%m-%d")
 
                 # Warning 1: fattura stornata
                 if invoice[DBInvoicesColumns.STATUS.value] == InvoiceController.InvoiceSatus.STORNATA.value:
@@ -481,12 +485,21 @@ class PaymentsView(ctk.CTkFrame):
                                                             "%Y-%m-%d %H:%M:%S")
                     payment_update_date = datetime.strptime(payment[DBPaymentsColumns.UPDATED_AT.value],
                                                             "%Y-%m-%d %H:%M:%S")
-
                     if invoice_update_date > payment_update_date:
                         self.cards_warnings[payment_name] = (
                             "Questo pagamento fa riferimento ad una fattura i cui dati sono stati modificati.\n"
                             "Controllare la consistenza dei dati di questo pagamento.\n"
                         )
+
+                if  Invoice_creation_date.year != datetime.now().year:
+                        self.cards_warnings[payment_name] = (
+                            f"Questo pagamento riguarda l'anno contabile {Invoice_creation_date.year}.\n"
+                            "Stai visualizzando questo pagamento perchè è collegato ad una fattura non interamente "
+                            "saldata durante il suo anno contabile di riferimento.\n"
+                            "Questo pagamento non viene conteggiato all'interno di questo anno contabile."
+                        )
+
+
 
     def open_add_payment_window(self):
         self.add_payment_window = ctk.CTkToplevel(self)

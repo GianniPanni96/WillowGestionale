@@ -58,15 +58,9 @@ class UsersView(ctk.CTkFrame):
 
         # Vista dettaglio
         self.user_detail_view = UserDetailView(
+            app_context=self.app_context,
             parent=self,
-            back_callback=self.show_main_view,
-            user_controller=self.user_controller,
-            account_controller=self.account_controller,
-            production_controller=self.production_controller,
-            db_model=self.db_model,
-            fiscal_settings=self.fiscal_settings,
-            analyzer=self.analyzer,
-            event_bus = self.event_bus
+            back_callback=self.show_main_view
         )
 
         self.configure(fg_color="#333333")
@@ -850,18 +844,19 @@ class UsersView(ctk.CTkFrame):
 
 
 class UserDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, user_controller, account_controller, production_controller, db_model, fiscal_settings, analyzer, event_bus):
+    def __init__(self, parent, app_context:AppContext, back_callback):
         super().__init__(parent)
+        self.app_context:AppContext = app_context
         self.parent = parent
-        self.user_controller = user_controller
-        self.account_controller = account_controller
-        self.db_model = db_model
+        self.user_controller = app_context.user_controller
+        self.account_controller = app_context.account_controller
+        self.db_model = app_context.db_model
         self.back_callback = back_callback
-        self.production_controller = production_controller
-        self.fiscal_settings = fiscal_settings
-        self.event_bus = event_bus
+        self.production_controller = app_context.production_controller
+        self.fiscal_settings = app_context.fiscal_settings
+        self.event_bus = app_context.event_bus
         self.current_user_id = None
-        self.analyzer = analyzer
+        self.analyzer = app_context.analyzer
 
         # Widgets persistenti (vanno creati una volta sola)
         self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")

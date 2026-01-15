@@ -50,6 +50,10 @@ class ConfigManager:
                     "delta_days": {
                         "value": 7,
                         "description": "Intervallo di tempo in giorni per organizzare i backup in cartelle separate."
+                    },
+                    "backup_books_path": {
+                        "value": os.path.join(self.db_path, "backups", "Books"),
+                        "description": "Percorso dove verranno salvati i backup dei libri contabili."
                     }
                 },
                 "fiscal_settings": {

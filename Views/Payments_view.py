@@ -2,31 +2,33 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import PaymentsController, InvoiceController, UserController, ControllerUtils
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns
+from Controllers import PaymentsController, InvoiceController, UserController, ControllerUtils, ClientController, \
+    ProductionController, AccountController, UpdatesController
+from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns
 from datetime import datetime
 import re
-from enum import Enum
+
+from Event_bus import EventBus
+from App_context import AppContext
 
 class PaymentsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, payment_controller, invoice_controller, user_controller,
-                 client_controller, production_controller, account_controller, update_controller,
-                 tab_view, event_bus,initial_payment_id=None):
+    def __init__(self, app_context:AppContext, tab_view, initial_payment_id=None):
 
         super().__init__(tab_view.tab("Pagamenti"))
 
-        self.db_model = db_model
-        self.invoice_controller = invoice_controller
-        self.user_controller = user_controller
-        self.client_controller = client_controller
-        self.payment_controller = payment_controller
-        self.production_controller = production_controller
-        self.account_controller = account_controller
-        self.update_controller = update_controller
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.user_controller:UserController = app_context.user_controller
+        self.client_controller:ClientController = app_context.client_controller
+        self.payment_controller:PaymentsController = app_context.payment_controller
+        self.production_controller:ProductionController = app_context.production_controller
+        self.account_controller:AccountController = app_context.account_controller
+        self.update_controller:UpdatesController = app_context.update_controller
         self.tab_view = tab_view
         self.tab = tab_view.tab("Pagamenti")
-        self.event_bus = event_bus
+        self.event_bus:EventBus = app_context.event_bus
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -36,7 +38,6 @@ class PaymentsView(ctk.CTkFrame):
         self.cards_warnings = {}
 
         self.update_controller.register_on_modify_invoice_view_cllbks(self.attach_warning_on_a_card)
-        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self.handle_show_payment_detail)
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -48,11 +49,11 @@ class PaymentsView(ctk.CTkFrame):
             invoice_controller=self.invoice_controller,
             payment_controller=self.payment_controller,
             back_callback=self.show_main_view,
-            account_controller=account_controller,
+            account_controller=self.account_controller,
             client_controller=self.client_controller,
             production_controller=self.production_controller,
             update_controller=self.update_controller,
-            db_model=db_model,
+            db_model=self.db_model,
             event_bus = self.event_bus
         )
 
@@ -223,7 +224,7 @@ class PaymentsView(ctk.CTkFrame):
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutte le spese dell'anno corrente
-        all_payments = self.payment_controller.retrieve_payments_map_list(True)
+        all_payments = self.payment_controller.retrieve_payments_map_list(include_unpaid_invoice_payments=True)
 
         # Filtra le spese: solo quelle con data di emissione >= limit_date
         filtered_payments = []
@@ -257,8 +258,8 @@ class PaymentsView(ctk.CTkFrame):
         self.open_payment_detail_tab(payment_id)  # Mostra il dettaglio
 
     def populate_global_infos(self):
-        numero_pagamenti = self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value]
-        totale_pagamenti = round(self.payment_controller.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value], 2)
+        numero_pagamenti = self.payment_controller.count_payments(include_unpaid_invoice_payments = False)
+        totale_pagamenti = round(self.payment_controller.calculate_tot_payments(include_unpaid_invoice_payments = False), 2)
         self.global_infos[f"{PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value}"] = numero_pagamenti
         self.global_infos[f"{PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value}"] = f"{totale_pagamenti:.2f}"
 
@@ -445,7 +446,6 @@ class PaymentsView(ctk.CTkFrame):
         self.collect_payment_warnings(payment_list)
 
         extractor = ViewUtils.create_extractor_for_payments(
-            self.payment_controller,
             self.invoice_controller,
             self.client_controller,
             self.production_controller,
@@ -460,6 +460,9 @@ class PaymentsView(ctk.CTkFrame):
             cards_frame=self.payments_cards_frame
         )
 
+        for pay_name, warning in self.cards_warnings.items():
+            self.attach_warning_on_a_card(pay_name, warning)
+
     def collect_payment_warnings(self, payments_map_list):
         """Raccoglie tutti i warnings per i pagamenti prima del processing"""
         for payment in payments_map_list:
@@ -467,6 +470,8 @@ class PaymentsView(ctk.CTkFrame):
                 payment_name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
                 invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
                 invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+                Invoice_creation_date = datetime.strptime(invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value),
+                                                          "%Y-%m-%d")
 
                 # Warning 1: fattura stornata
                 if invoice[DBInvoicesColumns.STATUS.value] == InvoiceController.InvoiceSatus.STORNATA.value:
@@ -480,12 +485,21 @@ class PaymentsView(ctk.CTkFrame):
                                                             "%Y-%m-%d %H:%M:%S")
                     payment_update_date = datetime.strptime(payment[DBPaymentsColumns.UPDATED_AT.value],
                                                             "%Y-%m-%d %H:%M:%S")
-
                     if invoice_update_date > payment_update_date:
                         self.cards_warnings[payment_name] = (
                             "Questo pagamento fa riferimento ad una fattura i cui dati sono stati modificati.\n"
                             "Controllare la consistenza dei dati di questo pagamento.\n"
                         )
+
+                if  Invoice_creation_date.year != datetime.now().year:
+                        self.cards_warnings[payment_name] = (
+                            f"Questo pagamento riguarda l'anno contabile {Invoice_creation_date.year}.\n"
+                            "Stai visualizzando questo pagamento perchè è collegato ad una fattura non interamente "
+                            "saldata durante il suo anno contabile di riferimento.\n"
+                            "Questo pagamento non viene conteggiato all'interno di questo anno contabile."
+                        )
+
+
 
     def open_add_payment_window(self):
         self.add_payment_window = ctk.CTkToplevel(self)
@@ -709,10 +723,10 @@ class PaymentsView(ctk.CTkFrame):
             print(message)
             ViewUtils.show_error_popup(self.add_payment_window, "ERRORE", message)
 
-    def construct_invoices_list_view_friendly(self):
+    def construct_invoices_list_view_friendly(self, year:int = None):
         VF_invoice_list = {}
 
-        for invoice in self.invoice_controller.retrieve_invoices_map_list(True):
+        for invoice in self.invoice_controller.retrieve_invoices_map_list(year=year):
             invoicer_second_name = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])[DBUsersColumns.LAST_NAME.value]
             client_name = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])[DBClientsColumns.NAME.value]
 

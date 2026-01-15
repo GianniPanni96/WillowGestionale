@@ -3,18 +3,24 @@ import tkinter.font as tkfont
 
 from datetime import datetime
 
+from Model import DatabaseModel
+from Controllers import Analyzer
+from App_context import AppContext
+from Controllers import UpdatesController
+from Event_bus import EventBus
 
 class ReportView (ctk.CTkFrame):
-    def __init__(self, db_model, fiscal_settings, tabview, analyzer, event_bus, update_controller):
+    def __init__(self, app_context:AppContext, tabview):
         super().__init__(tabview.tab(f"Report {datetime.now().strftime('%Y')}"))
 
-        self.db_model = db_model
-        self.update_controller = update_controller
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.update_controller:UpdatesController = app_context.update_controller
         self.tabview = tabview
         self.tab = tabview.tab(f"Report {datetime.now().strftime('%Y')}")
-        self.fiscal_settings = fiscal_settings
-        self.analyzer = analyzer
-        self.event_bus = event_bus
+        self.fiscal_settings = app_context.fiscal_settings
+        self.analyzer:Analyzer = app_context.analyzer
+        self.event_bus:EventBus = app_context.event_bus
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="#2b2b2b")

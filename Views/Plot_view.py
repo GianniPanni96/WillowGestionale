@@ -318,7 +318,7 @@ class PlotView (ctk.CTkFrame):
             # Mappatura tra enum AnnualData e colonne del DataFrame
             column_mapping = {
                 AnnualData.TOTALE_FATTURATO: 'totale_fatturato',
-                AnnualData.SPESE: None,  # Non presente nei dati annuali del CSV fornito
+                AnnualData.SPESE: 'totale_spese',
                 AnnualData.MEDIA_FATTURE: 'media_fatture',
                 AnnualData.MEDIA_ORE_PRODUZIONE: 'media_ore_per_produzione',
                 AnnualData.MEDIA_PREZZO_ORARIO: 'media_prezzo_orario_produzione',

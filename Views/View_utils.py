@@ -8,6 +8,22 @@ import os
 from Model import DBExpensesColumns, DBSuppliersColumns, DBUsersColumns, DBAccountsColumns, DBSalariesColumns, DBRefundsColumns
 from Model import DBProductionsColumns, DBPaymentsColumns, DBInvoicesColumns, DBClientsColumns, DBTransfersColumns
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from Controllers import ClientController
+    from Controllers import UserController
+    from Controllers import AccountController
+    from Controllers import TransfersController
+    from Controllers import PaymentsController
+    from Controllers import ExpenseController
+    from Controllers import SupplierController
+    from Controllers import SalaryController
+    from Controllers import RefundController
+    from Controllers import InvoiceController
+    from Controllers import ProductionController
+    from Controllers import Analyzer
+
+
 class ViewUtils(ctk.CTk):
 
     class InterfaceOperations(Enum):
@@ -164,6 +180,7 @@ class ViewUtils(ctk.CTk):
         """
         confirm_popup = ctk.CTkToplevel(parent)
         confirm_popup.title(title)
+        confirm_popup.geometry("400x100")
 
         # Assicurati che il pop-up sia modale
         confirm_popup.grab_set()
@@ -569,7 +586,7 @@ class ViewUtils(ctk.CTk):
         process_next_chunk()
 
     @staticmethod
-    def create_extractor_for_expenses(expense_controller, supplier_controller, user_controller, account_controller):
+    def create_extractor_for_expenses(supplier_controller:"SupplierController", user_controller:"UserController", account_controller:"AccountController"):
         """
         Crea una funzione di estrazione parametri specifica per le spese
         Restituisce una funzione che può essere usata come extract_args_callback
@@ -607,7 +624,7 @@ class ViewUtils(ctk.CTk):
         return extract_expense_args
 
     @staticmethod
-    def create_extractor_for_clients(client_controller):
+    def create_extractor_for_clients(client_controller:"ClientController"):
         """
         Crea una funzione di estrazione parametri specifica per i clienti
         """
@@ -617,7 +634,7 @@ class ViewUtils(ctk.CTk):
             name = client[DBClientsColumns.NAME.value]
 
             # Costruisci i dati aggregati per singolo cliente
-            aggregate_data = client_controller.construct_client_map_aggregate_data(client_id)
+            aggregate_data = client_controller.construct_client_map_aggregate_data(client_id, year=-1)
 
             return (
                 client_id,
@@ -635,7 +652,7 @@ class ViewUtils(ctk.CTk):
         return extract_client_args
 
     @staticmethod
-    def create_extractor_for_invoices(invoice_controller, client_controller, user_controller, production_controller):
+    def create_extractor_for_invoices(client_controller:"ClientController", user_controller:"UserController", production_controller:"ProductionController"):
         """
         Crea una funzione di estrazione parametri specifica per le fatture
         """
@@ -678,8 +695,8 @@ class ViewUtils(ctk.CTk):
         return extract_invoice_args
 
     @staticmethod
-    def create_extractor_for_payments(payment_controller, invoice_controller, client_controller, production_controller,
-                                      account_controller):
+    def create_extractor_for_payments(invoice_controller:"InvoiceController", client_controller:"ClientController", production_controller:"ProductionController",
+                                      account_controller:"AccountController"):
         """
         Crea una funzione di estrazione parametri specifica per i pagamenti
         """
@@ -717,7 +734,7 @@ class ViewUtils(ctk.CTk):
         return extract_payment_args
 
     @staticmethod
-    def create_extractor_for_productions(production_controller, client_controller):
+    def create_extractor_for_productions(production_controller:"ProductionController", client_controller:"ClientController"):
         """
         Crea una funzione di estrazione parametri specifica per le produzioni
         """
@@ -751,7 +768,7 @@ class ViewUtils(ctk.CTk):
         return extract_production_args
 
     @staticmethod
-    def create_extractor_for_refunds(refunds_controller, client_controller, account_controller):
+    def create_extractor_for_refunds(client_controller:"ClientController", account_controller:"AccountController"):
         """
         Crea una funzione di estrazione parametri specifica per i rimborsi
         """
@@ -779,7 +796,7 @@ class ViewUtils(ctk.CTk):
         return extract_refund_args
 
     @staticmethod
-    def create_extractor_for_salaries(salary_controller, user_controller, account_controller):
+    def create_extractor_for_salaries(user_controller:"UserController", account_controller:"AccountController"):
         """
         Crea una funzione di estrazione parametri specifica per gli stipendi
         """
@@ -814,7 +831,7 @@ class ViewUtils(ctk.CTk):
         return extract_salary_args
 
     @staticmethod
-    def create_extractor_for_suppliers(supplier_controller):
+    def create_extractor_for_suppliers(supplier_controller:"SupplierController"):
         """
         Crea una funzione di estrazione parametri specifica per i fornitori
         """

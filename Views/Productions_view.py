@@ -1,35 +1,36 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
+
+from Config import ConfigManager
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import ProductionController, PaymentsController, InvoiceController, UserController, ControllerUtils
-from Model import DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBInvoicesColumns
-from datetime import datetime
+from Controllers import ProductionController, PaymentsController, InvoiceController, UserController, ControllerUtils, \
+    ClientController, UpdatesController
+from Model import DatabaseModel, DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBInvoicesColumns
+from datetime import datetime, timedelta
 import re
-from enum import Enum
+
+from App_context import AppContext
+from Event_bus import EventBus
 
 class ProductionsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, production_controller, payment_controller,
-                 invoice_controller, user_controller, client_controller,
-                 catalogo_elenchi, config_manager, tabview,
-                 event_bus, update_controller, initial_production_id=None):
+    def __init__(self, app_context:AppContext, tabview, initial_production_id=None):
         super().__init__(tabview.tab("Produzioni"))
 
-        self.db_model = db_model
-        self.production_controller = production_controller
-        self.invoice_controller = invoice_controller
-        self.user_controller = user_controller
-        self.client_controller = client_controller
-        self.payment_controller = payment_controller
-        self.catalogo_elenchi = catalogo_elenchi
-        self.config_manager = config_manager
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.production_controller:ProductionController = app_context.production_controller
+        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.user_controller:UserController = app_context.user_controller
+        self.client_controller:ClientController = app_context.client_controller
+        self.payment_controller:PaymentsController = app_context.payment_controller
+        self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.config_manager:ConfigManager = app_context.config_manager
         self.tabview = tabview
         self.tab = self.tabview.tab("Produzioni")
-        self.event_bus = event_bus
-        self.update_controller = update_controller
-
-        #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self.handle_show_production_detail)
+        self.event_bus:EventBus = app_context.event_bus
+        self.update_controller:UpdatesController = app_context.update_controller
 
         self.global_infos = {}
         self.amount_aggregate_labels = {}
@@ -45,21 +46,16 @@ class ProductionsView(ctk.CTkFrame):
         self.production_card_labels_status = {}
         self.production_card_list = {}
 
+        self.cards_warnings = {}
+
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
         self.detail_container = ctk.CTkFrame(self, fg_color="transparent")
 
         self.production_detail_view = ProductionDetailView(
             parent=self,
-            invoice_controller=self.invoice_controller,
-            back_callback=self.show_main_view,
-            client_controller=self.client_controller,
-            production_controller=self.production_controller,
-            catalogo_elenchi=self.catalogo_elenchi,
-            config_manager=self.config_manager,
-            db_model=db_model,
-            update_controller=self.update_controller,
-            event_bus=self.event_bus
+            app_context=self.app_context,
+            back_callback=self.show_main_view
         )
 
         self.create_productions_tab()
@@ -89,15 +85,8 @@ class ProductionsView(ctk.CTkFrame):
             if not hasattr(self, 'production_detail_view') or not self.production_detail_view.winfo_exists():
                 self.production_detail_view = ProductionDetailView(
                     parent=self,
-                    invoice_controller=self.invoice_controller,
-                    back_callback=self.show_main_view,
-                    client_controller=self.client_controller,
-                    production_controller=self.production_controller,
-                    catalogo_elenchi=self.catalogo_elenchi,
-                    config_manager=self.config_manager,
-                    db_model=self.db_model,
-                    update_controller=self.update_controller,
-                    event_bus=self.event_bus
+                    app_context=self.app_context,
+                    back_callback=self.show_main_view
                 )
 
             # Mostra il dettaglio
@@ -239,11 +228,10 @@ class ProductionsView(ctk.CTkFrame):
         days = days_map.get(selected, 30)
 
         # Calcola la data limite (oggi - giorni)
-        from datetime import datetime, timedelta
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutte le fatture dell'anno corrente
-        all_productions = self.production_controller.retrieve_productions_map_list(True)
+        all_productions = self.production_controller.retrieve_productions_map_list(include_prod_with_unpaid_invoices = True)
 
         # Filtra le fatture: solo quelle con data di emissione >= limit_date
         filtered_productions = []
@@ -274,10 +262,10 @@ class ProductionsView(ctk.CTkFrame):
 
     def populate_global_infos(self):
         #self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI.value}"] = self.production_controller.count_productions(True)
-        self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value}"] = self.production_controller.count_active_productions(True)
-        self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value}"] = self.production_controller.count_closed_productions(True)
-        self.global_infos[f"{ProductionController.ProductionsAggregateData.MEDIA_ORE_PRODUZIONE.value}"] = round(self.production_controller.mean_hours_for_production(True), 2)
-        self.global_infos[f"{ProductionController.ProductionsAggregateData.MEDIA_PREZZO_ORARIO.value}"] = round(self.production_controller.mean_prezzo_orario(True), 2)
+        self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_ATTIVE.value}"] = self.production_controller.count_active_productions()
+        self.global_infos[f"{ProductionController.ProductionsAggregateData.NUMERO_PRODUZIONI_CHIUSE.value}"] = self.production_controller.count_closed_productions()
+        self.global_infos[f"{ProductionController.ProductionsAggregateData.MEDIA_ORE_PRODUZIONE.value}"] = round(self.production_controller.mean_hours_for_production(), 2)
+        self.global_infos[f"{ProductionController.ProductionsAggregateData.MEDIA_PREZZO_ORARIO.value}"] = round(self.production_controller.mean_prezzo_orario(), 2)
 
     def open_add_production_window(self):
         """Apre una finestra per aggiungere una nuova produzione"""
@@ -386,7 +374,8 @@ class ProductionsView(ctk.CTkFrame):
         #self.delete_button.pack_forget()
 
         self.name_frame.winfo_children()[0].configure(text=f"{self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value]} - ")
-        #self.production_widgets[DBProductionsColumns.NAME.value].insert(0, f"{self.client_controller.clients_list[0][DBClientsColumns.NAME.value]}-")
+
+        self.auto_compile_name_entry(self.production_widgets[self.nome_cliente_string].get_value())
 
         # Aggiungi validazione agli eventi di perdita del focus
         self.production_widgets[DBProductionsColumns.NAME.value].bind("<FocusOut>", lambda event: ViewUtils.validate_entry(
@@ -543,6 +532,9 @@ class ProductionsView(ctk.CTkFrame):
             reverse=True
         )
 
+        # Pre-processing: raccogli i warnings per i pagamenti
+        self.collect_production_warnings(productions_list)
+
         extractor = ViewUtils.create_extractor_for_productions(
             self.production_controller,
             self.client_controller
@@ -556,6 +548,9 @@ class ProductionsView(ctk.CTkFrame):
             cards_frame=self.productions_cards_frame
 
         )
+
+        for prod_name, warning in self.cards_warnings.items():
+            self.attach_warning_on_a_card(prod_name, warning)
 
     def add_production_card(self, production_id, production_name, client_name, tipologia_produzione, tipologia_output, produzione_stato, data_di_consegna, totale_preventivo, durata_produzione, prezzo_orario):
         """
@@ -614,6 +609,10 @@ class ProductionsView(ctk.CTkFrame):
 
         # Mantieni il riferimento alla card
         self.production_card_list[production_name] = card
+
+        # Se esiste un warning associato al nome del pagamento, aggiungi il tooltip
+        if production_name in self.cards_warnings:
+            ViewUtils.add_tooltip(btn, self.cards_warnings[production_name])
 
     def save_production_data(self):
         production_data = {}
@@ -799,6 +798,33 @@ class ProductionsView(ctk.CTkFrame):
         :return:
         """
 
+    def collect_production_warnings(self, productions_map_list):
+        """Raccoglie tutti i warnings per i pagamenti prima del processing"""
+        for production in productions_map_list:
+            if production:
+                production_name = production[DBProductionsColumns.NAME.value]
+                production_id = production[DBProductionsColumns.NAME.value]
+                production_creation_date = datetime.strptime(production.get(DBProductionsColumns.CREATED_AT.value),
+                                                          "%Y-%m-%d %H:%M:%S")
+
+                if  production_creation_date.year != datetime.now().year:
+                        self.cards_warnings[production_name] = (
+                            f"Questa produzione riguarda l'anno contabile {production_creation_date.year}.\n"
+                            "Stai visualizzando questa produzione perchè è collegata ad una fattura non interamente "
+                            "saldata durante il suo anno contabile di riferimento.\n"
+                            "Questa produzione non viene conteggiata all'interno di questo anno contabile."
+                        )
+
+    # funzione da passare all'updater come callback
+    def attach_warning_on_a_card(self, production_name, warning):
+        for card in self.production_card_list.values():
+            for child in card.winfo_children():
+                if isinstance(child, ctk.CTkButton):
+                    if child.cget("text") == production_name:
+                        self.cards_warnings[production_name] = warning
+                        ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
+                        return  # ← FONDAMENTALE
+
     def cleanup(self):
         """Pulizia completa per liberare memoria - DA AGGIUNGERE IN OGNI VIEW"""
         try:
@@ -880,20 +906,20 @@ class ProductionsView(ctk.CTkFrame):
 
 
 class ProductionDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, client_controller, invoice_controller, production_controller, update_controller, db_model, catalogo_elenchi, config_manager, event_bus):
+    def __init__(self, app_context:AppContext, parent, back_callback):
         super().__init__(parent)
-        self.client_controller = client_controller
-        self.invoice_controller = invoice_controller
-        self.production_controller = production_controller
-        self.db_model = db_model
+        self.app_context:AppContext = app_context
+        self.client_controller:ClientController = app_context.client_controller
+        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.production_controller:ProductionController = app_context.production_controller
+        self.db_model:DatabaseModel = app_context.db_model
         self.back_callback = back_callback
-        self.update_controller = update_controller
-        self.event_bus = event_bus
-        self.catalogo_elenchi = catalogo_elenchi
-        self.config_manager = config_manager
+        self.update_controller:UpdatesController = app_context.update_controller
+        self.event_bus:EventBus = app_context.event_bus
+        self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.config_manager:ConfigManager = app_context.config_manager
         self.current_invoice_id = None
         self.parent = parent
-
         self.configure(fg_color="transparent")
 
         # Widgets persistenti (vanno creati una volta sola)

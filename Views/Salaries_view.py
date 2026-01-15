@@ -2,32 +2,35 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
-from Controllers import PaymentsController, ExpenseController, InvoiceController, UserController, ControllerUtils, SalaryController
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns, DBSalariesColumns
+from Controllers import AccountController, ExpenseController, Analyzer, UserController, ControllerUtils, \
+    SalaryController, UpdatesController
+from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns, DBSalariesColumns
 import re
 from datetime import datetime
-from enum import Enum
-from dataclasses import fields
+
+
+from Config import ConfigManager
+from App_context import AppContext
+from Event_bus import EventBus
 
 class SalariesView(ctk.CTkFrame):
 
-    def __init__(self, db_model, salary_controller, user_controller, account_controller,
-                 update_controller, analyzer, fiscal_settings, catalogo_elenchi,
-                 config_manager, tab_view, event_bus, initial_salary_id=None):
+    def __init__(self, app_context:AppContext, tab_view, initial_salary_id=None):
         super().__init__(tab_view.tab("Salario"))
 
-        self.db_model = db_model
-        self.salary_controller = salary_controller
-        self.user_controller = user_controller
-        self.account_controller = account_controller
-        self.update_controller = update_controller
-        self.analyzer = analyzer
-        self.fiscal_settings = fiscal_settings
-        self.catalogo_elenchi = catalogo_elenchi
-        self.config_manager = config_manager
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.salary_controller:SalaryController = app_context.salary_controller
+        self.user_controller:UserController = app_context.user_controller
+        self.account_controller:AccountController = app_context.account_controller
+        self.update_controller:UpdatesController = app_context.update_controller
+        self.analyzer:Analyzer = app_context.analyzer
+        self.fiscal_settings = app_context.fiscal_settings
+        self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.config_manager:ConfigManager = app_context.config_manager
         self.tab_view = tab_view
         self.tab = tab_view.tab("Salario")
-        self.event_bus = event_bus
+        self.event_bus:EventBus = app_context.event_bus
 
         #self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, self.handle_show_salary_detail)
 
@@ -52,10 +55,10 @@ class SalariesView(ctk.CTkFrame):
             parent=self,
             salary_controller=self.salary_controller,
             back_callback=self.show_main_view,
-            account_controller=account_controller,
+            account_controller=self.account_controller,
             user_controller=self.user_controller,
             update_controller=self.update_controller,
-            db_model=db_model,
+            db_model=self.db_model,
             event_bus = self.event_bus,
             catalogo_elenchi=self.catalogo_elenchi
         )
@@ -395,7 +398,6 @@ class SalariesView(ctk.CTkFrame):
     def load_salaries_chunked(self, salaries_list):
 
         extractor = ViewUtils.create_extractor_for_salaries(
-            self.salary_controller,
             self.user_controller,
             self.account_controller
         )

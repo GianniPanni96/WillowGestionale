@@ -1,29 +1,31 @@
 import customtkinter as ctk
-import tkinter as tk
-from tkinter import ttk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
-from Controllers import PaymentsController, InvoiceController, UserController, ControllerUtils, SupplierController
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBTransfersColumns
-from datetime import datetime
+from Controllers import AccountController, TransfersController, Analyzer, UpdatesController
+from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBTransfersColumns
+
 import re
-from enum import Enum
+
+from Config import ConfigManager
+from App_context import AppContext
+from Event_bus import EventBus
 
 class AccountsView(ctk.CTkFrame):
 
-    def __init__(self, db_model, account_controller, update_controller, transfer_controller, config_manager, catalogo_elenchi, analyzer, tabview, event_bus):
+    def __init__(self, app_context:AppContext, tabview):
         super().__init__(tabview.tab("Conti"))
 
-        self.db_model = db_model
-        self.account_controller = account_controller
-        self.update_controller = update_controller
-        self.config_manager = config_manager
-        self.transfer_controller = transfer_controller
-        self.catalogo_elenchi = catalogo_elenchi
-        self.analyzer = analyzer
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
+        self.account_controller:AccountController = app_context.account_controller
+        self.update_controller:UpdatesController = app_context.update_controller
+        self.config_manager:ConfigManager = app_context.config_manager
+        self.transfer_controller:TransfersController = app_context.transfer_controller
+        self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.analyzer:Analyzer = app_context.analyzer
         self.tabview = tabview
         self.tab = tabview.tab("Conti")
-        self.event_bus = event_bus
+        self.event_bus:EventBus = app_context.event_bus
 
         self.transfers_view = TransfersView(self.db_model, self.account_controller, self.update_controller, self.transfer_controller, self.config_manager, self.catalogo_elenchi, self.analyzer)
 
@@ -50,10 +52,10 @@ class AccountsView(ctk.CTkFrame):
             back_callback=self.show_main_view,
             account_controller=self.account_controller,
             update_controller= self.update_controller,
-            db_model=db_model,
+            db_model=self.db_model,
             analyzer=self.analyzer,
             event_bus = self.event_bus,
-            catalogo_elenchi=catalogo_elenchi
+            catalogo_elenchi=self.catalogo_elenchi
         )
 
         # Sistema per tracciare gli after()
@@ -368,10 +370,6 @@ class AccountsView(ctk.CTkFrame):
 
 
 
-
-
-
-
 class AccountDetailView(ctk.CTkFrame):
     def __init__(self, parent, back_callback, account_controller, update_controller, db_model, event_bus, catalogo_elenchi, analyzer):
         super().__init__(parent)
@@ -433,7 +431,6 @@ class AccountDetailView(ctk.CTkFrame):
         # 4. Creazione contenuti dinamici
         self._create_account_info_section(self.account)
         self.toggle_edit(self.content_frame)
-
 
     def _create_account_info_section(self, account_data):
         # Recupera i movimenti del conto
@@ -708,14 +705,6 @@ class AccountDetailView(ctk.CTkFrame):
         self._clear_content()
         self.pack_forget()
         self.back_callback()
-
-
-
-
-
-
-
-
 
 
 

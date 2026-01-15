@@ -4,8 +4,11 @@ from Views.View_utils import ViewUtils, customTKMenuButton
 from datetime import datetime
 
 
-from Controllers import ExpenseController, ControllerUtils
-from Model import DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
+from Controllers import ExpenseController, ControllerUtils, SalaryController, TransfersController, \
+    UpdatesController, AccountController, UserController, ClientController, SupplierController, PaymentsController, \
+    ProductionController, InvoiceController, RefundController, Analyzer
+
+from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
 
 from Book_closer import BookCloser
 
@@ -22,11 +25,20 @@ from Views.Iva_trimes_view import IvaTrimesView
 from Views.Refunds_view import RefundsView
 from Views.Taxes_view import TaxesView
 from Views.Report_view import ReportView
-from Plot_view import PlotView
+from Views.Plot_view import PlotView
+
+from Config import ConfigManager
+from Backup_manager import BackupImporter, BackupScheduler
+from Event_bus import EventBus
+
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from App_context import AppContext
 
 
 class MainWindow(ctk.CTk):
-    def __init__(self, app_context):
+    def __init__(self, app_context:"AppContext"):
         super().__init__()
 
         self._after_ids = set()
@@ -35,12 +47,13 @@ class MainWindow(ctk.CTk):
         self._orig_after = self.after
         self.after = self._track_after
 
-        self.app_context = app_context
-        self.event_bus = app_context.event_bus
+        self.app_context:AppContext = app_context
+        self.event_bus:EventBus = app_context.event_bus
 
         # ConfigManager per la gestione della configurazione
-        self.config_manager = app_context.config_manager
-        self.backup_importer = app_context.backup_importer
+        self.config_manager:ConfigManager = app_context.config_manager
+        self.backup_importer:BackupImporter = app_context.backup_importer
+        self.backup_scheduler:BackupScheduler = app_context.backup_scheduler
 
         self.fiscal_settings = app_context.fiscal_settings
         self.catalogo_elenchi = app_context.catalogo_elenchi
@@ -60,20 +73,20 @@ class MainWindow(ctk.CTk):
         self.logged_user_id = -1
 
 
-        self.db_model = app_context.db_model  # Istanzia il modello
-        self.user_controller = app_context.user_controller  # Crea il controller per gli utenti
-        self.account_controller = app_context.account_controller
-        self.salary_controller = app_context.salary_controller
-        self.transfer_controller = app_context.transfer_controller
-        self.client_controller = app_context.client_controller
-        self.supplier_controller = app_context.supplier_controller
-        self.payment_controller = app_context.payment_controller
-        self.production_controller = app_context.production_controller
-        self.invoice_controller = app_context.invoice_controller
-        self.expense_controller = app_context.expense_controller
-        self.refund_controller = app_context.refund_controller
-        self.update_controller = app_context.update_controller
-        self.analyzer = app_context.analyzer
+        self.db_model:DatabaseModel = app_context.db_model  # Istanzia il modello
+        self.user_controller:UserController = app_context.user_controller  # Crea il controller per gli utenti
+        self.account_controller:AccountController = app_context.account_controller
+        self.salary_controller:SalaryController = app_context.salary_controller
+        self.transfer_controller:TransfersController = app_context.transfer_controller
+        self.client_controller:ClientController = app_context.client_controller
+        self.supplier_controller:SupplierController = app_context.supplier_controller
+        self.payment_controller:PaymentsController = app_context.payment_controller
+        self.production_controller:ProductionController = app_context.production_controller
+        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.expense_controller:ExpenseController = app_context.expense_controller
+        self.refund_controller:RefundController = app_context.refund_controller
+        self.update_controller:UpdatesController = app_context.update_controller
+        self.analyzer:Analyzer = app_context.analyzer
 
         self.title("Gestionale Willow")
 
@@ -85,8 +98,10 @@ class MainWindow(ctk.CTk):
             self.toolbar_frame,
             text="Gestione Backup",
             items=[
-                ("Impostazioni backup", self.open_backups_window),
-                ("Carica un backup", self.open_load_backup),
+                ("Impostazioni backup", self.open_backup_settings_window),
+                ("Esegui un backup manuale del Database", self.execute_db_backup),
+                ("Esegui un backup manuale dei libri contabili", self.execute_books_backup),
+                ("Carica un backup del Database", self.open_load_backup),
             ],
         )
         self.backup_menu.pack(side="left", padx=15, pady=15)
@@ -190,80 +205,34 @@ class MainWindow(ctk.CTk):
 
         # Definisci la factory per le view
         self.view_factory = {
-            "Utenti": lambda tab: UsersView(
-                self.db_model, self.user_controller, self.account_controller,
-                self.production_controller, self.fiscal_settings, tab,
-                self.analyzer, self.event_bus, self.logged_user_id, self.login_status
-            ),
-            "Clienti": lambda tab: ClientsView(
-                self.db_model, self.client_controller, self.production_controller,
-                self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
-                self.config_manager, tab, self.event_bus, self.analyzer
-            ),
-            "Fatture": lambda tab, invoice_id=None: InvoicesView(
-                self.db_model, self.invoice_controller, self.user_controller,
-                self.client_controller, self.production_controller, self.payment_controller,
-                self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
-                self.historical_financial_data_settings, self.event_bus, self.analyzer,
-                initial_invoice_id=invoice_id  # Nuovo parametro
-            ),
-            "Pagamenti": lambda tab, payment_id=None: PaymentsView(
-                self.db_model, self.payment_controller, self.invoice_controller,
-                self.user_controller, self.client_controller, self.production_controller,
-                self.account_controller, self.update_controller, self.tabview,
-                self.event_bus, initial_payment_id=payment_id
-            ),
-            "Rimborsi": lambda tab, refund_id=None: RefundsView(
-                self.db_model, self.refund_controller, self.client_controller,
-                self.account_controller, self.update_controller, self.tabview, self.analyzer,
-                self.event_bus, initial_refund_id=refund_id
-            ),
-            "Produzioni": lambda tab, production_id=None: ProductionsView(
-                self.db_model, self.production_controller, self.payment_controller,
-                self.invoice_controller, self.user_controller, self.client_controller,
-                self.catalogo_elenchi, self.config_manager,
-                self.tabview, self.event_bus, self.update_controller,
-                initial_production_id=production_id
-            ),
-            "Spese": lambda tab, expense_id=None: ExpensesView(
-                self.db_model, self.expense_controller, self.user_controller,
-                self.account_controller, self.supplier_controller, self.invoice_controller,
-                self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
-                self.config_manager, self.tabview, self.event_bus, initial_expense_id = expense_id
-            ),
-            "Fornitori": lambda tab: SuppliersView(
-                self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
-                self.config_manager, self.catalogo_elenchi, self.tabview,
-                self.event_bus, self.analyzer
-            ),
-            "Conti": lambda tab: AccountsView(
-                self.db_model, self.account_controller, self.update_controller,
-                self.transfer_controller, self.config_manager, self.catalogo_elenchi,
-                self.analyzer, self.tabview, self.event_bus
-            ),
-            "Salario": lambda tab, salary_id=None: SalariesView(
-                self.db_model, self.salary_controller, self.user_controller,
-                self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
-                self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus,
-                initial_salary_id=salary_id
-            ),
-            "Iva": lambda tab: IvaTrimesView(
-                self.db_model, self.invoice_controller, self.user_controller,
-                self.expense_controller, self.update_controller, self.analyzer,
-                self.tabview, self.event_bus
-            ),
-            "Tasse": lambda tab: TaxesView(
-                self.db_model, self.analyzer, self.update_controller,
-                self.config_manager, self.catalogo_elenchi, self.tabview,
-                self.event_bus
-            ),
-            f"Report {datetime.now().strftime('%Y')}": lambda tab: ReportView(
-                self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
-                self.event_bus, self.update_controller
-            ),
-            "Plots": lambda tab: PlotView(
-                self.app_context, self.tabview
-            )
+
+            "Utenti": lambda tab: UsersView(self.app_context, tab, self.logged_user_id, self.login_status),
+
+            "Clienti": lambda tab: ClientsView(self.app_context, tab),
+
+            "Fatture": lambda tab, invoice_id=None: InvoicesView(self.app_context, self.tabview, initial_invoice_id=invoice_id),
+
+            "Pagamenti": lambda tab, payment_id=None: PaymentsView(self.app_context, self.tabview, initial_payment_id=payment_id),
+
+            "Rimborsi": lambda tab, refund_id=None: RefundsView(self.app_context, self.tabview, initial_refund_id=refund_id),
+
+            "Produzioni": lambda tab, production_id=None: ProductionsView(self.app_context, self.tabview, initial_production_id=production_id),
+
+            "Spese": lambda tab, expense_id=None: ExpensesView(self.app_context, self.tabview, initial_expense_id = expense_id),
+
+            "Fornitori": lambda tab: SuppliersView(self.app_context, self.tabview),
+
+            "Conti": lambda tab: AccountsView(self.app_context, self.tabview),
+
+            "Salario": lambda tab, salary_id=None: SalariesView(self.app_context, self.tabview,initial_salary_id=salary_id),
+
+            "Iva": lambda tab: IvaTrimesView(self.app_context, self.tabview),
+
+            "Tasse": lambda tab: TaxesView(self.app_context, self.tabview),
+
+            f"Report {datetime.now().strftime('%Y')}": lambda tab: ReportView(self.app_context, self.tabview),
+
+            "Plots": lambda tab: PlotView(self.app_context, self.tabview)
         }
 
         # MONITORAGGIO DEL CAMBIO TAB - APPROCCIO ALTERNATIVO
@@ -625,39 +594,66 @@ class MainWindow(ctk.CTk):
             self.login_button.configure(text="Login")
             self.user_icon.configure(dark_image=self.generic_user_icon_image)
 
+    def execute_db_backup(self):
+        try:
+            self.backup_scheduler.backup_gestionale_db()
+        except Exception as e:
+            print(f"Errore durante l'esecuzione manuale del backup: {str(e)}")
+            ViewUtils.show_error_popup(self, title="Errore", message=f"Errore durante l'esecuzione del backup manuale: {str(e)}")
+            return
 
+        print("Esecuzione manuale del backup riuscita")
+        ViewUtils.show_confirm_popup_simple(self)
 
+    def execute_books_backup(self):
 
-
+        success, message = self.backup_scheduler.backup_gestionale_books()
+        if success:
+            print("Esecuzione manuale del backup riuscita")
+            ViewUtils.show_confirm_popup_simple(self)
+        else:
+            print(f"Errore durante l'esecuzione manuale del backup: {message}")
+            ViewUtils.show_error_popup(self, title="Errore",
+                                       message=f"Errore durante l'esecuzione del backup manuale: {message}")
 
 
     # Funzioni per la gestione dei backups
-    def open_backups_window(self):
+    def open_backup_settings_window(self):
         """Apre una finestra per gestire i backup."""
         # Finestra di dialogo
         self.backup_window = ctk.CTkToplevel(self)
         self.backup_window.title("Impostazioni di backup")
-        self.backup_window.geometry("500x420")
+        #self.backup_window.geometry("500x420")
         self.backup_window.lift()
         self.backup_window.grab_set()
+
+        self.backup_database_frame = ctk.CTkFrame(self.backup_window)
+        self.backup_database_frame.pack(fill="both", expand=True, pady=(5, 10), padx=5)
+
+        self.backup_books_frame = ctk.CTkFrame(self.backup_window)
+        self.backup_books_frame.pack(fill="both", expand=True, pady=(15, 10), padx=5)
 
         # Leggi la configurazione attuale
         current_config = self.config_manager.load_config()
         backup_settings = current_config.get("backup_settings", {})
 
-        # Titolo
-        title = ctk.CTkLabel(self.backup_window, text="Modifica Impostazioni di Backup", font=("Arial", 18))
-        title.pack(pady=20)
+        # Titolo 1
+        title1 = ctk.CTkLabel(self.backup_database_frame, text="Impostazioni Database", font=("Arial", 14))
+        title1.pack(pady=20)
+
+        # Titolo 2
+        title2 = ctk.CTkLabel(self.backup_books_frame, text="Impostazioni Libri Contabili", font=("Arial", 14))
+        title2.pack(pady=20)
 
         # Campi per ogni impostazione
         self.entries = {}
 
         # Backup base path
         self.add_field(
-            label="Percorso base backup",
+            label="Percorso di backup del database",
             default_value=backup_settings.get("backup_base_path", {}).get("value", ""),
             key="backup_base_path",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Cartella principale dove verranno archiviati tutti i backup."
         )
 
@@ -666,7 +662,7 @@ class MainWindow(ctk.CTk):
             label="Frequenza esecuzione backup (minuti)",
             default_value=backup_settings.get("interval_minutes", {}).get("value", 15),
             key="interval_minutes",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Imposta l'intervallo di tempo (in minuti) tra ogni backup.",
             min_val=1,
             max_val=120
@@ -677,7 +673,7 @@ class MainWindow(ctk.CTk):
             label="Numero massimo di backup per cartella",
             default_value=backup_settings.get("max_backups", {}).get("value", 35),
             key="max_backups",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Specifica il numero massimo di backup da conservare.",
             min_val=1,
             max_val=100
@@ -688,10 +684,18 @@ class MainWindow(ctk.CTk):
             label="Frequenza generazione nuova cartella (giorni)",
             default_value=backup_settings.get("delta_days", {}).get("value", 7),
             key="delta_days",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Indica quanti giorni di differenza tra i backup da mantenere.",
             min_val=1,
             max_val=30
+        )
+
+        self.add_field(
+            label="Percorso di backup dei libri contabili",
+            default_value=backup_settings.get("backup_books_path", {}).get("value", ""),
+            key="backup_books_path",
+            parent=self.backup_books_frame,
+            tooltip="Cartella principale dove verranno archiviati tutti i libri contabili."
         )
 
         # Pulsante Salva
@@ -700,7 +704,7 @@ class MainWindow(ctk.CTk):
 
     def add_field(self, label, default_value, key, parent, tooltip):
         """Crea un campo di input per una configurazione."""
-        frame = ctk.CTkFrame(parent)
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(fill="x", pady=5, padx=10)
 
         label_widget = ctk.CTkLabel(frame, text=label, anchor="w")
@@ -713,8 +717,8 @@ class MainWindow(ctk.CTk):
 
     def add_slider_field(self, label, default_value, key, parent, tooltip, min_val, max_val):
         """Crea un campo slider per una configurazione numerica con una scala visibile."""
-        frame = ctk.CTkFrame(parent)
-        frame.pack(fill="x", pady=5, padx=10)
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="x", pady=10, padx=10)
 
         # Label per il titolo
         label_widget = ctk.CTkLabel(frame, text=label, anchor="w")
@@ -1852,6 +1856,13 @@ class MainWindow(ctk.CTk):
     #funzioni per la chiusura dell'esercizio contabile
     def open_fiscal_year_closer_window(self):
         """Apre una finestra per gestire la chiusura dell'anno contabile."""
+
+        #controllo sul mese in cui si tenta di fare chiusura contabile
+        today_month = datetime.today().month
+        if today_month <= 11 and today_month >= 3:
+            ViewUtils.show_error_popup(self, title="", message="Impossibile eseguire la chiusura del corrente esercizio tra marzo e novembre")
+            return
+
         # Crea la finestra di dialogo
         self.fiscal_year_closer_window = ctk.CTkToplevel(self)
         self.fiscal_year_closer_window.title("Chiusura anno contabile")
@@ -1925,8 +1936,9 @@ class MainWindow(ctk.CTk):
         ctk.CTkButton(main_frame, text="Avanti", command=self.close_fiscal_year).pack(fill="x", pady=(15, 20), padx=(0, 55), side="right")
 
 
+
     def close_fiscal_year(self):
-        book_closer = BookCloser(self, self.app_context)
+        book_closer = self.app_context.book_closer
         book_closer.set_current_exercise_year(self.current_exercise_year)
 
         # Lista delle operazioni con descrizioni
@@ -1935,6 +1947,8 @@ class MainWindow(ctk.CTk):
             ("Aggiornamento dati finanziari storici", book_closer.update_historical_financial_data),
             ("Esportazione dati annuali aggregati", book_closer.export_annual_data),
             ("Esportazione dati mensili aggregati", book_closer.export_monthly_data),
+            ("Esportazione dati IVA aggregati", book_closer.export_trimestral_iva_data),
+            ("Esportazione dati TASSE aggregati", book_closer.export_tax_data),
             ("Impoprtazione saldi bancari iniziali", book_closer.import_initial_balances)
         ]
 
@@ -1998,12 +2012,3 @@ class MainWindow(ctk.CTk):
                 print(f"  Motivo: {msg}")
         print("=" * 60)
         print(f"Operazioni completate con successo: {success_count}/{total_count}")
-
-
-
-
-
-
-
-
-

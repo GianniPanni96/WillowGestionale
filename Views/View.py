@@ -27,6 +27,10 @@ from Views.Taxes_view import TaxesView
 from Views.Report_view import ReportView
 from Views.Plot_view import PlotView
 
+from Config import ConfigManager
+from Backup_manager import BackupImporter, BackupScheduler
+from Event_bus import EventBus
+
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -43,12 +47,13 @@ class MainWindow(ctk.CTk):
         self._orig_after = self.after
         self.after = self._track_after
 
-        self.app_context = app_context
-        self.event_bus = app_context.event_bus
+        self.app_context:AppContext = app_context
+        self.event_bus:EventBus = app_context.event_bus
 
         # ConfigManager per la gestione della configurazione
-        self.config_manager = app_context.config_manager
-        self.backup_importer = app_context.backup_importer
+        self.config_manager:ConfigManager = app_context.config_manager
+        self.backup_importer:BackupImporter = app_context.backup_importer
+        self.backup_scheduler:BackupScheduler = app_context.backup_scheduler
 
         self.fiscal_settings = app_context.fiscal_settings
         self.catalogo_elenchi = app_context.catalogo_elenchi
@@ -93,8 +98,10 @@ class MainWindow(ctk.CTk):
             self.toolbar_frame,
             text="Gestione Backup",
             items=[
-                ("Impostazioni backup", self.open_backups_window),
-                ("Carica un backup", self.open_load_backup),
+                ("Impostazioni backup", self.open_backup_settings_window),
+                ("Esegui un backup manuale del Database", self.execute_db_backup),
+                ("Esegui un backup manuale dei libri contabili", self.execute_books_backup),
+                ("Carica un backup del Database", self.open_load_backup),
             ],
         )
         self.backup_menu.pack(side="left", padx=15, pady=15)
@@ -587,39 +594,66 @@ class MainWindow(ctk.CTk):
             self.login_button.configure(text="Login")
             self.user_icon.configure(dark_image=self.generic_user_icon_image)
 
+    def execute_db_backup(self):
+        try:
+            self.backup_scheduler.backup_gestionale_db()
+        except Exception as e:
+            print(f"Errore durante l'esecuzione manuale del backup: {str(e)}")
+            ViewUtils.show_error_popup(self, title="Errore", message=f"Errore durante l'esecuzione del backup manuale: {str(e)}")
+            return
 
+        print("Esecuzione manuale del backup riuscita")
+        ViewUtils.show_confirm_popup_simple(self)
 
+    def execute_books_backup(self):
 
-
+        success, message = self.backup_scheduler.backup_gestionale_books()
+        if success:
+            print("Esecuzione manuale del backup riuscita")
+            ViewUtils.show_confirm_popup_simple(self)
+        else:
+            print(f"Errore durante l'esecuzione manuale del backup: {message}")
+            ViewUtils.show_error_popup(self, title="Errore",
+                                       message=f"Errore durante l'esecuzione del backup manuale: {message}")
 
 
     # Funzioni per la gestione dei backups
-    def open_backups_window(self):
+    def open_backup_settings_window(self):
         """Apre una finestra per gestire i backup."""
         # Finestra di dialogo
         self.backup_window = ctk.CTkToplevel(self)
         self.backup_window.title("Impostazioni di backup")
-        self.backup_window.geometry("500x420")
+        #self.backup_window.geometry("500x420")
         self.backup_window.lift()
         self.backup_window.grab_set()
+
+        self.backup_database_frame = ctk.CTkFrame(self.backup_window)
+        self.backup_database_frame.pack(fill="both", expand=True, pady=(5, 10), padx=5)
+
+        self.backup_books_frame = ctk.CTkFrame(self.backup_window)
+        self.backup_books_frame.pack(fill="both", expand=True, pady=(15, 10), padx=5)
 
         # Leggi la configurazione attuale
         current_config = self.config_manager.load_config()
         backup_settings = current_config.get("backup_settings", {})
 
-        # Titolo
-        title = ctk.CTkLabel(self.backup_window, text="Modifica Impostazioni di Backup", font=("Arial", 18))
-        title.pack(pady=20)
+        # Titolo 1
+        title1 = ctk.CTkLabel(self.backup_database_frame, text="Impostazioni Database", font=("Arial", 14))
+        title1.pack(pady=20)
+
+        # Titolo 2
+        title2 = ctk.CTkLabel(self.backup_books_frame, text="Impostazioni Libri Contabili", font=("Arial", 14))
+        title2.pack(pady=20)
 
         # Campi per ogni impostazione
         self.entries = {}
 
         # Backup base path
         self.add_field(
-            label="Percorso base backup",
+            label="Percorso di backup del database",
             default_value=backup_settings.get("backup_base_path", {}).get("value", ""),
             key="backup_base_path",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Cartella principale dove verranno archiviati tutti i backup."
         )
 
@@ -628,7 +662,7 @@ class MainWindow(ctk.CTk):
             label="Frequenza esecuzione backup (minuti)",
             default_value=backup_settings.get("interval_minutes", {}).get("value", 15),
             key="interval_minutes",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Imposta l'intervallo di tempo (in minuti) tra ogni backup.",
             min_val=1,
             max_val=120
@@ -639,7 +673,7 @@ class MainWindow(ctk.CTk):
             label="Numero massimo di backup per cartella",
             default_value=backup_settings.get("max_backups", {}).get("value", 35),
             key="max_backups",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Specifica il numero massimo di backup da conservare.",
             min_val=1,
             max_val=100
@@ -650,10 +684,18 @@ class MainWindow(ctk.CTk):
             label="Frequenza generazione nuova cartella (giorni)",
             default_value=backup_settings.get("delta_days", {}).get("value", 7),
             key="delta_days",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Indica quanti giorni di differenza tra i backup da mantenere.",
             min_val=1,
             max_val=30
+        )
+
+        self.add_field(
+            label="Percorso di backup dei libri contabili",
+            default_value=backup_settings.get("backup_books_path", {}).get("value", ""),
+            key="backup_books_path",
+            parent=self.backup_books_frame,
+            tooltip="Cartella principale dove verranno archiviati tutti i libri contabili."
         )
 
         # Pulsante Salva
@@ -662,7 +704,7 @@ class MainWindow(ctk.CTk):
 
     def add_field(self, label, default_value, key, parent, tooltip):
         """Crea un campo di input per una configurazione."""
-        frame = ctk.CTkFrame(parent)
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(fill="x", pady=5, padx=10)
 
         label_widget = ctk.CTkLabel(frame, text=label, anchor="w")
@@ -675,8 +717,8 @@ class MainWindow(ctk.CTk):
 
     def add_slider_field(self, label, default_value, key, parent, tooltip, min_val, max_val):
         """Crea un campo slider per una configurazione numerica con una scala visibile."""
-        frame = ctk.CTkFrame(parent)
-        frame.pack(fill="x", pady=5, padx=10)
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="x", pady=10, padx=10)
 
         # Label per il titolo
         label_widget = ctk.CTkLabel(frame, text=label, anchor="w")
@@ -1896,7 +1938,7 @@ class MainWindow(ctk.CTk):
 
 
     def close_fiscal_year(self):
-        book_closer = BookCloser(self, self.app_context)
+        book_closer = self.app_context.book_closer
         book_closer.set_current_exercise_year(self.current_exercise_year)
 
         # Lista delle operazioni con descrizioni

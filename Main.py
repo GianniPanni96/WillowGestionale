@@ -20,7 +20,7 @@ if __name__ == "__main__":
     db_path = os.path.join(path, "gestionale.db")
     data_path = os.path.join(path, "Data")
     images_path = os.path.join(data_path, "images")
-    backup_path = os.path.join(path, "backups")
+    books_default_path = os.path.join(path, "Books")
 
 
     # Inizializza il gestore delle configurazioni
@@ -32,7 +32,8 @@ if __name__ == "__main__":
     backup_settings = config.get("backup_settings", {})
     interval_minutes = backup_settings.get("interval_minutes", {}).get("value", 15)
     max_backups = backup_settings.get("max_backups", {}).get("value", 35)
-    backup_base_path = backup_settings.get("backup_base_path", {}).get("value")
+    db_backup_base_path = backup_settings.get("backup_base_path", {}).get("value")
+    books_backup_path = backup_settings.get("backup_books_path", {}).get("value")
     delta_days = backup_settings.get("delta_days", {}).get("value", 7)
 
     # Estrai le impostazioni fiscali dalla configurazione
@@ -81,8 +82,10 @@ if __name__ == "__main__":
     scheduler = BackupScheduler(
         interval_minutes=interval_minutes,
         max_backups=max_backups,
-        backup_base_path=backup_base_path,
-        delta_days=delta_days
+        db_backup_base_path=db_backup_base_path,
+        delta_days=delta_days,
+        books_backup_path = books_backup_path,
+        books_default_path=books_default_path
     )
 
     print("Avvio dell'applicazione e scheduler dei backup...\n")
@@ -91,22 +94,25 @@ if __name__ == "__main__":
 
     #inzializza il backup importer da passare alla main view
     backup_importer = BackupImporter(
-        backup_base_path=backup_base_path,
+        db_backup_base_path=db_backup_base_path,
         db_path=db_path
     )
 
-    app_context = AppContext(fiscal_settings,
-                                historical_financial_data_settings,
-                                recurring_expenses_settings,
-                                catalogo_elenchi,
-                                config_manager,
-                                backup_importer,
-                                path,
-                                db_path,
-                                data_path,
-                                images_path,
-                                backup_path
-                             )
+    app_context = AppContext(
+        fiscal_settings=fiscal_settings,
+        historical_financial_data_settings=historical_financial_data_settings,
+        recurring_expenses_settings=recurring_expenses_settings,
+        catalogo_elenchi=catalogo_elenchi,
+        config_manager=config_manager,
+        backup_importer=backup_importer,
+        backup_scheduler=scheduler,
+        environment_db_variable=path,
+        db_path=db_path,
+        data_path=data_path,
+        images_path=images_path,
+        db_backup_path=db_backup_base_path,
+        books_path=books_default_path
+        )
 
     # Avvia il frontend
     app = MainWindow(app_context)

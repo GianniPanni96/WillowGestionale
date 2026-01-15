@@ -180,6 +180,7 @@ class ViewUtils(ctk.CTk):
         """
         confirm_popup = ctk.CTkToplevel(parent)
         confirm_popup.title(title)
+        confirm_popup.geometry("400x100")
 
         # Assicurati che il pop-up sia modale
         confirm_popup.grab_set()

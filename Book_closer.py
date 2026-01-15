@@ -4,16 +4,37 @@ import csv
 from datetime import datetime
 from typing import Dict, List, Any
 
-class BookCloser:
-    def __init__(self, main_view, app_context):
-        self.main_view = main_view
-        self.app_context = app_context
-        self.environment_db_variable = self.app_context.environment_db_variable
+from Controllers import AccountController, Analyzer, UserController, InvoiceController, ExpenseController, \
+    ProductionController, SalaryController
 
+from Config import ConfigManager
+
+class BookCloser:
+    def __init__(self,
+                 environment_db_variable,
+                 books_path,
+                 account_controller:AccountController,
+                 analyzer:Analyzer,
+                 user_controller:UserController,
+                 config_manager:ConfigManager,
+                 invoice_controller:InvoiceController,
+                 expense_controller:ExpenseController,
+                 production_controller:ProductionController,
+                 salary_controller:SalaryController):
+
+        self.environment_db_variable = environment_db_variable
+        self.account_controller = account_controller
+        self.user_controller = user_controller
+        self.invoice_controller = invoice_controller
+        self.expense_controller = expense_controller
+        self.production_controller = production_controller
+        self.salary_controller = salary_controller
+        self.config_manager = config_manager
+        self.analyzer = analyzer
         self.current_exercise_year = int(datetime.now().strftime('%Y')) - 1
 
         # Crea la directory se non esiste
-        self.books_dir = os.path.join(self.environment_db_variable, "Books")
+        self.books_dir = books_path
         if not os.path.exists(self.books_dir):
             os.makedirs(self.books_dir, exist_ok=True)
             print(f"Creata directory: {self.books_dir}")
@@ -24,7 +45,7 @@ class BookCloser:
         self.taxes_data_file_path = os.path.join(self.books_dir, "taxes_aggregated_data.csv")
 
         # Recupera tutti i conti
-        self.accounts = self.app_context.account_controller.retrieve_accounts_map_list()
+        self.accounts = self.account_controller.retrieve_accounts_map_list()
 
     def set_current_exercise_year(self, year):
         self.current_exercise_year = year
@@ -74,7 +95,7 @@ class BookCloser:
                         continue
 
                     # Recupera i movimenti per questo conto
-                    movements = self.app_context.analyzer.retrieve_account_movements_by_account_id(account_id, year = self.current_exercise_year)
+                    movements = self.analyzer.retrieve_account_movements_by_account_id(account_id, year = self.current_exercise_year)
 
                     if not movements:
                         continue
@@ -112,8 +133,8 @@ class BookCloser:
 
         year_str = str(self.current_exercise_year)
 
-        revenues = self.app_context.user_controller.retrieve_users_with_tot_fatturato(year = self.current_exercise_year)
-        users = self.app_context.user_controller.retrieve_users_map_list()
+        revenues = self.user_controller.retrieve_users_with_tot_fatturato(year = self.current_exercise_year)
+        users = self.user_controller.retrieve_users_map_list()
 
         # Crea una mappa ID -> nome completo per facilitare la ricerca
         user_id_to_name = {}
@@ -129,8 +150,8 @@ class BookCloser:
         for user in users:
             user_id = user.get(DBUsersColumns.ID.value)
             if user.get(
-                    DBUsersColumns.REGIME_FISCALE.value) == self.app_context.user_controller.RegimeFiscale.ORDINARIO.value:
-                spese_dedotte_tot += self.app_context.user_controller.calcola_tot_spese_utente_dedotte(user_id, year = self.current_exercise_year)
+                    DBUsersColumns.REGIME_FISCALE.value) == self.user_controller.RegimeFiscale.ORDINARIO.value:
+                spese_dedotte_tot += self.user_controller.calcola_tot_spese_utente_dedotte(user_id, year = self.current_exercise_year)
 
         # Prepara i dati per la sezione historical_financial_data
         historical_data = {
@@ -139,7 +160,7 @@ class BookCloser:
         }
 
         # Carica i dati esistenti
-        config = self.app_context.config_manager.load_config()
+        config = self.config_manager.load_config()
 
         if "historical_financial_data" in config:
             # Mantieni i dati esistenti
@@ -157,8 +178,8 @@ class BookCloser:
         #   "ORDINARIO": {"Cognome3": 30000}
         # }
 
-        for regime in [self.app_context.user_controller.RegimeFiscale.FORFETTARIO.value,
-                       self.app_context.user_controller.RegimeFiscale.ORDINARIO.value]:
+        for regime in [self.user_controller.RegimeFiscale.FORFETTARIO.value,
+                       self.user_controller.RegimeFiscale.ORDINARIO.value]:
             if regime in revenues:
                 for last_name, total_revenue in revenues[regime].items():
                     # Trova l'utente corrispondente per ottenere il nome completo
@@ -182,7 +203,7 @@ class BookCloser:
         historical_data["deducted_expenses"][year_str] = spese_dedotte_tot
 
         # Aggiungi al config manager (aggiorna direttamente la sezione)
-        self.app_context.config_manager.update_historical_financial_data(historical_data)
+        self.config_manager.update_historical_financial_data(historical_data)
 
     def export_annual_data(self):
         """
@@ -218,20 +239,19 @@ class BookCloser:
             init_balance = previous_year_balances.get(column_name, "0.00")
 
             balances[account_name] = (
-                self.app_context.analyzer
-                .calculate_account_balance_by_account_id(
+                self.analyzer.calculate_account_balance_by_account_id(
                     account_id,
                     year=self.current_exercise_year,
                     init_balance_arg=init_balance
                 )
             )
 
-        tot_fatturato = self.app_context.invoice_controller.calculate_FATT_LORDO_invoiced(year = self.current_exercise_year)
-        tot_spese = self.app_context.expense_controller.calculate_tot_expenses(year = self.current_exercise_year)
-        media_fatture = self.app_context.invoice_controller.calculate_MEDIA_FATTURA_LORDO_invoiced(year = self.current_exercise_year)
-        media_ore_per_produzione = self.app_context.production_controller.mean_hours_for_production(year = self.current_exercise_year)
-        media_prezzo_orario_produzione = self.app_context.production_controller.mean_prezzo_orario(year = self.current_exercise_year)
-        previsione_tasse = self.app_context.analyzer.calculate_previsione_tasse_willow(year = self.current_exercise_year)
+        tot_fatturato = self.invoice_controller.calculate_FATT_LORDO_invoiced(year = self.current_exercise_year)
+        tot_spese = self.expense_controller.calculate_tot_expenses(year = self.current_exercise_year)
+        media_fatture = self.invoice_controller.calculate_MEDIA_FATTURA_LORDO_invoiced(year = self.current_exercise_year)
+        media_ore_per_produzione = self.production_controller.mean_hours_for_production(year = self.current_exercise_year)
+        media_prezzo_orario_produzione = self.production_controller.mean_prezzo_orario(year = self.current_exercise_year)
+        previsione_tasse = self.analyzer.calculate_previsione_tasse_willow(year = self.current_exercise_year)
         irpef_willow = previsione_tasse["TOTALE"].get("IRPEF WILLOW", 0.0)
         inps_willow = previsione_tasse["TOTALE"].get("INPS WILLOW", 0.0)
 
@@ -335,7 +355,7 @@ class BookCloser:
         """
 
         # Recupera i dati mensili dall'analyzer
-        monthly_data = self.app_context.analyzer.retrieve_monthly_data(year = self.current_exercise_year)
+        monthly_data = self.analyzer.retrieve_monthly_data(year = self.current_exercise_year)
 
         # Verifica se il file esiste per determinare se scrivere l'header
         file_exists = os.path.isfile(self.monthly_data_file_path)
@@ -346,7 +366,7 @@ class BookCloser:
         for month in range(1, 13):
             # Recupera il salario medio per il mese
             try:
-                mean_salary = self.app_context.salary_controller.calculate_mean_salary_by_month(month = month, year = self.current_exercise_year)
+                mean_salary = self.salary_controller.calculate_mean_salary_by_month(month = month, year = self.current_exercise_year)
                 if mean_salary is None:
                     mean_salary = 0.0
             except Exception as e:
@@ -511,7 +531,7 @@ class BookCloser:
         """
 
         # Recupera i dati IVA trimestrali dall'analyzer
-        iva_data = self.app_context.analyzer.calculate_tot_trimestral_iva(year = self.current_exercise_year)
+        iva_data = self.analyzer.calculate_tot_trimestral_iva(year = self.current_exercise_year)
 
         # Verifica se il file esiste
         file_exists = os.path.isfile(self.iva_data_file_path)
@@ -629,7 +649,7 @@ class BookCloser:
         """
 
         # Recupera i dati dall'analyzer
-        tax_data = self.app_context.analyzer.calculate_previsione_tasse_willow(year=self.current_exercise_year)
+        tax_data = self.analyzer.calculate_previsione_tasse_willow(year=self.current_exercise_year)
 
         # Verifica se il file esiste
         file_exists = os.path.isfile(self.taxes_data_file_path)
@@ -667,29 +687,29 @@ class BookCloser:
 
             # Recupera user_id dal nome esteso
             try:
-                user_map = self.app_context.user_controller.retrieve_user_map_by_extended_name(user_name)
+                user_map = self.user_controller.retrieve_user_map_by_extended_name(user_name)
                 user_id = user_map.get(DBUsersColumns.ID.value)
             except Exception as e:
                 print(f"Impossibile risalire all'ID per l'utente '{user_name}': {e}")
                 user_id = None
 
             # Recupera regime fiscale
-            user_map = self.app_context.user_controller.retrieve_user_map_by_id(user_id)
+            user_map = self.user_controller.retrieve_user_map_by_id(user_id)
             regime_fiscale = user_map.get(DBUsersColumns.REGIME_FISCALE.value)
 
             inps_totale = 0.0
             irpef_totale = 0.0
 
             try:
-                if regime_fiscale == self.app_context.user_controller.RegimeFiscale.FORFETTARIO.value:
-                    tasse_map, _, _ = self.app_context.analyzer.calculate_previsione_tasse_forfettaria(
+                if regime_fiscale == self.user_controller.RegimeFiscale.FORFETTARIO.value:
+                    tasse_map, _, _ = self.analyzer.calculate_previsione_tasse_forfettaria(
                         user_id, year=self.current_exercise_year
                     )
                     inps_totale = tasse_map.get("INPS", 0.0)
                     irpef_totale = tasse_map.get("IRPEF", 0.0)
 
-                elif regime_fiscale == self.app_context.user_controller.RegimeFiscale.ORDINARIO.value:
-                    tasse_map, _, _ = self.app_context.analyzer.calculate_previsione_tasse_ordinaria(
+                elif regime_fiscale == self.user_controller.RegimeFiscale.ORDINARIO.value:
+                    tasse_map, _, _ = self.analyzer.calculate_previsione_tasse_ordinaria(
                         user_id, year=self.current_exercise_year
                     )
                     inps_totale = tasse_map.get("INPS", 0.0)
@@ -812,7 +832,7 @@ class BookCloser:
                 return False, f"Nessun dato trovato per l'anno {self.current_exercise_year} nel file annuale"
 
             # Recupera tutti i conti
-            self.accounts = self.app_context.account_controller.retrieve_accounts_map_list()
+            self.accounts = self.account_controller.retrieve_accounts_map_list()
 
             updated_count = 0
             errors = []
@@ -837,7 +857,7 @@ class BookCloser:
                     }
 
                     # Chiama il controller per aggiornare il conto
-                    success, message = self.app_context.account_controller.update_account(account_id, data)
+                    success, message = self.account_controller.update_account(account_id, data)
 
                     if success:
                         updated_count += 1

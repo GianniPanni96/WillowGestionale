@@ -6,17 +6,16 @@ from typing import Dict, List, Optional, Tuple, Any
 
 
 class BooksRetriever:
-    def __init__(self, environment_db_variable: str):
+    def __init__(self, books_path: str):
         """
         Inizializza il BooksRetriever per recuperare dati dai libri contabili.
 
         Args:
-            environment_db_variable: Percorso base della directory dei dati
+            books_path: Percorso base della directory dei dati
         """
-        self.environment_db_variable = environment_db_variable
 
         # Definisce i percorsi dei file
-        self.books_dir = os.path.join(self.environment_db_variable, "Books")
+        self.books_dir = books_path
         self.annual_data_file_path = os.path.join(self.books_dir, "annual_aggregated_data.csv")
         self.monthly_data_file_path = os.path.join(self.books_dir, "monthly_aggregated_data.csv")
         self.iva_data_file_path = os.path.join(self.books_dir, "iva_aggregated_data.csv")

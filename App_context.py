@@ -4,12 +4,13 @@ from Controllers import UserController, AccountController, ClientController, Inv
 from Model import DatabaseModel
 from Event_bus import EventBus
 from Books_retriever import BooksRetriever
+from Book_closer import BookCloser
 
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from Config import ConfigManager
-    from Backup_manager import BackupImporter
+    from Backup_manager import BackupImporter, BackupScheduler
 
 
 class AppContext:
@@ -19,17 +20,20 @@ class AppContext:
                  catalogo_elenchi,
                  config_manager:"ConfigManager",
                  backup_importer:"BackupImporter",
+                 backup_scheduler:"BackupScheduler",
                  environment_db_variable,
                  db_path,
                  data_path,
                  images_path,
-                 backup_path):
+                 db_backup_path,
+                 books_path):
         # inizializzatori oggetti controllers e model
         self.environment_db_variable = environment_db_variable
         self.db_path = db_path
         self.data_path = data_path
         self.images_path = images_path
-        self.backup_path = backup_path
+        self.db_backup_path = db_backup_path
+        self.books_path = books_path
         self.db_model:DatabaseModel = DatabaseModel(db_path)  # Istanzia il modello
         self.fiscal_settings = fiscal_settings
         self.user_controller:UserController = UserController(self.db_model, self.fiscal_settings)  # Crea il controller per gli utenti
@@ -68,6 +72,17 @@ class AppContext:
         self.config_manager:ConfigManager = config_manager
         self.event_bus:EventBus = EventBus()
         self.backup_importer:BackupImporter = backup_importer
+        self.backup_scheduler:BackupScheduler = backup_scheduler
         self.historical_financial_data_settings = historical_financial_data_settings
         self.recurring_expenses_settings = recurring_expenses_settings
-        self.books_retriever:BooksRetriever = BooksRetriever(self.environment_db_variable)
+        self.books_retriever:BooksRetriever = BooksRetriever(books_path=self.books_path)
+        self.book_closer:BookCloser = BookCloser(environment_db_variable=self.environment_db_variable,
+                                                 books_path=self.books_path,
+                                                 account_controller=self.account_controller,
+                                                 analyzer=self.analyzer,
+                                                 user_controller=self.user_controller,
+                                                 config_manager=self.config_manager,
+                                                 invoice_controller=self.invoice_controller,
+                                                 expense_controller=self.expense_controller,
+                                                 production_controller=self.production_controller,
+                                                 salary_controller=self.salary_controller)

@@ -1,10 +1,17 @@
 import customtkinter as ctk
+from Views.Details.Client_detail_view import ClientDetailView
 
-from BaseList_view import BaseListView
+from Controllers import InvoiceController
+from Views.BaseList_view import BaseListView
 from Views.View_utils import ViewUtils
-from Clients_view import ClientDetailView
 from Model import DBClientsColumns, DBProductionsColumns
+from App_context import AppContext
 
+from Controllers import ClientController, RefundController, Analyzer, ProductionController
+from Model import DatabaseModel, DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns, \
+    DBSalariesColumns
+from Event_bus import EventBus
+from Config import ConfigManager
 from datetime import datetime, timedelta
 
 class ClientsViewH(BaseListView):
@@ -35,11 +42,36 @@ class ClientsViewH(BaseListView):
 
     # Mappatura Filtri (per filter_cards) [49]
     FILTER_MAPPING = {
-        "NOME CLIENTE": (0, ctk.CTkButton)  # Assume che il nome sia il primo widget (bottone)
+        "NOME CLIENTE": (0, ctk.CTkButton)
     }
 
-    # Opzioni di Ordinamento (non specificate in ClientsView.txt, ma richieste dalla base)
-    ORDER_OPTIONS = {"NOME": "NOME", "TOT. ENTRATE": "TOT. ENTRATE"}
+    # Opzioni di Ordinamento
+    SORT_CONFIG = {
+        "NOME": {
+            "label": "NOME",
+            "access": "direct",
+            "index": 0,
+            "converter": None
+        },
+        "TOT. ENTRATE": {
+            "label": "TOT. ENTRATE",
+            "access": "direct",
+            "index": 1,
+            "converter": "currency"
+        },
+        "DATA CREAZIONE": {
+            "label": "DATA CREAZIONE",
+            "access": "database",
+            "db_column": "created_at",
+            "converter": "datetime"
+        },
+        "ULTIMA MODIFICA": {
+            "label": "ULTIMA MODIFICA",
+            "access": "database",
+            "db_column": "updated_at",
+            "converter": "datetime"
+        }
+    }
 
     # 5. Configurazione filtro temporale (come in Clients_view.txt [1])
     SHOW_LAST_CARDS_OPTIONS = {
@@ -49,26 +81,33 @@ class ClientsViewH(BaseListView):
         "365 GG": "365 GG"
     }
 
-    def __init__(self, app_context, tab):
+    def __init__(self, app_context:AppContext, tab):
         # Chiama l'__init__ della classe Base
         super().__init__(tab)
 
         # Inizializzazione dei controller e del bus [4, 12]
-        self.client_controller = app_context.client_controller
-        self.db_model = app_context.db_model
-        self.analyzer = app_context.analyzer
-        self.production_controller = app_context.production_controller
-        self.invoice_controller = app_context.invoice_controller
-        self.refund_controller = app_context.refund_controller
+        self.app_context:AppContext = app_context
+        self.client_controller:ClientController = app_context.client_controller
+        self.db_model:DatabaseModel = app_context.db_model
+        self.analyzer:Analyzer = app_context.analyzer
+        self.production_controller:ProductionController = app_context.production_controller
+        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.refund_controller:RefundController = app_context.refund_controller
         self.catalogo_elenchi = app_context.catalogo_elenchi
-        self.config_manager = app_context.config_manager
-        self.event_bus = app_context.event_bus
+        self.config_manager:ConfigManager = app_context.config_manager
+        self.event_bus:EventBus = app_context.event_bus
         self.clients_card_list = self.cards_list  # self.cards_list è l'attributo generico della BaseListView
 
         self.show_last_cards_optionMenu.set("60 GG")
 
         # Carica i dati iniziali (altrimenti la tab sarebbe vuota)
         self.show_last_cards() # Assumendo un metodo di caricamento
+
+        self.client_detail_view = ClientDetailView(
+            parent=self,
+            app_context = self.app_context,
+            back_callback=self.show_main_view
+        )
 
     # --- Metodi Obbligatori Implementati (Passo 2: Logica) ---
 
@@ -158,7 +197,7 @@ class ClientsViewH(BaseListView):
         filtered_clients = []
         for client in all_clients:
             client_id = client[DBClientsColumns.ID.value]
-            client_productions = self.production_controller.retrieve_productions_map_list_by_client_id(client_id)
+            client_productions = self.production_controller.retrieve_productions_map_list_by_client_id(client_id, year=-1)
 
             has_recent_production = False
             for production in client_productions:
@@ -186,129 +225,3 @@ class ClientsViewH(BaseListView):
 
         self.load_items_chunked(filtered_clients)
         self.sort_cards() # Chiamata opzionale se l'ordinamento è desiderato dopo il filtro
-
-    def sort_cards(self):
-        """Ordina le cards degli stipendi in base ai criteri selezionati nei menu di ordinamento."""
-
-        # Funzioni di supporto per la conversione dei valori
-        def _convert_to_date(date_str):
-            """Converte una stringa in formato dd-mm-yyyy in un oggetto date per l'ordinamento."""
-            from datetime import datetime
-            try:
-                return datetime.strptime(date_str.strip(), "%d-%m-%Y")
-            except (ValueError, TypeError):
-                return None
-
-        def _convert_to_currency(currency_str):
-            """Converte una stringa di valuta in un numero float per l'ordinamento."""
-            if not currency_str or not currency_str.strip():
-                return None
-
-            try:
-                # Rimuovi il simbolo dell'euro e gli spazi
-                cleaned = currency_str.strip().replace('€', '').replace(' ', '')
-
-                # Gestione dei numeri negativi
-                negative = False
-                if cleaned.startswith('-'):
-                    negative = True
-                    cleaned = cleaned[1:]
-
-                # Gestione di formati con separatori delle migliaia e decimali
-                # Cerca l'ultimo separatore (potrebbe essere punto o virgola per i decimali)
-                last_comma = cleaned.rfind(',')
-                last_dot = cleaned.rfind('.')
-
-                # Determina il separatore decimale (l'ultimo punto o virgola)
-                if last_comma > last_dot:
-                    # Virgola come separatore decimale, punti come separatori delle migliaia
-                    cleaned = cleaned.replace('.', '').replace(',', '.')
-                elif last_dot > last_comma:
-                    # Punto come separatore decimale, virgole come separatori delle migliaia
-                    cleaned = cleaned.replace(',', '').replace('.', '.')
-                else:
-                    # Nessun separatore decimale, rimuovi tutti i separatori
-                    cleaned = cleaned.replace(',', '').replace('.', '')
-
-                # Converti in float e gestisci il segno
-                result = float(cleaned) * (-1 if negative else 1)
-                return result
-
-            except (ValueError, TypeError):
-                return None
-
-        def _convert_to_datetime(datetime_str):
-            """Converte una stringa in formato yyyy-mm-dd hh:mm:ss in un oggetto datetime per l'ordinamento."""
-            from datetime import datetime
-            try:
-                return datetime.strptime(datetime_str.strip(), "%Y-%m-%d %H:%M:%S")
-            except (ValueError, TypeError):
-                return None
-
-        # Ottieni i criteri di ordinamento
-        sort_by = self.order_bar_optionMenu.get()
-        sort_order = self.order_bar_optionMenu_types.get()
-
-        # Mappatura: ogni criterio associa una tupla (tipo_di_accesso, parametro, funzione_di_conversione, colonna_db)
-        sort_mapping = {
-            "IMPORTO": ("direct", 2, _convert_to_currency, None),
-            "DATA EMISSIONE": ("direct", 3, _convert_to_date, None),
-            "DATA CREAZIONE": ("database", 0, _convert_to_datetime, "created_at"),
-            "ULTIMA MODIFICA": ("database", 0, _convert_to_datetime, "updated_at")
-        }
-
-        mapping = sort_mapping.get(sort_by)
-
-        # Se il tipo di ordinamento non è riconosciuto, non fare nulla
-        if mapping is None:
-            return
-
-        access_type, param, converter, db_column = mapping
-        reverse = (sort_order == "DECRESCENTE")
-
-        # Raccogli tutte le cards e i loro valori di ordinamento
-        cards_with_values = []
-        for key, card in self.clients_card_list.items():  # Assumendo che la lista si chimi salaries_card_list
-            children = card.winfo_children()
-            sort_value = ""
-
-            if access_type == "direct":
-                # Accesso diretto al valore nella card
-                if len(children) > param:
-                    sort_value = children[param].cget("text")
-            elif access_type == "database":
-                # Accesso al valore tramite database
-                if len(children) > 0:
-                    salary_name = children[0].cget("text")  # Nome stipendio dal primo child
-                    # Assumendo che esista un controller per gli stipendi con un metodo retrieve_salary_map_by_name
-                    salary_map = self.salary_controller.retrieve_salary_map_by_name(salary_name)
-                    if salary_map and db_column:
-                        sort_value = salary_map.get(db_column, "")
-
-            # Converti il valore nel tipo appropriato (applicando strip per rimuovere spazi)
-            converted_value = None
-            if sort_value and sort_value.strip():
-                try:
-                    converted_value = converter(sort_value)
-                except Exception:
-                    converted_value = None
-
-            cards_with_values.append((key, card, converted_value))
-
-        # Ordina le cards in base al valore convertito
-        # Gestisci i valori None posizionandoli alla fine in entrambi i casi
-        cards_with_values.sort(
-            key=lambda x: (x[2] is not None, x[2]) if x[2] is not None else (False, None),
-            reverse=reverse
-        )
-
-        # Nascondi temporaneamente tutte le cards
-        for card in self.clients_card_list.values():
-            card.pack_forget()
-
-        # Riposiziona le cards nell'ordine ordinato
-        for _, card, _ in cards_with_values:
-            card.pack(pady=10, padx=10, fill="x", expand=True)
-
-        # Forza l'aggiornamento dell'interfaccia
-        self.update_idletasks()

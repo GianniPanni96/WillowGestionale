@@ -1523,8 +1523,6 @@ class ClientController:
         """Inizializza il controller con il modello del database"""
         self.db_model = db_model
 
-        #self.clients_list = self.retrieve_clients_map_list()
-
     def save_client(self, client_data):
         """
         Gestisce il salvataggio di un cliente, con validazioni di primo livello.
@@ -3253,24 +3251,8 @@ class PaymentsController:
         self.db_model = db_model
         self.account_controller = account_controller
 
-        #self.CY_payment_list = {}
-        #self.payment_list = {}
-
-        # i dati aggregati sono variabili di classe, aggiornati ogni volta che viene fatto un save di una nuova fattura
-        self.payments_aggregated_data = {}
-        self.CY_payments_aggregated_data = {}
-
-        #self.update_payments_lists()
-        self.update_aggregate_data()
-
         self.on_adding_payment_callbacks = []
 
-    def update_aggregate_data(self):
-        self.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value] = self.count_payments(True)
-        self.CY_payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value] = self.calculate_tot_payments(True)
-
-        self.payments_aggregated_data[PaymentsController.PaymentsAggregateData.NUMERO_PAGAMENTI.value] = self.count_payments(False)
-        self.payments_aggregated_data[PaymentsController.PaymentsAggregateData.TOT_PAGAMENTI.value] = self.calculate_tot_payments(False)
 
     def save_payment(self, payment_data):
         """
@@ -3309,9 +3291,6 @@ class PaymentsController:
 
         try:
             self.db_model.add_payment(**payment_data_prepared)
-            self.update_aggregate_data()
-            #for callback in self.on_adding_payment_callbacks:
-            #    callback(payment_data.get(DBPaymentsColumns.INVOICE_ID.value))
             return True, "Produzione salvata con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"

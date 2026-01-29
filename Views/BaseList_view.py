@@ -22,6 +22,8 @@ class BaseListView(ctk.CTkFrame):
     # Esempio: {"NOME FATTURA": (0, ctk.CTkButton), ...} [32-35]
     FILTER_MAPPING = {}
 
+    SORT_CONFIG = {}
+
     SHOW_LAST_CARDS_OPTIONS = {}
 
     # 5. Nome del frame contenitore delle cards (per il cleanup)
@@ -102,11 +104,13 @@ class BaseListView(ctk.CTkFrame):
         self.order_bar_optionMenu_types.pack(padx=(5, 100), anchor="s", side="right")
 
         # Menu per ordinamento (campo)
-        # N.B.: Le opzioni di ordinamento devono essere definite nella classe figlia tramite self.ORDER_OPTIONS
-        if hasattr(self, 'ORDER_OPTIONS'):
-            self.order_bar_optionMenu = ctk.CTkOptionMenu(self.search_bar_frame,
-                                                          values=list(self.ORDER_OPTIONS.values()),
-                                                          command=lambda _: self.sort_cards())
+        # N.B.: Le opzioni di ordinamento devono essere definite nella classe figlia tramite self.SORT_CONFIG
+        if hasattr(self, 'SORT_CONFIG'):
+            self.order_bar_optionMenu = ctk.CTkOptionMenu(
+                self.search_bar_frame,
+                values=[cfg["label"] for cfg in self.SORT_CONFIG.values()],
+                command=lambda _: self.sort_cards()
+            )
             self.order_bar_optionMenu.pack(padx=5, anchor="s", side="right")
             self.order_bar_label = ctk.CTkLabel(self.search_bar_frame, text="Ordina per ", font=("Arial", 14))
             self.order_bar_label.pack(padx=5, anchor="s", side="right")
@@ -191,6 +195,116 @@ class BaseListView(ctk.CTkFrame):
                                          command=self.open_add_window)  # Metodo da definire nella figlia
         self.save_button.pack()
 
+    # Funzioni di supporto per la conversione dei valori
+    def _convert_to_date(self, date_str):
+        """Converte una stringa in formato dd-mm-yyyy in un oggetto date per l'ordinamento."""
+        from datetime import datetime
+        try:
+            return datetime.strptime(date_str.strip(), "%d-%m-%Y")
+        except (ValueError, TypeError):
+            return None
+
+    def _convert_to_currency(self, currency_str):
+        """Converte una stringa di valuta in un numero float per l'ordinamento."""
+        if not currency_str or not currency_str.strip():
+            return None
+
+        try:
+            # Rimuovi il simbolo dell'euro e gli spazi
+            cleaned = currency_str.strip().replace('€', '').replace(' ', '')
+
+            # Gestione dei numeri negativi
+            negative = False
+            if cleaned.startswith('-'):
+                negative = True
+                cleaned = cleaned[1:]
+
+            # Gestione di formati con separatori delle migliaia e decimali
+            # Cerca l'ultimo separatore (potrebbe essere punto o virgola per i decimali)
+            last_comma = cleaned.rfind(',')
+            last_dot = cleaned.rfind('.')
+
+            # Determina il separatore decimale (l'ultimo punto o virgola)
+            if last_comma > last_dot:
+                # Virgola come separatore decimale, punti come separatori delle migliaia
+                cleaned = cleaned.replace('.', '').replace(',', '.')
+            elif last_dot > last_comma:
+                # Punto come separatore decimale, virgole come separatori delle migliaia
+                cleaned = cleaned.replace(',', '').replace('.', '.')
+            else:
+                # Nessun separatore decimale, rimuovi tutti i separatori
+                cleaned = cleaned.replace(',', '').replace('.', '')
+
+            # Converti in float e gestisci il segno
+            result = float(cleaned) * (-1 if negative else 1)
+            return result
+
+        except (ValueError, TypeError):
+            return None
+
+    def _convert_to_datetime(self, datetime_str):
+        """Converte una stringa in formato yyyy-mm-dd hh:mm:ss in un oggetto datetime per l'ordinamento."""
+        from datetime import datetime
+        try:
+            return datetime.strptime(datetime_str.strip(), "%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError):
+            return None
+
+    def _get_converter(self, name):
+        return {
+            "currency": self._convert_to_currency,
+            "datetime": self._convert_to_datetime,
+            "date": self._convert_to_date
+        }.get(name)
+
+    def sort_cards(self):
+        if not hasattr(self, "SORT_CONFIG"):
+            return
+
+        selected_label = self.order_bar_optionMenu.get()
+        sort_order = self.order_bar_optionMenu_types.get()
+        reverse = (sort_order == "DECRESCENTE")
+
+        # trova la config selezionata
+        sort_cfg = next(
+            (cfg for cfg in self.SORT_CONFIG.values() if cfg["label"] == selected_label),
+            None
+        )
+        if not sort_cfg:
+            return
+
+        converter = self._get_converter(sort_cfg.get("converter"))
+
+        cards_with_values = []
+
+        for key, card in self.cards_list.items():
+            children = card.winfo_children()
+            value = None
+
+            if sort_cfg["access"] == "direct":
+                idx = sort_cfg["index"]
+                if len(children) > idx:
+                    value = children[idx].cget("text")
+
+            #come gestisco il retrieving dei dati nei singoli casi?
+            #elif sort_cfg["access"] == "database":
+            #    entity_id = key
+            #    value = self._get_db_value(entity_id, sort_cfg["db_column"])
+
+            converted = converter(value) if converter and value else value
+            cards_with_values.append((card, converted))
+
+        cards_with_values.sort(
+            key=lambda x: (x[1] is None, x[1]),
+            reverse=reverse
+        )
+
+        for card, _ in cards_with_values:
+            card.pack_forget()
+
+        for card, _ in cards_with_values:
+            card.pack(pady=10, padx=10, fill="x", expand=True)
+
     # --- Metodi che DEVONO essere implementati dalle classi figlie ---
 
     def show_main_view(self):
@@ -217,10 +331,6 @@ class BaseListView(ctk.CTkFrame):
         """Logica specifica per disegnare una singola card con i suoi widget."""
         raise NotImplementedError(
             "La logica di disegno di una singola card deve essere implementata nella classe figlia.")
-
-    def sort_cards(self):
-        """Logica di ordinamento (varia a seconda dei dati/controller)."""
-        pass  # Può essere opzionale o lasciata vuota se si utilizza solo il filtro predefinito
 
     def show_last_cards(self):
         """

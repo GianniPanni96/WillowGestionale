@@ -4466,84 +4466,120 @@ class ExpenseController:
     def update_aggregate_data(self):
         return
 
+    from datetime import datetime, date, timedelta
+    from dateutil.relativedelta import relativedelta
+
     def create_recurring_expenses(self):
         """
-        Controlla per ogni spesa ricorrente attiva se in questo periodo
-        (settimanale, mensile, ecc.) ne è già stata emessa una; altrimenti
-        la crea con nome f"{description}_{gg-mm-YYYY}".
+        Per ogni spesa ricorrente attiva:
+        - verifica se ne esiste già una nello stesso periodo di calendario
+          (settimana / mese / bimestre / ecc.)
+        - se non esiste, ne crea una nuova con nome {descrizione}_{dd-mm-YYYY}
         """
 
         print("\nControllo emissione spese ricorrenti...")
 
-        today = datetime.today().date()
-        # Recupera tutte le spese già in DB (solo anno corrente per efficienza)
+        today: date = datetime.today().date()
         all_expenses = self.retrieve_expenses_map_list()
 
-        # Funzione di utilità per calcolare la data di inizio del periodo
-        def get_period_start(freq: str, ref: date) -> date:
-            if freq == ExpenseController.RecurringExpensesFrequencies.SETTIMANALE.value:
-                return ref - timedelta(days=7)
-            if freq == ExpenseController.RecurringExpensesFrequencies.MENSILE.value:
-                return ref - relativedelta(months=1)
-            if freq == ExpenseController.RecurringExpensesFrequencies.BIMESTRALE.value:
-                return ref - relativedelta(months=2)
-            if freq == ExpenseController.RecurringExpensesFrequencies.TRIMESTRALE.value:
-                return ref - relativedelta(months=3)
-            if freq == ExpenseController.RecurringExpensesFrequencies.QUADRIMESTRALE.value:
-                return ref - relativedelta(months=4)
-            if freq == ExpenseController.RecurringExpensesFrequencies.SEMESTRALE.value:
-                return ref - relativedelta(months=6)
-            if freq == ExpenseController.RecurringExpensesFrequencies.ANNUALE.value:
-                return ref - relativedelta(years=1)
-            # default: tutto l'anno
-            return date(ref.year, 1, 1)
+        # --------------------------------------------------
+        # Funzione: verifica se due date sono nello stesso periodo
+        # --------------------------------------------------
+        def is_same_period(freq: str, ref: date, candidate: date) -> bool:
 
-        for key, exp in self.recurring_expenses_settings.items():
-            # 1) solo le attive
+            f = ExpenseController.RecurringExpensesFrequencies
+
+            if freq == f.SETTIMANALE.value:
+                start = ref - timedelta(days=7)
+                return start <= candidate <= ref
+
+            if freq == f.MENSILE.value:
+                return ref.year == candidate.year and ref.month == candidate.month
+
+            if freq == f.BIMESTRALE.value:
+                return (
+                        ref.year == candidate.year
+                        and (ref.month - 1) // 2 == (candidate.month - 1) // 2
+                )
+
+            if freq == f.TRIMESTRALE.value:
+                return (
+                        ref.year == candidate.year
+                        and (ref.month - 1) // 3 == (candidate.month - 1) // 3
+                )
+
+            if freq == f.QUADRIMESTRALE.value:
+                return (
+                        ref.year == candidate.year
+                        and (ref.month - 1) // 4 == (candidate.month - 1) // 4
+                )
+
+            if freq == f.SEMESTRALE.value:
+                return (
+                        ref.year == candidate.year
+                        and (ref.month - 1) // 6 == (candidate.month - 1) // 6
+                )
+
+            if freq == f.ANNUALE.value:
+                return ref.year == candidate.year
+
+            # fallback: stesso anno
+            return ref.year == candidate.year
+
+        # --------------------------------------------------
+        # Loop principale
+        # --------------------------------------------------
+        for _, exp in self.recurring_expenses_settings.items():
+
+            # 1) solo spese attive
             if not exp.status:
-                print(f"emissione di {exp.description} saltata poiché disattiva")
+                print(f"Emissione di {exp.description} saltata: disattiva")
                 continue
 
-            # 2) calcola periodo
-            start = get_period_start(exp.frequency, today)
-            end = today
-
-            # 3) genera pattern nome: description + "_" + dd-mm-YYYY
+            # 2) nome spesa
             suffix = today.strftime("%d-%m-%Y")
             nominal = f"{exp.description}_{suffix}"
 
-            # 4) verifica se esiste già, in modo fuzzy
-            raw_prefix = exp.description  # es. "Affitto Ufficio"
-            prefix_norm = ControllerUtils.normalize_string_for_key(raw_prefix)
+            # 3) normalizzazione prefisso
+            prefix_norm = ControllerUtils.normalize_string_for_key(exp.description)
 
             found = False
-            for e in all_expenses:
-                name = e[DBExpensesColumns.NAME.value]  # es. "affitto ufficio_27-04-2025"
-                name_part, _, date_part = name.rpartition("_")  # split su ultimo "_"
-                # normalizza la porzione descrittiva
-                name_prefix_norm = ControllerUtils.normalize_string_for_key(name_part)
+            matched_name = None
+            matched_date = None
 
-                # se il prefisso normalizzato corrisponde
-                if name_prefix_norm != prefix_norm:
+            # 4) ricerca spesa già emessa nello stesso periodo
+            for e in all_expenses:
+
+                name = e[DBExpensesColumns.NAME.value]
+                name_part, _, date_part = name.rpartition("_")
+
+                if not date_part:
                     continue
 
-                # prova a interpretare la data
+                if ControllerUtils.normalize_string_for_key(name_part) != prefix_norm:
+                    continue
+
                 try:
                     dt = datetime.strptime(date_part, "%d-%m-%Y").date()
                 except ValueError:
                     continue
 
-                if start <= dt <= end:
+                if is_same_period(exp.frequency, today, dt):
                     found = True
                     matched_name = name
+                    matched_date = dt
                     break
 
             if found:
-                print(f"Emissione di {nominal} saltata: già presente ({matched_name}) nel periodo {start}–{end}")
+                print(
+                    f"Emissione di {nominal} saltata: già presente "
+                    f"({matched_name}) per il periodo {matched_date}"
+                )
                 continue
 
-            # 5) nessuna trovata: creane una nuova
-            # recupera ID conto
+            # --------------------------------------------------
+            # 5) Creazione nuova spesa
+            # --------------------------------------------------
             acct = self.account_controller.retrieve_account_map_by_name(exp.account)
             acct_id = acct.get(DBAccountsColumns.ID.value) if acct else None
 
@@ -4553,14 +4589,12 @@ class ExpenseController:
             netto = round(gross / (1 + iva_rate), 2)
             iva_amt = round(gross - netto, 2)
 
-            if exp.deductible:
-                deductor_id = exp.deductor
-            else:
-                deductor_id = None
+            deductor_id = exp.deductor if exp.deductible else None
 
             new_exp = {
                 DBExpensesColumns.NAME.value: nominal,
-                DBExpensesColumns.SUPPLIER_ID.value: self.supplier_controller.retrieve_supplier_map_by_name(exp.supplier)[DBSuppliersColumns.ID.value],
+                DBExpensesColumns.SUPPLIER_ID.value: self.supplier_controller
+                .retrieve_supplier_map_by_name(exp.supplier)[DBSuppliersColumns.ID.value],
                 DBExpensesColumns.CATEGORY.value: exp.category,
                 DBExpensesColumns.NET_AMOUNT.value: netto,
                 DBExpensesColumns.IVA_AMOUNT.value: iva_amt,
@@ -4569,8 +4603,9 @@ class ExpenseController:
                 DBExpensesColumns.DATE.value: today.isoformat(),
                 DBExpensesColumns.DEDUCIBILE.value: "Sì" if exp.deductible else "No",
                 DBExpensesColumns.ACCOUNT_ID.value: acct_id,
-                DBExpensesColumns.RICORRENTE.value: 1
+                DBExpensesColumns.RICORRENTE.value: 1,
             }
+
             try:
                 self.db_model.add_expense(**new_exp)
                 print(f"Spesa ricorrente creata: {nominal}")

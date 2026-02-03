@@ -319,7 +319,7 @@ class ExpensesView(ctk.CTkFrame):
 
             # creo i widgets
             if label_text == self.nome_fornitore_string:
-                suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
+                suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list(year=-1)
                 suppliers_name_list = [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]
                 reversed_suppliers = suppliers_name_list[::-1]
                 widget = widget_class(parent=self.expense_window_scrollableFrame, placeholder="Cerca", autofill=True,

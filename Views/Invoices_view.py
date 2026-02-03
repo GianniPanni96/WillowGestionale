@@ -382,7 +382,7 @@ class InvoicesView(ctk.CTkFrame):
                                       command=lambda selected_value: self.update_productions_list(selected_value))
             elif label_text == self.nome_produzione_string:
                 widget = widget_class(self.invoice_window_scrollableFrame,
-                                      values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.production_controller.retrieve_productions_map_list(True)],
+                                      values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.production_controller.retrieve_productions_map_list(include_prod_with_unpaid_invoices=True)],
                                       command=lambda selected_value : self.prod_already_invoiced_control(selected_value))
             elif label_text == DBInvoicesColumns.NUMERO_FATTURA.value:
                 self.name_frame = ctk.CTkFrame(self.invoice_window_scrollableFrame)
@@ -918,7 +918,7 @@ class InvoicesView(ctk.CTkFrame):
         client = self.client_controller.retrieve_client_map_by_name(client_name)
         client_id = client[DBClientsColumns.ID.value]
         #retrievo la lista delle produzioni associate allo specifico cliente
-        self.productions_list_of_client = self.production_controller.retrieve_productions_map_list_by_client_id(client_id)
+        self.productions_list_of_client = self.production_controller.retrieve_productions_map_list_by_client_id(client_id=client_id, include_prod_with_unpaid_invoices=True)
 
     def get_regime_fiscale_from_view(self, user_full_name):
         user_name = user_full_name.split(" ")
@@ -1051,7 +1051,7 @@ class InvoicesView(ctk.CTkFrame):
             invoice_number = invoice_name_splitted[1].split("FPR")[1]
             user_invoice_numbers.append(int(invoice_number))
 
-        last_invoice_number = max(user_invoice_numbers) + 1 if user_invoice_numbers else 0
+        last_invoice_number = max(user_invoice_numbers) + 1 if user_invoice_numbers else 1
 
         # Converti a stringa con lunghezza 2, padding con zero
         last_invoice_number_str = str(last_invoice_number).zfill(2)

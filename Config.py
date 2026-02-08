@@ -32,114 +32,104 @@ class ConfigManager:
     def load_config(self):
         """Carica le impostazioni dal file di configurazione."""
         if not os.path.exists(self.CONFIG_FILE):
-            print("File di configurazione non trovato. Creazione di un file predefinito...")
+            print(f"[CONFIG] File di configurazione NON trovato: {self.CONFIG_FILE}")
+            print("[CONFIG] Creazione configurazione di default...")
+
             default_config = {
                 "backup_settings": {
                     "backup_base_path": {
-                        "value": os.path.join(self.db_path, "backups"),
+                        "value": os.path.join(self.db_path, "Backups"),
                         "description": "Percorso dove verranno salvati i backup del database gestionale."
                     },
                     "interval_minutes": {
-                        "value": 6,
+                        "value": "25",
                         "description": "Intervallo in minuti tra l'esecuzione dei backup."
                     },
                     "max_backups": {
-                        "value": 35,
+                        "value": "15",
                         "description": "Numero massimo di backup da conservare per ogni intervallo."
                     },
                     "delta_days": {
-                        "value": 7,
+                        "value": "10",
                         "description": "Intervallo di tempo in giorni per organizzare i backup in cartelle separate."
                     },
                     "backup_books_path": {
-                        "value": os.path.join(self.db_path, "backups", "Books"),
-                        "description": "Percorso dove verranno salvati i backup dei libri contabili."
+                        "value": "",
+                        "description": ""
                     }
                 },
+
                 "fiscal_settings": {
                     "iva": {
+                        "no_iva": {
+                            "value": "0.00",
+                            "description": "Assenza di IVA"
+                        },
                         "aliquota_iva_ordinaria": {
-                            "value": 0.22,
+                            "value": "0.22",
                             "description": "Aliquota IVA standard"
                         },
                         "aliquota_iva_ridotta_1": {
-                            "value": 0.1,
+                            "value": "0.10",
                             "description": "Aliquota IVA ridotta per turismo, costruzioni edilizie e servizi alimentari"
                         },
                         "aliquota_iva_ridotta_2": {
-                            "value": 0.5,
+                            "value": "0.05",
                             "description": "Aliquota IVA ridotta per servizi sociali, sanitari, ed educativi delle cooperative"
                         },
                         "aliquota_iva_minima": {
-                            "value": 0.4,
+                            "value": "0.04",
                             "description": "Aliquota IVA ridotta per beni di prima necessità"
-                        },
-                    },
-                    "partita_iva_forfettaria": {
-                        "aliquota_irpef_min": {
-                            "value": 0.05,
-                            "description": "Aliquota IRPEF minima per partite IVA forfettarie, applicata nei primi anni (5%)."
-                        },
-                        "aliquota_irpef_max": {
-                            "value": 0.15,
-                            "description": "Aliquota IRPEF massima per partite IVA forfettarie, applicata dopo il periodo agevolato (15%)."
-                        },
-                        "anni_agevolazione": {
-                            "value": 5,
-                            "description": "Numero di anni durante i quali si applica la tariffa agevolata per il regime forfettario."
-                        },
-                        "aliquota_inps": {
-                            "value": 0.2607,
-                            "description": "Contributo INPS per partite IVA forfettarie (26.07%)."
-                        },
-                        "aliquota_rivalsa_inps": {
-                            "value": 0.04,
-                            "description": "Aliquota per rivalsa INPS per p. iva forfettarie."
-                        },
-                        "imponibile": {
-                            "value": 0.78,
-                            "description": "Percentuale dell'imponibile considerata per il calcolo fiscale nel regime forfettario (78%)."
                         }
                     },
+
+                    "partita_iva_forfettaria": {
+                        "aliquota_irpef_min": {"value": "0.05", "description": ""},
+                        "aliquota_irpef_max": {"value": "0.15", "description": ""},
+                        "anni_agevolazione": {"value": "5", "description": ""},
+                        "aliquota_inps": {"value": "0.2607", "description": ""},
+                        "aliquota_rivalsa_inps": {"value": "0.04", "description": ""},
+                        "imponibile": {"value": "0.78", "description": ""},
+                        "percentuale_acconto_imposta_primo": {"value": "0.40", "description": ""},
+                        "percentuale_acconto_imposta_secondo": {"value": "0.60", "description": ""},
+                        "percentuale_acconto_inps_forfettario": {"value": "1.00", "description": ""},
+                        "percentuale_rata_acconto_inps_forfettario": {"value": "0.50", "description": ""}
+                    },
+
                     "partita_iva_ordinaria": {
                         "aliquota_irpef_1": {
-                            "value": 0.23,
-                            "description": "Aliquota IRPEF per il primo scaglione di reddito (ipotesi per il 2025, 23%)."
+                            "value": "0.23",
+                            "reddito_min": "0.0",
+                            "reddito_max": "28000",
+                            "description": ""
                         },
                         "aliquota_irpef_2": {
-                            "value": 0.27,
-                            "description": "Aliquota IRPEF per il secondo scaglione di reddito (ipotesi per il 2025, 27%)."
+                            "value": "0.35",
+                            "reddito_min": "28000",
+                            "reddito_max": "50000",
+                            "description": ""
                         },
                         "aliquota_irpef_3": {
-                            "value": 0.38,
-                            "description": "Aliquota IRPEF per il terzo scaglione di reddito (ipotesi per il 2025, 38%)."
+                            "value": "0.43",
+                            "reddito_min": "50000",
+                            "reddito_max": "+Infinity",
+                            "description": ""
                         },
-                        "aliquota_inps": {
-                            "value": 0.2607,
-                            "description": "Contributo INPS per partite IVA ordinarie (26.07%)."
-                        },
-                        "aliquota_cassa_inps": {
-                            "value": 0.04,
-                            "description": "Aliquota per la cassa INPS (4%)."
-                        },
-                        "aliquota_ritenuta": {
-                            "value": 0.2,
-                            "description": "Aliquota per la ritenuta d'acconto (20%)."
-                        },
-                        "imponibile_iva": {
-                            "value": 1,
-                            "description": "Coefficiente per il calcolo dell'imponibile IVA (100%)."
-                        },
-                        "imponibile_ritenuta_acconto": {
-                            "value": 1,
-                            "description": "Coefficiente per il calcolo dell'imponibile per la ritenuta d'acconto (100%)."
-                        },
-                        "imponibile_cassa_inps": {
-                            "value": 1,
-                            "description": "Coefficiente per il calcolo dell'imponibile per la cassa INPS (100%)."
-                        }
+                        "aliquota_inps": {"value": "0.2607", "description": ""},
+                        "aliquota_cassa_inps": {"value": "0.04", "description": ""},
+                        "aliquota_ritenuta": {"value": "0.2", "description": ""},
+                        "imponibile_iva": {"value": "1", "description": ""},
+                        "imponibile_ritenuta_acconto": {"value": "1", "description": ""},
+                        "imponibile_cassa_inps": {"value": "1", "description": ""},
+                        "imponibile_inps": {"value": "1", "description": ""},
+                        "imponibile_irpef": {"value": "1", "description": ""},
+                        "percentuale_acconto_irpef_primo": {"value": "0.40", "description": ""},
+                        "percentuale_acconto_irpef_secondo": {"value": "0.60", "description": ""},
+                        "percentuale_acconto_inps": {"value": "0.80", "description": ""},
+                        "percentuale_rata_acconto_inps": {"value": "0.50", "description": ""}
                     }
                 },
+
                 "clients_business_sectors": {
                     "AEROSPACE": "Aerospaziale e Difesa",
                     "AGRICULTURE": "Agricoltura e Allevamento",
@@ -169,22 +159,38 @@ class ConfigManager:
                     "TELECOMMUNICATIONS": "Telecomunicazioni",
                     "TEXTILE": "Tessile e Abbigliamento",
                     "TOURISM": "Turismo e Ospitalità",
-                    "TRANSPORTATION": "Trasporti e Logistica"
+                    "TRANSPORTATION": "Trasporti e Logistica",
+                    "ADD_SECTOR": "AGGIUNGI UN SETTORE ALLA LISTA"
                 },
+
                 "production_types": {
-                    "PRODUZIONE": "PRODUZIONE",
-                    "POST_PRODUZIONE": "POST_PRODUZIONE",
-                    "MISTA": "MISTA",
-                    "CONSULENZA": "CONSULENZA"
+                    "PRODUZIONE": "Produzione",
+                    "POST_PRODUZIONE": "Postproduzione",
+                    "MISTA": "Mista",
+                    "CONSULENZA": "Consulenza",
+                    "ADD_PROD_TYPE": "AGGIUNGI UNA TIPOLOGIA ALLA LISTA"
                 },
-                "output_types": {
-                    "VIDEO_MUSICALE": "VIDEO_MUSICALE",
-                    "ADV_SOCIAL": "ADV_SOCIAL",
-                    "COMMERCIAL": "COMMERCIAL",
-                    "INTEGRAZIONE_VFX": "INTEGRAZIONE_VFX"
+
+                "production_output_types": {
+                    "VIDEO_MUSICALE": "Video musicale",
+                    "ADV_SOCIAL": "ADV social",
+                    "COMMERCIAL": "Commercial",
+                    "INTEGRAZIONE_VFX": "Integrazione VFX",
+                    "ADD_PROD_OUT_TYPE": "AGGIUNGI UNA TIPOLOGIA DI OUTPUT ALLA LISTA"
+                },
+
+                "expenses_category": {},
+
+                "recurring_expenses": {},
+
+                "historical_financial_data": {
+                    "revenues": {},
+                    "deducted_expenses": {}
                 }
             }
+
             self.save_config(default_config)
+            print(f"[CONFIG] File di configurazione creato correttamente: {self.CONFIG_FILE}")
             return default_config
 
         with open(self.CONFIG_FILE, "r", encoding="utf-8") as file:

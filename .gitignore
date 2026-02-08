@@ -69,3 +69,8 @@ backups/
 /dist/WillowGestionale0.0.3.exe
 /dist/
 /NotebookLM_context/
+
+
+# Python bytecode
+__pycache__/
+*.pyc

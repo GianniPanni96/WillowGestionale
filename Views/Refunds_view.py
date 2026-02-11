@@ -189,7 +189,7 @@ class RefundsView(ctk.CTkFrame):
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutte le fatture dell'anno corrente
-        all_refunds = self.refund_controller.retrieve_refunds_map_list(True)
+        all_refunds = self.refund_controller.retrieve_refunds_map_list()
 
         # Filtra le fatture: solo quelle con data di emissione >= limit_date
         filtered_refunds = []

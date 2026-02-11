@@ -150,7 +150,12 @@ class ClientsView(ctk.CTkFrame):
                     except Exception as e:
                         print(f"Errore nel parsare la data {date_str}: {e}")
 
-            if has_recent_production:
+            # Verifico se è stato appena inserito (quindi è normale che non abbia ancora produzioni attive)
+            update_date = datetime.strptime(client.get(DBClientsColumns.UPDATED_AT.value), "%Y-%m-%d %H:%M:%S")
+            just_insert = (datetime.now() - update_date).total_seconds() <= 432000 #5 giorni
+
+
+            if has_recent_production or just_insert:
                 filtered_clients.append(client)
 
         # Svuota le cards attuali

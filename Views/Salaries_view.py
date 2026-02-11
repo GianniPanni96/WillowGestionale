@@ -198,7 +198,7 @@ class SalariesView(ctk.CTkFrame):
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutte le fatture dell'anno corrente
-        all_salaries = self.salary_controller.retrieve_salaries_map_list(True)
+        all_salaries = self.salary_controller.retrieve_salaries_map_list()
 
         # Filtra le fatture: solo quelle con data di emissione >= limit_date
         filtered_salaries = []

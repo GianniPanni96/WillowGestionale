@@ -973,6 +973,7 @@ class InvoicesView(ctk.CTkFrame):
                 # Estrai direttamente l'anno dall'oggetto date
                 year = selected_date.year
                 self.toggle_year_label_in_numero_fattura(str(year))
+                self.auto_compile_invoice_name()
 
         except Exception as e:
             print(f"Errore durante l'aggiornamento dell'anno: {e}")
@@ -1039,19 +1040,28 @@ class InvoicesView(ctk.CTkFrame):
                 ctk.CTkLabel(invoice_frame, text = invoice_content).pack(pady=5, padx=5)
                 ctk.CTkButton(invoice_frame, text="Seleziona", command=lambda: self.select_correct_invoice(invoice))"""
 
-    def auto_compile_invoice_name(self, user_name):
-        user_full_name = user_name.split(" ")
+    def auto_compile_invoice_name(self, user_name = None):
+        user_full_name = user_name.split(" ") if user_name else self.invoice_widgets.get(self.nome_utente_string).get().split(" ")
         user_id = self.user_controller.retrieve_user_by_fullname(user_full_name[0], user_full_name[1])[0]
-        user_invoices = self.invoice_controller.retrieve_invoices_map_list_by_user(user_id)
+        user_invoices = self.invoice_controller.retrieve_invoices_map_list_by_user(user_id, year = -1)
 
-        user_invoice_numbers = []
+        #get the selected year
+        selected_date = self.invoice_widgets.get(DBInvoicesColumns.DATA_CREAZIONE.value).get_date()
+        selected_year = datetime.strptime(selected_date, "%Y-%m-%d").year
+
+        user_invoice_numbers = {"" : []}
         for invoice in user_invoices:
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
             invoice_name_splitted = invoice_name.split(" - ")
             invoice_number = invoice_name_splitted[1].split("FPR")[1]
-            user_invoice_numbers.append(int(invoice_number))
+            invoice_year = int(invoice_name_splitted[2])
+            try:
+                user_invoice_numbers[str(invoice_year)].append(int(invoice_number))
+            except KeyError:
+                user_invoice_numbers[str(invoice_year)] = [int(invoice_number)]
 
-        last_invoice_number = max(user_invoice_numbers) + 1 if user_invoice_numbers else 1
+        selected_year_invoices_number_list = user_invoice_numbers.get(str(selected_year))
+        last_invoice_number = max(selected_year_invoices_number_list) + 1 if selected_year_invoices_number_list else 1
 
         # Converti a stringa con lunghezza 2, padding con zero
         last_invoice_number_str = str(last_invoice_number).zfill(2)

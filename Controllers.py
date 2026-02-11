@@ -4197,11 +4197,11 @@ class ExpenseController:
         SOSPESA = "Sospesa"
 
     def __init__(self, db_model, user_controller, account_controller, invoice_controller, supplier_controller, recurring_expenses_settings, catalogo_elenchi):
-        self.db_model = db_model
-        self.user_controller = user_controller
-        self.account_controller = account_controller
-        self.invoice_controller = invoice_controller
-        self.supplier_controller = supplier_controller
+        self.db_model: DatabaseModel = db_model
+        self.user_controller: UserController = user_controller
+        self.account_controller: AccountController = account_controller
+        self.invoice_controller: InvoiceController = invoice_controller
+        self.supplier_controller: SupplierController = supplier_controller
         self.recurring_expenses_settings = recurring_expenses_settings
         self.catalogo_elenchi = catalogo_elenchi
 
@@ -4250,7 +4250,7 @@ class ExpenseController:
         #la view si occupa di non mandare tra i dati la fattura associata se la categoria non è "SPESA DI PRODUZIONE"
         invoice_name = expense_data.get("FATTURA ASSOCIATA")
         if invoice_name is not None:
-            invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name, True)
+            invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
             if invoice != {}:
                 invoice_id = invoice[DBInvoicesColumns.ID.value]
 

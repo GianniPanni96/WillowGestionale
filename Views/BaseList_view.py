@@ -35,7 +35,7 @@ class BaseListView(ctk.CTkFrame):
     # 7. Nome della tab (usato nel cleanup)
     TAB_NAME = "ELEMENTO"
 
-    def __init__(self, tab_frame, **kwargs):
+    def __init__(self, tab_frame, db_retrieving_function = None, **kwargs):
         super().__init__(tab_frame)
         self.tab = tab_frame
 
@@ -50,6 +50,8 @@ class BaseListView(ctk.CTkFrame):
         # Containers principali (comuni a tutte le views)
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
         self.detail_container = ctk.CTkFrame(self, fg_color="transparent")
+
+        self.db_retrieving_function = db_retrieving_function
 
         # Metodi di inizializzazione (chiamati dalla classe figlia)
         self.create_main_tab_ui()
@@ -261,6 +263,8 @@ class BaseListView(ctk.CTkFrame):
         if not hasattr(self, "SORT_CONFIG"):
             return
 
+        temp_dictionary_of_maps = self.db_retrieving_function(keyIsName=True)
+
         selected_label = self.order_bar_optionMenu.get()
         sort_order = self.order_bar_optionMenu_types.get()
         reverse = (sort_order == "DECRESCENTE")
@@ -287,9 +291,10 @@ class BaseListView(ctk.CTkFrame):
                     value = children[idx].cget("text")
 
             #come gestisco il retrieving dei dati nei singoli casi?
-            #elif sort_cfg["access"] == "database":
-            #    entity_id = key
-            #    value = self._get_db_value(entity_id, sort_cfg["db_column"])
+            elif sort_cfg["access"] == "database":
+                db_column = sort_cfg["db_column"]
+                entity_id = key
+                value = temp_dictionary_of_maps[entity_id][db_column]
 
             converted = converter(value) if converter and value else value
             cards_with_values.append((card, converted))

@@ -156,11 +156,13 @@ class SuppliersView(ctk.CTkFrame):
                     except Exception as e:
                         print(f"Errore nel parsare la data {date_str}: {e}")
 
-            # Verifico se è stato appena inserito (quindi è normale che non abbia ancora produzioni attive)
-            update_date = datetime.strptime(supplier.get(DBSuppliersColumns.UPDATED_AT.value), "%Y-%m-%d %H:%M:%S")
-            just_insert = (datetime.now() - update_date).total_seconds() <= 432000 #5 giorni
+            #bypass last expense if it's just created
+            supplier_creation_date = datetime.strptime(supplier.get(DBSuppliersColumns.CREATED_AT.value), "%Y-%m-%d %H:%M:%S")
+            is_just_created = False
+            if datetime.now() - supplier_creation_date <= timedelta(days=30):
+                is_just_created = True
 
-            if has_recent_expense or just_insert:
+            if has_recent_expense or is_just_created:
                 filtered_suppliers.append(supplier)
 
         # Svuota le cards attuali

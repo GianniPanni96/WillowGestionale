@@ -83,7 +83,7 @@ class ClientsViewH(BaseListView):
 
     def __init__(self, app_context:AppContext, tab):
         # Chiama l'__init__ della classe Base
-        super().__init__(tab)
+        super().__init__(tab, db_retrieving_function=app_context.client_controller.retrieve_clients_map_dictionary)
 
         # Inizializzazione dei controller e del bus [4, 12]
         self.app_context:AppContext = app_context
@@ -215,7 +215,13 @@ class ClientsViewH(BaseListView):
                     except Exception as e:
                         print(f"Errore nel parsare la data {date_str}: {e}")
 
-            if has_recent_production:
+            #bypass last production if it's just created
+            client_creation_date = datetime.strptime(client.get(DBClientsColumns.CREATED_AT.value), "%Y-%m-%d %H:%M:%S")
+            is_just_created = False
+            if datetime.now() - client_creation_date <= timedelta(days=30):
+                is_just_created = True
+
+            if has_recent_production or is_just_created:
                 filtered_clients.append(client)
 
         # Svuota e ricarica le cards

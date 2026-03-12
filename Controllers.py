@@ -1628,6 +1628,18 @@ class ClientController:
         rows = self.db_model.fetch_clients()
         return [ValidationUtils._row_to_map(row, DBClientsColumns) for row in rows]
 
+    def retrieve_clients_map_dictionary(self, keyIsName:bool = False):
+        """Recupera tutti i clienti e li restituisce come un dizionario di dizionari in cui la chiave è l'ID.
+        :param keyIsName: using ClientName as key instead of ID
+        """
+        list = self.retrieve_clients_map_list()
+        dictionary = {}
+
+        for row in list:
+            dictionary[f"{row[DBClientsColumns.NAME.value]}" if keyIsName else f"{row[DBClientsColumns.ID.value]}"] = row
+
+        return dictionary
+
     def retrieve_client_with_invoices_map_list(self, client_id, year:int = None, include_unpaid_invoices:bool = True):
         """
         Recupera lo specifico client unito alle rispettive fatture e

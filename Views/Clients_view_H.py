@@ -2,15 +2,13 @@ import customtkinter as ctk
 from Views.Details.Client_detail_view import ClientDetailView
 
 from Views.BaseList_view import BaseListView
-from Views.View_utils import ViewUtils
-
 from Controllers import ClientController
 
 from App_context import AppContext
 
 from QueryServices.Clients_query_service import ClientQueryService
+from Model import DBClientsColumns
 
-from Event_bus import EventBus
 
 
 class ClientsViewH(BaseListView):
@@ -80,6 +78,10 @@ class ClientsViewH(BaseListView):
         "365 GG": "365 GG"
     }
 
+    VIRTUALIZATION_ENABLED = True
+    INITIAL_POOL_SIZE = 25
+    VIRTUALIZATION_BUFFER = 6
+
     def __init__(self, app_context:AppContext, tab):
         # Chiama l'__init__ della classe Base
         super().__init__(tab, db_retrieving_function=app_context.client_controller.retrieve_clients_map_dictionary)
@@ -94,7 +96,7 @@ class ClientsViewH(BaseListView):
         #self.catalogo_elenchi = app_context.catalogo_elenchi
         #self.config_manager:ConfigManager = app_context.config_manager
         #self.event_bus:EventBus = app_context.event_bus
-        self.clients_card_list = self.cards_list  # self.cards_list è l'attributo generico della BaseListView
+        self.clients_card_list = self.cards_list  # mappa dinamica delle card visibili
         self.client_query_service: ClientQueryService = app_context.clients_query_service
 
         self.show_last_cards_optionMenu.set("60 GG")
@@ -130,16 +132,8 @@ class ClientsViewH(BaseListView):
         pass
 
     def load_items_chunked(self, items_list):
-        """Implementazione del caricamento a blocchi, usando l'extractor specifico."""
-        # Logica esistente in ClientsView.load_clients_chunked [49, 51]
-        extractor = ViewUtils.create_extractor_for_clients(self.client_controller)
-        ViewUtils.process_items_in_chunks(
-            widget=self,
-            items_list=items_list,
-            add_card_callback=self.add_item_card,  # Usa add_item_card come callback
-            extract_args_callback=extractor,
-            cards_frame=getattr(self, self.CARDS_FRAME_NAME)
-        )
+        """Compatibilità con la base: in questa view la virtualizzazione usa set_items."""
+        self.set_items(items_list)
 
     def add_item_card(self, client_id, nome, tot_entrate, num_fatture, fattura_media, tot_crediti, tot_rimborsi,
                       pagam_orario, giorni_rit, media_rit):
@@ -169,6 +163,71 @@ class ClientsViewH(BaseListView):
 
         self.cards_list[nome] = card
 
+    def create_virtual_card_widget(self, parent):
+        card = ctk.CTkFrame(parent, fg_color="dimgray")
+
+        n_cols = len(self.HEADERS)
+        for col in range(n_cols):
+            card.grid_columnconfigure(col, weight=1, uniform="col")
+            card.grid_rowconfigure(0, weight=1)
+
+        name_button = ctk.CTkButton(card, text="", command=lambda: None)
+        name_button.grid(row=0, column=0, sticky="nsew", padx=(10, 5), pady=10)
+
+        labels = []
+        for idx in range(1, n_cols):
+            lbl = ctk.CTkLabel(card, text="")
+            lbl.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
+            labels.append(lbl)
+
+        card._name_button = name_button
+        card._value_labels = labels
+        return card
+
+    def bind_virtual_card_widget(self, card, item):
+        client_id = item["client_id"]
+        card._name_button.configure(
+            text=item["nome"],
+            command=lambda cid=client_id: self.open_client_detail_tab(cid)
+        )
+
+        values = [
+            item["tot_entrate"],
+            item["num_fatture"],
+            item["fattura_media"],
+            item["tot_crediti"],
+            item["tot_rimborsi"],
+            item["pagam_orario"],
+            item["giorni_rit"],
+            item["media_rit"],
+        ]
+        for lbl, value in zip(card._value_labels, values):
+            lbl.configure(text=f"{value}")
+
+    def get_item_key(self, item):
+        return item["client_id"]
+
+    def get_item_search_text(self, item, search_type):
+        if search_type == "NOME CLIENTE":
+            return item["nome"]
+        return ""
+
+    def get_item_sort_value(self, item, sort_cfg, temp_dictionary_of_maps):
+        if sort_cfg["access"] == "direct":
+            key_map = {
+                0: "nome",
+                1: "tot_entrate",
+            }
+            key = key_map.get(sort_cfg.get("index"))
+            return item.get(key)
+
+        if sort_cfg["access"] == "database":
+            db_column = sort_cfg["db_column"]
+            client_id = item["client_id"]
+            return temp_dictionary_of_maps[client_id][db_column]
+
+        return None
+
     def open_client_detail_tab(self, client_id):
         """Metodo per la navigazione specifica (non è generico, ma usa la struttura Base)"""
         self.main_container.pack_forget()
@@ -190,11 +249,29 @@ class ClientsViewH(BaseListView):
         days = days_map.get(selected, 30)  # Mappa il valore ai giorni [6]
 
         filtered_clients = self.client_query_service.get_clients_for_days_window(days)
+        cards_data = self._build_clients_cards_data(filtered_clients)
 
-        # Svuota e ricarica le cards
-        for card in self.clients_card_list.values():
-            card.destroy()
-        self.clients_card_list.clear()
+        self.set_items(cards_data)
+        self.sort_cards()
 
-        self.load_items_chunked(filtered_clients)
-        self.sort_cards() # Chiamata opzionale se l'ordinamento è desiderato dopo il filtro
+    def _build_clients_cards_data(self, filtered_clients):
+        cards_data = []
+        for client in filtered_clients:
+            client_id = client[DBClientsColumns.ID.value]
+            nome = client[DBClientsColumns.NAME.value]
+            aggregate_data = self.client_controller.construct_client_map_aggregate_data(client_id, year=-1)
+
+            cards_data.append({
+                "client_id": client_id,
+                "nome": nome,
+                "tot_entrate": round(aggregate_data[self.client_controller.Aggregate_data.TOT_ENTRATE.value], 2),
+                "num_fatture": aggregate_data[self.client_controller.Aggregate_data.NUM_FATTURE.value],
+                "fattura_media": round(aggregate_data[self.client_controller.Aggregate_data.MEDIA_FATTURE.value], 2),
+                "tot_crediti": round(aggregate_data[self.client_controller.Aggregate_data.TOT_CREDITI.value], 2),
+                "tot_rimborsi": round(self.client_controller.calcola_tot_rimborsi_by_client(client_id)),
+                "pagam_orario": round(aggregate_data[self.client_controller.Aggregate_data.PAGAM_ORARIO_MEDIO.value], 2),
+                "giorni_rit": aggregate_data[self.client_controller.Aggregate_data.TOT_GIORNI_RIT.value],
+                "media_rit": round(aggregate_data[self.client_controller.Aggregate_data.MEDIA_RITARDO.value], 2),
+            })
+
+        return cards_data

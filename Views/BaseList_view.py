@@ -36,6 +36,12 @@ class BaseListView(ctk.CTkFrame):
     # 7. Nome della tab (usato nel cleanup)
     TAB_NAME = "ELEMENTO"
 
+    # Virtualizzazione lista/cards
+    VIRTUALIZATION_ENABLED = False
+    INITIAL_POOL_SIZE = 25
+    VIRTUALIZATION_BUFFER = 4
+    CARD_VERTICAL_SPACING = 20
+
     def __init__(self, tab_frame, db_retrieving_function = None, **kwargs):
         super().__init__(tab_frame)
         self.tab = tab_frame
@@ -44,6 +50,14 @@ class BaseListView(ctk.CTkFrame):
         self.global_infos = {}
         self.amount_aggregate_labels = {}
         self.cards_list = {}  # Mappa delle card attive (es. self.invoices_card_list)
+        self._items_dataset = []
+        self._filtered_dataset = []
+        self._virtual_pool = []
+        self._virtual_index_for_slot = {}
+        self._slot_for_virtual_index = {}
+        self._estimated_card_height = 90
+        self._virtual_layout_job = None
+        self._last_first_visible = -1
 
         # Variabili di stato
         self.order_bar_option_menu_values_types = {"DECRESCENTE": "DECRESCENTE", "CRESCENTE": "CRESCENTE"}
@@ -189,6 +203,136 @@ class BaseListView(ctk.CTkFrame):
             cards_frame.pack(padx=0, pady=10, fill="both", expand=True)
             setattr(self, self.CARDS_FRAME_NAME, cards_frame)  # Assegna il frame all'attributo corretto
 
+            if self.VIRTUALIZATION_ENABLED:
+                self._top_spacer = ctk.CTkFrame(cards_frame, fg_color="transparent", height=0)
+                self._top_spacer.pack(fill="x")
+
+                self._pool_container = ctk.CTkFrame(cards_frame, fg_color="transparent")
+                self._pool_container.pack(fill="x", expand=True)
+
+                self._bottom_spacer = ctk.CTkFrame(cards_frame, fg_color="transparent", height=0)
+                self._bottom_spacer.pack(fill="x")
+
+                self._bind_virtual_scroll_events(cards_frame)
+
+    def _bind_virtual_scroll_events(self, cards_frame):
+        cards_frame.bind("<Configure>", lambda _e: self._schedule_virtual_layout_update())
+
+        canvas = getattr(cards_frame, "_parent_canvas", None)
+        if canvas is not None:
+            canvas.bind("<Configure>", lambda _e: self._schedule_virtual_layout_update())
+            canvas.bind_all("<MouseWheel>", lambda _e: self._schedule_virtual_layout_update())
+            canvas.bind_all("<Button-4>", lambda _e: self._schedule_virtual_layout_update())
+            canvas.bind_all("<Button-5>", lambda _e: self._schedule_virtual_layout_update())
+
+    def _schedule_virtual_layout_update(self):
+        if not self.VIRTUALIZATION_ENABLED:
+            return
+
+        if self._virtual_layout_job is not None:
+            self.after_cancel(self._virtual_layout_job)
+
+        self._virtual_layout_job = self.after(16, self._refresh_virtualized_window)
+
+    def _ensure_virtual_pool(self):
+        if not self.VIRTUALIZATION_ENABLED:
+            return
+
+        target_pool_size = max(1, self.INITIAL_POOL_SIZE)
+        while len(self._virtual_pool) < target_pool_size:
+            card = self.create_virtual_card_widget(self._pool_container)
+            self._virtual_pool.append(card)
+
+    def _get_viewport_height(self):
+        cards_frame = getattr(self, self.CARDS_FRAME_NAME, None)
+        canvas = getattr(cards_frame, "_parent_canvas", None) if cards_frame else None
+        if canvas is None:
+            return 1
+
+        height = canvas.winfo_height()
+        return height if height > 1 else 1
+
+    def _get_scroll_fraction(self):
+        cards_frame = getattr(self, self.CARDS_FRAME_NAME, None)
+        canvas = getattr(cards_frame, "_parent_canvas", None) if cards_frame else None
+        if canvas is None:
+            return 0.0
+
+        yview = canvas.yview()
+        return yview[0] if yview else 0.0
+
+    def _refresh_virtualized_window(self):
+        self._virtual_layout_job = None
+        if not self.VIRTUALIZATION_ENABLED:
+            return
+
+        total_items = len(self._filtered_dataset)
+        if total_items == 0:
+            for card in self._virtual_pool:
+                card.pack_forget()
+            self._top_spacer.configure(height=0)
+            self._bottom_spacer.configure(height=0)
+            self.cards_list.clear()
+            return
+
+        self._ensure_virtual_pool()
+        viewport_height = self._get_viewport_height()
+        row_height = max(1, self._estimated_card_height + self.CARD_VERTICAL_SPACING)
+        total_virtual_height = max(1, total_items * row_height)
+        scroll_fraction = self._get_scroll_fraction()
+        first_visible = int((scroll_fraction * total_virtual_height) / row_height)
+        first_visible = max(0, min(first_visible, max(0, total_items - 1)))
+
+        visible_count = max(1, int(viewport_height / row_height) + self.VIRTUALIZATION_BUFFER)
+        max_pool_window = min(len(self._virtual_pool), total_items)
+        visible_count = min(max_pool_window, visible_count)
+
+        start_index = max(0, first_visible - self.VIRTUALIZATION_BUFFER // 2)
+        max_start = max(0, total_items - visible_count)
+        start_index = min(start_index, max_start)
+        end_index = min(total_items, start_index + visible_count)
+
+        if start_index == self._last_first_visible and self.cards_list:
+            return
+
+        self._last_first_visible = start_index
+        self.cards_list.clear()
+        self._slot_for_virtual_index.clear()
+
+        top_height = start_index * row_height
+        bottom_height = max(0, (total_items - end_index) * row_height)
+        self._top_spacer.configure(height=top_height)
+        self._bottom_spacer.configure(height=bottom_height)
+
+        for card in self._virtual_pool:
+            card.pack_forget()
+
+        for slot_idx, item_index in enumerate(range(start_index, end_index)):
+            card = self._virtual_pool[slot_idx]
+            item = self._filtered_dataset[item_index]
+            self.bind_virtual_card_widget(card, item)
+            card.pack(pady=10, padx=10, fill="x", expand=True)
+
+            key = self.get_item_key(item)
+            self.cards_list[key] = card
+            self._virtual_index_for_slot[slot_idx] = item_index
+            self._slot_for_virtual_index[item_index] = slot_idx
+
+            if slot_idx == 0:
+                card.update_idletasks()
+                self._estimated_card_height = max(1, card.winfo_height())
+
+    def set_items(self, items_list):
+        self._items_dataset = list(items_list or [])
+        self._filtered_dataset = list(self._items_dataset)
+
+        if self.VIRTUALIZATION_ENABLED:
+            self._ensure_virtual_pool()
+            self._refresh_virtualized_window()
+            return
+
+        self.load_items_chunked(self._filtered_dataset)
+
     def _create_add_button(self):
         """Crea il frame e il bottone di aggiunta."""
         self.add_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
@@ -286,36 +430,45 @@ class BaseListView(ctk.CTkFrame):
 
         converter = self._get_converter(sort_cfg.get("converter"))
 
+        if self.VIRTUALIZATION_ENABLED:
+            sortable_items = [
+                (item, self._get_item_sort_value(item, sort_cfg, converter, temp_dictionary_of_maps))
+                for item in self._filtered_dataset
+            ]
+            sortable_items.sort(key=lambda x: (x[1] is None, x[1]), reverse=reverse)
+            self._filtered_dataset = [item for item, _ in sortable_items]
+            self._refresh_virtualized_window()
+            return
+
         cards_with_values = []
-
         for key, card in self.cards_list.items():
-            children = card.winfo_children()
-            value = None
-
-            if sort_cfg["access"] == "direct":
-                idx = sort_cfg["index"]
-                if len(children) > idx:
-                    value = children[idx].cget("text")
-
-            #come gestisco il retrieving dei dati nei singoli casi?
-            elif sort_cfg["access"] == "database":
-                db_column = sort_cfg["db_column"]
-                entity_id = key
-                value = temp_dictionary_of_maps[entity_id][db_column]
-
+            value = self.get_legacy_card_sort_value(key, card, sort_cfg, temp_dictionary_of_maps)
             converted = converter(value) if converter and value else value
             cards_with_values.append((card, converted))
 
-        cards_with_values.sort(
-            key=lambda x: (x[1] is None, x[1]),
-            reverse=reverse
-        )
-
+        cards_with_values.sort(key=lambda x: (x[1] is None, x[1]), reverse=reverse)
         for card, _ in cards_with_values:
             card.pack_forget()
-
         for card, _ in cards_with_values:
             card.pack(pady=10, padx=10, fill="x", expand=True)
+
+    def _get_item_sort_value(self, item, sort_cfg, converter, temp_dictionary_of_maps):
+        value = self.get_item_sort_value(item, sort_cfg, temp_dictionary_of_maps)
+        return converter(value) if converter and value else value
+
+    def get_legacy_card_sort_value(self, key, card, sort_cfg, temp_dictionary_of_maps):
+        children = card.winfo_children()
+        value = None
+
+        if sort_cfg["access"] == "direct":
+            idx = sort_cfg["index"]
+            if len(children) > idx:
+                value = children[idx].cget("text")
+        elif sort_cfg["access"] == "database":
+            db_column = sort_cfg["db_column"]
+            value = temp_dictionary_of_maps[key][db_column]
+
+        return value
 
     # --- Metodi che DEVONO essere implementati dalle classi figlie ---
 
@@ -344,6 +497,21 @@ class BaseListView(ctk.CTkFrame):
         raise NotImplementedError(
             "La logica di disegno di una singola card deve essere implementata nella classe figlia.")
 
+    def create_virtual_card_widget(self, parent):
+        raise NotImplementedError("Creare una card riciclabile nella classe figlia.")
+
+    def bind_virtual_card_widget(self, card, item):
+        raise NotImplementedError("Associare i dati alla card riciclata nella classe figlia.")
+
+    def get_item_key(self, item):
+        raise NotImplementedError("Restituire una chiave univoca item->card nella classe figlia.")
+
+    def get_item_search_text(self, item, search_type):
+        raise NotImplementedError("Restituire il testo usato per il filtro nella classe figlia.")
+
+    def get_item_sort_value(self, item, sort_cfg, temp_dictionary_of_maps):
+        raise NotImplementedError("Restituire il valore usato per l'ordinamento nella classe figlia.")
+
     def show_last_cards(self):
         """
         Logica per filtrare gli item per data (ultimi N giorni).
@@ -360,6 +528,18 @@ class BaseListView(ctk.CTkFrame):
         search_type = self.search_bar_optionMenu.get()
 
         mapping = self.FILTER_MAPPING.get(search_type)
+
+        if self.VIRTUALIZATION_ENABLED:
+            if mapping is None or not search_text:
+                self._filtered_dataset = list(self._items_dataset)
+            else:
+                self._filtered_dataset = [
+                    item for item in self._items_dataset
+                    if search_text in str(self.get_item_search_text(item, search_type)).lower()
+                ]
+            self._last_first_visible = -1
+            self._refresh_virtualized_window()
+            return
 
         # 1. Rimuovi tutte le card esistenti
         for card in self.cards_list.values():

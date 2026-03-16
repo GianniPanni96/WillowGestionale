@@ -214,9 +214,6 @@ class BaseListView(ctk.CTkFrame):
                 self._top_spacer.pack(fill="x")
                 self._top_spacer.pack_propagate(False)
 
-                self._pool_container = ctk.CTkFrame(cards_frame, fg_color="transparent")
-                self._pool_container.pack(fill="x", expand=True)
-
                 self._bottom_spacer = ctk.CTkFrame(cards_frame, fg_color="transparent", height=0)
                 self._bottom_spacer.pack(fill="x")
                 self._bottom_spacer.pack_propagate(False)
@@ -248,8 +245,11 @@ class BaseListView(ctk.CTkFrame):
         if hasattr(cards_frame, "_create_window_id"):
             canvas.itemconfigure(cards_frame._create_window_id, width=target_width)
 
-        if hasattr(self, "_pool_container"):
-            self._pool_container.configure(width=target_width)
+        for card in self._virtual_pool:
+            try:
+                card.configure(width=target_width)
+            except Exception:
+                pass
 
     def _start_virtual_scroll_watcher(self):
         if not self.VIRTUALIZATION_ENABLED:
@@ -289,7 +289,8 @@ class BaseListView(ctk.CTkFrame):
 
         target_pool_size = max(1, self.INITIAL_POOL_SIZE)
         while len(self._virtual_pool) < target_pool_size:
-            card = self.create_virtual_card_widget(self._pool_container)
+            parent = getattr(self, self.CARDS_FRAME_NAME)
+            card = self.create_virtual_card_widget(parent)
             self._virtual_pool.append(card)
             self._vdebug(f"pool grow -> {len(self._virtual_pool)}")
 

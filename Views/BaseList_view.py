@@ -208,12 +208,14 @@ class BaseListView(ctk.CTkFrame):
             if self.VIRTUALIZATION_ENABLED:
                 self._top_spacer = ctk.CTkFrame(cards_frame, fg_color="transparent", height=0)
                 self._top_spacer.pack(fill="x")
+                self._top_spacer.pack_propagate(False)
 
                 self._pool_container = ctk.CTkFrame(cards_frame, fg_color="transparent")
                 self._pool_container.pack(fill="x", expand=True)
 
                 self._bottom_spacer = ctk.CTkFrame(cards_frame, fg_color="transparent", height=0)
                 self._bottom_spacer.pack(fill="x")
+                self._bottom_spacer.pack_propagate(False)
 
                 self._bind_virtual_scroll_events(cards_frame)
 
@@ -222,10 +224,27 @@ class BaseListView(ctk.CTkFrame):
 
         canvas = getattr(cards_frame, "_parent_canvas", None)
         if canvas is not None:
-            canvas.bind("<Configure>", lambda _e: self._schedule_virtual_layout_update())
+            canvas.bind("<Configure>", lambda _e: (self._sync_virtual_width(), self._schedule_virtual_layout_update()))
             canvas.bind_all("<MouseWheel>", lambda _e: self._schedule_virtual_layout_update())
             canvas.bind_all("<Button-4>", lambda _e: self._schedule_virtual_layout_update())
             canvas.bind_all("<Button-5>", lambda _e: self._schedule_virtual_layout_update())
+
+    def _sync_virtual_width(self):
+        if not self.VIRTUALIZATION_ENABLED:
+            return
+
+        cards_frame = getattr(self, self.CARDS_FRAME_NAME, None)
+        canvas = getattr(cards_frame, "_parent_canvas", None) if cards_frame else None
+        if canvas is None:
+            return
+
+        target_width = max(1, canvas.winfo_width())
+
+        if hasattr(cards_frame, "_create_window_id"):
+            canvas.itemconfigure(cards_frame._create_window_id, width=target_width)
+
+        if hasattr(self, "_pool_container"):
+            self._pool_container.configure(width=target_width)
 
     def _schedule_virtual_layout_update(self):
         if not self.VIRTUALIZATION_ENABLED:
@@ -310,6 +329,8 @@ class BaseListView(ctk.CTkFrame):
         self._top_spacer.configure(height=top_height)
         self._bottom_spacer.configure(height=bottom_height)
 
+        self._sync_virtual_width()
+
         for card in self._virtual_pool:
             card.pack_forget()
 
@@ -317,7 +338,7 @@ class BaseListView(ctk.CTkFrame):
             card = self._virtual_pool[slot_idx]
             item = self._filtered_dataset[item_index]
             self.bind_virtual_card_widget(card, item)
-            card.pack(pady=10, padx=10, fill="x", expand=True)
+            card.pack(pady=10, padx=0, fill="x")
 
             key = self.get_item_key(item)
             self.cards_list[key] = card
@@ -329,6 +350,11 @@ class BaseListView(ctk.CTkFrame):
                 self._estimated_card_height = max(1, card.winfo_height())
 
         self._last_render_epoch = self._virtual_data_epoch
+
+        cards_frame = getattr(self, self.CARDS_FRAME_NAME, None)
+        canvas = getattr(cards_frame, "_parent_canvas", None) if cards_frame else None
+        if canvas is not None:
+            canvas.configure(scrollregion=canvas.bbox("all"))
 
     def set_items(self, items_list):
         self._items_dataset = list(items_list or [])

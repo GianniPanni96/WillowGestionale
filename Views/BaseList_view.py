@@ -41,6 +41,7 @@ class BaseListView(ctk.CTkFrame):
     INITIAL_POOL_SIZE = 25
     VIRTUALIZATION_BUFFER = 4
     CARD_VERTICAL_SPACING = 20
+    VIRTUALIZATION_DEBUG = True
 
     def __init__(self, tab_frame, db_retrieving_function = None, **kwargs):
         super().__init__(tab_frame)
@@ -224,14 +225,14 @@ class BaseListView(ctk.CTkFrame):
                 self._start_virtual_scroll_watcher()
 
     def _bind_virtual_scroll_events(self, cards_frame):
-        cards_frame.bind("<Configure>", lambda _e: self._schedule_virtual_layout_update())
+        cards_frame.bind("<Configure>", lambda _e: (self._vdebug("cards_frame <Configure>"), self._schedule_virtual_layout_update()))
 
         canvas = getattr(cards_frame, "_parent_canvas", None)
         if canvas is not None:
-            canvas.bind("<Configure>", lambda _e: (self._sync_virtual_width(), self._schedule_virtual_layout_update()))
-            canvas.bind_all("<MouseWheel>", lambda _e: self._schedule_virtual_layout_update())
-            canvas.bind_all("<Button-4>", lambda _e: self._schedule_virtual_layout_update())
-            canvas.bind_all("<Button-5>", lambda _e: self._schedule_virtual_layout_update())
+            canvas.bind("<Configure>", lambda _e: (self._vdebug(f"canvas <Configure> w={canvas.winfo_width()} h={canvas.winfo_height()}"), self._sync_virtual_width(), self._schedule_virtual_layout_update()))
+            canvas.bind_all("<MouseWheel>", lambda e: (self._vdebug(f"<MouseWheel> delta={getattr(e, 'delta', None)}"), self._schedule_virtual_layout_update()))
+            canvas.bind_all("<Button-4>", lambda _e: (self._vdebug("<Button-4>"), self._schedule_virtual_layout_update()))
+            canvas.bind_all("<Button-5>", lambda _e: (self._vdebug("<Button-5>"), self._schedule_virtual_layout_update()))
 
     def _sync_virtual_width(self):
         if not self.VIRTUALIZATION_ENABLED:
@@ -264,6 +265,7 @@ class BaseListView(ctk.CTkFrame):
 
             current_fraction = self._get_scroll_fraction()
             if abs(current_fraction - self._last_scroll_fraction) > 0.0005:
+                self._vdebug(f"watch_scroll yview changed: {self._last_scroll_fraction:.4f} -> {current_fraction:.4f}")
                 self._last_scroll_fraction = current_fraction
                 self._schedule_virtual_layout_update()
 
@@ -278,6 +280,7 @@ class BaseListView(ctk.CTkFrame):
         if self._virtual_layout_job is not None:
             self.after_cancel(self._virtual_layout_job)
 
+        self._vdebug("schedule refresh in 16ms")
         self._virtual_layout_job = self.after(16, self._refresh_virtualized_window)
 
     def _ensure_virtual_pool(self):
@@ -288,6 +291,7 @@ class BaseListView(ctk.CTkFrame):
         while len(self._virtual_pool) < target_pool_size:
             card = self.create_virtual_card_widget(self._pool_container)
             self._virtual_pool.append(card)
+            self._vdebug(f"pool grow -> {len(self._virtual_pool)}")
 
     def _get_viewport_height(self):
         cards_frame = getattr(self, self.CARDS_FRAME_NAME, None)
@@ -313,7 +317,9 @@ class BaseListView(ctk.CTkFrame):
             return
 
         total_items = len(self._filtered_dataset)
+        self._vdebug(f"refresh start total_items={total_items} pool={len(self._virtual_pool)}")
         if total_items == 0:
+            self._vdebug("refresh empty dataset")
             for card in self._virtual_pool:
                 card.pack_forget()
             self._top_spacer.configure(height=0)
@@ -348,6 +354,7 @@ class BaseListView(ctk.CTkFrame):
             and self._last_render_epoch == self._virtual_data_epoch
             and self._last_virtual_window == current_window_signature
         ):
+            self._vdebug(f"refresh skip same window={current_window_signature} epoch={self._virtual_data_epoch}")
             return
 
         self._last_first_visible = start_index
@@ -356,6 +363,7 @@ class BaseListView(ctk.CTkFrame):
         self._top_spacer.configure(height=top_height)
         self._bottom_spacer.configure(height=bottom_height)
 
+        self._vdebug(f"render window start={start_index} end={end_index} row_h={row_height} viewport_h={viewport_height} top={top_height} bottom={bottom_height} yfrac={scroll_fraction:.4f}")
         self._sync_virtual_width()
 
         for card in self._virtual_pool:
@@ -378,14 +386,18 @@ class BaseListView(ctk.CTkFrame):
 
         self._last_render_epoch = self._virtual_data_epoch
         self._last_virtual_window = current_window_signature
+        self._vdebug(f"rendered cards={len(self.cards_list)} window={current_window_signature}")
 
         cards_frame = getattr(self, self.CARDS_FRAME_NAME, None)
         canvas = getattr(cards_frame, "_parent_canvas", None) if cards_frame else None
         if canvas is not None:
-            canvas.configure(scrollregion=canvas.bbox("all"))
+            bbox = canvas.bbox("all")
+            canvas.configure(scrollregion=bbox)
+            self._vdebug(f"scrollregion set to {bbox}; yview={canvas.yview()}")
 
     def set_items(self, items_list):
         self._items_dataset = list(items_list or [])
+        self._vdebug(f"set_items count={len(self._items_dataset)}")
         self._filtered_dataset = list(self._items_dataset)
 
         self._virtual_data_epoch += 1
@@ -399,6 +411,10 @@ class BaseListView(ctk.CTkFrame):
             return
 
         self.load_items_chunked(self._filtered_dataset)
+
+    def _vdebug(self, message):
+        if getattr(self, "VIRTUALIZATION_DEBUG", False):
+            print(f"[VLIST:{self.__class__.__name__}] {message}")
 
     def _create_add_button(self):
         """Crea il frame e il bottone di aggiunta."""
@@ -506,6 +522,7 @@ class BaseListView(ctk.CTkFrame):
         converter = self._get_converter(sort_cfg.get("converter"))
 
         if self.VIRTUALIZATION_ENABLED:
+            self._vdebug(f"sort virtual label={selected_label} reverse={reverse} items={len(self._filtered_dataset)}")
             sortable_items = [
                 (item, self._get_item_sort_value(item, sort_cfg, converter, temp_dictionary_of_maps))
                 for item in self._filtered_dataset
@@ -607,6 +624,7 @@ class BaseListView(ctk.CTkFrame):
         mapping = self.FILTER_MAPPING.get(search_type)
 
         if self.VIRTUALIZATION_ENABLED:
+            self._vdebug(f"filter virtual type={search_type} text='{search_text}' dataset={len(self._items_dataset)}")
             if mapping is None or not search_text:
                 self._filtered_dataset = list(self._items_dataset)
             else:

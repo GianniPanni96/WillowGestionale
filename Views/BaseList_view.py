@@ -1,4 +1,5 @@
 import customtkinter as ctk
+from datetime import datetime
 
 
 
@@ -246,14 +247,20 @@ class BaseListView(ctk.CTkFrame):
 
     def _convert_to_datetime(self, datetime_str):
         """Converte una stringa in formato yyyy-mm-dd hh:mm:ss in un oggetto datetime per l'ordinamento."""
-        from datetime import datetime
         try:
             return datetime.strptime(datetime_str.strip(), "%Y-%m-%d %H:%M:%S")
         except (ValueError, TypeError):
             return None
 
+    def _convert_to_lowercase(self, text_str):
+        if not text_str or not text_str.strip():
+            return None
+
+        return text_str.lower()
+
     def _get_converter(self, name):
         return {
+            "text": self._convert_to_lowercase,
             "currency": self._convert_to_currency,
             "datetime": self._convert_to_datetime,
             "date": self._convert_to_date

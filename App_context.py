@@ -6,6 +6,9 @@ from Event_bus import EventBus
 from Books_retriever import BooksRetriever
 from Book_closer import BookCloser
 
+from QueryServices.Clients_query_service import ClientQueryService
+
+
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -86,3 +89,4 @@ class AppContext:
                                                  expense_controller=self.expense_controller,
                                                  production_controller=self.production_controller,
                                                  salary_controller=self.salary_controller)
+        self.clients_query_service:ClientQueryService = ClientQueryService(self.client_controller, self.production_controller)

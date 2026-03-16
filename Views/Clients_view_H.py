@@ -1,18 +1,17 @@
 import customtkinter as ctk
 from Views.Details.Client_detail_view import ClientDetailView
 
-from Controllers import InvoiceController
 from Views.BaseList_view import BaseListView
 from Views.View_utils import ViewUtils
-from Model import DBClientsColumns, DBProductionsColumns
+
+from Controllers import ClientController
+
 from App_context import AppContext
 
-from Controllers import ClientController, RefundController, Analyzer, ProductionController
-from Model import DatabaseModel, DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns, \
-    DBSalariesColumns
+from QueryServices.Clients_query_service import ClientQueryService
+
 from Event_bus import EventBus
-from Config import ConfigManager
-from datetime import datetime, timedelta
+
 
 class ClientsViewH(BaseListView):
     # --- CONFIGURAZIONE SPECIFICA (Passo 1: Definizione) ---
@@ -51,7 +50,7 @@ class ClientsViewH(BaseListView):
             "label": "NOME",
             "access": "direct",
             "index": 0,
-            "converter": None
+            "converter": "text"
         },
         "TOT. ENTRATE": {
             "label": "TOT. ENTRATE",
@@ -88,15 +87,15 @@ class ClientsViewH(BaseListView):
         # Inizializzazione dei controller e del bus [4, 12]
         self.app_context:AppContext = app_context
         self.client_controller:ClientController = app_context.client_controller
-        self.db_model:DatabaseModel = app_context.db_model
-        self.analyzer:Analyzer = app_context.analyzer
-        self.production_controller:ProductionController = app_context.production_controller
-        self.invoice_controller:InvoiceController = app_context.invoice_controller
-        self.refund_controller:RefundController = app_context.refund_controller
-        self.catalogo_elenchi = app_context.catalogo_elenchi
-        self.config_manager:ConfigManager = app_context.config_manager
-        self.event_bus:EventBus = app_context.event_bus
+        #self.analyzer:Analyzer = app_context.analyzer
+        #self.production_controller:ProductionController = app_context.production_controller
+        #self.invoice_controller:InvoiceController = app_context.invoice_controller
+        #self.refund_controller:RefundController = app_context.refund_controller
+        #self.catalogo_elenchi = app_context.catalogo_elenchi
+        #self.config_manager:ConfigManager = app_context.config_manager
+        #self.event_bus:EventBus = app_context.event_bus
         self.clients_card_list = self.cards_list  # self.cards_list è l'attributo generico della BaseListView
+        self.client_query_service: ClientQueryService = app_context.clients_query_service
 
         self.show_last_cards_optionMenu.set("60 GG")
 
@@ -190,39 +189,7 @@ class ClientsViewH(BaseListView):
 
         days = days_map.get(selected, 30)  # Mappa il valore ai giorni [6]
 
-        limit_date = datetime.now() - timedelta(days=days)  # Calcola la data limite [6]
-
-        all_clients = self.client_controller.retrieve_clients_map_list()
-
-        filtered_clients = []
-        for client in all_clients:
-            client_id = client[DBClientsColumns.ID.value]
-            client_productions = self.production_controller.retrieve_productions_map_list_by_client_id(client_id, year=-1)
-
-            has_recent_production = False
-            for production in client_productions:
-                date_str = production.get(DBProductionsColumns.CREATED_AT.value)
-                if date_str:
-                    try:
-                        try:
-                            production_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
-                        except ValueError:
-                            production_date = datetime.strptime(date_str, "%Y-%m-%d")
-
-                        if production_date >= limit_date:
-                            has_recent_production = True
-                            break
-                    except Exception as e:
-                        print(f"Errore nel parsare la data {date_str}: {e}")
-
-            #bypass last production if it's just created
-            client_creation_date = datetime.strptime(client.get(DBClientsColumns.CREATED_AT.value), "%Y-%m-%d %H:%M:%S")
-            is_just_created = False
-            if datetime.now() - client_creation_date <= timedelta(days=30):
-                is_just_created = True
-
-            if has_recent_production or is_just_created:
-                filtered_clients.append(client)
+        filtered_clients = self.client_query_service.get_clients_for_days_window(days)
 
         # Svuota e ricarica le cards
         for card in self.clients_card_list.values():

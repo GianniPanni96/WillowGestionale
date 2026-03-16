@@ -60,6 +60,9 @@ class BaseListView(ctk.CTkFrame):
         self._last_first_visible = -1
         self._virtual_data_epoch = 0
         self._last_render_epoch = -1
+        self._last_virtual_window = None
+        self._virtual_scroll_watch_job = None
+        self._last_scroll_fraction = -1.0
 
         # Variabili di stato
         self.order_bar_option_menu_values_types = {"DECRESCENTE": "DECRESCENTE", "CRESCENTE": "CRESCENTE"}
@@ -218,6 +221,7 @@ class BaseListView(ctk.CTkFrame):
                 self._bottom_spacer.pack_propagate(False)
 
                 self._bind_virtual_scroll_events(cards_frame)
+                self._start_virtual_scroll_watcher()
 
     def _bind_virtual_scroll_events(self, cards_frame):
         cards_frame.bind("<Configure>", lambda _e: self._schedule_virtual_layout_update())
@@ -245,6 +249,27 @@ class BaseListView(ctk.CTkFrame):
 
         if hasattr(self, "_pool_container"):
             self._pool_container.configure(width=target_width)
+
+    def _start_virtual_scroll_watcher(self):
+        if not self.VIRTUALIZATION_ENABLED:
+            return
+
+        if self._virtual_scroll_watch_job is not None:
+            self.after_cancel(self._virtual_scroll_watch_job)
+
+        def watch_scroll():
+            self._virtual_scroll_watch_job = None
+            if not self.winfo_exists() or not self.VIRTUALIZATION_ENABLED:
+                return
+
+            current_fraction = self._get_scroll_fraction()
+            if abs(current_fraction - self._last_scroll_fraction) > 0.0005:
+                self._last_scroll_fraction = current_fraction
+                self._schedule_virtual_layout_update()
+
+            self._virtual_scroll_watch_job = self.after(80, watch_scroll)
+
+        self._virtual_scroll_watch_job = self.after(80, watch_scroll)
 
     def _schedule_virtual_layout_update(self):
         if not self.VIRTUALIZATION_ENABLED:
@@ -294,6 +319,7 @@ class BaseListView(ctk.CTkFrame):
             self._top_spacer.configure(height=0)
             self._bottom_spacer.configure(height=0)
             self.cards_list.clear()
+            self._last_virtual_window = None
             return
 
         self._ensure_virtual_pool()
@@ -313,19 +339,20 @@ class BaseListView(ctk.CTkFrame):
         start_index = min(start_index, max_start)
         end_index = min(total_items, start_index + visible_count)
 
+        top_height = start_index * row_height
+        bottom_height = max(0, (total_items - end_index) * row_height)
+        current_window_signature = (start_index, end_index, top_height, bottom_height, total_items)
+
         if (
-            start_index == self._last_first_visible
-            and self.cards_list
+            self.cards_list
             and self._last_render_epoch == self._virtual_data_epoch
+            and self._last_virtual_window == current_window_signature
         ):
             return
 
         self._last_first_visible = start_index
         self.cards_list.clear()
         self._slot_for_virtual_index.clear()
-
-        top_height = start_index * row_height
-        bottom_height = max(0, (total_items - end_index) * row_height)
         self._top_spacer.configure(height=top_height)
         self._bottom_spacer.configure(height=bottom_height)
 
@@ -350,6 +377,7 @@ class BaseListView(ctk.CTkFrame):
                 self._estimated_card_height = max(1, card.winfo_height())
 
         self._last_render_epoch = self._virtual_data_epoch
+        self._last_virtual_window = current_window_signature
 
         cards_frame = getattr(self, self.CARDS_FRAME_NAME, None)
         canvas = getattr(cards_frame, "_parent_canvas", None) if cards_frame else None
@@ -362,6 +390,8 @@ class BaseListView(ctk.CTkFrame):
 
         self._virtual_data_epoch += 1
         self._last_first_visible = -1
+        self._last_virtual_window = None
+        self._last_scroll_fraction = -1.0
 
         if self.VIRTUALIZATION_ENABLED:
             self._ensure_virtual_pool()
@@ -390,7 +420,13 @@ class BaseListView(ctk.CTkFrame):
 
     def _convert_to_currency(self, currency_str):
         """Converte una stringa di valuta in un numero float per l'ordinamento."""
-        if not currency_str or not currency_str.strip():
+        if currency_str is None:
+            return None
+
+        if isinstance(currency_str, (int, float)):
+            return float(currency_str)
+
+        if not isinstance(currency_str, str) or not currency_str.strip():
             return None
 
         try:

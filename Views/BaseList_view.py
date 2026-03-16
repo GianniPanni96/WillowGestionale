@@ -58,6 +58,8 @@ class BaseListView(ctk.CTkFrame):
         self._estimated_card_height = 90
         self._virtual_layout_job = None
         self._last_first_visible = -1
+        self._virtual_data_epoch = 0
+        self._last_render_epoch = -1
 
         # Variabili di stato
         self.order_bar_option_menu_values_types = {"DECRESCENTE": "DECRESCENTE", "CRESCENTE": "CRESCENTE"}
@@ -292,7 +294,11 @@ class BaseListView(ctk.CTkFrame):
         start_index = min(start_index, max_start)
         end_index = min(total_items, start_index + visible_count)
 
-        if start_index == self._last_first_visible and self.cards_list:
+        if (
+            start_index == self._last_first_visible
+            and self.cards_list
+            and self._last_render_epoch == self._virtual_data_epoch
+        ):
             return
 
         self._last_first_visible = start_index
@@ -322,9 +328,14 @@ class BaseListView(ctk.CTkFrame):
                 card.update_idletasks()
                 self._estimated_card_height = max(1, card.winfo_height())
 
+        self._last_render_epoch = self._virtual_data_epoch
+
     def set_items(self, items_list):
         self._items_dataset = list(items_list or [])
         self._filtered_dataset = list(self._items_dataset)
+
+        self._virtual_data_epoch += 1
+        self._last_first_visible = -1
 
         if self.VIRTUALIZATION_ENABLED:
             self._ensure_virtual_pool()
@@ -414,8 +425,6 @@ class BaseListView(ctk.CTkFrame):
         if not hasattr(self, "SORT_CONFIG"):
             return
 
-        temp_dictionary_of_maps = self.db_retrieving_function(keyIsName=True)
-
         selected_label = self.order_bar_optionMenu.get()
         sort_order = self.order_bar_optionMenu_types.get()
         reverse = (sort_order == "DECRESCENTE")
@@ -428,6 +437,10 @@ class BaseListView(ctk.CTkFrame):
         if not sort_cfg:
             return
 
+        temp_dictionary_of_maps = None
+        if sort_cfg.get("access") == "database" and self.db_retrieving_function:
+            temp_dictionary_of_maps = self.db_retrieving_function(keyIsName=False)
+
         converter = self._get_converter(sort_cfg.get("converter"))
 
         if self.VIRTUALIZATION_ENABLED:
@@ -437,6 +450,8 @@ class BaseListView(ctk.CTkFrame):
             ]
             sortable_items.sort(key=lambda x: (x[1] is None, x[1]), reverse=reverse)
             self._filtered_dataset = [item for item, _ in sortable_items]
+            self._virtual_data_epoch += 1
+            self._last_first_visible = -1
             self._refresh_virtualized_window()
             return
 
@@ -537,6 +552,7 @@ class BaseListView(ctk.CTkFrame):
                     item for item in self._items_dataset
                     if search_text in str(self.get_item_search_text(item, search_type)).lower()
                 ]
+            self._virtual_data_epoch += 1
             self._last_first_visible = -1
             self._refresh_virtualized_window()
             return

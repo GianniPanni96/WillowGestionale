@@ -224,7 +224,7 @@ class ClientsViewH(BaseListView):
         if sort_cfg["access"] == "database":
             db_column = sort_cfg["db_column"]
             client_id = item["client_id"]
-            return temp_dictionary_of_maps[client_id][db_column]
+            return temp_dictionary_of_maps.get(str(client_id), {}).get(db_column)
 
         return None
 

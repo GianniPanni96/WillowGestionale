@@ -222,11 +222,11 @@ class BaseListView(ctk.CTkFrame):
                 self._start_virtual_scroll_watcher()
 
     def _bind_virtual_scroll_events(self, cards_frame):
-        cards_frame.bind("<Configure>", lambda _e: (self._vdebug("cards_frame <Configure>"), self._schedule_virtual_layout_update()))
+        cards_frame.bind("<Configure>", lambda _e: (self._vdebug("cards_frame <Configure>"), self._schedule_virtual_layout_update()), add="+")
 
         canvas = getattr(cards_frame, "_parent_canvas", None)
         if canvas is not None:
-            canvas.bind("<Configure>", lambda _e: (self._vdebug(f"canvas <Configure> w={canvas.winfo_width()} h={canvas.winfo_height()}"), self._sync_virtual_width(), self._schedule_virtual_layout_update()))
+            canvas.bind("<Configure>", lambda _e: (self._vdebug(f"canvas <Configure> w={canvas.winfo_width()} h={canvas.winfo_height()}"), self._sync_virtual_width(), self._schedule_virtual_layout_update()), add="+")
             canvas.bind_all("<MouseWheel>", lambda e: (self._vdebug(f"<MouseWheel> delta={getattr(e, 'delta', None)}"), self._schedule_virtual_layout_update()))
             canvas.bind_all("<Button-4>", lambda _e: (self._vdebug("<Button-4>"), self._schedule_virtual_layout_update()))
             canvas.bind_all("<Button-5>", lambda _e: (self._vdebug("<Button-5>"), self._schedule_virtual_layout_update()))
@@ -392,9 +392,7 @@ class BaseListView(ctk.CTkFrame):
         cards_frame = getattr(self, self.CARDS_FRAME_NAME, None)
         canvas = getattr(cards_frame, "_parent_canvas", None) if cards_frame else None
         if canvas is not None:
-            bbox = canvas.bbox("all")
-            canvas.configure(scrollregion=bbox)
-            self._vdebug(f"scrollregion set to {bbox}; yview={canvas.yview()}")
+            self._vdebug(f"post-render yview={canvas.yview()} bbox={canvas.bbox('all')}")
 
     def set_items(self, items_list):
         self._items_dataset = list(items_list or [])

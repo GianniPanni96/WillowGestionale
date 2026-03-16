@@ -9,9 +9,7 @@ from Controllers import ClientController
 from App_context import AppContext
 
 from QueryServices.Clients_query_service import ClientQueryService
-
-from Event_bus import EventBus
-
+from Analyzers.Client_analyzer_service import ClientAnalyzerService
 
 class ClientsViewH(BaseListView):
     # --- CONFIGURAZIONE SPECIFICA (Passo 1: Definizione) ---
@@ -22,14 +20,14 @@ class ClientsViewH(BaseListView):
     # Configurazione Global Infos (Recuperate dal Controller)
     # NOTA: I nomi delle chiavi sono inventati per coerenza, ma nella fonte
     # sono impliciti tramite l'extractor [47, 48]. Qui si assumono valori aggregati.
-    #GLOBAL_INFOS_CONFIG = {
-    #    "TOT. ENTRATE": "TOT_ENTRATE",
-    #    "# FATTURE": "NUM_FATTURE",
-    #}
-    #aggregate_UOM = {
-    #    "TOT. ENTRATE": "€",
-    #    "# FATTURE": ""
-    #}
+    GLOBAL_INFOS_CONFIG = {
+        "TOT. ENTRATE": "TOT_ENTRATE",
+        "# FATTURE": "NUM_FATTURE",
+    }
+    aggregate_UOM = {
+        "TOT. ENTRATE": "€",
+        "# FATTURE": ""
+    }
 
     # Configurazione Intestazioni (Headers) [23]
     HEADERS = ["NOME", "TOT. ENTRATE", "# FATTURE", "FATTURA MEDIA", "TOT. CREDITI",
@@ -87,15 +85,9 @@ class ClientsViewH(BaseListView):
         # Inizializzazione dei controller e del bus [4, 12]
         self.app_context:AppContext = app_context
         self.client_controller:ClientController = app_context.client_controller
-        #self.analyzer:Analyzer = app_context.analyzer
-        #self.production_controller:ProductionController = app_context.production_controller
-        #self.invoice_controller:InvoiceController = app_context.invoice_controller
-        #self.refund_controller:RefundController = app_context.refund_controller
-        #self.catalogo_elenchi = app_context.catalogo_elenchi
-        #self.config_manager:ConfigManager = app_context.config_manager
-        #self.event_bus:EventBus = app_context.event_bus
         self.clients_card_list = self.cards_list  # self.cards_list è l'attributo generico della BaseListView
-        self.client_query_service: ClientQueryService = app_context.clients_query_service
+        self.clients_query_service: ClientQueryService = app_context.clients_query_service
+        self.clients_analyzer_service: ClientAnalyzerService = app_context.clients_analyzer_service
 
         self.show_last_cards_optionMenu.set("60 GG")
 
@@ -107,6 +99,7 @@ class ClientsViewH(BaseListView):
             app_context = self.app_context,
             back_callback=self.show_main_view
         )
+
 
     # --- Metodi Obbligatori Implementati (Passo 2: Logica) ---
 
@@ -132,7 +125,7 @@ class ClientsViewH(BaseListView):
     def load_items_chunked(self, items_list):
         """Implementazione del caricamento a blocchi, usando l'extractor specifico."""
         # Logica esistente in ClientsView.load_clients_chunked [49, 51]
-        extractor = ViewUtils.create_extractor_for_clients(self.client_controller)
+        extractor = ViewUtils.create_extractor_for_clients(self.clients_analyzer_service)
         ViewUtils.process_items_in_chunks(
             widget=self,
             items_list=items_list,
@@ -189,7 +182,7 @@ class ClientsViewH(BaseListView):
 
         days = days_map.get(selected, 30)  # Mappa il valore ai giorni [6]
 
-        filtered_clients = self.client_query_service.get_clients_for_days_window(days)
+        filtered_clients = self.clients_query_service.get_clients_for_days_window(days)
 
         # Svuota e ricarica le cards
         for card in self.clients_card_list.values():

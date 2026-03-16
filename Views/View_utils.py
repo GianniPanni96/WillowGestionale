@@ -1,4 +1,5 @@
 from enum import Enum
+from Gestionale_Enums import*
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import Toplevel
@@ -7,6 +8,8 @@ import os
 
 from Model import DBExpensesColumns, DBSuppliersColumns, DBUsersColumns, DBAccountsColumns, DBSalariesColumns, DBRefundsColumns
 from Model import DBProductionsColumns, DBPaymentsColumns, DBInvoicesColumns, DBClientsColumns, DBTransfersColumns
+
+from Analyzers.Client_analyzer_service import  ClientAnalyzerService
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -624,7 +627,7 @@ class ViewUtils(ctk.CTk):
         return extract_expense_args
 
     @staticmethod
-    def create_extractor_for_clients(client_controller:"ClientController"):
+    def create_extractor_for_clients(client_analyzer_service:"ClientAnalyzerService"):
         """
         Crea una funzione di estrazione parametri specifica per i clienti
         """
@@ -634,19 +637,19 @@ class ViewUtils(ctk.CTk):
             name = client[DBClientsColumns.NAME.value]
 
             # Costruisci i dati aggregati per singolo cliente
-            aggregate_data = client_controller.construct_client_map_aggregate_data(client_id, year=-1)
+            aggregate_data = client_analyzer_service.construct_client_map_aggregate_data(client_id, year=-1)
 
             return (
                 client_id,
                 name,
-                round(aggregate_data[client_controller.Aggregate_data.TOT_ENTRATE.value], 2),
-                aggregate_data[client_controller.Aggregate_data.NUM_FATTURE.value],
-                round(aggregate_data[client_controller.Aggregate_data.MEDIA_FATTURE.value], 2),
-                round(aggregate_data[client_controller.Aggregate_data.TOT_CREDITI.value], 2),
-                round(client_controller.calcola_tot_rimborsi_by_client(client_id)),
-                round(aggregate_data[client_controller.Aggregate_data.PAGAM_ORARIO_MEDIO.value], 2),
-                aggregate_data[client_controller.Aggregate_data.TOT_GIORNI_RIT.value],
-                round(aggregate_data[client_controller.Aggregate_data.MEDIA_RITARDO.value], 2)
+                round(aggregate_data[ClientsAggregateData.TOT_ENTRATE.value], 2),
+                aggregate_data[ClientsAggregateData.NUM_FATTURE.value],
+                round(aggregate_data[ClientsAggregateData.MEDIA_FATTURE.value], 2),
+                round(aggregate_data[ClientsAggregateData.TOT_CREDITI.value], 2),
+                round(aggregate_data[ClientsAggregateData.TOT_RIMBORSI.value], 2),
+                round(aggregate_data[ClientsAggregateData.PAGAM_ORARIO_MEDIO.value], 2),
+                aggregate_data[ClientsAggregateData.TOT_GIORNI_RIT.value],
+                round(aggregate_data[ClientsAggregateData.MEDIA_RITARDO.value], 2)
             )
 
         return extract_client_args

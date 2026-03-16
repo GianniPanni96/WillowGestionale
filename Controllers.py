@@ -682,6 +682,42 @@ class ControllerUtils:
             print(f"Errore nella verifica password: {e}")
             return False
 
+    @staticmethod
+    def row_to_map(row, database_columns):
+        """Converte una singola riga in un dizionario."""
+        if row is None:
+            return None
+        keys = [column.value for column in database_columns]
+        return dict(zip(keys, row))
+
+    @staticmethod
+    def calculate_three_expiration_dates(creation_date):
+        """
+        Calcola tre date di scadenza aggiungendo 30, 60 e 90 giorni alla data di creazione.
+
+        :param creation_date: Data di creazione in formato stringa ("yyyy-mm-dd")
+        :return: Lista di tre date di scadenza in formato stringa ("yyyy-mm-dd")
+        """
+        try:
+            # Converte la stringa in un oggetto date
+            date_obj = datetime.strptime(creation_date, "%Y-%m-%d").date()
+
+            # Calcola le tre date di scadenza
+            expiration_date_30 = date_obj + timedelta(days=30)
+            expiration_date_60 = date_obj + timedelta(days=60)
+            expiration_date_90 = date_obj + timedelta(days=90)
+
+            # Restituisce le date formattate come stringhe
+            return [
+                expiration_date_30.strftime("%Y-%m-%d"),
+                expiration_date_60.strftime("%Y-%m-%d"),
+                expiration_date_90.strftime("%Y-%m-%d")
+            ]
+        except ValueError as e:
+            # Gestisce errori di formattazione della data
+            print(f"Errore nella conversione della data: {e}")
+            return None
+
 
 
 
@@ -1514,6 +1550,7 @@ class ClientController:
         NUM_FATTURE = "num_fatture"
         MEDIA_FATTURE = "media_fatture"
         TOT_CREDITI = "tot_crediti"
+        TOT_RIMBORSI = "tot_rimborsi"
         PAGAM_ORARIO_MEDIO = "pagam_orario_medio"
         TOT_GIORNI_RIT = "tot_giorni_ritardo"
         MEDIA_RITARDO = "media_ritardo"

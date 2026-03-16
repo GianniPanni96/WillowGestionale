@@ -1,16 +1,24 @@
 import customtkinter as ctk
-from Controllers import ControllerUtils, ClientController, ProductionController, InvoiceController, RefundController, DatabaseModel, Analyzer
+from Controllers import ClientController, ProductionController, InvoiceController, RefundController, DatabaseModel, Analyzer
 from App_context import AppContext
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
 from Views.View_utils import ViewUtils, FilterableComboBox
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
+
+from Gestionale_Enums import *
+from QueryServices.Clients_query_service import ClientQueryService
+from Analyzers.Client_analyzer_service import ClientAnalyzerService
 
 
 class ClientDetailView(ctk.CTkFrame):
     def __init__(self, parent, app_context:AppContext, back_callback):
         super().__init__(parent)
         self.app_context:AppContext = app_context
+
+        self.clients_query_service:ClientQueryService = app_context.clients_query_service
+        self.clients_analyzer_service:ClientAnalyzerService = app_context.clients_analyzer_service
+
         self.invoice_controller:InvoiceController = app_context.invoice_controller
         self.refund_controller:RefundController = app_context.refund_controller
         self.db_model:DatabaseModel = app_context.db_model
@@ -69,14 +77,14 @@ class ClientDetailView(ctk.CTkFrame):
         self._clear_content()
 
         # 2. Caricamento dati
-        self.client = self.client_controller.retrieve_client_map_by_id(client_id)
+        client = self.clients_query_service.retrieve_client_map_by_id(client_id)
 
         # 3. Aggiornamento elementi persistenti
         self.title_label.configure(
-            text=f"{self.client[DBClientsColumns.NAME.value]}")
+            text=f"{client[DBClientsColumns.NAME.value]}")
 
         # 4. Creazione contenuti dinamici
-        self._create_client_info_section(self.client)
+        self._create_client_info_section(client)
         self.toggle_edit(self.content_frame)
 
         self.wrapper_frame = ctk.CTkFrame(self.content_frame, fg_color="#333333")
@@ -123,7 +131,7 @@ class ClientDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Tipologia",
                 "section": "Settore & Tipologia",
-                "values": [item.value for item in self.client_controller.TipologiaCliente]
+                "values": [item.value for item in TipologiaCliente]
             },
 
             # Sezione Referente
@@ -310,7 +318,7 @@ class ClientDetailView(ctk.CTkFrame):
         success, message = self.client_controller.update_client(self.current_client_id, client_data)
         if success:
             print(
-                f"Cliente {self.client_controller.retrieve_client_map_by_id(self.current_client_id)[DBClientsColumns.NAME.value]} salvato con successo")
+                f"Cliente {self.clients_query_service.retrieve_client_map_by_id(self.current_client_id)[DBClientsColumns.NAME.value]} salvato con successo")
             ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
             self.switch_modify.deselect()
             self.toggle_edit(self.content_frame)
@@ -374,11 +382,11 @@ class ClientDetailView(ctk.CTkFrame):
 
         global_infos = {
             "TOTALE FATTURATO (All Time)": {
-                "value": self.client_controller.calcola_tot_entrate_cliente(self.current_client_id, include_unpaid_invoices = True, year = -1),
+                "value": self.clients_analyzer_service.calcola_tot_entrate_cliente(self.current_client_id, include_unpaid_invoices = True, year = -1),
                 "uom": "€"
             },
             f"TOTALE FATTURATO {datetime.now().year}": {
-                "value": self.client_controller.calcola_tot_entrate_cliente(self.current_client_id, include_unpaid_invoices=False),
+                "value": self.clients_analyzer_service.calcola_tot_entrate_cliente(self.current_client_id, include_unpaid_invoices=False),
                 "uom": "€"
             }
         }
@@ -393,7 +401,7 @@ class ClientDetailView(ctk.CTkFrame):
         invoices_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
-        invoices = self.client_controller.retrieve_client_with_invoices_map_list(self.current_client_id, include_unpaid_invoices = False) #ottimizzare se sono troppe le fatture retrievate
+        invoices = self.clients_query_service.retrieve_client_with_invoices_map_list(self.current_client_id, include_unpaid_invoices = False) #ottimizzare se sono troppe le fatture retrievate
         for invoice in invoices:
             if invoice[DBInvoicesColumns.NUMERO_FATTURA.value] is not None:
                 nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]

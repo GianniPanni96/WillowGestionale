@@ -1,3 +1,4 @@
+from Analyzers.Client_analyzer_service import ClientAnalyzerService
 from Controllers import UserController, AccountController, ClientController, InvoiceController, \
     PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
     Analyzer, TransfersController, SalaryController, RefundController
@@ -89,4 +90,5 @@ class AppContext:
                                                  expense_controller=self.expense_controller,
                                                  production_controller=self.production_controller,
                                                  salary_controller=self.salary_controller)
-        self.clients_query_service:ClientQueryService = ClientQueryService(self.client_controller, self.production_controller)
+        self.clients_query_service:ClientQueryService = ClientQueryService(self.client_controller, self.production_controller, self.db_model)
+        self.clients_analyzer_service:ClientAnalyzerService = ClientAnalyzerService(self.clients_query_service, self.db_model)

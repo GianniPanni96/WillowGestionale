@@ -161,7 +161,7 @@ class MainWindow(ctk.CTk):
         self.tabview.pack(padx=20, pady=20, fill="both", expand=True)
 
         self.tabview.add("Utenti")
-        self.tabview.add("Clienti")
+        #self.tabview.add("Clienti")
         self.tabview.add("Clienti_H")
         self.tabview.add("Fornitori")
         self.tabview.add("Produzioni")
@@ -211,7 +211,7 @@ class MainWindow(ctk.CTk):
 
             "Utenti": lambda tab: UsersView(self.app_context, tab, self.logged_user_id, self.login_status),
 
-            "Clienti": lambda tab: ClientsView(self.app_context, tab),
+            #"Clienti": lambda tab: ClientsView(self.app_context, tab),
 
             "Clienti_H": lambda tab: ClientsViewH(self.app_context, tab),
 

@@ -80,7 +80,7 @@ class ClientsViewH(BaseListView):
 
     def __init__(self, app_context:AppContext, tab):
         # Chiama l'__init__ della classe Base
-        super().__init__(tab, db_retrieving_function=app_context.client_controller.retrieve_clients_map_dictionary)
+        super().__init__(tab, db_retrieving_function=app_context.clients_query_service.retrieve_clients_map_dictionary)
 
         # Inizializzazione dei controller e del bus [4, 12]
         self.app_context:AppContext = app_context

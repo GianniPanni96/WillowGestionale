@@ -34,7 +34,7 @@ class ClientQueryService:
         """
         limit_date = datetime.now() - timedelta(days=days)
 
-        all_clients = self.client_controller.retrieve_clients_map_list()
+        all_clients = self.retrieve_clients_map_list()
         filtered_clients = []
 
         for client in all_clients:

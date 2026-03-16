@@ -11,6 +11,9 @@ import re
 from Event_bus import EventBus
 from App_context import AppContext
 
+from QueryServices.Clients_query_service import ClientQueryService
+
+
 class PaymentsView(ctk.CTkFrame):
 
     def __init__(self, app_context:AppContext, tab_view, initial_payment_id=None):
@@ -22,6 +25,7 @@ class PaymentsView(ctk.CTkFrame):
         self.invoice_controller:InvoiceController = app_context.invoice_controller
         self.user_controller:UserController = app_context.user_controller
         self.client_controller:ClientController = app_context.client_controller
+        self.clients_query_service:ClientQueryService = app_context.clients_query_service
         self.payment_controller:PaymentsController = app_context.payment_controller
         self.production_controller:ProductionController = app_context.production_controller
         self.account_controller:AccountController = app_context.account_controller
@@ -447,7 +451,7 @@ class PaymentsView(ctk.CTkFrame):
 
         extractor = ViewUtils.create_extractor_for_payments(
             self.invoice_controller,
-            self.client_controller,
+            self.clients_query_service,
             self.production_controller,
             self.account_controller
         )

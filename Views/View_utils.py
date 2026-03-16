@@ -10,6 +10,7 @@ from Model import DBExpensesColumns, DBSuppliersColumns, DBUsersColumns, DBAccou
 from Model import DBProductionsColumns, DBPaymentsColumns, DBInvoicesColumns, DBClientsColumns, DBTransfersColumns
 
 from Analyzers.Client_analyzer_service import  ClientAnalyzerService
+from QueryServices.Clients_query_service import ClientQueryService
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -655,7 +656,7 @@ class ViewUtils(ctk.CTk):
         return extract_client_args
 
     @staticmethod
-    def create_extractor_for_invoices(client_controller:"ClientController", user_controller:"UserController", production_controller:"ProductionController"):
+    def create_extractor_for_invoices(clients_query_service:"ClientQueryService", user_controller:"UserController", production_controller:"ProductionController"):
         """
         Crea una funzione di estrazione parametri specifica per le fatture
         """
@@ -664,7 +665,7 @@ class ViewUtils(ctk.CTk):
             invoice_id = invoice[DBInvoicesColumns.ID.value]
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
             invoice_client_ID = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-            invoice_client_name = client_controller.retrieve_client_map_by_id(invoice_client_ID)[
+            invoice_client_name = clients_query_service.retrieve_client_map_by_id(invoice_client_ID)[
                 DBClientsColumns.NAME.value]
             invoice_user_id = invoice[DBInvoicesColumns.ID_UTENTE.value]
             user_map = user_controller.retrieve_user_map_by_id(invoice_user_id)
@@ -698,7 +699,7 @@ class ViewUtils(ctk.CTk):
         return extract_invoice_args
 
     @staticmethod
-    def create_extractor_for_payments(invoice_controller:"InvoiceController", client_controller:"ClientController", production_controller:"ProductionController",
+    def create_extractor_for_payments(invoice_controller:"InvoiceController", clients_query_service:"ClientQueryService", production_controller:"ProductionController",
                                       account_controller:"AccountController"):
         """
         Crea una funzione di estrazione parametri specifica per i pagamenti
@@ -714,7 +715,7 @@ class ViewUtils(ctk.CTk):
             invoice = invoice_controller.retrieve_invoice_map_by_id(invoice_id)
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
             cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-            client = client_controller.retrieve_client_map_by_id(cliente_id)
+            client = clients_query_service.retrieve_client_map_by_id(cliente_id)
             client_name = client[DBClientsColumns.NAME.value]
             production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
             production = production_controller.retrieve_production_map_by_id(production_id)
@@ -737,7 +738,7 @@ class ViewUtils(ctk.CTk):
         return extract_payment_args
 
     @staticmethod
-    def create_extractor_for_productions(production_controller:"ProductionController", client_controller:"ClientController"):
+    def create_extractor_for_productions(production_controller:"ProductionController", clients_query_service:"ClientQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per le produzioni
         """
@@ -746,7 +747,7 @@ class ViewUtils(ctk.CTk):
             production_id = production[DBProductionsColumns.ID.value]
             production_name = production[DBProductionsColumns.NAME.value]
             client_id = production[DBProductionsColumns.CLIENT_ID.value]
-            client_name = client_controller.retrieve_client_map_by_id(client_id)[DBClientsColumns.NAME.value]
+            client_name = clients_query_service.retrieve_client_map_by_id(client_id)[DBClientsColumns.NAME.value]
             tipologia_produzione = production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value]
             tipologia_output = production[DBProductionsColumns.TIPOLOGIA_OUTPUT.value]
             produzione_stato = production[DBProductionsColumns.STATO.value]
@@ -771,7 +772,7 @@ class ViewUtils(ctk.CTk):
         return extract_production_args
 
     @staticmethod
-    def create_extractor_for_refunds(client_controller:"ClientController", account_controller:"AccountController"):
+    def create_extractor_for_refunds(clients_query_service:"ClientQueryService", account_controller:"AccountController"):
         """
         Crea una funzione di estrazione parametri specifica per i rimborsi
         """
@@ -782,7 +783,7 @@ class ViewUtils(ctk.CTk):
             amount = refund[DBRefundsColumns.REFUND_AMOUNT.value]
             refund_date = refund[DBRefundsColumns.REFUND_DATE.value]
             cliente_id = refund[DBRefundsColumns.CLIENT_ID.value]
-            client = client_controller.retrieve_client_map_by_id(cliente_id)
+            client = clients_query_service.retrieve_client_map_by_id(cliente_id)
             client_name = client[DBClientsColumns.NAME.value]
             conto = account_controller.retrieve_account_map_by_id(refund[DBRefundsColumns.CONTO_ID.value])
             nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"

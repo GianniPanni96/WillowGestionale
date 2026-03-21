@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from Views.Details.Client_detail_view import ClientDetailView
+from Views.Creators.Client_create_view import ClientCreateView
 
 from Views.BaseList_view import BaseListView
 from Views.View_utils import ViewUtils
@@ -90,6 +91,7 @@ class ClientsViewH(BaseListView):
         self.clients_analyzer_service: ClientAnalyzerService = app_context.clients_analyzer_service
 
         self.show_last_cards_optionMenu.set("60 GG")
+        self.client_create_view = None
 
         # Carica i dati iniziali (altrimenti la tab sarebbe vuota)
         self.show_last_cards() # Assumendo un metodo di caricamento
@@ -117,10 +119,24 @@ class ClientsViewH(BaseListView):
 
     def open_add_window(self):
         """Implementa l'apertura della finestra modale per aggiungere un cliente."""
-        # Logica esistente in ClientsView.open_add_client_window [50]
-        print("Apertura finestra modale Aggiungi Cliente...")
-        # (Qui andrebbe il codice per CTkToplevel, entry_fields, error_fields, etc.)
-        pass
+        if self.client_create_view is not None and self.client_create_view.winfo_exists():
+            self.client_create_view.focus()
+            self.client_create_view.lift()
+            return
+
+        self.client_create_view = ClientCreateView(
+            parent=self,
+            app_context=self.app_context,
+            on_client_created=self._on_client_created,
+            on_close=self._clear_client_create_view
+        )
+
+    def _on_client_created(self, client_id, client_data):
+        self.show_last_cards()
+        self.filter_cards(None)
+
+    def _clear_client_create_view(self):
+        self.client_create_view = None
 
     def load_items_chunked(self, items_list):
         """Implementazione del caricamento a blocchi, usando l'extractor specifico."""

@@ -1249,6 +1249,20 @@ class FilterableComboBox(ctk.CTkFrame):
         self.entry.delete(0, "end")
         self.current_value = ""
 
+    def set_values(self, values, preserve_current=True):
+        current = self.get_value()
+        self.all_values = sorted(values) if values else []
+        self.filtered_values = self.all_values.copy()
+
+        if preserve_current and current in self.all_values:
+            self.set_value(current)
+            return
+
+        if self.all_values:
+            self.set_value(self.all_values[0], safe_mode=False)
+        else:
+            self.clear_value()
+
     def destroy(self):
         # rimuovi binding e dropdown in modo sicuro
         try:

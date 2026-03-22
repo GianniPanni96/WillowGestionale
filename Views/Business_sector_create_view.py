@@ -7,9 +7,26 @@ from App_context import AppContext
 
 
 class BusinessSectorCreateView(ctk.CTkToplevel):
+    """
+    Finestra modale dedicata alla creazione di un nuovo settore di business.
+
+    La classe centralizza l'intero flusso di aggiunta del settore:
+    raccoglie l'input utente, valida il valore, aggiorna la configurazione
+    persistente, sincronizza il catalogo in memoria e notifica il chiamante.
+    """
+
     SECTION_NAME = "clients_business_sectors"
 
     def __init__(self, parent, app_context: AppContext, on_sector_created=None, on_close=None):
+        """
+        Inizializza il toplevel e costruisce i widget del form.
+
+        Args:
+            parent: widget Tk padre della finestra.
+            app_context: contesto applicativo condiviso.
+            on_sector_created: callback opzionale invocata dopo il salvataggio.
+            on_close: callback opzionale invocata alla chiusura della finestra.
+        """
         super().__init__(parent)
 
         self.app_context = app_context
@@ -47,6 +64,14 @@ class BusinessSectorCreateView(ctk.CTkToplevel):
         ).pack(padx=10, pady=(15, 10))
 
     def save_business_sector(self):
+        """
+        Valida l'input e salva il nuovo settore nella configurazione.
+
+        In caso di successo:
+        - aggiorna il catalogo condiviso in memoria;
+        - invoca l'eventuale callback del chiamante;
+        - chiude la finestra.
+        """
         new_sector = self.sector_entry.get().strip()
         if not new_sector:
             self.error_label.configure(text="Inserisci un nome valido.", text_color="#e8e5dc")
@@ -82,6 +107,13 @@ class BusinessSectorCreateView(ctk.CTkToplevel):
         self._on_close()
 
     def _refresh_catalog_lists(self, sector_key, sector_value):
+        """
+        Aggiorna il catalogo in memoria mantenendo il trigger ``ADD_SECTOR`` in coda.
+
+        ``ConfigManager`` salva il file di configurazione, ma le view aperte
+        leggono anche la struttura condivisa in ``app_context.catalogo_elenchi``.
+        Per questo la lista viene aggiornata anche in memoria.
+        """
         sectors = self.catalogo_elenchi[self.SECTION_NAME]
         trigger_item = None
 
@@ -98,6 +130,12 @@ class BusinessSectorCreateView(ctk.CTkToplevel):
             sectors.append(trigger_item)
 
     def _on_close(self):
+        """
+        Chiude il toplevel rilasciando in sicurezza il grab modale.
+
+        Il ``grab_release`` e' protetto per evitare errori se il grab e' gia'
+        stato rilasciato da Tk.
+        """
         try:
             self.grab_release()
         except Exception:

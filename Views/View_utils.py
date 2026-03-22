@@ -10,7 +10,9 @@ from Model import DBExpensesColumns, DBSuppliersColumns, DBUsersColumns, DBAccou
 from Model import DBProductionsColumns, DBPaymentsColumns, DBInvoicesColumns, DBClientsColumns, DBTransfersColumns
 
 from Analyzers.Client_analyzer_service import  ClientAnalyzerService
+from Analyzers.Supplier_analyzer_service import  SupplierAnalyzerService
 from QueryServices.Clients_query_service import ClientQueryService
+from QueryServices.Suppliers_query_service import SupplierQueryService
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -835,7 +837,7 @@ class ViewUtils(ctk.CTk):
         return extract_salary_args
 
     @staticmethod
-    def create_extractor_for_suppliers(supplier_controller:"SupplierController"):
+    def create_extractor_for_suppliers(suppliers_analyzer_service: "SupplierAnalyzerService"):
         """
         Crea una funzione di estrazione parametri specifica per i fornitori
         """
@@ -848,15 +850,15 @@ class ViewUtils(ctk.CTk):
             contatto = supplier[DBSuppliersColumns.CONTATTO.value]
 
             # Costruisci i dati aggregati per singolo fornitore
-            aggregate_data = supplier_controller.construct_supplier_map_aggregate_data(supplier_id)
+            aggregate_data = suppliers_analyzer_service.construct_supplier_map_aggregate_data(supplier_id)
 
             return (
                 supplier_id,
                 supplier_name,
                 partita_iva,
-                aggregate_data[supplier_controller.Aggregate_data.NUM_SPESE.value],
-                round(aggregate_data[supplier_controller.Aggregate_data.MEDIA_SPESE.value], 2),
-                round(aggregate_data[supplier_controller.Aggregate_data.TOT_SPESE.value], 2),
+                aggregate_data[SupplierAggregateData.NUM_SPESE.value],
+                round(aggregate_data[SupplierAggregateData.MEDIA_SPESE.value], 2),
+                round(aggregate_data[SupplierAggregateData.TOT_SPESE.value], 2),
                 note,
                 contatto
             )

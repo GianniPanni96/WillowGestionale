@@ -1,4 +1,5 @@
 from Analyzers.Client_analyzer_service import ClientAnalyzerService
+from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
 from Controllers import UserController, AccountController, ClientController, InvoiceController, \
     PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
     Analyzer, TransfersController, SalaryController, RefundController
@@ -8,6 +9,7 @@ from Books_retriever import BooksRetriever
 from Book_closer import BookCloser
 
 from QueryServices.Clients_query_service import ClientQueryService
+from QueryServices.Suppliers_query_service import SupplierQueryService
 
 
 
@@ -92,3 +94,7 @@ class AppContext:
                                                  salary_controller=self.salary_controller)
         self.clients_query_service:ClientQueryService = ClientQueryService(self.client_controller, self.production_controller, self.db_model)
         self.clients_analyzer_service:ClientAnalyzerService = ClientAnalyzerService(self.clients_query_service, self.db_model)
+        self.suppliers_query_service: SupplierQueryService = SupplierQueryService(self.supplier_controller,
+                                                                            self.expense_controller, self.db_model)
+        self.suppliers_analyzer_service: SupplierAnalyzerService = SupplierAnalyzerService(self.suppliers_query_service,
+                                                                                     self.db_model)

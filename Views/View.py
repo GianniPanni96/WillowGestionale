@@ -10,17 +10,13 @@ from Controllers import ExpenseController, ControllerUtils, SalaryController, Tr
 
 from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
 
-from Book_closer import BookCloser
-
-
 from Views.Users_view import UsersView
-from Views.Clients_view import ClientsView
 from Views.Clients_view_H import ClientsViewH
 from Views.Invoices_view import InvoicesView
 from Views.Payments_view import PaymentsView
 from Views.Productions_view import ProductionsView
 from Views.Expenses_view import ExpensesView
-from Views.Suppliers_view import SuppliersView
+from Views.Suppliers_view_H import SuppliersViewH
 from Views.Accounts_view import AccountsView
 from Views.Salaries_view import SalariesView
 from Views.Iva_trimes_view import IvaTrimesView
@@ -161,8 +157,8 @@ class MainWindow(ctk.CTk):
         self.tabview.pack(padx=20, pady=20, fill="both", expand=True)
 
         self.tabview.add("Utenti")
-        #self.tabview.add("Clienti")
-        self.tabview.add("Clienti_H")
+        self.tabview.add("Clienti")
+        #self.tabview.add("Fornitori")
         self.tabview.add("Fornitori")
         self.tabview.add("Produzioni")
         self.tabview.add("Conti")
@@ -213,7 +209,7 @@ class MainWindow(ctk.CTk):
 
             #"Clienti": lambda tab: ClientsView(self.app_context, tab),
 
-            "Clienti_H": lambda tab: ClientsViewH(self.app_context, tab),
+            "Clienti": lambda tab: ClientsViewH(self.app_context, tab),
 
             "Fatture": lambda tab, invoice_id=None: InvoicesView(self.app_context, self.tabview, initial_invoice_id=invoice_id),
 
@@ -225,7 +221,9 @@ class MainWindow(ctk.CTk):
 
             "Spese": lambda tab, expense_id=None: ExpensesView(self.app_context, self.tabview, initial_expense_id = expense_id),
 
-            "Fornitori": lambda tab: SuppliersView(self.app_context, self.tabview),
+            #"Fornitori": lambda tab: SuppliersView(self.app_context, self.tabview),
+
+            "Fornitori": lambda tab: SuppliersViewH(self.app_context, self.tabview),
 
             "Conti": lambda tab: AccountsView(self.app_context, self.tabview),
 

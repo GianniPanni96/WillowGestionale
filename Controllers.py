@@ -1615,7 +1615,6 @@ class ClientController:
             self.print_cliente(client)
 
 
-
 class InvoiceController:
 
     class InvoiceSatus(Enum): #stati per le fatture con una rata

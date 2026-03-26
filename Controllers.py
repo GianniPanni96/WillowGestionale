@@ -1,6 +1,6 @@
 import re
 from datetime import datetime, timedelta, date
-from dateutil.relativedelta import relativedelta
+from Gestionale_Enums import*
 from enum import Enum
 
 from Crypto.Cipher import AES
@@ -14,12 +14,13 @@ from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, \
 DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, \
 DBSuppliersColumns, DBTransfersColumns, DBSalariesColumns, DBRefundsColumns
-
+from QueryServices.Suppliers_query_service import SupplierQueryService
 
 no_data_string = "no data"
 
 
 # Classe Helper per le validazioni
+#todo: eliminare dopo spostamento dei controller nei file singoli (uno per classe)
 class ValidationUtils:
     @staticmethod
     def validate_partita_iva(partita_iva):
@@ -102,7 +103,7 @@ class ValidationUtils:
 
 
 
-
+#todo: eliminare dopo spostamento dei controller nei file singoli (uno per classe)
 class ControllerUtils:
     @staticmethod
     def parse_date(date_str):
@@ -1506,115 +1507,6 @@ class UserController:
             return False, "Password errata!", -1
 
 
-class ClientController:
-
-    def __init__(self, db_model: DatabaseModel):
-        """Inizializza il controller con il modello del database"""
-        self.db_model = db_model
-
-    def save_client(self, client_data):
-        """
-        Gestisce il salvataggio di un cliente, con validazioni di primo livello.
-        :param client_data: Dizionario contenente i dati del cliente
-        :return: Tuple (success, message), dove success è True/False
-        """
-        # Campi obbligatori
-        required_fields = {DBClientsColumns.SETTORE.value, DBClientsColumns.NAME.value, DBClientsColumns.TIPOLOGIA.value}
-
-        # Validazione dei campi obbligatori
-        missing_fields = [field for field in required_fields if not client_data.get(field)]
-        if missing_fields:
-            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-        # Validazione Partita IVA
-        partita_iva = client_data.get(DBClientsColumns.PARTITA_IVA.value)
-        if partita_iva and not ValidationUtils.validate_partita_iva(partita_iva):
-            return False, "La partita IVA non è valida. Deve contenere esattamente 11 cifre."
-
-        # Validazione Email
-        email = client_data.get(DBClientsColumns.EMAIL.value)
-        if email and not ValidationUtils.validate_email(email):
-            return False, "L'indirizzo email non è valido."
-
-        # Validazione contatto referente (se presente)
-        contatto_referente = client_data.get(DBClientsColumns.CONTATTO_REFERENTE.value)
-        if contatto_referente and not ValidationUtils.validate_phone_number(contatto_referente):
-            return False, "Il contatto del referente non è valido. Deve essere un numero di telefono valido."
-
-        # Preparazione dei dati per il salvataggio
-        client_data_filtered = {
-            column.value: client_data.get(column.value)
-            for column in DBClientsColumns
-            if column.value in client_data
-        }
-
-        # Rimuove i campi None
-        client_data_filtered = {key: value for key, value in client_data_filtered.items() if value is not None}
-
-        # Salvataggio nel DB
-        try:
-            self.db_model.add_client(**client_data_filtered)
-            #self.update_clients_list()
-            return True, "Cliente salvato con successo!"
-        except Exception as e:
-            return False, f"Errore durante il salvataggio del cliente: {str(e)}"
-
-    def delete_client(self, client_id):
-        return self.db_model.remove_client(client_id)
-
-    def update_client(self, client_id, client_data):
-        """
-        Aggiorna i dati di un cliente esistente.
-        :param client_id: ID del cliente da aggiornare
-        :param client_data: Dizionario contenente i dati da aggiornare
-        :return: Tuple (success, message), dove success è True/False
-        """
-        try:
-            # Controllo validità
-            if not client_id or not isinstance(client_id, int):
-                return False, "ID cliente non valido. Deve essere un intero positivo."
-
-            required_fields = {DBClientsColumns.NAME.value}
-
-            # Validazione campi obbligatori
-            missing_fields = [field for field in required_fields if not client_data.get(field)]
-            if missing_fields:
-                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-            # Invoca il metodo del model per aggiornare l'utente
-            self.db_model.update_client(client_id, **client_data)
-            return True, "Cliente aggiornato con successo!"
-
-        except ValueError as ve:
-            return False, str(ve)
-        except Exception as e:
-            return False, f"Errore durante l'aggiornamento del cliente: {str(e)}"
-
-    def print_cliente(self, client):
-        """
-        Stampa a scopo di debug il cliente passato come argomento.
-        :param client: Dizionario contenente i dati del cliente.
-        """
-        if not client:
-            return "Cliente non trovato."
-
-        # Genera la stringa formattata usando l'enum DBClientsColumns
-        printed_string = "\n".join(
-            f"{column.value}: {client.get(column.value, 'N/A')}"
-            for column in DBClientsColumns
-        )
-
-        print(printed_string)
-
-    def print_clienti(self):
-        """
-        Recupera e stampa tutti i clienti.
-        """
-        clients = self.retrieve_clients_map_list()
-        for client in clients:
-            self.print_cliente(client)
-
-
 class InvoiceController:
 
     class InvoiceSatus(Enum): #stati per le fatture con una rata
@@ -2353,7 +2245,7 @@ class InvoiceController:
         cassa_inps = tot_servizi * imponibile_cassa_inps * aliquota_cassa_inps
         iva = imponibile * aliquota_iva * imponibile_iva
         tot_documento = imponibile + cassa_inps + iva + tot_rimborsi
-        ritenuta = 0 if tipologia_cliente == ClientController.TipologiaCliente.PRIVATO.value else imponibile * aliquota_ritenuta_acconto
+        ritenuta = 0 if tipologia_cliente == TipologiaCliente.PRIVATO.value else imponibile * aliquota_ritenuta_acconto
         netto_a_pagare = tot_documento - ritenuta
 
         invoice_data = {
@@ -2381,7 +2273,7 @@ class InvoiceController:
             tot_documento = imponibile + cassa_inps + iva + tot_rimborsi
 
             ritenuta = 0
-            if tipologia_cliente != ClientController.TipologiaCliente.PRIVATO.value:
+            if tipologia_cliente != TipologiaCliente.PRIVATO.value:
                 ritenuta = imponibile * float(settings.aliquota_ritenuta)
 
             netto_a_pagare = tot_documento - ritenuta
@@ -3805,12 +3697,14 @@ class ExpenseController:
         ATTIVA = "Attiva"
         SOSPESA = "Sospesa"
 
-    def __init__(self, db_model, user_controller, account_controller, invoice_controller, supplier_controller, recurring_expenses_settings, catalogo_elenchi):
+    def __init__(self, db_model:DatabaseModel, user_controller:UserController, account_controller:AccountController,
+                 invoice_controller:InvoiceController, supplier_query_service:SupplierQueryService,
+                 recurring_expenses_settings, catalogo_elenchi):
         self.db_model: DatabaseModel = db_model
         self.user_controller: UserController = user_controller
         self.account_controller: AccountController = account_controller
         self.invoice_controller: InvoiceController = invoice_controller
-        self.supplier_controller: SupplierController = supplier_controller
+        self.supplier_query_service: SupplierQueryService = supplier_query_service
         self.recurring_expenses_settings = recurring_expenses_settings
         self.catalogo_elenchi = catalogo_elenchi
 
@@ -3873,7 +3767,7 @@ class ExpenseController:
         supplier_id = None
         supplier_name = expense_data.get("NOME FORNITORE")
         if supplier_name:
-            supplier = self.supplier_controller.retrieve_supplier_map_by_name(supplier_name)
+            supplier = self.supplier_query_service.retrieve_supplier_map_by_name(supplier_name)
             supplier_id = supplier[DBSuppliersColumns.ID.value]
 
         #prendo ID conto
@@ -4075,9 +3969,6 @@ class ExpenseController:
     def update_aggregate_data(self):
         return
 
-    from datetime import datetime, date, timedelta
-    from dateutil.relativedelta import relativedelta
-
     def create_recurring_expenses(self):
         """
         Per ogni spesa ricorrente attiva:
@@ -4202,7 +4093,7 @@ class ExpenseController:
 
             new_exp = {
                 DBExpensesColumns.NAME.value: nominal,
-                DBExpensesColumns.SUPPLIER_ID.value: self.supplier_controller
+                DBExpensesColumns.SUPPLIER_ID.value: self.supplier_query_service
                 .retrieve_supplier_map_by_name(exp.supplier)[DBSuppliersColumns.ID.value],
                 DBExpensesColumns.CATEGORY.value: exp.category,
                 DBExpensesColumns.NET_AMOUNT.value: netto,
@@ -4234,7 +4125,7 @@ class ExpenseController:
             account_name = expense.account
 
             # ---- FORNITORE ----
-            supp_map = self.supplier_controller.retrieve_supplier_map_by_name(supplier_name)
+            supp_map = self.supplier_query_service.retrieve_supplier_map_by_name(supplier_name)
             if supp_map is None:
                 esito, to_print = self.supplier_controller.save_supplier(
                     supplier_data={
@@ -4258,194 +4149,6 @@ class ExpenseController:
                 print(to_print)
             else:
                 print(f"Conto '{account_name}' già presente. SKIPPING")
-
-
-class SupplierController:
-
-    class Aggregate_data(Enum):
-        TOT_SPESE = "tot_spese"
-        NUM_SPESE = "num_spese"
-        MEDIA_SPESE = "media_spese"
-
-    def __init__(self, db_model):
-        self.db_model = db_model
-
-    def save_supplier(self, supplier_data):
-        """
-        Gestisce il salvataggio di un fornitore, con validazioni di primo livello.
-        :param supplier_data: Dizionario contenente i dati del supplier
-        :return: Tuple (success, message), dove success è True/False
-        """
-        # Campi obbligatori
-        required_fields = {DBSuppliersColumns.NAME.value}
-
-        # Validazione dei campi obbligatori
-        missing_fields = [field for field in required_fields if not supplier_data.get(field)]
-        if missing_fields:
-            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-        # Validazione Partita IVA
-        partita_iva = supplier_data.get(DBSuppliersColumns.PARTITA_IVA.value)
-        if partita_iva and not ValidationUtils.validate_partita_iva(partita_iva):
-            return False, "La partita IVA non è valida. Deve contenere esattamente 11 cifre."
-
-
-        # Preparazione dei dati per il salvataggio
-        supplier_data_filtered = {
-            column.value: supplier_data.get(column.value)
-            for column in DBSuppliersColumns
-            if column.value in supplier_data
-        }
-
-        # Rimuove i campi None
-        supplier_data_filtered = {key: value for key, value in supplier_data_filtered.items() if value is not None}
-
-        # Salvataggio nel DB
-        try:
-            self.db_model.add_supplier(**supplier_data_filtered)
-            return True, "Fornitore salvato con successo!"
-        except Exception as e:
-            return False, f"Errore durante il salvataggio del fornitore: {str(e)}"
-
-    def update_supplier(self, supplier_id, supplier_data):
-        """
-        Aggiorna i dati di un fornitore esistente.
-        :param supplier_id: ID del fornitore da aggiornare
-        :param supplier_data: Dizionario contenente i dati da aggiornare
-        :return: Tuple (success, message), dove success è True/False
-        """
-        try:
-            # Controllo validità
-            if not supplier_id or not isinstance(supplier_id, int):
-                return False, "ID fornitore non valido. Deve essere un intero positivo."
-
-            required_fields = {DBSuppliersColumns.NAME.value}
-
-            # Validazione campi obbligatori
-            missing_fields = [field for field in required_fields if not supplier_data.get(field)]
-            if missing_fields:
-                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-            # Invoca il metodo del model per aggiornare l'utente
-            self.db_model.update_supplier(supplier_id, **supplier_data)
-            return True, "Fornitore aggiornato con successo!"
-
-        except ValueError as ve:
-            return False, str(ve)
-        except Exception as e:
-            return False, f"Errore durante l'aggiornamento del fornitore: {str(e)}"
-
-    def delete_supplier(self, supplier_id):
-        return self.db_model.remove_supplier(supplier_id)
-
-    def retrieve_supplier_by_id(self, supplier_id):
-        """Recupera un supplier specifico per ID."""
-        return self.db_model.fetch_supplier_by_id(supplier_id)
-
-    def retrieve_supplier_by_name(self, supplier_name):
-        """Recupera un supplier specifico per nome."""
-        return self.db_model.fetch_supplier_by_name(supplier_name)
-
-    def retrieve_supplier_map_by_name(self, supplier_name):
-        """Recupera un supplier specifico e lo restituisce come dizionario."""
-        row = self.retrieve_supplier_by_name(supplier_name)
-        return ValidationUtils._row_to_map(row, DBSuppliersColumns)
-
-    def retrieve_supplier_map_by_id(self, supplier_id):
-        """Recupera un supplier specifico e lo restituisce come dizionario."""
-        row = self.db_model.fetch_supplier_by_id(supplier_id)
-        return ValidationUtils._row_to_map(row, DBSuppliersColumns)
-
-    def retrieve_suppliers_map_list(self, year: int = None):
-        """Recupera tutti i suppliers e li restituisce come lista di dizionari."""
-        rows = self.db_model.fetch_suppliers()
-
-        # mapping tuple → dict
-        suppliers = [
-            ValidationUtils._row_to_map(row, DBSuppliersColumns)
-            for row in rows
-        ] if rows else []
-
-        # filtro corretto sul dominio productions
-        if suppliers:
-            suppliers = ControllerUtils.filter_suppliers(
-                suppliers=suppliers,
-                year=year
-            )
-
-        return suppliers
-
-    def retrieve_last_supplier_insert_map(self):
-        """
-        Recupera l'ultimo supplier inserito e lo restituisce come dizionario.
-        """
-        row = self.db_model.fetch_last_supplier_insert()
-        return ValidationUtils._row_to_map(row, DBSuppliersColumns)
-
-    def retrieve_supplier_with_expenses_map_list(self, supplier_id, year:int = None):
-        """ Recupera lo specifico supplier unito alle rispettive spese e
-           li restituisce come lista di dizionari.
-
-           Utilizza la funzione fetch_supplier_with_expenses per ottenere le righe,
-           quindi combina le colonne dei supplier e delle spese per convertire
-           ogni riga in un dizionario tramite _row_to_map.
-           """
-        # Recupera le righe dal database per lo specifico client
-        rows = self.db_model.fetch_supplier_with_expenses(supplier_id)
-
-        all_columns = list(DBSuppliersColumns) + list(DBExpensesColumns)
-
-        expenses_map = [ValidationUtils._row_to_map(row, all_columns) for row in rows]
-
-        if expenses_map:
-            expenses_map = ControllerUtils.filter_expenses(
-                expenses=expenses_map,
-                year=year
-            )
-
-        # Converte ogni riga in un dizionario
-        return expenses_map
-
-    def delete_supplier_by_id(self, supplier_id):
-        """Elimina un supplier dato il suo ID."""
-        table = "suppliers"
-        try:
-            self.db_model.delete_row(table, DBSuppliersColumns.ID.value, supplier_id)
-            print(f"Supplier {supplier_id} rimosso con successo")
-            return True, f"Supplier {supplier_id} rimosso con successo"
-        except Exception as e:
-            return False, f"Errore durante l'eliminazione del supplier: {str(e)}"
-
-    def construct_supplier_map_aggregate_data(self, supplier_id):
-        supplier_aggregate_data = {
-            SupplierController.Aggregate_data.TOT_SPESE.value: self.calcola_tot_spese_supplier(supplier_id, year=-1),
-            SupplierController.Aggregate_data.NUM_SPESE.value: self.calcola_numero_spese_supplier(supplier_id, year=-1),
-            SupplierController.Aggregate_data.MEDIA_SPESE.value: self.calcola_media_spese_supplier(supplier_id, year=-1)
-        }
-
-        return supplier_aggregate_data
-
-    def calcola_tot_spese_supplier(self, supplier_id, year:int = None):
-        supplier_with_expenses = self.retrieve_supplier_with_expenses_map_list(supplier_id, year=year)
-        tot = 0.0
-        for row in supplier_with_expenses: #in questo modo sto in realtà scorrendo le fatture
-            tot = tot + float(row[DBExpensesColumns.TOT_AMOUNT.value]) if row[DBExpensesColumns.TOT_AMOUNT.value] is not None else tot
-
-        return tot
-
-    def calcola_numero_spese_supplier(self, supplier_id, year:int = None):
-        supplier_with_expenses = self.retrieve_supplier_with_expenses_map_list(supplier_id, year=year)
-        tot = 0
-        for row in supplier_with_expenses:
-            tot = tot + 1
-
-        return tot
-
-    def calcola_media_spese_supplier(self, supplier_id, year:int = None):
-        numero = self.calcola_numero_spese_supplier(supplier_id, year=year)
-        tot = self.calcola_tot_spese_supplier(supplier_id, year=year)
-
-        return tot/numero if numero > 0 else 0
 
 
 class UpdatesController:

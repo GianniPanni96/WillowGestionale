@@ -5,7 +5,7 @@ from Views.Creators.Client_create_view import ClientCreateView
 from Views.BaseList_view import BaseListView
 from Views.View_utils import ViewUtils
 
-from Controllers import ClientController
+from Controllerss.Client_controller import ClientController
 
 from App_context import AppContext
 

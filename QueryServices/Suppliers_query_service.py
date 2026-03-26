@@ -1,4 +1,4 @@
-from Controllers import SupplierController, ControllerUtils, ExpenseController
+from Utils.Controller_utils import ControllerUtils
 from datetime import datetime, timedelta
 from Model import DatabaseModel
 from Gestionale_Enums import *
@@ -13,9 +13,7 @@ class SupplierQueryService:
     incorporare logica di accesso al database.
     """
 
-    def __init__(self, supplier_controller:SupplierController, expense_controller:ExpenseController, database_model:DatabaseModel):
-        self.supplier_controller:SupplierController = supplier_controller
-        self.expense_controller:ExpenseController = expense_controller
+    def __init__(self, database_model:DatabaseModel):
         self.db_model:DatabaseModel = database_model
 
     def get_suppliers_for_days_window(self, days):

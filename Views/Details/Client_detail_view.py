@@ -1,10 +1,12 @@
 import customtkinter as ctk
-from Controllers import ClientController, ProductionController, InvoiceController, RefundController, DatabaseModel, Analyzer
+from Controllers import ProductionController, InvoiceController, RefundController, DatabaseModel, Analyzer
 from App_context import AppContext
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
 from Views.View_utils import ViewUtils, FilterableComboBox
 import re
 from datetime import datetime
+
+from Controllerss.Client_controller import ClientController
 
 from Gestionale_Enums import *
 from QueryServices.Clients_query_service import ClientQueryService

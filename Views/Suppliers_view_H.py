@@ -5,7 +5,7 @@ from Views.Creators.Supplier_create_view import SupplierCreateView
 from Views.BaseList_view import BaseListView
 from Views.View_utils import ViewUtils
 
-from Controllers import SupplierController
+from Controllerss.Supplier_controller import SupplierController
 
 from App_context import AppContext
 

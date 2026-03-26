@@ -2,11 +2,14 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import InvoiceController, UserController, ControllerUtils, ProductionController, UpdatesController, ClientController, AccountController
+from Controllers import InvoiceController, UserController, ControllerUtils, ProductionController, UpdatesController, AccountController
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns, DBInvoicesColumns
 from datetime import datetime, timedelta
 import re
 from enum import Enum
+
+from Controllerss.Client_controller import ClientController
+
 
 from App_context import AppContext
 from Event_bus import EventBus

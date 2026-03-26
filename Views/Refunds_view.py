@@ -2,10 +2,13 @@ import customtkinter as ctk
 
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import AccountController, RefundController, Analyzer, UpdatesController, ClientController
+from Controllers import AccountController, RefundController, Analyzer, UpdatesController
 from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBRefundsColumns
 from datetime import datetime
 import re
+
+from Controllerss.Client_controller import ClientController
+
 
 from App_context import AppContext
 from Event_bus import EventBus

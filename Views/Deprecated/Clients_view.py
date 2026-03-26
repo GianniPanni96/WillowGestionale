@@ -394,8 +394,6 @@ class ClientsView(ctk.CTkFrame):
                 0,
                 0
             )
-            #self.clients_list.append(self.client_controller.retrieve_client_map_by_id(client_id))
-            self.client_controller.print_clienti()
 
             self.add_client_window.destroy()
             self.show_last_cards()

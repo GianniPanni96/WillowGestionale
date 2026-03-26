@@ -3,11 +3,13 @@ import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
 from Controllers import AccountController, ExpenseController, InvoiceController, UserController, ControllerUtils, \
-    SupplierController, UpdatesController, Analyzer
+     UpdatesController, Analyzer
 from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
 import re
 
 from datetime import datetime, timedelta
+
+from Controllerss.Supplier_controller import SupplierController
 
 from Config import ConfigManager
 from App_context import AppContext

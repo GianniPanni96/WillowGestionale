@@ -5,8 +5,11 @@ from datetime import datetime
 
 
 from Controllers import ExpenseController, ControllerUtils, SalaryController, TransfersController, \
-    UpdatesController, AccountController, UserController, ClientController, SupplierController, PaymentsController, \
+    UpdatesController, AccountController, UserController, PaymentsController, \
     ProductionController, InvoiceController, RefundController, Analyzer
+
+from Controllerss.Client_controller import ClientController
+from Controllerss.Supplier_controller import SupplierController
 
 from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
 

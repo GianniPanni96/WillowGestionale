@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
-from Controllers import ClientController, ControllerUtils, ProductionController
+from Controllers import ProductionController
 
 from Model import DatabaseModel
 from Gestionale_Enums import *
 
 import Utils.Date_utils as Date_utils
+from Utils.Controller_utils import ControllerUtils
 
 
 class ClientQueryService:
@@ -16,10 +17,9 @@ class ClientQueryService:
     incorporare logica di accesso al database.
     """
 
-    def __init__(self, client_controller: ClientController, production_controller: ProductionController,
+    def __init__(self, production_controller: ProductionController,
                  database_model: DatabaseModel):
         """Memorizza i collaboratori necessari alle query sui clienti."""
-        self.client_controller: ClientController = client_controller
         self.production_controller: ProductionController = production_controller
         self.db_model: DatabaseModel = database_model
 

@@ -4,6 +4,11 @@ from datetime import datetime
 
 from App_context import AppContext
 from Model import DBExpensesColumns, DBSuppliersColumns
+
+from QueryServices.Suppliers_query_service import SupplierQueryService
+from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
+
+from Controllerss.Supplier_controller import SupplierController
 from Views.View_utils import ViewUtils
 
 
@@ -11,7 +16,9 @@ class SupplierDetailView(ctk.CTkFrame):
     def __init__(self, parent, app_context: AppContext, back_callback):
         super().__init__(parent)
         self.app_context: AppContext = app_context
-        self.supplier_controller = app_context.supplier_controller
+        self.supplier_controller:SupplierController = app_context.supplier_controller
+        self.supplier_query_service:SupplierQueryService = app_context.suppliers_query_service
+        self.supplier_analyzer_service:SupplierAnalyzerService = app_context.suppliers_analyzer_service
         self.expense_controller = app_context.expense_controller
         self.db_model = app_context.db_model
         self.back_callback = back_callback
@@ -60,7 +67,7 @@ class SupplierDetailView(ctk.CTkFrame):
 
         self._clear_content()
 
-        self.supplier = self.supplier_controller.retrieve_supplier_map_by_id(supplier_id)
+        self.supplier = self.supplier_query_service.retrieve_supplier_map_by_id(supplier_id)
 
         self.title_label.configure(text=f"{self.supplier[DBSuppliersColumns.NAME.value]}")
 
@@ -263,11 +270,11 @@ class SupplierDetailView(ctk.CTkFrame):
 
         global_infos = {
             "TOTALE SPESE (All Time)": {
-                "value": self.supplier_controller.calcola_tot_spese_supplier(self.current_supplier_id, year=-1),
+                "value": self.supplier_analyzer_service.calcola_tot_spese_supplier(self.current_supplier_id, year=-1),
                 "uom": "€"
             },
             f"TOTALE SPESE {datetime.now().year}": {
-                "value": self.supplier_controller.calcola_tot_spese_supplier(self.current_supplier_id),
+                "value": self.supplier_analyzer_service.calcola_tot_spese_supplier(self.current_supplier_id),
                 "uom": "€"
             }
         }
@@ -285,7 +292,7 @@ class SupplierDetailView(ctk.CTkFrame):
         expenses_frame = ctk.CTkScrollableFrame(section_frame, height=300)
         expenses_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
-        expenses = self.supplier_controller.retrieve_supplier_with_expenses_map_list(self.current_supplier_id)
+        expenses = self.supplier_query_service.retrieve_supplier_with_expenses_map_list(self.current_supplier_id)
         for expense in expenses:
             if expense[DBExpensesColumns.NAME.value] is not None:
                 nome_spesa = expense[DBExpensesColumns.NAME.value]
@@ -313,7 +320,7 @@ class SupplierDetailView(ctk.CTkFrame):
         success, message = self.supplier_controller.update_supplier(self.current_supplier_id, supplier_data)
 
         if success:
-            supplier_name = self.supplier_controller.retrieve_supplier_map_by_id(
+            supplier_name = self.supplier_query_service.retrieve_supplier_map_by_id(
                 self.current_supplier_id
             )[DBSuppliersColumns.NAME.value]
             print(f"Fornitore {supplier_name} salvato con successo")

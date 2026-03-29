@@ -1,4 +1,6 @@
 from enum import Enum
+
+from Analyzers.Production_analyzer_service import ProductionAnalyzerService
 from Gestionale_Enums import*
 import customtkinter as ctk
 import tkinter as tk
@@ -740,7 +742,7 @@ class ViewUtils(ctk.CTk):
         return extract_payment_args
 
     @staticmethod
-    def create_extractor_for_productions(production_controller:"ProductionController", clients_query_service:"ClientQueryService"):
+    def create_extractor_for_productions(production_analyzer_service:"ProductionAnalyzerService", clients_query_service:"ClientQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per le produzioni
         """
@@ -756,7 +758,7 @@ class ViewUtils(ctk.CTk):
             data_di_consegna = production[DBProductionsColumns.END_DATE.value]
             totale_preventivo = production[DBProductionsColumns.TOTALE_PREVENTIVO.value]
             durata_produzione = production[DBProductionsColumns.HOURS.value]
-            prezzo_orario = production_controller.calculate_production_cost_per_hour(production_id)
+            prezzo_orario = production_analyzer_service.calculate_production_cost_per_hour(production_id)
 
             return (
                 production_id,
@@ -1274,7 +1276,7 @@ class FilterableComboBox(ctk.CTkFrame):
         super().destroy()
 
 
-class customTKMenuButton(tk.Menubutton):
+class CustomTkMenuButton(tk.Menubutton):
     """
     Menubutton tkinter con stile dark e API semplificata:
     items = [

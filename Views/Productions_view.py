@@ -4,13 +4,14 @@ from tkcalendar import Calendar
 
 from Config import ConfigManager
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import ProductionController, PaymentsController, InvoiceController, UserController, ControllerUtils, \
+from Controllers import  PaymentsController, InvoiceController, UserController, ControllerUtils, \
      UpdatesController
 from Model import DatabaseModel, DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBInvoicesColumns
 from datetime import datetime, timedelta
 import re
 
 from Controllerss.Client_controller import ClientController
+from Controllerss.Production_controller import ProductionController
 
 from App_context import AppContext
 from Event_bus import EventBus

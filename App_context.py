@@ -1,7 +1,8 @@
 from Analyzers.Client_analyzer_service import ClientAnalyzerService
+from Analyzers.Production_analyzer_service import ProductionAnalyzerService
 from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
 from Controllers import UserController, AccountController, InvoiceController, \
-    PaymentsController, ProductionController, ExpenseController, UpdatesController, \
+    PaymentsController, ExpenseController, UpdatesController, \
     Analyzer, TransfersController, SalaryController, RefundController
 from Model import DatabaseModel
 from Event_bus import EventBus
@@ -10,9 +11,11 @@ from Book_closer import BookCloser
 
 from Controllerss.Client_controller import ClientController
 from Controllerss.Supplier_controller import SupplierController
+from Controllerss.Production_controller import ProductionController
 
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Suppliers_query_service import SupplierQueryService
+from QueryServices.Productions_query_service import ProductionQueryService
 
 
 
@@ -47,7 +50,8 @@ class AppContext:
         self.fiscal_settings = fiscal_settings
 
         self.suppliers_query_service: SupplierQueryService = SupplierQueryService(self.db_model)
-
+        self.productions_query_service:ProductionQueryService = ProductionQueryService(self.db_model)
+        self.clients_query_service:ClientQueryService = ClientQueryService(self.productions_query_service, self.db_model)
 
 
         self.user_controller:UserController = UserController(self.db_model, self.fiscal_settings)  # Crea il controller per gli utenti
@@ -57,7 +61,7 @@ class AppContext:
         self.client_controller:ClientController = ClientController(self.db_model)
         self.supplier_controller:SupplierController = SupplierController(self.db_model)
         self.payment_controller:PaymentsController = PaymentsController(self.db_model, self.account_controller)
-        self.production_controller:ProductionController = ProductionController(self.db_model, self.client_controller)
+        self.production_controller:ProductionController = ProductionController(self.db_model, self.clients_query_service)
         self.invoice_controller:InvoiceController = InvoiceController(self.db_model, self.user_controller, self.client_controller,
                                                     self.production_controller, self.payment_controller,
                                                     self.account_controller, fiscal_settings,
@@ -100,7 +104,6 @@ class AppContext:
                                                  expense_controller=self.expense_controller,
                                                  production_controller=self.production_controller,
                                                  salary_controller=self.salary_controller)
-        self.clients_query_service:ClientQueryService = ClientQueryService(self.production_controller, self.db_model)
         self.clients_analyzer_service:ClientAnalyzerService = ClientAnalyzerService(self.clients_query_service, self.db_model)
-        self.suppliers_analyzer_service: SupplierAnalyzerService = SupplierAnalyzerService(self.suppliers_query_service,
-                                                                                     self.db_model)
+        self.suppliers_analyzer_service:SupplierAnalyzerService = SupplierAnalyzerService(self.suppliers_query_service, self.db_model)
+        self.productions_analyzer_service:ProductionAnalyzerService = ProductionAnalyzerService(self.productions_query_service, self.db_model)

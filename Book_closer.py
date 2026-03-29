@@ -5,7 +5,9 @@ from datetime import datetime
 from typing import Dict, List, Any
 
 from Controllers import AccountController, Analyzer, UserController, InvoiceController, ExpenseController, \
-    ProductionController, SalaryController
+    SalaryController
+
+from Controllerss.Production_controller import ProductionController
 
 from Config import ConfigManager
 

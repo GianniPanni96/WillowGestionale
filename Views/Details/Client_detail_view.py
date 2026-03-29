@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from Controllers import ProductionController, InvoiceController, RefundController, DatabaseModel, Analyzer
+from Controllers import InvoiceController, RefundController, DatabaseModel, Analyzer
 from App_context import AppContext
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
 from Views.View_utils import ViewUtils, FilterableComboBox
@@ -7,10 +7,15 @@ import re
 from datetime import datetime
 
 from Controllerss.Client_controller import ClientController
+from Controllerss.Production_controller import ProductionController
+
 
 from Gestionale_Enums import *
+from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Clients_query_service import ClientQueryService
 from Analyzers.Client_analyzer_service import ClientAnalyzerService
+from Analyzers.Production_analyzer_service import ProductionAnalyzerService
+from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
 
 
 class ClientDetailView(ctk.CTkFrame):
@@ -20,6 +25,8 @@ class ClientDetailView(ctk.CTkFrame):
 
         self.clients_query_service:ClientQueryService = app_context.clients_query_service
         self.clients_analyzer_service:ClientAnalyzerService = app_context.clients_analyzer_service
+        self.productions_query_service: ProductionQueryService = app_context.productions_query_service
+        self.productions_analyzer_service:ProductionAnalyzerService = app_context.productions_analyzer_service
 
         self.invoice_controller:InvoiceController = app_context.invoice_controller
         self.refund_controller:RefundController = app_context.refund_controller
@@ -31,6 +38,7 @@ class ClientDetailView(ctk.CTkFrame):
         self.current_client_id = None
         self.analyzer:Analyzer = app_context.analyzer
         self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.business_sector_adder_view = None
 
         self.configure(fg_color="transparent")
 
@@ -43,7 +51,7 @@ class ClientDetailView(ctk.CTkFrame):
         )
         self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
 
-        self.user_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+        self.user_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu | FilterableComboBox] = {}
 
         self.nome_fattura_string = "FATTURA ASSOCIATA"
         self.nome_produzione_string = "PRODUZIONE ASSOCIATA"
@@ -124,10 +132,11 @@ class ClientDetailView(ctk.CTkFrame):
 
             # Sezione Settore e Tipologia
             DBClientsColumns.SETTORE.value: {
-                "type": ctk.CTkOptionMenu,
+                "type": FilterableComboBox,
                 "label": "Settore",
                 "section": "Settore & Tipologia",
-                "values": [item[1] for item in self.catalogo_elenchi["clients_business_sectors"]]
+                "values": [item[1] for item in self.catalogo_elenchi["clients_business_sectors"]],
+                "command": self._handle_business_sector_selection
             },
             DBClientsColumns.TIPOLOGIA.value: {
                 "type": ctk.CTkOptionMenu,
@@ -225,18 +234,24 @@ class ClientDetailView(ctk.CTkFrame):
             # Creazione widget
             value = str(client_data.get(field, ""))
 
-            if config["type"] == ctk.CTkOptionMenu:
-                widget = config["type"](frame, values=config.get("values", []))
+            if config["type"] == FilterableComboBox:
+                widget = config["type"](
+                    frame,
+                    values=config.get("values", []),
+                    placeholder="Cerca",
+                    autofill=True,
+                    command=config.get("command")
+                )
 
-                # Converti il valore del DB nella descrizione corrispondente
-                if field == DBClientsColumns.SETTORE.value:
-                    # Trova la descrizione corrispondente al valore
-                    current_value = next(
-                        (desc for key, desc in self.catalogo_elenchi["clients_business_sectors"] if key == value),
-                        value)
-                    widget.set(current_value)
-                else:
-                    widget.set(value if value else config.get("values", [""])[0])
+                current_value = next(
+                    (desc for key, desc in self.catalogo_elenchi["clients_business_sectors"] if key == value),
+                    value
+                )
+                widget.set_value(current_value, safe_mode=False)
+
+            elif config["type"] == ctk.CTkOptionMenu:
+                widget = config["type"](frame, values=config.get("values", []))
+                widget.set(value if value else config.get("values", [""])[0])
 
             elif config["type"] == ctk.CTkTextbox:
                 widget = config["type"](frame, height=config.get("height", 50))
@@ -311,7 +326,7 @@ class ClientDetailView(ctk.CTkFrame):
             DBClientsColumns.NOTE.value: self.client_info_widgets[
                 DBClientsColumns.NOTE.value].get("1.0", "end-1c").strip(),
             DBClientsColumns.SETTORE.value: self.client_info_widgets[
-                DBClientsColumns.SETTORE.value].get(),
+                DBClientsColumns.SETTORE.value].get_value(),
             DBClientsColumns.TIPOLOGIA.value: self.client_info_widgets[
                 DBClientsColumns.TIPOLOGIA.value].get()
         }
@@ -335,7 +350,7 @@ class ClientDetailView(ctk.CTkFrame):
         if confirmation:
             #check if something link to this client
             invoices = self.invoice_controller.retrieve_invoice_map_list_by_client(self.current_client_id)
-            productions = self.production_controller.retrieve_productions_map_list_by_client_id(self.current_client_id)
+            productions = self.productions_query_service.retrieve_productions_map_list_by_client_id(self.current_client_id)
             refunds = self.refund_controller.retrieve_refunds_map_list_by_client_id(self.current_client_id)
 
             if len(invoices) == 0 and len(productions) == 0 and len(refunds) == 0 :
@@ -351,6 +366,45 @@ class ClientDetailView(ctk.CTkFrame):
                 ViewUtils.show_error_popup(self.info_frame, message="Impossibile eliminare il cliente.\n\n"
                                                                     "Esiste un item collegato a questo cliente.\n"
                                                                     "Eliminare ogni riferimento a questo cliente per poterlo eliminare dal database.")
+
+    def _handle_business_sector_selection(self, selected_value):
+        """Apre l'adder dei settori solo quando viene scelto il trigger dedicato."""
+        sector_dict = dict(self.catalogo_elenchi["clients_business_sectors"])
+        if selected_value != sector_dict.get("ADD_SECTOR"):
+            return
+
+        self.after(10, self.open_add_business_sector)
+
+    def open_add_business_sector(self):
+        """Apre la modale riusabile per aggiungere un settore di business."""
+        if self.business_sector_adder_view is not None and self.business_sector_adder_view.winfo_exists():
+            self.business_sector_adder_view.focus()
+            self.business_sector_adder_view.lift()
+            return
+
+        self.business_sector_adder_view = BusinessSectorAdderView(
+            parent=self,
+            app_context=self.app_context,
+            on_item_created=self._on_business_sector_created,
+            on_close=self._clear_business_sector_adder_view
+        )
+
+    def _on_business_sector_created(self, sector_key, sector_value):
+        """Aggiorna il menu settori del dettaglio dopo la creazione di una nuova voce."""
+        sector_widget = self.client_info_widgets.get(DBClientsColumns.SETTORE.value)
+        if sector_widget is not None:
+            sector_widget.set_values(
+                [value for _, value in self.catalogo_elenchi["clients_business_sectors"]],
+                preserve_current=False
+            )
+            sector_widget.set_value(sector_value, safe_mode=False)
+        self.grab_set()
+
+    def _clear_business_sector_adder_view(self):
+        """Azzera il riferimento all'adder dei settori e ripristina il grab."""
+        self.business_sector_adder_view = None
+        if self.winfo_exists():
+            self.grab_set()
 
     def toggle_edit(self, parent):
         """
@@ -370,6 +424,9 @@ class ClientDetailView(ctk.CTkFrame):
             # se è un OptionMenu
             elif isinstance(w, ctk.CTkOptionMenu):
                 w.configure(state=state)
+            elif isinstance(w, FilterableComboBox):
+                w.entry.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+                w.dropdown_button.configure(state=state)
             # se è un Frame/container, scendi ricorsivamente
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)
@@ -409,7 +466,7 @@ class ClientDetailView(ctk.CTkFrame):
                 nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
                 id_fattura = invoice[DBInvoicesColumns.ID.value]
                 id_produzione = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-                produzione = self.production_controller.retrieve_production_map_by_id(id_produzione)
+                produzione = self.productions_query_service.retrieve_production_map_by_id(id_produzione)
                 nome_prod = produzione[DBProductionsColumns.NAME.value] if produzione else "Produzione non trovata"
                 fattura_button = ctk.CTkButton(invoices_frame,
                                                text=f"{nome_fattura} - {nome_prod}",
@@ -471,11 +528,11 @@ class ClientDetailView(ctk.CTkFrame):
 
         global_infos = {
             "# PRODUZIONI (All time)": {
-                "value": self.production_controller.count_productions_of_client(self.current_client_id, year=-1),
+                "value": self.productions_analyzer_service.count_productions_of_client(self.current_client_id, year=-1),
                 "uom": ""
             },
             f"# PRODUZIONI {datetime.now().year}": {
-                "value": self.production_controller.count_productions_of_client(self.current_client_id, include_prod_with_unpaid_invoices=False),
+                "value": self.productions_analyzer_service.count_productions_of_client(self.current_client_id, include_prod_with_unpaid_invoices=False),
                 "uom": ""
             }
         }
@@ -491,7 +548,7 @@ class ClientDetailView(ctk.CTkFrame):
         productions_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
-        productions = self.production_controller.retrieve_productions_map_list_by_client_id(self.current_client_id, include_prod_with_unpaid_invoices=False)
+        productions = self.productions_query_service.retrieve_productions_map_list_by_client_id(self.current_client_id, include_prod_with_unpaid_invoices=False)
         for production in productions:
             if production[DBProductionsColumns.NAME.value] is not None:
                 nome_produzione = production[DBProductionsColumns.NAME.value]

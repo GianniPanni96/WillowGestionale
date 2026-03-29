@@ -1,9 +1,10 @@
 from Gestionale_Enums import*
 from Utils.Validation_utils import ValidationUtils
+from Model import DatabaseModel
 
 class SupplierController:
 
-    def __init__(self, db_model):
+    def __init__(self, db_model:DatabaseModel):
         self.db_model = db_model
 
     def save_supplier(self, supplier_data):

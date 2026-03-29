@@ -1,15 +1,16 @@
 import customtkinter as ctk
 import re, os
-from Views.View_utils import ViewUtils, customTKMenuButton
+from Views.View_utils import ViewUtils, CustomTkMenuButton
 from datetime import datetime
 
 
 from Controllers import ExpenseController, ControllerUtils, SalaryController, TransfersController, \
     UpdatesController, AccountController, UserController, PaymentsController, \
-    ProductionController, InvoiceController, RefundController, Analyzer
+    InvoiceController, RefundController, Analyzer
 
 from Controllerss.Client_controller import ClientController
 from Controllerss.Supplier_controller import SupplierController
+from Controllerss.Production_controller import ProductionController
 
 from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
 
@@ -18,6 +19,7 @@ from Views.Clients_view_H import ClientsViewH
 from Views.Invoices_view import InvoicesView
 from Views.Payments_view import PaymentsView
 from Views.Productions_view import ProductionsView
+from Views.Productions_view_H import ProductionsViewH
 from Views.Expenses_view import ExpensesView
 from Views.Suppliers_view_H import SuppliersViewH
 from Views.Accounts_view import AccountsView
@@ -95,7 +97,7 @@ class MainWindow(ctk.CTk):
         self.toolbar_frame = ctk.CTkFrame(self)
         self.toolbar_frame.pack(side="top", fill="x")
 
-        self.backup_menu = customTKMenuButton(
+        self.backup_menu = CustomTkMenuButton(
             self.toolbar_frame,
             text="Gestione Backup",
             items=[
@@ -108,7 +110,7 @@ class MainWindow(ctk.CTk):
         self.backup_menu.pack(side="left", padx=15, pady=15)
 
 
-        self.fiscal_settings_menu_button = customTKMenuButton(
+        self.fiscal_settings_menu_button = CustomTkMenuButton(
             self.toolbar_frame,
             text="Gestione Dati Fiscali",
             items=[
@@ -117,7 +119,7 @@ class MainWindow(ctk.CTk):
         )
         self.fiscal_settings_menu_button.pack(side="left", padx=(0, 15), pady=15)
 
-        self.recurring_expenses_menu_button = customTKMenuButton(
+        self.recurring_expenses_menu_button = CustomTkMenuButton(
             self.toolbar_frame,
             text="Gestione Spese Ricorrenti",
             items=[
@@ -126,7 +128,7 @@ class MainWindow(ctk.CTk):
         )
         self.recurring_expenses_menu_button.pack(side="left", padx=(0, 15), pady=15)
 
-        self.recurring_expenses_menu_button = customTKMenuButton(
+        self.recurring_expenses_menu_button = CustomTkMenuButton(
             self.toolbar_frame,
             text="Gestione Esercizio",
             items=[
@@ -163,6 +165,7 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Clienti")
         #self.tabview.add("Fornitori")
         self.tabview.add("Fornitori")
+        #self.tabview.add("Produzioni")
         self.tabview.add("Produzioni")
         self.tabview.add("Conti")
         self.tabview.add("Fatture")
@@ -220,7 +223,9 @@ class MainWindow(ctk.CTk):
 
             "Rimborsi": lambda tab, refund_id=None: RefundsView(self.app_context, self.tabview, initial_refund_id=refund_id),
 
-            "Produzioni": lambda tab, production_id=None: ProductionsView(self.app_context, self.tabview, initial_production_id=production_id),
+            #"Produzioni": lambda tab, production_id=None: ProductionsView(self.app_context, self.tabview, initial_production_id=production_id),
+
+            "Produzioni": lambda tab, production_id=None: ProductionsViewH(self.app_context, self.tabview, initial_production_id=production_id),
 
             "Spese": lambda tab, expense_id=None: ExpensesView(self.app_context, self.tabview, initial_expense_id = expense_id),
 

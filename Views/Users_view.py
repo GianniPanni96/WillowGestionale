@@ -10,12 +10,12 @@ from Event_bus import EventBus
 
 from Views.View_utils import ViewUtils
 
-from Controllers import AccountController, ValidationUtils, UserController, Analyzer, ProductionController
+from Controllers import AccountController, ValidationUtils, UserController, Analyzer
 from Model import DatabaseModel, DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns, \
     DBSalariesColumns
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
-
+from Controllerss.Production_controller import ProductionController
 
 class UsersView(ctk.CTkFrame):
     def __init__(self, app_context:AppContext, tab, logged_user_id, login_status):

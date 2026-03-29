@@ -2,7 +2,7 @@ import customtkinter as ctk
 
 from Gestionale_Enums import *
 from Views.View_utils import FilterableComboBox, ViewUtils
-from Views.Business_sector_create_view import BusinessSectorCreateView
+from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
 
 from App_context import AppContext
 
@@ -65,7 +65,7 @@ class ClientCreateView(ctk.CTkToplevel):
         self.field_labels = {}
         self.client_widgets = {}
         self.error_labels = {}
-        self.business_sector_create_view = None
+        self.business_sector_adder_view = None
 
         self.title("Aggiungi Nuovo Cliente")
         self.geometry("400x700")
@@ -210,16 +210,16 @@ class ClientCreateView(ctk.CTkToplevel):
 
     def open_add_business_sector(self):
         """Apre la finestra modale per creare un nuovo settore, una sola volta."""
-        if self.business_sector_create_view is not None and self.business_sector_create_view.winfo_exists():
-            self.business_sector_create_view.focus()
-            self.business_sector_create_view.lift()
+        if self.business_sector_adder_view is not None and self.business_sector_adder_view.winfo_exists():
+            self.business_sector_adder_view.focus()
+            self.business_sector_adder_view.lift()
             return
 
-        self.business_sector_create_view = BusinessSectorCreateView(
+        self.business_sector_adder_view = BusinessSectorAdderView(
             parent=self,
             app_context=self.app_context,
-            on_sector_created=self._on_business_sector_created,
-            on_close=self._clear_business_sector_create_view
+            on_item_created=self._on_business_sector_created,
+            on_close=self._clear_business_sector_adder_view
         )
 
     def _on_business_sector_created(self, sector_key, sector_value):
@@ -237,9 +237,9 @@ class ClientCreateView(ctk.CTkToplevel):
         sector_widget.set_value(sector_value, safe_mode=False)
         self.grab_set()
 
-    def _clear_business_sector_create_view(self):
+    def _clear_business_sector_adder_view(self):
         """Azzera il riferimento alla finestra settore e ripristina il grab sul parent."""
-        self.business_sector_create_view = None
+        self.business_sector_adder_view = None
         if self.winfo_exists():
             self.grab_set()
 

@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from Controllers import ProductionController
+from QueryServices.Productions_query_service import ProductionQueryService
 
 from Model import DatabaseModel
 from Gestionale_Enums import *
@@ -17,10 +17,10 @@ class ClientQueryService:
     incorporare logica di accesso al database.
     """
 
-    def __init__(self, production_controller: ProductionController,
+    def __init__(self, production_query_service: ProductionQueryService,
                  database_model: DatabaseModel):
         """Memorizza i collaboratori necessari alle query sui clienti."""
-        self.production_controller: ProductionController = production_controller
+        self.production_query_service: ProductionQueryService = production_query_service
         self.db_model: DatabaseModel = database_model
 
 
@@ -39,10 +39,10 @@ class ClientQueryService:
 
         for client in all_clients:
             client_id = client[DBClientsColumns.ID.value]
-            client_productions = self.production_controller.retrieve_productions_map_list_by_client_id(
+            client_productions = self.production_query_service.retrieve_productions_map_list_by_client_id(
                 client_id,
                 year=-1
-            ) #todo: usare il retriever della query service e non del controller (eliminare la funzione dal controller se ancora non è stato fatto, ovviamente dopo la migrazione)
+            )
 
             has_recent_production = False
             for production in client_productions:

@@ -9,7 +9,8 @@ from QueryServices.Suppliers_query_service import SupplierQueryService
 from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
 
 from Controllerss.Supplier_controller import SupplierController
-from Views.View_utils import ViewUtils
+from Views.View_utils import ViewUtils, FilterableComboBox
+from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
 
 
 class SupplierDetailView(ctk.CTkFrame):
@@ -26,6 +27,7 @@ class SupplierDetailView(ctk.CTkFrame):
         self.current_client_id = None
         self.analyzer = app_context.analyzer
         self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.business_sector_adder_view = None
 
         self.configure(fg_color="transparent")
 
@@ -37,7 +39,7 @@ class SupplierDetailView(ctk.CTkFrame):
         )
         self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
 
-        self.user_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+        self.user_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu | FilterableComboBox] = {}
 
         self.nome_fattura_string = "FATTURA ASSOCIATA"
         self.nome_produzione_string = "PRODUZIONE ASSOCIATA"
@@ -101,10 +103,11 @@ class SupplierDetailView(ctk.CTkFrame):
                 "section": "Contatto"
             },
             DBSuppliersColumns.CATEGORIA.value: {
-                "type": ctk.CTkOptionMenu,
+                "type": FilterableComboBox,
                 "label": "Categoria",
                 "section": "Categoria",
-                "values": [item[1] for item in self.catalogo_elenchi["clients_business_sectors"]]
+                "values": [item[1] for item in self.catalogo_elenchi["clients_business_sectors"]],
+                "command": self._handle_business_sector_selection
             },
             DBSuppliersColumns.NOTE.value: {
                 "type": ctk.CTkTextbox,
@@ -168,17 +171,24 @@ class SupplierDetailView(ctk.CTkFrame):
 
             value = str(supplier_data.get(field, ""))
 
-            if config["type"] == ctk.CTkOptionMenu:
-                widget = config["type"](frame, values=config.get("values", []))
+            if config["type"] == FilterableComboBox:
+                widget = config["type"](
+                    frame,
+                    values=config.get("values", []),
+                    placeholder="Cerca",
+                    autofill=True,
+                    command=config.get("command")
+                )
 
-                if field == DBSuppliersColumns.CATEGORIA.value:
-                    current_value = next(
-                        (desc for key, desc in self.catalogo_elenchi["clients_business_sectors"] if key == value),
-                        value
-                    )
-                    widget.set(current_value)
-                else:
-                    widget.set(value if value else config.get("values", [""])[0])
+                current_value = next(
+                    (desc for key, desc in self.catalogo_elenchi["clients_business_sectors"] if key == value),
+                    value
+                )
+                widget.set_value(current_value, safe_mode=False)
+
+            elif config["type"] == ctk.CTkOptionMenu:
+                widget = config["type"](frame, values=config.get("values", []))
+                widget.set(value if value else config.get("values", [""])[0])
 
             elif config["type"] == ctk.CTkTextbox:
                 widget = config["type"](frame, height=config.get("height", 50))
@@ -254,6 +264,9 @@ class SupplierDetailView(ctk.CTkFrame):
                 w.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
             elif isinstance(w, ctk.CTkOptionMenu):
                 w.configure(state=state)
+            elif isinstance(w, FilterableComboBox):
+                w.entry.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+                w.dropdown_button.configure(state=state)
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)
 
@@ -313,7 +326,7 @@ class SupplierDetailView(ctk.CTkFrame):
             DBSuppliersColumns.PARTITA_IVA.value: self.supplier_info_widgets[DBSuppliersColumns.PARTITA_IVA.value].get().strip(),
             DBSuppliersColumns.SEDE.value: self.supplier_info_widgets[DBSuppliersColumns.SEDE.value].get().strip(),
             DBSuppliersColumns.CONTATTO.value: self.supplier_info_widgets[DBSuppliersColumns.CONTATTO.value].get().strip(),
-            DBSuppliersColumns.CATEGORIA.value: self.supplier_info_widgets[DBSuppliersColumns.CATEGORIA.value].get(),
+            DBSuppliersColumns.CATEGORIA.value: self.supplier_info_widgets[DBSuppliersColumns.CATEGORIA.value].get_value(),
             DBSuppliersColumns.NOTE.value: self.supplier_info_widgets[DBSuppliersColumns.NOTE.value].get("1.0", "end-1c").strip()
         }
 
@@ -355,6 +368,45 @@ class SupplierDetailView(ctk.CTkFrame):
                     "Esiste un item collegato a questo fornitore.\n"
                     "Eliminare ogni riferimento a questo fornitore per poterlo eliminare dal database."
                 )
+
+    def _handle_business_sector_selection(self, selected_value):
+        """Apre l'adder dei settori solo quando viene scelto il trigger dedicato."""
+        sector_dict = dict(self.catalogo_elenchi["clients_business_sectors"])
+        if selected_value != sector_dict.get("ADD_SECTOR"):
+            return
+
+        self.after(10, self.open_add_business_sector)
+
+    def open_add_business_sector(self):
+        """Apre la modale riusabile per aggiungere un settore di business."""
+        if self.business_sector_adder_view is not None and self.business_sector_adder_view.winfo_exists():
+            self.business_sector_adder_view.focus()
+            self.business_sector_adder_view.lift()
+            return
+
+        self.business_sector_adder_view = BusinessSectorAdderView(
+            parent=self,
+            app_context=self.app_context,
+            on_item_created=self._on_business_sector_created,
+            on_close=self._clear_business_sector_adder_view
+        )
+
+    def _on_business_sector_created(self, sector_key, sector_value):
+        """Aggiorna il menu categorie del dettaglio dopo la creazione di una nuova voce."""
+        category_widget = self.supplier_info_widgets.get(DBSuppliersColumns.CATEGORIA.value)
+        if category_widget is not None:
+            category_widget.set_values(
+                [value for _, value in self.catalogo_elenchi["clients_business_sectors"]],
+                preserve_current=False
+            )
+            category_widget.set_value(sector_value, safe_mode=False)
+        self.grab_set()
+
+    def _clear_business_sector_adder_view(self):
+        """Azzera il riferimento all'adder dei settori e ripristina il grab."""
+        self.business_sector_adder_view = None
+        if self.winfo_exists():
+            self.grab_set()
 
     def _clear_content(self):
         """Distrugge tutti i widget dinamici"""

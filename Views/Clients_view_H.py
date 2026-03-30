@@ -185,7 +185,7 @@ class ClientsViewH(BaseListView):
             lbl = ctk.CTkLabel(card, text=f"{val}")
             lbl.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
 
-        self.cards_list[nome] = card
+        self.finalize_item_card(card, nome, btn)
 
     def open_client_detail_tab(self, client_id):
         """Nasconde la lista e mostra il dettaglio del cliente selezionato."""
@@ -211,9 +211,4 @@ class ClientsViewH(BaseListView):
         days = days_map.get(selected, 30)
         filtered_clients = self.clients_query_service.get_clients_for_days_window(days)
 
-        for card in self.clients_card_list.values():
-            card.destroy()
-        self.clients_card_list.clear()
-
-        self.load_items_chunked(filtered_clients)
-        self.sort_cards()
+        self.reload_cards(filtered_clients)

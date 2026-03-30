@@ -184,7 +184,7 @@ class SuppliersViewH(BaseListView):
             lbl.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
 
         # Salva la card per eventuale successivo accesso
-        self.suppliers_card_list[supplier_name] = card
+        self.finalize_item_card(card, supplier_name, btn)
 
     def open_supplier_detail_tab(self, supplier_id):
         """Nasconde la lista e mostra il dettaglio del cliente selezionato."""
@@ -210,9 +210,4 @@ class SuppliersViewH(BaseListView):
         days = days_map.get(selected, 30)
         filtered_suppliers = self.suppliers_query_service.get_suppliers_for_days_window(days)
 
-        for card in self.suppliers_card_list.values():
-            card.destroy()
-        self.suppliers_card_list.clear()
-
-        self.load_items_chunked(filtered_suppliers)
-        self.sort_cards()
+        self.reload_cards(filtered_suppliers)

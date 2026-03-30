@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from datetime import datetime
+from Views.View_utils import ViewUtils
 
 
 class BaseListView(ctk.CTkFrame):
@@ -42,6 +43,7 @@ class BaseListView(ctk.CTkFrame):
         self.global_infos = {}
         self.amount_aggregate_labels = {}
         self.cards_list = {}
+        self.cards_warnings = {}
 
         self.order_bar_option_menu_values_types = {"DECRESCENTE": "DECRESCENTE", "CRESCENTE": "CRESCENTE"}
 
@@ -141,13 +143,18 @@ class BaseListView(ctk.CTkFrame):
 
             global_info_unita_di_misura = getattr(self, "aggregate_UOM", {}).get(key, "")
 
-            title = ctk.CTkLabel(card, text=f"{key}", font=("Arial", 12))
+            title = ctk.CTkLabel(
+                card,
+                text=f"{key}",
+                font=("Arial", 12),
+                bg_color="#1F6AA5"
+            )
             amount = ctk.CTkLabel(card, text=f"{info} {global_info_unita_di_misura}", font=("Arial", 16))
 
-            title.pack(anchor="n", padx=10, pady=(10, 5))
+            title.pack(anchor="n", padx=10, pady=(10, 5), ipadx=5)
             amount.pack(anchor="s", padx=10, pady=5)
 
-            card.pack(side="left", anchor="w", padx=10, pady=(10, 5))
+            card.pack(side="left", anchor="w", padx=10, pady=(5, 5))
             self.amount_aggregate_labels[f"{key}"] = amount
 
     def _create_table_headers(self):
@@ -182,6 +189,53 @@ class BaseListView(ctk.CTkFrame):
             command=self.open_add_window
         )
         self.save_button.pack()
+
+    def collect_card_warnings(self, items_list):
+        """
+        Restituisce la mappa ``warning_key -> warning_text`` per gli item correnti.
+
+        Le classi figlie possono sovrascrivere il metodo quando il dominio
+        necessita di warning sulle card; il comportamento di default non
+        produce warning.
+        """
+        return {}
+
+    def clear_cards(self):
+        """Distrugge tutte le card correnti e pulisce il dizionario locale."""
+        for card in self.cards_list.values():
+            card.destroy()
+        self.cards_list.clear()
+
+    def reload_cards(self, items_list):
+        """
+        Ricalcola warning, ricrea le card della lista e riapplica l'ordinamento.
+
+        Il metodo centralizza il flusso standard delle list view migrate.
+        """
+        self.cards_warnings = self.collect_card_warnings(items_list) or {}
+        self.clear_cards()
+        self.load_items_chunked(items_list)
+        self.sort_cards()
+
+    def finalize_item_card(self, card:ctk.CTkFrame, item_key, primary_widget:ctk.CTkButton=None):
+        """
+        Registra una card nella lista e applica l'eventuale warning visuale.
+
+        Args:
+            card: frame principale della card.
+            name: nome presente nel button della card
+            item_key: chiave univoca usata sia per ``cards_list`` sia per
+                ``cards_warnings``.
+            primary_widget: widget principale della card a cui agganciare il
+                tooltip, tipicamente il bottone in prima colonna.
+        """
+        self.cards_list[item_key] = card
+        ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
+
+        if primary_widget is not None and item_key in self.cards_warnings:
+            ViewUtils.add_tooltip(primary_widget, self.cards_warnings[item_key])
+        elif primary_widget is not None:
+            ViewUtils.add_tooltip(primary_widget, item_key)
 
     def _convert_to_date(self, date_str):
         """Converte una stringa ``dd-mm-yyyy`` in ``datetime`` per l'ordinamento."""

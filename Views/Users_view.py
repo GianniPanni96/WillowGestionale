@@ -17,6 +17,8 @@ from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 
 from Controllerss.Production_controller import ProductionController
 
+from QueryServices.Productions_query_service import ProductionQueryService
+
 class UsersView(ctk.CTkFrame):
     def __init__(self, app_context:AppContext, tab, logged_user_id, login_status):
         super().__init__(tab)
@@ -853,6 +855,7 @@ class UserDetailView(ctk.CTkFrame):
         self.db_model = app_context.db_model
         self.back_callback = back_callback
         self.production_controller = app_context.production_controller
+        self.productions_query_service: ProductionQueryService = app_context.productions_query_service
         self.fiscal_settings = app_context.fiscal_settings
         self.event_bus = app_context.event_bus
         self.current_user_id = None
@@ -1392,7 +1395,7 @@ class UserDetailView(ctk.CTkFrame):
                 nome_fattura = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
                 id_fattura = invoice[DBInvoicesColumns.ID.value]
                 id_produzione = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-                produzione = self.production_controller.retrieve_production_map_by_id(id_produzione)
+                produzione = self.productions_query_service.retrieve_production_map_by_id(id_produzione)
                 nome_prod = produzione[DBProductionsColumns.NAME.value] if produzione else "Produzione non trovata"
                 fattura_button = ctk.CTkButton(invoices_frame,
                                                text=f"{nome_fattura} - {nome_prod}",

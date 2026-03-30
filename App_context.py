@@ -16,6 +16,7 @@ from Controllerss.Production_controller import ProductionController
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Suppliers_query_service import SupplierQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
+from WarningServices.Production_warning_service import ProductionWarningService
 
 
 
@@ -107,3 +108,4 @@ class AppContext:
         self.clients_analyzer_service:ClientAnalyzerService = ClientAnalyzerService(self.clients_query_service, self.db_model)
         self.suppliers_analyzer_service:SupplierAnalyzerService = SupplierAnalyzerService(self.suppliers_query_service, self.db_model)
         self.productions_analyzer_service:ProductionAnalyzerService = ProductionAnalyzerService(self.productions_query_service, self.db_model)
+        self.production_warning_service:ProductionWarningService = ProductionWarningService()

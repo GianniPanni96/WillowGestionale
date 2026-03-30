@@ -414,6 +414,39 @@ class ViewUtils(ctk.CTk):
     @staticmethod
     def add_tooltip(widget, text):
         tooltip = None
+        horizontal_offset = 14
+        vertical_offset = 18
+        screen_margin = 8
+
+        def place_tooltip(event):
+            nonlocal tooltip
+            if tooltip is None:
+                return
+
+            tooltip.update_idletasks()
+
+            tooltip_width = tooltip.winfo_reqwidth()
+            tooltip_height = tooltip.winfo_reqheight()
+            screen_width = widget.winfo_screenwidth()
+            screen_height = widget.winfo_screenheight()
+
+            # Posizione preferita: subito a destra e sotto il puntatore.
+            x = event.x_root + horizontal_offset
+            y = event.y_root + vertical_offset
+
+            # Se il tooltip uscirebbe a destra, prova a posizionarlo a sinistra.
+            if x + tooltip_width + screen_margin > screen_width:
+                x = event.x_root - tooltip_width - horizontal_offset
+
+            # Se il tooltip uscirebbe in basso, prova a posizionarlo sopra.
+            if y + tooltip_height + screen_margin > screen_height:
+                y = event.y_root - tooltip_height - vertical_offset
+
+            # Clamp finale per evitare qualsiasi uscita dallo schermo.
+            x = max(screen_margin, min(x, screen_width - tooltip_width - screen_margin))
+            y = max(screen_margin, min(y, screen_height - tooltip_height - screen_margin))
+
+            tooltip.wm_geometry(f"+{int(x)}+{int(y)}")
 
         def show_tooltip(event):
             nonlocal tooltip
@@ -438,29 +471,7 @@ class ViewUtils(ctk.CTk):
                              pady=6)
             label.pack()
 
-            # Calcola dimensioni del tooltip
-            tooltip.update_idletasks()  # Forza il calcolo delle dimensioni
-
-            # Offset personalizzabile (regola questo valore in base alle tue esigenze)
-            vertical_offset = -170  # Sposta il tooltip 100px sopra il puntatore
-
-            # Calcola posizione finale
-            x = event.x_root + 15
-            y = event.y_root + vertical_offset
-
-            # Controllo per evitare che il tooltip esca dallo schermo in alto
-            screen_height = widget.winfo_screenheight()
-            if y < 0:
-                # Se il tooltip andrebbe sopra lo schermo, mostralo sotto il puntatore
-                y = event.y_root + 20
-
-            # Controllo per evitare che il tooltip esca dallo schermo a destra
-            tooltip_width = tooltip.winfo_width()
-            screen_width = widget.winfo_screenwidth()
-            if (x + tooltip_width) > screen_width:
-                x = screen_width - tooltip_width - 10  # 10px di margine
-
-            tooltip.wm_geometry(f"+{int(x)}+{int(y)}")
+            place_tooltip(event)
 
         def hide_tooltip(event):
             nonlocal tooltip
@@ -468,8 +479,9 @@ class ViewUtils(ctk.CTk):
                 tooltip.destroy()
                 tooltip = None
 
-        widget.bind("<Enter>", show_tooltip)
-        widget.bind("<Leave>", hide_tooltip)
+        widget.bind("<Enter>", show_tooltip, add="+")
+        widget.bind("<Motion>", place_tooltip, add="+")
+        widget.bind("<Leave>", hide_tooltip, add="+")
 
     @staticmethod
     def create_PIL_image_from_path(path):

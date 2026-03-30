@@ -11,6 +11,7 @@ from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Clients_query_service import ClientQueryService
 from Analyzers.Production_analyzer_service import ProductionAnalyzerService
 from Gestionale_Enums import DBProductionsColumns, ProductionStatus
+from WarningServices.Production_warning_service import ProductionWarningService
 
 from Views.Details.Production_detail_view import ProductionDetailView
 
@@ -129,6 +130,7 @@ class ProductionsViewH(BaseListView):
         self.productions_card_list = self.cards_list
         self.productions_query_service: ProductionQueryService = app_context.productions_query_service
         self.productions_analyzer_service: ProductionAnalyzerService = app_context.productions_analyzer_service
+        self.production_warning_service: ProductionWarningService = app_context.production_warning_service
 
         self.show_last_cards_optionMenu.set("60 GG")
         self.production_create_view = None
@@ -199,6 +201,10 @@ class ProductionsViewH(BaseListView):
             cards_frame=getattr(self, self.CARDS_FRAME_NAME)
         )
 
+    def collect_card_warnings(self, items_list):
+        """Delega al warning service la costruzione dei warning lista produzione."""
+        return self.production_warning_service.collect_warnings_for_list(items_list)
+
     def add_item_card(self, production_id, production_name, client_name,
                       tipologia_produzione, tipologia_output, produzione_stato,
                       data_di_consegna, totale_preventivo, durata_produzione,
@@ -249,7 +255,7 @@ class ProductionsViewH(BaseListView):
                 label = ctk.CTkLabel(card, text=text, font=("Arial", 14))
                 label.grid(row=0, column=idx, sticky="nsew", padx=5, pady=10)
 
-        self.cards_list[production_name] = card
+        self.finalize_item_card(card, production_name, btn)
 
     def open_production_detail_tab(self, production_id):
         """Nasconde la lista e mostra il dettaglio della produzione selezionata."""
@@ -296,11 +302,6 @@ class ProductionsViewH(BaseListView):
             if production_date is not None and production_date >= limit_date:
                 filtered_productions.append(production)
 
-        for card in self.productions_card_list.values():
-            card.destroy()
-        self.productions_card_list.clear()
-
-        self.load_items_chunked(filtered_productions)
-        self.sort_cards()
+        self.reload_cards(filtered_productions)
 
 

@@ -95,6 +95,8 @@ class ClientsViewH(BaseListView):
         self.clients_query_service: ClientQueryService = app_context.clients_query_service
         self.clients_analyzer_service: ClientAnalyzerService = app_context.clients_analyzer_service
 
+        self.initialize_view()
+
         self.show_last_cards_optionMenu.set("60 GG")
         self.client_create_view = None
 
@@ -113,8 +115,7 @@ class ClientsViewH(BaseListView):
         Al momento il metodo usa valori placeholder. Quando la migrazione sara'
         completa, qui andranno agganciati i calcoli reali dell'analyzer.
         """
-        self.global_infos["TOT. ENTRATE"] = 12345.67
-        self.global_infos["# FATTURE"] = 42
+        return
 
     def open_add_window(self):
         """

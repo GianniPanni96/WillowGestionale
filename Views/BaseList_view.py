@@ -66,15 +66,22 @@ class BaseListView(ctk.CTkFrame):
 
         self._create_search_and_filter_bar()
 
-        if self.GLOBAL_INFOS_CONFIG:
-            self.populate_global_infos()
-            self._display_global_infos_cards()
-
         if self.HEADERS:
             self._create_table_headers()
 
         self._create_cards_scrollable_frame()
         self._create_add_button()
+
+    def initialize_view(self):
+        """
+        Completa l'inizializzazione differita della view dopo il setup della figlia.
+
+        Serve a evitare che il ``BaseListView`` invochi metodi overrideati
+        prima che la classe figlia abbia inizializzato i propri servizi.
+        """
+        #if self.GLOBAL_INFOS_CONFIG:
+        self.populate_global_infos()
+        self._display_global_infos_cards()
 
     def _create_search_and_filter_bar(self):
         """Crea i controlli di ricerca, filtro, ordinamento e finestra temporale."""
@@ -151,7 +158,7 @@ class BaseListView(ctk.CTkFrame):
             )
             amount = ctk.CTkLabel(card, text=f"{info} {global_info_unita_di_misura}", font=("Arial", 16))
 
-            title.pack(anchor="n", padx=10, pady=(10, 5), ipadx=5)
+            title.pack(anchor="n", padx=10, pady=(10, 5), ipadx=5, ipady=5)
             amount.pack(anchor="s", padx=10, pady=5)
 
             card.pack(side="left", anchor="w", padx=10, pady=(5, 5))

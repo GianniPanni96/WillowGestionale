@@ -30,12 +30,13 @@ class ProductionsViewH(BaseListView):
     CARDS_FRAME_NAME = "productions_cards_frame"
     ADD_BUTTON_TEXT = "Aggiungi una produzione"
 
-    GLOBAL_INFOS_CONFIG = {
-        "# PRODUZIONI\nATTIVE": "TOT_ATTIVE",
-        "# PRODUZIONI\nCHIUSE": "TOT_CHIUSE",
-        "MEDIA ORE PER\nPRODUZIONE": "ORE_PROD",
-        "MEDIA PERZZO PER\nORA DI PRODUZIONE": "PREZZO_ORA",
-    }
+    #GLOBAL_INFOS_CONFIG = {
+    #    "# PRODUZIONI\nATTIVE": "TOT_ATTIVE",
+    #    "# PRODUZIONI\nCHIUSE": "TOT_CHIUSE",
+    #    "MEDIA ORE PER\nPRODUZIONE": "ORE_PROD",
+    #    "MEDIA PERZZO PER\nORA DI PRODUZIONE": "PREZZO_ORA",
+    #}
+
     aggregate_UOM = {
         "# PRODUZIONI\nATTIVE": "",
         "# PRODUZIONI\nCHIUSE": "",
@@ -132,6 +133,8 @@ class ProductionsViewH(BaseListView):
         self.productions_analyzer_service: ProductionAnalyzerService = app_context.productions_analyzer_service
         self.production_warning_service: ProductionWarningService = app_context.production_warning_service
 
+        self.initialize_view()
+
         self.show_last_cards_optionMenu.set("60 GG")
         self.production_create_view = None
 
@@ -155,8 +158,10 @@ class ProductionsViewH(BaseListView):
         Al momento il metodo usa valori placeholder. Quando la migrazione sara'
         completa, qui andranno agganciati i calcoli reali dell'analyzer.
         """
-        self.global_infos["TOT. ENTRATE"] = 12345.67
-        self.global_infos["# FATTURE"] = 42
+        self.global_infos["# PRODUZIONI\nATTIVE"] = self.productions_analyzer_service.count_active_productions()
+        self.global_infos["# PRODUZIONI\nCHIUSE"] = self.productions_analyzer_service.count_closed_productions()
+        self.global_infos["MEDIA ORE PER\nPRODUZIONE"] = round(self.productions_analyzer_service.mean_hours_for_production(), 2)
+        self.global_infos["MEDIA PERZZO PER\nORA DI PRODUZIONE"] = round(self.productions_analyzer_service.mean_prezzo_orario(), 2)
 
     def open_add_window(self):
         """

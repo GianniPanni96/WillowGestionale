@@ -100,6 +100,8 @@ class SuppliersViewH(BaseListView):
         self.suppliers_query_service: SupplierQueryService = app_context.suppliers_query_service
         self.suppliers_analyzer_service: SupplierAnalyzerService = app_context.suppliers_analyzer_service
 
+        self.initialize_view()
+
         self.show_last_cards_optionMenu.set("60 GG")
         self.supplier_create_view = None
 
@@ -128,6 +130,12 @@ class SuppliersViewH(BaseListView):
             on_supplier_created=self._on_supplier_created,
             on_close=self._clear_supplier_create_view
         )
+
+    def populate_global_infos(self):
+        """
+        Popola le metriche aggregate mostrate nella barra superiore.
+        """
+        return
 
     def load_items_chunked(self, items_list):
         """

@@ -1,7 +1,7 @@
 import customtkinter as ctk
 
 from Model import DBSuppliersColumns
-from Views.View_utils import FilterableComboBox, ViewUtils
+from Views.View_utils import CatalogFilterableComboBox, FilterableComboBox, ViewUtils
 from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
 
 from App_context import AppContext
@@ -43,7 +43,7 @@ class SupplierCreateView(ctk.CTkToplevel):
             DBSuppliersColumns.PARTITA_IVA.value: ctk.CTkEntry,
             DBSuppliersColumns.SEDE.value: ctk.CTkEntry,
             DBSuppliersColumns.CONTATTO.value: ctk.CTkEntry,
-            DBSuppliersColumns.CATEGORIA.value: FilterableComboBox,
+            DBSuppliersColumns.CATEGORIA.value: CatalogFilterableComboBox,
             DBSuppliersColumns.NOTE.value: ctk.CTkTextbox,
         }
         self.error_fields = {
@@ -98,7 +98,6 @@ class SupplierCreateView(ctk.CTkToplevel):
                 placeholder="Cerca",
                 autofill=True,
                 values=self._get_business_sector_values(),
-                show_add_button=True,
                 add_button_text="Aggiungi un settore",
                 add_button_command=self.open_add_business_sector
             )

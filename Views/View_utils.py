@@ -888,9 +888,6 @@ class FilterableComboBox(ctk.CTkFrame):
         placeholder="Seleziona...",
         autofill=False,
         command=None,
-        show_add_button=False,
-        add_button_text="",
-        add_button_command=None,
         state=ctk.NORMAL,
         **kwargs
     ):
@@ -904,9 +901,6 @@ class FilterableComboBox(ctk.CTkFrame):
         self.filtered_values = self.all_values.copy()
         self.autofill = autofill
         self.command = command
-        self.show_add_button = show_add_button
-        self.add_button_text = add_button_text
-        self.add_button_command = add_button_command
         self.current_value = ""
         self.parent = parent
 
@@ -979,11 +973,23 @@ class FilterableComboBox(ctk.CTkFrame):
         entry_text_color = self._disabled_text_color if self._is_disabled() else self._text_color
         self.entry.configure(state=self.state, text_color=entry_text_color)
         self.dropdown_button.configure(state=self.state)
-        if self.dropdown_add_button is not None:
-            self.dropdown_add_button.configure(state=self.state)
+        self._update_dropdown_footer_state()
         if self._is_disabled() and self.dropdown_visible:
             self._hide_dropdown()
             self._configure_dropdown_button()
+
+    def _get_dropdown_footer_height(self):
+        return 0
+
+    def _create_dropdown_footer(self):
+        self.dropdown_add_button = None
+
+    def _update_dropdown_footer_state(self):
+        if self.dropdown_add_button is not None:
+            self.dropdown_add_button.configure(state=self.state)
+
+    def _refresh_dropdown_footer(self):
+        self._update_dropdown_footer_state()
 
     # --- Entry click: mostra sempre il dropdown (evita dipendere solo da focus events) ---
     def _on_entry_click(self, event):
@@ -1103,12 +1109,7 @@ class FilterableComboBox(ctk.CTkFrame):
             empty_label = ctk.CTkLabel(self.dropdown_frame, text="Nessun risultato", text_color="gray", height=30)
             empty_label.pack(fill="x", padx=2, pady=1)
             self.dropdown_buttons = []
-            if self.dropdown_add_button is not None:
-                button_state = self.entry.cget("state")
-            self.dropdown_add_button.configure(
-                text=self.add_button_text,
-                state=button_state
-            )
+            self._refresh_dropdown_footer()
             return
 
         self.dropdown_buttons = []
@@ -1129,18 +1130,12 @@ class FilterableComboBox(ctk.CTkFrame):
             self.dropdown_buttons.append(btn)
 
         self.current_selection_index = -1
-
-        if self.dropdown_add_button is not None:
-            button_state = self.entry.cget("state")
-            self.dropdown_add_button.configure(
-                text=self.add_button_text,
-                state=button_state
-            )
+        self._refresh_dropdown_footer()
 
     def _calculate_dropdown_heights(self):
         visible_rows = min(max(len(self.filtered_values), 1), 8)
         list_height = visible_rows * 32 + 14
-        add_button_height = 34 if self.show_add_button and self.add_button_command else 0
+        add_button_height = self._get_dropdown_footer_height()
         total_height = list_height + add_button_height
         return list_height, total_height
 
@@ -1156,13 +1151,6 @@ class FilterableComboBox(ctk.CTkFrame):
                 pass
         # nascondi solo DOPO aver aggiornato
         self._hide_dropdown()
-
-    def _on_add_button_clicked(self):
-        if self._is_disabled():
-            return
-        self._hide_dropdown()
-        if self.add_button_command:
-            self.after(10, self.add_button_command)
 
     def _show_dropdown(self):
         if self._is_disabled():
@@ -1205,17 +1193,7 @@ class FilterableComboBox(ctk.CTkFrame):
         )
         self.dropdown_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
 
-        if self.show_add_button and self.add_button_command:
-            self.dropdown_add_button = ctk.CTkButton(
-                self.dropdown_container,
-                text=self.add_button_text,
-                command=self._on_add_button_clicked,
-                height=22
-            )
-            self.dropdown_container.grid_rowconfigure(1, weight=0)
-            self.dropdown_add_button.grid(row=1, column=0, sticky="ew", padx=4, pady=(4, 4))
-        else:
-            self.dropdown_add_button = None
+        self._create_dropdown_footer()
 
         self._update_dropdown()
         self._apply_state()
@@ -1425,6 +1403,67 @@ class FilterableComboBox(ctk.CTkFrame):
         except Exception:
             pass
         super().destroy()
+
+
+class CatalogFilterableComboBox(FilterableComboBox):
+    def __init__(
+        self,
+        parent,
+        values,
+        placeholder="Seleziona...",
+        autofill=False,
+        command=None,
+        add_button_text="",
+        add_button_command=None,
+        state=ctk.NORMAL,
+        **kwargs
+    ):
+        self.add_button_text = add_button_text
+        self.add_button_command = add_button_command
+        super().__init__(
+            parent,
+            values,
+            placeholder=placeholder,
+            autofill=autofill,
+            command=command,
+            state=state,
+            **kwargs
+        )
+
+    def _get_dropdown_footer_height(self):
+        return 34 if self.add_button_command else 0
+
+    def _create_dropdown_footer(self):
+        if not self.add_button_command:
+            self.dropdown_add_button = None
+            return
+
+        self.dropdown_add_button = ctk.CTkButton(
+            self.dropdown_container,
+            text=self.add_button_text,
+            command=self._on_add_button_clicked,
+            height=22
+        )
+        self.dropdown_container.grid_rowconfigure(1, weight=0)
+        self.dropdown_add_button.grid(row=1, column=0, sticky="ew", padx=4, pady=(4, 4))
+
+    def _update_dropdown_footer_state(self):
+        if self.dropdown_add_button is not None:
+            self.dropdown_add_button.configure(state=self.state)
+
+    def _refresh_dropdown_footer(self):
+        if self.dropdown_add_button is not None:
+            self.dropdown_add_button.configure(
+                text=self.add_button_text,
+                state=self.state
+            )
+
+    def _on_add_button_clicked(self):
+        if self._is_disabled():
+            return
+        self._hide_dropdown()
+        if self.add_button_command:
+            self.after(10, self.add_button_command)
 
 
 class CustomTkMenuButton(tk.Menubutton):

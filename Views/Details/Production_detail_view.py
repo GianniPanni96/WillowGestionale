@@ -11,7 +11,7 @@ from Controllerss.Production_controller import ProductionController
 from Gestionale_Enums import*
 from Views.Adders.Production_output_type_adder_view import ProductionOutputTypeAdderView
 from Views.Adders.Production_type_adder_view import ProductionTypeAdderView
-from Views.View_utils import ViewUtils, FilterableComboBox
+from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox
 
 from App_context import AppContext
 from Event_bus import EventBus
@@ -135,7 +135,7 @@ class ProductionDetailView(ctk.CTkFrame):
 
             # Dati Produzione
             DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value: {
-                "type": FilterableComboBox,
+                "type": CatalogFilterableComboBox,
                 "label": "Tipologia Produzione",
                 "section": "Dati Produzione",
                 "values": self._get_production_type_values(),
@@ -144,7 +144,7 @@ class ProductionDetailView(ctk.CTkFrame):
                 "add_button_command": self.open_add_production_type
             },
             DBProductionsColumns.TIPOLOGIA_OUTPUT.value: {
-                "type": FilterableComboBox,
+                "type": CatalogFilterableComboBox,
                 "label": "Tipologia Output",
                 "section": "Dati Produzione",
                 "values": self._get_production_output_type_values(),
@@ -249,16 +249,20 @@ class ProductionDetailView(ctk.CTkFrame):
                 widget = config["type"](frame, text=value)
                 widget.grid(row=row, column=1, sticky="w", padx=(5, 15), pady=(5, 5))
             else:
-                if config["type"] == FilterableComboBox:
+                if issubclass(config["type"], FilterableComboBox):
+                    combo_kwargs = {
+                        "values": config.get("values", []),
+                        "placeholder": "Cerca",
+                        "autofill": True,
+                        "command": config.get("command"),
+                    }
+                    if issubclass(config["type"], CatalogFilterableComboBox):
+                        combo_kwargs["add_button_text"] = config.get("add_button_text", "")
+                        combo_kwargs["add_button_command"] = config.get("add_button_command")
+
                     widget = config["type"](
                         frame,
-                        values=config.get("values", []),
-                        placeholder="Cerca",
-                        autofill=True,
-                        command=config.get("command"),
-                        show_add_button=config.get("show_add_button", False),
-                        add_button_text=config.get("add_button_text", ""),
-                        add_button_command=config.get("add_button_command")
+                        **combo_kwargs
                     )
 
                     # Gestione speciale per client_id

@@ -9,7 +9,7 @@ from QueryServices.Suppliers_query_service import SupplierQueryService
 from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
 
 from Controllerss.Supplier_controller import SupplierController
-from Views.View_utils import ViewUtils, FilterableComboBox
+from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox
 from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
 
 
@@ -103,7 +103,7 @@ class SupplierDetailView(ctk.CTkFrame):
                 "section": "Contatto"
             },
             DBSuppliersColumns.CATEGORIA.value: {
-                "type": FilterableComboBox,
+                "type": CatalogFilterableComboBox,
                 "label": "Categoria",
                 "section": "Categoria",
                 "values": self._get_business_sector_values(),
@@ -173,16 +173,20 @@ class SupplierDetailView(ctk.CTkFrame):
 
             value = str(supplier_data.get(field, ""))
 
-            if config["type"] == FilterableComboBox:
+            if issubclass(config["type"], FilterableComboBox):
+                combo_kwargs = {
+                    "values": config.get("values", []),
+                    "placeholder": "Cerca",
+                    "autofill": True,
+                    "command": config.get("command"),
+                }
+                if issubclass(config["type"], CatalogFilterableComboBox):
+                    combo_kwargs["add_button_text"] = config.get("add_button_text", "")
+                    combo_kwargs["add_button_command"] = config.get("add_button_command")
+
                 widget = config["type"](
                     frame,
-                    values=config.get("values", []),
-                    placeholder="Cerca",
-                    autofill=True,
-                    command=config.get("command"),
-                    show_add_button=config.get("show_add_button", False),
-                    add_button_text=config.get("add_button_text", ""),
-                    add_button_command=config.get("add_button_command")
+                    **combo_kwargs
                 )
 
                 current_value = next(

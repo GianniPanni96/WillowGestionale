@@ -6,7 +6,7 @@ from tkcalendar import Calendar
 from Gestionale_Enums import DBClientsColumns, DBProductionsColumns, ProductionStatus
 from Views.Adders.Production_output_type_adder_view import ProductionOutputTypeAdderView
 from Views.Adders.Production_type_adder_view import ProductionTypeAdderView
-from Views.View_utils import FilterableComboBox, ViewUtils
+from Views.View_utils import CatalogFilterableComboBox, FilterableComboBox, ViewUtils
 
 from App_context import AppContext
 
@@ -42,8 +42,8 @@ class ProductionCreateView(ctk.CTkToplevel):
             self.CLIENT_NAME_FIELD: FilterableComboBox,
             DBProductionsColumns.NAME.value: ctk.CTkEntry,
             DBProductionsColumns.HOURS.value: ctk.CTkEntry,
-            DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value: FilterableComboBox,
-            DBProductionsColumns.TIPOLOGIA_OUTPUT.value: FilterableComboBox,
+            DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value: CatalogFilterableComboBox,
+            DBProductionsColumns.TIPOLOGIA_OUTPUT.value: CatalogFilterableComboBox,
             DBProductionsColumns.STATO.value: ctk.CTkOptionMenu,
             DBProductionsColumns.END_DATE.value: Calendar,
             DBProductionsColumns.TOTALE_PREVENTIVO.value: ctk.CTkEntry,
@@ -118,8 +118,7 @@ class ProductionCreateView(ctk.CTkToplevel):
             widget = widget_class(
                 self.scrollable_frame,
                 values=self._get_production_type_values(),
-                show_add_button=True,
-                add_button_text="Aggiungi una tipologia",
+                add_button_text="Aggiungi una tipologia di produzione",
                 add_button_command=self.open_add_production_type
             )
             return widget
@@ -128,7 +127,6 @@ class ProductionCreateView(ctk.CTkToplevel):
             widget = widget_class(
                 self.scrollable_frame,
                 values=self._get_production_output_type_values(),
-                show_add_button=True,
                 add_button_text="Aggiungi una tipologia di output",
                 add_button_command=self.open_add_production_output_type
             )

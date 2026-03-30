@@ -2,7 +2,7 @@ import customtkinter as ctk
 from Controllers import InvoiceController, RefundController, DatabaseModel, Analyzer
 from App_context import AppContext
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
-from Views.View_utils import ViewUtils, FilterableComboBox
+from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox
 import re
 from datetime import datetime
 
@@ -132,7 +132,7 @@ class ClientDetailView(ctk.CTkFrame):
 
             # Sezione Settore e Tipologia
             DBClientsColumns.SETTORE.value: {
-                "type": FilterableComboBox,
+                "type": CatalogFilterableComboBox,
                 "label": "Settore",
                 "section": "Settore & Tipologia",
                 "values": self._get_business_sector_values(),
@@ -236,16 +236,20 @@ class ClientDetailView(ctk.CTkFrame):
             # Creazione widget
             value = str(client_data.get(field, ""))
 
-            if config["type"] == FilterableComboBox:
+            if issubclass(config["type"], FilterableComboBox):
+                combo_kwargs = {
+                    "values": config.get("values", []),
+                    "placeholder": "Cerca",
+                    "autofill": True,
+                    "command": config.get("command"),
+                }
+                if issubclass(config["type"], CatalogFilterableComboBox):
+                    combo_kwargs["add_button_text"] = config.get("add_button_text", "")
+                    combo_kwargs["add_button_command"] = config.get("add_button_command")
+
                 widget = config["type"](
                     frame,
-                    values=config.get("values", []),
-                    placeholder="Cerca",
-                    autofill=True,
-                    command=config.get("command"),
-                    show_add_button=config.get("show_add_button", False),
-                    add_button_text=config.get("add_button_text", ""),
-                    add_button_command=config.get("add_button_command")
+                    **combo_kwargs
                 )
 
                 current_value = next(

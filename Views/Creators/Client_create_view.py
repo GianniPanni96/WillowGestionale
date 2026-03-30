@@ -1,7 +1,7 @@
 import customtkinter as ctk
 
 from Gestionale_Enums import *
-from Views.View_utils import FilterableComboBox, ViewUtils
+from Views.View_utils import CatalogFilterableComboBox, FilterableComboBox, ViewUtils
 from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
 
 from App_context import AppContext
@@ -50,7 +50,7 @@ class ClientCreateView(ctk.CTkToplevel):
             DBClientsColumns.PARTITA_IVA.value: ctk.CTkEntry,
             DBClientsColumns.EMAIL.value: ctk.CTkEntry,
             DBClientsColumns.SEDE_LEGALE.value: ctk.CTkEntry,
-            DBClientsColumns.SETTORE.value: FilterableComboBox,
+            DBClientsColumns.SETTORE.value: CatalogFilterableComboBox,
             DBClientsColumns.REFERENTE.value: ctk.CTkEntry,
             DBClientsColumns.CONTATTO_REFERENTE.value: ctk.CTkEntry,
             DBClientsColumns.NOTE.value: ctk.CTkTextbox,
@@ -129,7 +129,6 @@ class ClientCreateView(ctk.CTkToplevel):
                 placeholder="Cerca",
                 autofill=True,
                 values=self._get_business_sector_values(),
-                show_add_button=True,
                 add_button_text="Aggiungi un settore",
                 add_button_command=self.open_add_business_sector
             )

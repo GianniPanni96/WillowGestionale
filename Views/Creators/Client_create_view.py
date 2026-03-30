@@ -128,8 +128,10 @@ class ClientCreateView(ctk.CTkToplevel):
                 parent=self.scrollable_frame,
                 placeholder="Cerca",
                 autofill=True,
-                values=[value for _, value in self.catalogo_elenchi["clients_business_sectors"]],
-                command=self._handle_business_sector_selection
+                values=self._get_business_sector_values(),
+                show_add_button=True,
+                add_button_text="Aggiungi un settore",
+                add_button_command=self.open_add_business_sector
             )
             widget.set_value(BusinessSector.CREATIVE_AGENCY.value)
             return widget
@@ -174,12 +176,6 @@ class ClientCreateView(ctk.CTkToplevel):
         In caso di successo notifica il chiamante con ``on_client_created`` e
         chiude la finestra; in caso di errore mostra un popup esplicativo.
         """
-        selected_sector = self.client_widgets[DBClientsColumns.SETTORE.value].get_value()
-        sector_dict = dict(self.catalogo_elenchi["clients_business_sectors"])
-        if selected_sector == sector_dict.get("ADD_SECTOR"):
-            ViewUtils.show_error_popup(self, "SALVATAGGIO NON RIUSCITO", "Settore di business non valido")
-            return
-
         client_data = self._collect_client_data()
         success, message = self.client_controller.save_client(client_data)
 
@@ -195,18 +191,11 @@ class ClientCreateView(ctk.CTkToplevel):
 
         self._on_close()
 
-    def _handle_business_sector_selection(self, selected_value):
-        """
-        Intercetta la selezione del trigger di aggiunta settore nella combo.
-
-        L'apertura viene rimandata con ``after`` per evitare conflitti di focus
-        con il dropdown del ``FilterableComboBox`` che sta ancora chiudendosi.
-        """
-        sector_dict = dict(self.catalogo_elenchi["clients_business_sectors"])
-        if selected_value != sector_dict.get("ADD_SECTOR"):
-            return
-
-        self.after(10, self.open_add_business_sector)
+    def _get_business_sector_values(self):
+        return [
+            value for key, value in self.catalogo_elenchi["clients_business_sectors"]
+            if key != "ADD_SECTOR"
+        ]
 
     def open_add_business_sector(self):
         """Apre la finestra modale per creare un nuovo settore, una sola volta."""
@@ -231,7 +220,7 @@ class ClientCreateView(ctk.CTkToplevel):
         """
         sector_widget = self.client_widgets[DBClientsColumns.SETTORE.value]
         sector_widget.set_values(
-            [value for _, value in self.catalogo_elenchi["clients_business_sectors"]],
+            self._get_business_sector_values(),
             preserve_current=False
         )
         sector_widget.set_value(sector_value, safe_mode=False)

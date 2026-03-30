@@ -135,8 +135,10 @@ class ClientDetailView(ctk.CTkFrame):
                 "type": FilterableComboBox,
                 "label": "Settore",
                 "section": "Settore & Tipologia",
-                "values": [item[1] for item in self.catalogo_elenchi["clients_business_sectors"]],
-                "command": self._handle_business_sector_selection
+                "values": self._get_business_sector_values(),
+                "show_add_button": True,
+                "add_button_text": "Aggiungi un settore",
+                "add_button_command": self.open_add_business_sector
             },
             DBClientsColumns.TIPOLOGIA.value: {
                 "type": ctk.CTkOptionMenu,
@@ -240,7 +242,10 @@ class ClientDetailView(ctk.CTkFrame):
                     values=config.get("values", []),
                     placeholder="Cerca",
                     autofill=True,
-                    command=config.get("command")
+                    command=config.get("command"),
+                    show_add_button=config.get("show_add_button", False),
+                    add_button_text=config.get("add_button_text", ""),
+                    add_button_command=config.get("add_button_command")
                 )
 
                 current_value = next(
@@ -367,13 +372,11 @@ class ClientDetailView(ctk.CTkFrame):
                                                                     "Esiste un item collegato a questo cliente.\n"
                                                                     "Eliminare ogni riferimento a questo cliente per poterlo eliminare dal database.")
 
-    def _handle_business_sector_selection(self, selected_value):
-        """Apre l'adder dei settori solo quando viene scelto il trigger dedicato."""
-        sector_dict = dict(self.catalogo_elenchi["clients_business_sectors"])
-        if selected_value != sector_dict.get("ADD_SECTOR"):
-            return
-
-        self.after(10, self.open_add_business_sector)
+    def _get_business_sector_values(self):
+        return [
+            value for key, value in self.catalogo_elenchi["clients_business_sectors"]
+            if key != "ADD_SECTOR"
+        ]
 
     def open_add_business_sector(self):
         """Apre la modale riusabile per aggiungere un settore di business."""
@@ -394,7 +397,7 @@ class ClientDetailView(ctk.CTkFrame):
         sector_widget = self.client_info_widgets.get(DBClientsColumns.SETTORE.value)
         if sector_widget is not None:
             sector_widget.set_values(
-                [value for _, value in self.catalogo_elenchi["clients_business_sectors"]],
+                self._get_business_sector_values(),
                 preserve_current=False
             )
             sector_widget.set_value(sector_value, safe_mode=False)
@@ -425,8 +428,7 @@ class ClientDetailView(ctk.CTkFrame):
             elif isinstance(w, ctk.CTkOptionMenu):
                 w.configure(state=state)
             elif isinstance(w, FilterableComboBox):
-                w.entry.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
-                w.dropdown_button.configure(state=state)
+                w.configure(state=state, text_color="#c2c2c2")
             # se è un Frame/container, scendi ricorsivamente
             elif isinstance(w, (ctk.CTkFrame, ctk.CTkScrollableFrame, ctk.CTkToplevel)):
                 self.toggle_edit(w)

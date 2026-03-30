@@ -881,13 +881,32 @@ class ViewUtils(ctk.CTk):
 
 
 class FilterableComboBox(ctk.CTkFrame):
-    def __init__(self, parent, values, placeholder="Seleziona...", autofill=False, command=None, **kwargs):
+    def __init__(
+        self,
+        parent,
+        values,
+        placeholder="Seleziona...",
+        autofill=False,
+        command=None,
+        show_add_button=False,
+        add_button_text="",
+        add_button_command=None,
+        state=ctk.NORMAL,
+        **kwargs
+    ):
         super().__init__(parent, **kwargs)
 
-        self.all_values = sorted(values) if values else []
+        self.state = state
+        self._text_color = "#c2c2c2"
+        self._disabled_text_color = "#636363"
+
+        self.all_values = self._sort_values(values)
         self.filtered_values = self.all_values.copy()
         self.autofill = autofill
         self.command = command
+        self.show_add_button = show_add_button
+        self.add_button_text = add_button_text
+        self.add_button_command = add_button_command
         self.current_value = ""
         self.parent = parent
 
@@ -930,7 +949,9 @@ class FilterableComboBox(ctk.CTkFrame):
 
         # Dropdown
         self.dropdown_window = None
+        self.dropdown_container = None
         self.dropdown_frame = None
+        self.dropdown_add_button = None
         self.dropdown_visible = False
         self.current_selection_index = -1
         self.dropdown_buttons = []
@@ -946,13 +967,34 @@ class FilterableComboBox(ctk.CTkFrame):
         # Per bind di eventi sul parent (bind una tantum)
         self._parent_events_bound = False
 
+        self._apply_state()
+
+    def _sort_values(self, values):
+        return sorted(values, key=lambda value: str(value).casefold()) if values else []
+
+    def _is_disabled(self):
+        return self.state == ctk.DISABLED
+
+    def _apply_state(self):
+        entry_text_color = self._disabled_text_color if self._is_disabled() else self._text_color
+        self.entry.configure(state=self.state, text_color=entry_text_color)
+        self.dropdown_button.configure(state=self.state)
+        if self.dropdown_add_button is not None:
+            self.dropdown_add_button.configure(state=self.state)
+        if self._is_disabled() and self.dropdown_visible:
+            self._hide_dropdown()
+            self._configure_dropdown_button()
+
     # --- Entry click: mostra sempre il dropdown (evita dipendere solo da focus events) ---
     def _on_entry_click(self, event):
-        #self.after(1, self._show_dropdown_with_current_filter)
+        if self._is_disabled():
+            return "break"
         self._show_dropdown_with_current_filter()
         return None
 
     def _on_dropdown_icon_click(self):
+        if self._is_disabled():
+            return
 
         if not self.dropdown_visible:
             self._show_dropdown_with_current_filter()
@@ -966,6 +1008,8 @@ class FilterableComboBox(ctk.CTkFrame):
             self.dropdown_button.configure(text=">")
 
     def _on_focus_out(self, event):
+        if self._is_disabled():
+            return
         # Ritarda la chiusura per permettere click su elementi del dropdown
         self.after(200, self._check_focus)
 
@@ -1013,6 +1057,8 @@ class FilterableComboBox(ctk.CTkFrame):
 
 
     def _on_key_release(self, event):
+        if self._is_disabled():
+            return
         search_text = self.entry.get().lower()
         if not search_text:
             self.filtered_values = self.all_values.copy()
@@ -1020,10 +1066,14 @@ class FilterableComboBox(ctk.CTkFrame):
             self.filtered_values = [v for v in self.all_values if search_text in v.lower()]
 
         self._update_dropdown()
+        if self.dropdown_visible:
+            self._update_dropdown_position()
         if not self.dropdown_visible and self.filtered_values:
             self._show_dropdown()
 
     def _show_dropdown_with_current_filter(self):
+        if self._is_disabled():
+            return
         current_text = self.entry.get().lower()
         if not current_text:
             self.filtered_values = self.all_values.copy()
@@ -1038,6 +1088,14 @@ class FilterableComboBox(ctk.CTkFrame):
         if self.dropdown_frame is None:
             return
 
+        list_height, dropdown_height = self._calculate_dropdown_heights()
+        if self.dropdown_container is not None:
+            self.dropdown_container.configure(height=dropdown_height)
+        if self.dropdown_frame is not None:
+            self.dropdown_frame.configure(height=list_height)
+        if self.dropdown_window is not None and self.dropdown_visible:
+            self.dropdown_window.geometry(f"{int(self.winfo_width() * 8 / 9)}x{dropdown_height}+{self.winfo_rootx()}+{self.winfo_rooty() + self.winfo_height() - self.y_shift}")
+
         for widget in self.dropdown_frame.winfo_children():
             widget.destroy()
 
@@ -1045,6 +1103,12 @@ class FilterableComboBox(ctk.CTkFrame):
             empty_label = ctk.CTkLabel(self.dropdown_frame, text="Nessun risultato", text_color="gray", height=30)
             empty_label.pack(fill="x", padx=2, pady=1)
             self.dropdown_buttons = []
+            if self.dropdown_add_button is not None:
+                button_state = self.entry.cget("state")
+            self.dropdown_add_button.configure(
+                text=self.add_button_text,
+                state=button_state
+            )
             return
 
         self.dropdown_buttons = []
@@ -1066,6 +1130,20 @@ class FilterableComboBox(ctk.CTkFrame):
 
         self.current_selection_index = -1
 
+        if self.dropdown_add_button is not None:
+            button_state = self.entry.cget("state")
+            self.dropdown_add_button.configure(
+                text=self.add_button_text,
+                state=button_state
+            )
+
+    def _calculate_dropdown_heights(self):
+        visible_rows = min(max(len(self.filtered_values), 1), 8)
+        list_height = visible_rows * 32 + 14
+        add_button_height = 34 if self.show_add_button and self.add_button_command else 0
+        total_height = list_height + add_button_height
+        return list_height, total_height
+
     def _on_dropdown_button_clicked(self, value):
         # aggiorna l'entry PRIMA di nascondere per evitare race con focus/close
         self.entry.delete(0, "end")
@@ -1079,8 +1157,18 @@ class FilterableComboBox(ctk.CTkFrame):
         # nascondi solo DOPO aver aggiornato
         self._hide_dropdown()
 
+    def _on_add_button_clicked(self):
+        if self._is_disabled():
+            return
+        self._hide_dropdown()
+        if self.add_button_command:
+            self.after(10, self.add_button_command)
+
     def _show_dropdown(self):
+        if self._is_disabled():
+            return
         if self.dropdown_visible:
+            self._update_dropdown()
             self._update_dropdown_position()
             return
 
@@ -1088,26 +1176,49 @@ class FilterableComboBox(ctk.CTkFrame):
         y = self.winfo_rooty() + self.winfo_height() - self.y_shift
 
         dropdown_width = int(self.winfo_width() *8/ 9)
-        dropdown_height = min(42, len(self.filtered_values) * 32 + 10)
+        list_height, dropdown_height = self._calculate_dropdown_heights()
 
         # Crea una finestra Toplevel con larghezza personalizzata
         self.dropdown_window = Toplevel(self, bg="#545454", height=dropdown_height)
         self.dropdown_window.wm_overrideredirect(True)
-        self.dropdown_window.wm_geometry(f"+{x}+{y}")
+        self.dropdown_window.wm_geometry(f"{dropdown_width}x{dropdown_height}+{x}+{y}")
 
 
         self.dropdown_window.configure(borderwidth=2)
         self.dropdown_window.attributes("-topmost", True)
 
-        self.dropdown_frame = ctk.CTkScrollableFrame(
+        self.dropdown_container = ctk.CTkFrame(
             self.dropdown_window,
-            width=dropdown_width,
-            height=dropdown_height,
             fg_color="#3d3d3d"
         )
-        self.dropdown_frame.pack(fill="both", expand=True)
+        self.dropdown_container.pack(fill="both", expand=True)
+        self.dropdown_container.grid_columnconfigure(0, weight=1)
+        self.dropdown_container.grid_rowconfigure(0, weight=1)
+        self.dropdown_container.grid_propagate(False)
+        self.dropdown_container.configure(width=dropdown_width, height=dropdown_height)
+
+        self.dropdown_frame = ctk.CTkScrollableFrame(
+            self.dropdown_container,
+            width=dropdown_width,
+            height=list_height,
+            fg_color="#3d3d3d"
+        )
+        self.dropdown_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+
+        if self.show_add_button and self.add_button_command:
+            self.dropdown_add_button = ctk.CTkButton(
+                self.dropdown_container,
+                text=self.add_button_text,
+                command=self._on_add_button_clicked,
+                height=22
+            )
+            self.dropdown_container.grid_rowconfigure(1, weight=0)
+            self.dropdown_add_button.grid(row=1, column=0, sticky="ew", padx=4, pady=(4, 4))
+        else:
+            self.dropdown_add_button = None
 
         self._update_dropdown()
+        self._apply_state()
 
         self.dropdown_visible = True
 
@@ -1216,7 +1327,9 @@ class FilterableComboBox(ctk.CTkFrame):
         if self.dropdown_window and self.dropdown_visible:
             x = self.winfo_rootx()
             y = self.winfo_rooty() + self.winfo_height() - self.y_shift
-            self.dropdown_window.wm_geometry(f"+{x}+{y}")
+            dropdown_width = int(self.winfo_width() * 8 / 9)
+            _, dropdown_height = self._calculate_dropdown_heights()
+            self.dropdown_window.wm_geometry(f"{dropdown_width}x{dropdown_height}+{x}+{y}")
 
     def _hide_dropdown(self):
         if self.dropdown_visible:
@@ -1233,7 +1346,9 @@ class FilterableComboBox(ctk.CTkFrame):
                 except Exception:
                     pass
                 self.dropdown_window = None
+                self.dropdown_container = None
                 self.dropdown_frame = None
+                self.dropdown_add_button = None
             self.dropdown_visible = False
             self.current_selection_index = -1
             self.dropdown_buttons = []
@@ -1267,7 +1382,7 @@ class FilterableComboBox(ctk.CTkFrame):
 
     def set_values(self, values, preserve_current=True):
         current = self.get_value()
-        self.all_values = sorted(values) if values else []
+        self.all_values = self._sort_values(values)
         self.filtered_values = self.all_values.copy()
 
         if preserve_current and current in self.all_values:
@@ -1278,6 +1393,30 @@ class FilterableComboBox(ctk.CTkFrame):
             self.set_value(self.all_values[0], safe_mode=False)
         else:
             self.clear_value()
+
+        if self.dropdown_visible:
+            self._update_dropdown()
+            self._update_dropdown_position()
+
+    def configure(self, require_redraw=False, **kwargs):
+        state = kwargs.pop("state", None)
+        text_color = kwargs.pop("text_color", None)
+        if text_color is not None:
+            self._text_color = text_color
+        if state is not None:
+            self.state = state
+        super().configure(require_redraw=require_redraw, **kwargs)
+        if state is not None or text_color is not None:
+            self._apply_state()
+
+    config = configure
+
+    def cget(self, attribute_name):
+        if attribute_name == "state":
+            return self.state
+        if attribute_name == "text_color":
+            return self._text_color
+        return super().cget(attribute_name)
 
     def destroy(self):
         # rimuovi binding e dropdown in modo sicuro

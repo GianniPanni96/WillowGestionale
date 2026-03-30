@@ -117,16 +117,20 @@ class ProductionCreateView(ctk.CTkToplevel):
         if label_text == DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value:
             widget = widget_class(
                 self.scrollable_frame,
-                values=[value for _, value in self.catalogo_elenchi["production_types"]],
-                command=self._handle_production_type_selection
+                values=self._get_production_type_values(),
+                show_add_button=True,
+                add_button_text="Aggiungi una tipologia",
+                add_button_command=self.open_add_production_type
             )
             return widget
 
         if label_text == DBProductionsColumns.TIPOLOGIA_OUTPUT.value:
             widget = widget_class(
                 self.scrollable_frame,
-                values=[value for _, value in self.catalogo_elenchi["production_output_types"]],
-                command=self._handle_production_output_type_selection
+                values=self._get_production_output_type_values(),
+                show_add_button=True,
+                add_button_text="Aggiungi una tipologia di output",
+                add_button_command=self.open_add_production_output_type
             )
             return widget
 
@@ -190,13 +194,13 @@ class ProductionCreateView(ctk.CTkToplevel):
             self.production_widgets[self.CLIENT_NAME_FIELD].set_value(first_client_name, safe_mode=False)
             self.auto_compile_name_entry(first_client_name)
 
-        production_types = [value for _, value in self.catalogo_elenchi["production_types"]]
+        production_types = self._get_production_type_values()
         if production_types:
-            self.production_widgets[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value].set(production_types[0])
+            self.production_widgets[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value].set_value(production_types[0])
 
-        production_output_types = [value for _, value in self.catalogo_elenchi["production_output_types"]]
+        production_output_types = self._get_production_output_type_values()
         if production_output_types:
-            self.production_widgets[DBProductionsColumns.TIPOLOGIA_OUTPUT.value].set(production_output_types[0])
+            self.production_widgets[DBProductionsColumns.TIPOLOGIA_OUTPUT.value].set_value(production_output_types[0])
 
         self.production_widgets[DBProductionsColumns.STATO.value].set(ProductionStatus.START_WAITING.value)
 
@@ -223,9 +227,6 @@ class ProductionCreateView(ctk.CTkToplevel):
         In caso di successo notifica il chiamante con ``on_production_created`` e
         chiude la finestra; in caso di errore mostra un popup esplicativo.
         """
-        if not self._validate_dynamic_catalog_selections():
-            return
-
         production_data = self._collect_production_data()
         success, message = self.production_controller.save_production(production_data)
 
@@ -241,43 +242,22 @@ class ProductionCreateView(ctk.CTkToplevel):
 
         self._on_close()
 
-    def _validate_dynamic_catalog_selections(self):
-        """Blocca il salvataggio se il form punta ai trigger 'aggiungi nuova tipologia'."""
-        production_type = self.production_widgets[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value].get()
-        production_output_type = self.production_widgets[DBProductionsColumns.TIPOLOGIA_OUTPUT.value].get()
-
-        production_type_dict = dict(self.catalogo_elenchi["production_types"])
-        if production_type == production_type_dict.get("ADD_PROD_TYPE"):
-            ViewUtils.show_error_popup(self, "SALVATAGGIO NON RIUSCITO", "Tipologia di produzione non valida")
-            return False
-
-        production_output_type_dict = dict(self.catalogo_elenchi["production_output_types"])
-        if production_output_type == production_output_type_dict.get("ADD_PROD_OUT_TYPE"):
-            ViewUtils.show_error_popup(self, "SALVATAGGIO NON RIUSCITO", "Tipologia di output non valida")
-            return False
-
-        return True
-
     def auto_compile_name_entry(self, selected_value):
         """Aggiorna il prefisso visivo del nome produzione in base al cliente scelto."""
         if self.name_prefix_label is not None:
             self.name_prefix_label.configure(text=f"{selected_value} - ")
 
-    def _handle_production_type_selection(self, selected_value):
-        """Intercetta il trigger di aggiunta di una nuova tipologia di produzione."""
-        production_type_dict = dict(self.catalogo_elenchi["production_types"])
-        if selected_value != production_type_dict.get("ADD_PROD_TYPE"):
-            return
+    def _get_production_type_values(self):
+        return [
+            value for key, value in self.catalogo_elenchi["production_types"]
+            if key != "ADD_PROD_TYPE"
+        ]
 
-        self.after(10, self.open_add_production_type)
-
-    def _handle_production_output_type_selection(self, selected_value):
-        """Intercetta il trigger di aggiunta di una nuova tipologia di output."""
-        output_type_dict = dict(self.catalogo_elenchi["production_output_types"])
-        if selected_value != output_type_dict.get("ADD_PROD_OUT_TYPE"):
-            return
-
-        self.after(10, self.open_add_production_output_type)
+    def _get_production_output_type_values(self):
+        return [
+            value for key, value in self.catalogo_elenchi["production_output_types"]
+            if key != "ADD_PROD_OUT_TYPE"
+        ]
 
     def open_add_production_type(self):
         """Apre la modale per aggiungere una nuova tipologia di produzione."""
@@ -310,15 +290,15 @@ class ProductionCreateView(ctk.CTkToplevel):
     def _on_production_type_created(self, production_type_key, production_type_value):
         """Aggiorna il menu delle tipologie di produzione dopo la creazione di una nuova voce."""
         target_widget = self.production_widgets[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value]
-        target_widget.configure(values=[value for _, value in self.catalogo_elenchi["production_types"]])
-        target_widget.set(production_type_value)
+        target_widget.set_values(self._get_production_type_values(), preserve_current=False)
+        target_widget.set_value(production_type_value, safe_mode=False)
         self.grab_set()
 
     def _on_production_output_type_created(self, output_type_key, output_type_value):
         """Aggiorna il menu delle tipologie di output dopo la creazione di una nuova voce."""
         target_widget = self.production_widgets[DBProductionsColumns.TIPOLOGIA_OUTPUT.value]
-        target_widget.configure(values=[value for _, value in self.catalogo_elenchi["production_output_types"]])
-        target_widget.set(output_type_value)
+        target_widget.set_values(self._get_production_output_type_values(), preserve_current=False)
+        target_widget.set_value(output_type_value, safe_mode=False)
         self.grab_set()
 
     def _clear_production_type_adder_view(self):

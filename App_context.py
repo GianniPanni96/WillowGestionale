@@ -8,6 +8,7 @@ from Model import DatabaseModel
 from Event_bus import EventBus
 from Books_retriever import BooksRetriever
 from Book_closer import BookCloser
+from Config import FiscalSettings
 
 from Controllerss.Client_controller import ClientController
 from Controllerss.Supplier_controller import SupplierController
@@ -48,7 +49,7 @@ class AppContext:
         self.db_backup_path = db_backup_path
         self.books_path = books_path
         self.db_model:DatabaseModel = DatabaseModel(db_path)  # Istanzia il modello
-        self.fiscal_settings = fiscal_settings
+        self.fiscal_settings: FiscalSettings = fiscal_settings
 
         self.suppliers_query_service: SupplierQueryService = SupplierQueryService(self.db_model)
         self.productions_query_service:ProductionQueryService = ProductionQueryService(self.db_model)

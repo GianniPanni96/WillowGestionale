@@ -18,7 +18,6 @@ from Views.Users_view import UsersView
 from Views.Clients_view_H import ClientsViewH
 from Views.Invoices_view import InvoicesView
 from Views.Payments_view import PaymentsView
-from Views.Productions_view import ProductionsView
 from Views.Productions_view_H import ProductionsViewH
 from Views.Expenses_view import ExpensesView
 from Views.Suppliers_view_H import SuppliersViewH

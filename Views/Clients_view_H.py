@@ -26,10 +26,10 @@ class ClientsViewH(BaseListView):
     CARDS_FRAME_NAME = "clients_cards_frame"
     ADD_BUTTON_TEXT = "Aggiungi un cliente"
 
-    GLOBAL_INFOS_CONFIG = {
-        "TOT. ENTRATE": "TOT_ENTRATE",
-        "# FATTURE": "NUM_FATTURE",
-    }
+    #GLOBAL_INFOS_CONFIG = {
+    #    "TOT. ENTRATE": "TOT_ENTRATE",
+    #    "# FATTURE": "NUM_FATTURE",
+    #}
     aggregate_UOM = {
         "TOT. ENTRATE": "€",
         "# FATTURE": ""

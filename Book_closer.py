@@ -4,10 +4,11 @@ import csv
 from datetime import datetime
 from typing import Dict, List, Any
 
-from Controllers import AccountController, Analyzer, UserController, InvoiceController, ExpenseController, \
+from Controllers import AccountController, Analyzer, UserController, ExpenseController, \
     SalaryController
 
 from Controllerss.Production_controller import ProductionController
+from Controllerss.Invoice_controller import InvoiceController
 
 from Config import ConfigManager
 

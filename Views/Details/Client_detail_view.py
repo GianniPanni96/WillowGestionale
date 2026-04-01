@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from Controllers import InvoiceController, RefundController, DatabaseModel, Analyzer
+from Controllers import RefundController, DatabaseModel, Analyzer
 from App_context import AppContext
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
 from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox
@@ -8,6 +8,7 @@ from datetime import datetime
 
 from Controllerss.Client_controller import ClientController
 from Controllerss.Production_controller import ProductionController
+from Controllerss.Invoice_controller import InvoiceController
 
 
 from Gestionale_Enums import *

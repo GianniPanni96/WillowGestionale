@@ -15,6 +15,7 @@ from Analyzers.Client_analyzer_service import  ClientAnalyzerService
 from Analyzers.Supplier_analyzer_service import  SupplierAnalyzerService
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Suppliers_query_service import SupplierQueryService
+from QueryServices.Productions_query_service import ProductionQueryService
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -672,7 +673,7 @@ class ViewUtils(ctk.CTk):
         return extract_client_args
 
     @staticmethod
-    def create_extractor_for_invoices(clients_query_service:"ClientQueryService", user_controller:"UserController", production_controller:"ProductionController"):
+    def create_extractor_for_invoices(clients_query_service:"ClientQueryService", user_controller:"UserController", productions_query_service:"ProductionQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per le fatture
         """
@@ -693,7 +694,7 @@ class ViewUtils(ctk.CTk):
             invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
             invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
 
-            production = production_controller.retrieve_production_map_by_id(invoice_production_id)
+            production = productions_query_service.retrieve_production_map_by_id(invoice_production_id)
             if production:
                 invoice_production_name = production[DBProductionsColumns.NAME.value]
             else:

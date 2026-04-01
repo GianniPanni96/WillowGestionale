@@ -1,7 +1,7 @@
+from datetime import datetime, timedelta
+
 from Model import DatabaseModel
 from Gestionale_Enums import *
-
-import Utils.Date_utils as Date_utils
 from Utils.Controller_utils import ControllerUtils
 
 
@@ -154,6 +154,23 @@ class InvoiceQueryService:
 
         return filtered_invoices
 
+    def retrieve_invoices_map_dictionary(self, keyIsName: bool = False):
+        """
+        Restituisce tutte le fatture in un dizionario indicizzato.
+
+        Args:
+            keyIsName: se ``True`` usa il nome cliente come chiave, altrimenti l'id.
+        """
+        invoices_list = self.retrieve_invoices_map_list(year=-1)
+        dictionary = {}
+
+        for row in invoices_list:
+            dictionary[
+                f"{row[DBInvoicesColumns.NUMERO_FATTURA.value]}" if keyIsName else f"{row[DBInvoicesColumns.ID.value]}"
+            ] = row
+
+        return dictionary
+
     def retrieve_last_invoice_insert_map(self):
         row = self.db_model.fetch_last_invoice_insert()
         return ControllerUtils.row_to_map(row, DBInvoicesColumns)
@@ -185,3 +202,24 @@ class InvoiceQueryService:
 
         # Converte ogni riga in un dizionario
         return [ControllerUtils.row_to_map(row, all_columns) for row in rows]
+
+    def get_invoices_for_days_window(self, days: int):
+        """
+        Restituisce le fatture emesse negli ultimi ``days`` giorni.
+
+        Il retrieving parte dalle fatture dell'anno corrente e da quelle degli
+        anni precedenti non completamente saldate, senza applicare controlli su
+        altri domini.
+        """
+        start_date = datetime.now().date() - timedelta(days=days)
+        invoices = self.retrieve_invoices_map_list(year=None, include_unpaid_invoices=True)
+
+        return [
+            invoice
+            for invoice in invoices
+            if (
+                (invoice_date := ControllerUtils.parse_date(invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value)))
+                is not None
+                and invoice_date >= start_date
+            )
+        ]

@@ -6,17 +6,20 @@ from datetime import datetime
 
 from Controllers import ExpenseController, ControllerUtils, SalaryController, TransfersController, \
     UpdatesController, AccountController, UserController, PaymentsController, \
-    InvoiceController, RefundController, Analyzer
+    RefundController, Analyzer
 
 from Controllerss.Client_controller import ClientController
 from Controllerss.Supplier_controller import SupplierController
 from Controllerss.Production_controller import ProductionController
+from Controllerss.Invoice_controller import InvoiceController
+
+from QueryServices.Suppliers_query_service import SupplierQueryService
 
 from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
 
 from Views.Users_view import UsersView
 from Views.Clients_view_H import ClientsViewH
-from Views.Invoices_view import InvoicesView
+from Views.Invoices_view_h import InvoicesViewH
 from Views.Payments_view import PaymentsView
 from Views.Productions_view_H import ProductionsViewH
 from Views.Expenses_view import ExpensesView
@@ -82,6 +85,7 @@ class MainWindow(ctk.CTk):
         self.transfer_controller:TransfersController = app_context.transfer_controller
         self.client_controller:ClientController = app_context.client_controller
         self.supplier_controller:SupplierController = app_context.supplier_controller
+        self.suppliers_query_service:SupplierQueryService = app_context.suppliers_query_service
         self.payment_controller:PaymentsController = app_context.payment_controller
         self.production_controller:ProductionController = app_context.production_controller
         self.invoice_controller:InvoiceController = app_context.invoice_controller
@@ -162,12 +166,11 @@ class MainWindow(ctk.CTk):
 
         self.tabview.add("Utenti")
         self.tabview.add("Clienti")
-        #self.tabview.add("Fornitori")
         self.tabview.add("Fornitori")
-        #self.tabview.add("Produzioni")
         self.tabview.add("Produzioni")
         self.tabview.add("Conti")
         self.tabview.add("Fatture")
+        self.tabview.add("Fatture_H")
         self.tabview.add("Pagamenti")
         self.tabview.add("Rimborsi")
         self.tabview.add("Spese")
@@ -212,23 +215,17 @@ class MainWindow(ctk.CTk):
 
             "Utenti": lambda tab: UsersView(self.app_context, tab, self.logged_user_id, self.login_status),
 
-            #"Clienti": lambda tab: ClientsView(self.app_context, tab),
-
             "Clienti": lambda tab: ClientsViewH(self.app_context, tab),
 
-            "Fatture": lambda tab, invoice_id=None: InvoicesView(self.app_context, self.tabview, initial_invoice_id=invoice_id),
+            "Fatture_H": lambda tab, invoice_id=None: InvoicesViewH(self.app_context, self.tabview, initial_invoice_id=invoice_id),
 
             "Pagamenti": lambda tab, payment_id=None: PaymentsView(self.app_context, self.tabview, initial_payment_id=payment_id),
 
             "Rimborsi": lambda tab, refund_id=None: RefundsView(self.app_context, self.tabview, initial_refund_id=refund_id),
 
-            #"Produzioni": lambda tab, production_id=None: ProductionsView(self.app_context, self.tabview, initial_production_id=production_id),
-
             "Produzioni": lambda tab, production_id=None: ProductionsViewH(self.app_context, self.tabview, initial_production_id=production_id),
 
             "Spese": lambda tab, expense_id=None: ExpensesView(self.app_context, self.tabview, initial_expense_id = expense_id),
-
-            #"Fornitori": lambda tab: SuppliersView(self.app_context, self.tabview),
 
             "Fornitori": lambda tab: SuppliersViewH(self.app_context, self.tabview),
 
@@ -1530,7 +1527,7 @@ class MainWindow(ctk.CTk):
             # Memorizza i widget in un dizionario annidato
             self.expense_widgets[expense_key] = {}
 
-            suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
+            suppliers_map_list = self.suppliers_query_service.retrieve_suppliers_map_list()
 
             aliquote_list = [
                 self.fiscal_settings.aliquota_iva.no_iva,
@@ -1788,7 +1785,7 @@ class MainWindow(ctk.CTk):
         self.expense_widgets[expense_key] = {}
 
         # Prepara i valori per dropdown
-        suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
+        suppliers_map_list = self.suppliers_query_service.retrieve_suppliers_map_list()
         suppliers_opts = [s[DBSuppliersColumns.NAME.value] for s in suppliers_map_list]
 
         aliquote_list = [

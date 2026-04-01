@@ -1,12 +1,6 @@
 import customtkinter as ctk
-import tkinter as tk
-from tkcalendar import Calendar, DateEntry
-from Views.View_utils import ViewUtils
-from Controllers import ValidationUtils, InvoiceController, UserController, ControllerUtils
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns
 from datetime import datetime
-import re
-from enum import Enum
+
 
 
 class IvaTrimesView(ctk.CTkFrame):

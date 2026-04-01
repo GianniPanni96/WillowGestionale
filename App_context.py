@@ -1,9 +1,14 @@
 from Analyzers.Client_analyzer_service import ClientAnalyzerService
 from Analyzers.Production_analyzer_service import ProductionAnalyzerService
 from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
-from Controllers import UserController, AccountController, InvoiceController, \
+from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
+
+
+from Controllers import UserController, AccountController, \
     PaymentsController, ExpenseController, UpdatesController, \
     Analyzer, TransfersController, SalaryController, RefundController
+
+
 from Model import DatabaseModel
 from Event_bus import EventBus
 from Books_retriever import BooksRetriever
@@ -13,10 +18,12 @@ from Config import FiscalSettings
 from Controllerss.Client_controller import ClientController
 from Controllerss.Supplier_controller import SupplierController
 from Controllerss.Production_controller import ProductionController
+from Controllerss.Invoice_controller import InvoiceController
 
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Suppliers_query_service import SupplierQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
+from QueryServices.Invoices_query_service import InvoiceQueryService
 from WarningServices.Production_warning_service import ProductionWarningService
 
 
@@ -53,10 +60,18 @@ class AppContext:
 
         self.suppliers_query_service: SupplierQueryService = SupplierQueryService(self.db_model)
         self.productions_query_service:ProductionQueryService = ProductionQueryService(self.db_model)
+        self.invoices_query_service:InvoiceQueryService = InvoiceQueryService(self.db_model)
         self.clients_query_service:ClientQueryService = ClientQueryService(self.productions_query_service, self.db_model)
 
+        self.clients_analyzer_service:ClientAnalyzerService = ClientAnalyzerService(self.clients_query_service, self.db_model)
+        self.suppliers_analyzer_service:SupplierAnalyzerService = SupplierAnalyzerService(self.suppliers_query_service, self.db_model)
+        self.productions_analyzer_service:ProductionAnalyzerService = ProductionAnalyzerService(self.productions_query_service, self.db_model)
+        self.production_warning_service:ProductionWarningService = ProductionWarningService()
 
         self.user_controller:UserController = UserController(self.db_model, self.fiscal_settings)  # Crea il controller per gli utenti
+        self.invoices_analyzer_service:InvoiceAnalyzerService = InvoiceAnalyzerService(self.user_controller, self.invoices_query_service,
+                                                                                       self.db_model, self.fiscal_settings,
+                                                                                       historical_financial_data_settings)
         self.account_controller:AccountController = AccountController(self.db_model, self.user_controller)
         self.salary_controller:SalaryController = SalaryController(self.db_model, self.user_controller, self.account_controller)
         self.transfer_controller:TransfersController = TransfersController(self.db_model, self.account_controller)
@@ -64,10 +79,9 @@ class AppContext:
         self.supplier_controller:SupplierController = SupplierController(self.db_model)
         self.payment_controller:PaymentsController = PaymentsController(self.db_model, self.account_controller)
         self.production_controller:ProductionController = ProductionController(self.db_model, self.clients_query_service)
-        self.invoice_controller:InvoiceController = InvoiceController(self.db_model, self.user_controller, self.client_controller,
-                                                    self.production_controller, self.payment_controller,
-                                                    self.account_controller, fiscal_settings,
-                                                    historical_financial_data_settings)
+        self.invoice_controller:InvoiceController = InvoiceController(self.db_model, self.invoices_analyzer_service, self.clients_query_service,
+                                                    self.invoices_query_service, self.productions_query_service,
+                                                    self.user_controller, fiscal_settings, self.account_controller)
         self.expense_controller:ExpenseController = ExpenseController(self.db_model, self.user_controller, self.account_controller,
                                                     self.invoice_controller, self.suppliers_query_service,
                                                     recurring_expenses_settings, catalogo_elenchi)
@@ -106,7 +120,4 @@ class AppContext:
                                                  expense_controller=self.expense_controller,
                                                  production_controller=self.production_controller,
                                                  salary_controller=self.salary_controller)
-        self.clients_analyzer_service:ClientAnalyzerService = ClientAnalyzerService(self.clients_query_service, self.db_model)
-        self.suppliers_analyzer_service:SupplierAnalyzerService = SupplierAnalyzerService(self.suppliers_query_service, self.db_model)
-        self.productions_analyzer_service:ProductionAnalyzerService = ProductionAnalyzerService(self.productions_query_service, self.db_model)
-        self.production_warning_service:ProductionWarningService = ProductionWarningService()
+

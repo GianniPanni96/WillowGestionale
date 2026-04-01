@@ -105,6 +105,23 @@ class ProductionStatus(Enum):
     REVISION = "REVISION"
     CLOSED = "CLOSED"
 
+class ExpensesAggregateData(Enum):
+    NUMERO_SPESE = "#SPESE"
+    TOT_SPESE = "TOT. SPESE"
+
+class RecurringExpensesFrequencies(Enum):
+    SETTIMANALE = "SETTIMANALE"
+    MENSILE = "MENSILE"
+    BIMESTRALE = "BIMESTRALE"
+    TRIMESTRALE = "TRIMESTRALE"
+    QUADRIMESTRALE = "QUADRIMESTRALE"
+    SEMESTRALE = "SEMESTRALE"
+    ANNUALE = "ANNUALE"
+
+class RecurringExpensesStatus(Enum):
+    ATTIVA = "Attiva"
+    SOSPESA = "Sospesa"
+
 
 class InvoiceAggregatedData(Enum):
     NUMERO_FATTURE = "NUMERO_FATTURE"

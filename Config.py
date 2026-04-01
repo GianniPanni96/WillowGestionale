@@ -1,7 +1,7 @@
 import os, re, json
 from typing import List
 from dataclasses import dataclass, field
-from Controllers import ExpenseController
+from Gestionale_Enums import*
 from typing import Optional, Union
 
 from typing import Dict
@@ -743,7 +743,7 @@ class RecurringExpense:
             descr_account=data.get("account", {}).get("description", ""),
             frequency=data.get("frequency", {}).get("value", ""),
             descr_frequency=data.get("frequency", {}).get("description", ""),
-            status=data.get("status", {}).get("value", ExpenseController.RecurringExpensesStatus.SOSPESA.value) == ExpenseController.RecurringExpensesStatus.ATTIVA.value,
+            status=data.get("status", {}).get("value", RecurringExpensesStatus.SOSPESA.value) == RecurringExpensesStatus.ATTIVA.value,
             descr_status=data.get("status", {}).get("description", ""),
         )
 

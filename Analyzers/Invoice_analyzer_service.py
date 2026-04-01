@@ -364,6 +364,10 @@ class InvoiceAnalyzerService:
         # 1. Recupero dati base
         user_list = self.user_controller.retrieve_users_map_list()
         id_to_last_name = {user[DBUsersColumns.ID.value]: user[DBUsersColumns.LAST_NAME.value] for user in user_list}
+        id_to_full_name = {
+            user[DBUsersColumns.ID.value]: f"{user[DBUsersColumns.FIRST_NAME.value]} {user[DBUsersColumns.LAST_NAME.value]}"
+            for user in user_list
+        }
         name_to_id = {v: k for k, v in id_to_last_name.items()}
 
         # 2. Fatturati e spese correnti
@@ -559,9 +563,9 @@ class InvoiceAnalyzerService:
 
         punteggi_finali = {}
         for piva, score in punteggi.items():
-            cognome = id_to_last_name[piva]
+            full_name = id_to_full_name[piva]
             # Normalizza tra 0 e 100 se c'è un punteggio positivo
-            punteggi_finali[cognome] = round((score / max_punteggio) * 100, 2) if max_punteggio > 0 else 0
+            punteggi_finali[full_name] = round((score / max_punteggio) * 100, 2) if max_punteggio > 0 else 0
 
         return dict(sorted(punteggi_finali.items(), key=lambda x: x[1], reverse=True))
 

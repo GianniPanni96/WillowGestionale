@@ -602,10 +602,10 @@ class InvoiceDetailView(ctk.CTkFrame):
             DBInvoicesColumns.DATA_SCADENZA_1.value: self.invoice_info_widgets[
                 DBInvoicesColumns.DATA_SCADENZA_1.value].get_date(),
             DBInvoicesColumns.DATA_SCADENZA_2.value: self.invoice_info_widgets[
-                DBInvoicesColumns.DATA_SCADENZA_2.value].get_date() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(self.invoice_controller.Rateizzazione.TRE.value)
+                DBInvoicesColumns.DATA_SCADENZA_2.value].get_date() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(Rateizzazione.TRE.value)
                                                                        else None,
             DBInvoicesColumns.DATA_SCADENZA_3.value: self.invoice_info_widgets[
-                DBInvoicesColumns.DATA_SCADENZA_3.value].get_date() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(self.invoice_controller.Rateizzazione.TRE.value)
+                DBInvoicesColumns.DATA_SCADENZA_3.value].get_date() if float(self.invoice_info_widgets[DBInvoicesColumns.NUMERO_RATE.value].get()) == float(Rateizzazione.TRE.value)
                                                                        else None,
             DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value: id_produzione,
             DBInvoicesColumns.NOTE.value: self.invoice_info_widgets[

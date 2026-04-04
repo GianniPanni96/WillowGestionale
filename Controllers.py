@@ -1507,227 +1507,6 @@ class UserController:
             return False, "Password errata!", -1
 
 
-class PaymentsController:
-
-    class PaymentsAggregateData(Enum):
-        NUMERO_PAGAMENTI = "#PAGAMENTI"
-        TOT_PAGAMENTI = "TOT. PAGAMENTI"
-
-    def __init__(self, db_model: DatabaseModel, account_controller):
-        self.db_model = db_model
-        self.account_controller = account_controller
-
-        self.on_adding_payment_callbacks = []
-
-
-    def save_payment(self, payment_data):
-        """
-        Gestisce il salvataggio di un pagamento, con validazioni di primo livello.
-        :param payment_data: Dizionario contenente i dati del pagamento
-        :return: Tuple (success, message), dove success è True/False
-        """
-
-        # Campi obbligatori (solo quelli modellati tramite entry)
-        self.required_fields = {"NOME FATTURA", DBPaymentsColumns.PAYMENT_NAME.value, DBPaymentsColumns.PAYMENT_AMOUNT.value}
-
-        # Validazione dei campi obbligatori
-        missing_fields = [field for field in self.required_fields if not payment_data.get(field)]
-        if missing_fields:
-            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-        # Validazione importi
-        tot_pagamento = payment_data.get(DBPaymentsColumns.PAYMENT_AMOUNT.value)
-        if not ValidationUtils.validate_amount(tot_pagamento):
-            return False, "L'importo del preventivo non è valido"
-
-        # prendo i dati necessari del conto
-        nome_conto = payment_data.get("NOME CONTO")
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
-        id_conto = conto[DBAccountsColumns.ID.value]
-
-
-        payment_data_prepared = {
-            DBPaymentsColumns.PAYMENT_NAME.value : payment_data.get(DBPaymentsColumns.PAYMENT_NAME.value),
-            DBPaymentsColumns.PAYMENT_AMOUNT.value: payment_data.get(DBPaymentsColumns.PAYMENT_AMOUNT.value),
-            DBPaymentsColumns.INVOICE_ID.value : payment_data.get(DBPaymentsColumns.INVOICE_ID.value),
-            DBPaymentsColumns.PAYMENT_DATE.value: payment_data.get(DBPaymentsColumns.PAYMENT_DATE.value),
-            DBPaymentsColumns.LINKED_RATA.value: payment_data.get(DBPaymentsColumns.LINKED_RATA.value),
-            DBPaymentsColumns.CONTO_ID.value: id_conto,
-        }
-
-        try:
-            self.db_model.add_payment(**payment_data_prepared)
-            return True, "Produzione salvata con successo!"
-        except Exception as e:
-            return False, f"Errore durante il salvataggio: {str(e)}"
-
-    def retrieve_payment_map_by_id(self, payment_id):
-        """
-        Recupera un pagamento specifico e lo restituisce come dizionario,
-        filtrando per l'anno corrente se specificato.
-        :param payment_id: ID del pagamento.
-        :return: Dizionario con i dati del pagamento oppure None.
-        """
-        row = self.db_model.fetch_payment_by_id(payment_id)
-        if not row:
-            return None
-
-        columns = [col.value for col in DBPaymentsColumns]
-        payment_dict = dict(zip(columns, row))
-
-        return payment_dict
-
-    def retrieve_payment_map_by_name(self, payment_name):
-        """
-        Recupera un pagamento specifico e lo restituisce come dizionario,
-        filtrando per l'anno corrente se specificato.
-        :param payment_name: nome del pagamento.
-        :return: Dizionario con i dati del pagamento oppure None.
-        """
-        row = self.db_model.fetch_payment_by_name(payment_name)
-        if not row:
-            return None
-
-        columns = [col.value for col in DBPaymentsColumns]
-        payment_dict = dict(zip(columns, row))
-
-        return payment_dict
-
-    def retrieve_payments_map_list(self, year: int = None, include_unpaid_invoice_payments: bool = True):
-        """
-        Recupera tutti i pagamenti come lista di dizionari,
-        filtrandoli per l'anno specificato.
-
-        :param year:
-            - None → anno corrente
-            - -1   → nessun filtro
-            - altro int → anno specifico
-        :return: Lista di pagamenti (dizionari)
-        """
-        rows = self.db_model.fetch_payments()
-        payments = [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
-
-        return ControllerUtils.filter_payments(
-            payments = payments,
-            db_model = self.db_model,
-            year = year,
-            include_unpaid_invoice_payments = include_unpaid_invoice_payments)
-
-    def retrieve_payments_map_list_by_invoice_id(self, invoice_id, year: int = None):
-        """
-        Recupera tutti i pagamenti collegati a una fattura come lista di dizionari,
-        filtrandoli per l'anno specificato.
-
-        :param invoice_id: ID della fattura
-        :param year:
-            - None → anno corrente
-            - -1   → nessun filtro
-            - altro int → anno specifico
-        :return: Lista di pagamenti (dizionari)
-        """
-        rows = self.db_model.fetch_payments_by_invoice_id(invoice_id)
-        payments = [ValidationUtils._row_to_map(row, DBPaymentsColumns) for row in rows]
-
-        return ControllerUtils.filter_payments(payments, year)
-
-    def retrieve_last_payment_insert_map(self):
-        """
-        Recupera l'ultimo pagamento inserito e lo restituisce come dizionario.
-        """
-        row = self.db_model.fetch_last_payment_insert()
-        return ValidationUtils._row_to_map(row, DBPaymentsColumns)
-
-    def count_payments(self, year: int = None, include_unpaid_invoice_payments:bool = False):
-        """
-        Conta il numero di pagamenti filtrati per anno.
-
-        :param year:
-            - None → anno corrente
-            - -1   → nessun filtro
-            - altro int → anno specifico
-        :return: Numero di pagamenti
-        """
-        payments = self.retrieve_payments_map_list(year=year, include_unpaid_invoice_payments=include_unpaid_invoice_payments)
-        return len(payments)
-
-    def calculate_tot_payments(self, year: int = None, include_unpaid_invoice_payments:bool = False):
-        """
-        Somma gli importi dei pagamenti filtrati per anno.
-
-        :param year:
-            - None → anno corrente
-            - -1   → nessun filtro
-            - altro int → anno specifico
-        :return: Totale importi pagamenti (float)
-        """
-        payment_list = self.retrieve_payments_map_list(year=year, include_unpaid_invoice_payments=include_unpaid_invoice_payments)
-        tot = 0.0
-        for payment in payment_list:
-            try:
-                tot += float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
-            except (TypeError, ValueError):
-                pass
-        return tot
-
-    def update_payment(self, payment_id, payment_data):
-        """
-        Aggiorna i dati di un pagamento esistente.
-        :param payment_id: ID del pagamento da aggiornare
-        :param payment_data: Dizionario contenente i dati da aggiornare
-        :return: Tuple (success, message), dove success è True/False
-        """
-        try:
-            # Controllo validità payment_id
-            if not payment_id or not isinstance(payment_id, int):
-                return False, "ID pagamento non valido. Deve essere un intero positivo."
-
-            required_fields = {DBPaymentsColumns.PAYMENT_AMOUNT.value}
-
-            # Validazione campi obbligatori
-            missing_fields = [field for field in required_fields if not payment_data.get(field)]
-            if missing_fields:
-                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-
-            # Validazione Importo
-            if DBPaymentsColumns.PAYMENT_AMOUNT.value in payment_data:
-                amount = payment_data[DBPaymentsColumns.PAYMENT_AMOUNT.value]
-                if amount and not ValidationUtils.validate_amount(amount):
-                    return False, "L'importo inserito non è valido."
-
-            payment_data[DBPaymentsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            # Invoca il metodo del model per aggiornare l'utente
-            self.db_model.update_payment(payment_id, **payment_data)
-            return True, "Pagamento aggiornato con successo!"
-
-        except ValueError as ve:
-            return False, str(ve)
-        except Exception as e:
-            return False, f"Errore durante l'aggiornamento del pagamento: {str(e)}"
-
-    def register_on_adding_payment_callbacks(self, *callbacks):
-        self.on_adding_payment_callbacks = list(callbacks)
-
-    def sum_payments_for_account(self, account_id, year:int = None):
-
-        target_year = year if year is not None else datetime.now().year
-
-        return self.db_model.sum_payments_by_account(account_id, year=target_year)
-
-    # Controller corretto
-    def delete_payment(self, payment_id):
-        try:
-            # Ottieni il risultato dal model
-            result = self.db_model.delete_payment(payment_id)
-            if result:
-                return True, "Pagamento eliminato con successo."  # Successo
-            else:
-                return False, "Pagamento non trovato o errore durante l'eliminazione."  # Fallimento
-        except Exception as e:
-            return False, f"Errore durante l'eliminazione del pagamento: {str(e)}"  # Eccezione
-
-
 class AccountController:
 
     class AccountsAggregateData(Enum):
@@ -3125,6 +2904,7 @@ class Analyzer:
                  supplier_controller,
                  production_controller,
                  payment_controller,
+                 payments_analyzer_service,
                  expenses_controller,
                  salary_controller,
                  refunds_controller,
@@ -3139,6 +2919,7 @@ class Analyzer:
         self.supplier_controller = supplier_controller
         self.production_controller = production_controller
         self.payment_controller = payment_controller
+        self.payments_analyzer_service = payments_analyzer_service
         self.expenses_controller = expenses_controller
         self.salary_controller = salary_controller
         self.refunds_controller = refunds_controller
@@ -3151,7 +2932,7 @@ class Analyzer:
         if account:
             init_balance = float(account[DBAccountsColumns.INIT_BALANCE.value]) if init_balance_arg == "" else float(init_balance_arg)
 
-            tot_payments = self.payment_controller.sum_payments_for_account(account_id, year = year)
+            tot_payments = self.payments_analyzer_service.sum_payments_for_account(account_id, year = year)
             tot_expenses = self.expenses_controller.sum_expenses_for_account(account_id, year = year)
             tot_rec_transf = self.transfer_controller.calculate_tot_amount_received_transfers_by_account(account_id, year = year)
             tot_sent_transf = self.transfer_controller.calculate_tot_amount_sent_transfers_by_account(account_id, year = year)
@@ -3188,7 +2969,7 @@ class Analyzer:
         # Recupera le spese deducibili e le fatture
         deducted_expenses = self.user_controller.retrieve_user_with_deducted_expenses_map_list(account_id, year=year)
         invoices = self.user_controller.retrieve_user_with_invoices_map_list(account_id, include_unpaid_invoices=False, year=year)
-        invoices = self.invoice_controller.clear_invoices_list_from_NDC_and_stornate(invoices)
+        invoices = ControllerUtils.clear_invoices_list_from_NDC_and_stornate(invoices)
 
         # Elabora le spese (IVA a credito)
         for e in deducted_expenses:

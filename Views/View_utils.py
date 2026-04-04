@@ -16,6 +16,7 @@ from Analyzers.Supplier_analyzer_service import  SupplierAnalyzerService
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Suppliers_query_service import SupplierQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
+from QueryServices.Invoices_query_service import InvoiceQueryService
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -716,7 +717,7 @@ class ViewUtils(ctk.CTk):
         return extract_invoice_args
 
     @staticmethod
-    def create_extractor_for_payments(invoice_controller:"InvoiceController", clients_query_service:"ClientQueryService", production_controller:"ProductionController",
+    def create_extractor_for_payments(invoices_query_service:"InvoiceQueryService", clients_query_service:"ClientQueryService", productions_query_service:"ProductionQueryService",
                                       account_controller:"AccountController"):
         """
         Crea una funzione di estrazione parametri specifica per i pagamenti
@@ -729,13 +730,13 @@ class ViewUtils(ctk.CTk):
             payment_date = payment[DBPaymentsColumns.PAYMENT_DATE.value]
             linked_rata = payment[DBPaymentsColumns.LINKED_RATA.value]
             invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
-            invoice = invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+            invoice = invoices_query_service.retrieve_invoice_map_by_id(invoice_id)
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
             cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
             client = clients_query_service.retrieve_client_map_by_id(cliente_id)
             client_name = client[DBClientsColumns.NAME.value]
             production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-            production = production_controller.retrieve_production_map_by_id(production_id)
+            production = productions_query_service.retrieve_production_map_by_id(production_id)
             production_name = production[DBProductionsColumns.NAME.value] if production else "Produzione non trovata"
             conto = account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
             nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"

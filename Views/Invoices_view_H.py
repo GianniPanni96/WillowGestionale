@@ -126,6 +126,7 @@ class InvoicesViewH(BaseListView):
         self.user_controller: UserController = app_context.user_controller
         self.update_controller = app_context.update_controller
         self.invoices_query_service: InvoiceQueryService = app_context.invoices_query_service
+        self.invoice_warning_service = app_context.invoice_warning_service
 
         self.invoices_card_list = self.cards_list
         self.invoice_card_labels_status = {}
@@ -246,32 +247,7 @@ class InvoicesViewH(BaseListView):
         self.invoice_create_view = None
 
     def collect_card_warnings(self, items_list):
-        warnings = {}
-        for invoice in items_list:
-            if not invoice:
-                continue
-
-            invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
-            invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-            inv_creation_date = ControllerUtils.parse_date(invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value))
-            production = self.productions_query_service.retrieve_production_map_by_id(invoice_production_id)
-
-            if not production:
-                warnings[invoice_name] = (
-                    "La produzione associata a questa fattura non esiste nel database.\n"
-                    "Provvedere alla modifica o allo storno di questa fattura."
-                )
-                continue
-
-            if inv_creation_date and inv_creation_date.year != datetime.now().year:
-                warnings[invoice_name] = (
-                    f"Questa fattura riguarda l'anno contabile {inv_creation_date.year}.\n"
-                    "Stai visualizzando questa fattura perche' risulta non interamente saldata "
-                    "durante il suo anno contabile di riferimento.\n"
-                    "Questa fattura non viene conteggiata all'interno di questo anno contabile."
-                )
-
-        return warnings
+        return self.invoice_warning_service.collect_warnings_for_list(items_list)
 
     def load_items_chunked(self, items_list):
         extractor = ViewUtils.create_extractor_for_invoices(

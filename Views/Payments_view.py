@@ -2,11 +2,13 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import PaymentsController, UserController, \
+from Controllers import UserController, \
      AccountController, UpdatesController
 from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns
 from datetime import datetime
 import re
+
+from Gestionale_Enums import*
 
 from Controllerss.Client_controller import ClientController
 from Controllerss.Production_controller import ProductionController
@@ -17,6 +19,7 @@ from Event_bus import EventBus
 from App_context import AppContext
 
 from QueryServices.Clients_query_service import ClientQueryService
+from QueryServices.Invoices_query_service import InvoiceQueryService
 
 
 class PaymentsView(ctk.CTkFrame):
@@ -31,6 +34,7 @@ class PaymentsView(ctk.CTkFrame):
         self.user_controller:UserController = app_context.user_controller
         self.client_controller:ClientController = app_context.client_controller
         self.clients_query_service:ClientQueryService = app_context.clients_query_service
+        self.invoices_query_service:InvoiceQueryService = app_context.invoices_query_service
         self.payment_controller:PaymentsController = app_context.payment_controller
         self.production_controller:ProductionController = app_context.production_controller
         self.account_controller:AccountController = app_context.account_controller
@@ -455,9 +459,9 @@ class PaymentsView(ctk.CTkFrame):
         self.collect_payment_warnings(payment_list)
 
         extractor = ViewUtils.create_extractor_for_payments(
-            self.invoice_controller,
+            self.invoices_query_service,
             self.clients_query_service,
-            self.production_controller,
+            self.productions_query_service,
             self.account_controller
         )
 
@@ -478,12 +482,12 @@ class PaymentsView(ctk.CTkFrame):
             if payment:
                 payment_name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
                 invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
-                invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+                invoice = self.invoices_query_service.retrieve_invoice_map_by_id(invoice_id)
                 Invoice_creation_date = datetime.strptime(invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value),
                                                           "%Y-%m-%d")
 
                 # Warning 1: fattura stornata
-                if invoice[DBInvoicesColumns.STATUS.value] == InvoiceController.InvoiceSatus.STORNATA.value:
+                if invoice[DBInvoicesColumns.STATUS.value] == InvoiceSatus.STORNATA.value:
                     self.cards_warnings[payment_name] = "Questo pagamento fa riferimento ad una fattura stornata,\n" \
                                                         "modificare i dati del pagamento per mantenere la consistenza dei dati.\n" \
                                                         "Si consiglia di eliminare questo pagamento o collegarlo alla fattura corretta."
@@ -682,7 +686,7 @@ class PaymentsView(ctk.CTkFrame):
         #sistemo il nome della fattura che è ViewFriendly:
         nome_fattura_array = payment_data[self.nome_fattura_string].strip().split(" - ")
         nome_fattura_ricostruito = nome_fattura_array[0] + " - " + nome_fattura_array[1] + " - " + nome_fattura_array[2]
-        invoice_id = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura_ricostruito)[DBInvoicesColumns.ID.value]
+        invoice_id = self.invoices_query_service.retrieve_invoice_map_by_name(nome_fattura_ricostruito)[DBInvoicesColumns.ID.value]
         payment_data[DBPaymentsColumns.INVOICE_ID.value] = invoice_id
 
         ctrl_linked_rata = self.control_linked_rata(payment_data[DBPaymentsColumns.LINKED_RATA.value])
@@ -704,9 +708,9 @@ class PaymentsView(ctk.CTkFrame):
             payment_map = self.payment_controller.retrieve_last_payment_insert_map()
             print(f"Pagamento {payment_data[DBPaymentsColumns.PAYMENT_NAME.value]} salvato con successo")
 
-            invoice = self.invoice_controller.retrieve_invoice_map_by_id(payment_map[DBPaymentsColumns.INVOICE_ID.value])
+            invoice = self.invoices_query_service.retrieve_invoice_map_by_id(payment_map[DBPaymentsColumns.INVOICE_ID.value])
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
-            client = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])
+            client = self.clients_query_service.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])
             client_name = client[DBClientsColumns.NAME.value]
             production = self.production_controller.retrieve_production_map_by_id(invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value])
             production_name = production[DBProductionsColumns.NAME.value]
@@ -735,9 +739,9 @@ class PaymentsView(ctk.CTkFrame):
     def construct_invoices_list_view_friendly(self, year:int = None):
         VF_invoice_list = {}
 
-        for invoice in self.invoice_controller.retrieve_invoices_map_list(year=year):
+        for invoice in self.invoices_query_service.retrieve_invoices_map_list(year=year):
             invoicer_second_name = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])[DBUsersColumns.LAST_NAME.value]
-            client_name = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])[DBClientsColumns.NAME.value]
+            client_name = self.clients_query_service.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])[DBClientsColumns.NAME.value]
 
             VF_invoice_list[invoice[DBInvoicesColumns.ID.value]] =  invoice[DBInvoicesColumns.NUMERO_FATTURA.value] + " - " + client_name
 
@@ -746,7 +750,7 @@ class PaymentsView(ctk.CTkFrame):
     def toggle_linked_rata(self, selected_value):
         invoice_name = selected_value.split(" - ")
         invoice_name_reconstructed = invoice_name[0] + " - " + invoice_name[1] + " - " + invoice_name[2]
-        invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name_reconstructed)
+        invoice = self.invoices_query_service.retrieve_invoice_map_by_name(invoice_name_reconstructed)
         rateizzazione = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
         widget = self.payment_widgets[DBPaymentsColumns.LINKED_RATA.value]
         if rateizzazione == int(InvoiceController.Rateizzazione.UNA.value):
@@ -768,7 +772,7 @@ class PaymentsView(ctk.CTkFrame):
         VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get_value()
         invoice_name_array = VF_invoice_name.split(" - ")
         invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1] + " - " + invoice_name_array[2] if len(invoice_name_array) == 4 else invoice_name_array[0] + " - " + invoice_name_array[1]
-        invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
+        invoice = self.invoices_query_service.retrieve_invoice_map_by_name(invoice_name)
         invoice_amount = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
         invoice_rateiz = invoice[DBInvoicesColumns.NUMERO_RATE.value]
 
@@ -784,7 +788,7 @@ class PaymentsView(ctk.CTkFrame):
         VF_invoice_name = self.payment_widgets[self.nome_fattura_string].get_value()
         invoice_name_array = VF_invoice_name.split(" - ")
         invoice_name = invoice_name_array[0] + " - " + invoice_name_array[1] + " - " + invoice_name_array[2]
-        invoice = self.invoice_controller.retrieve_invoice_map_by_name(invoice_name)
+        invoice = self.invoices_query_service.retrieve_invoice_map_by_name(invoice_name)
 
         netto_rate_fattura = {
             "1" : 0.0,
@@ -854,9 +858,9 @@ class PaymentsView(ctk.CTkFrame):
 
         #prendo i dati della produzione
         payment = self.payment_controller.retrieve_payment_map_by_id(payment_id, True)
-        invoice = self.invoice_controller.retrieve_invoice_map_by_id(payment[DBPaymentsColumns.INVOICE_ID.value])
+        invoice = self.invoices_query_service.retrieve_invoice_map_by_id(payment[DBPaymentsColumns.INVOICE_ID.value])
         invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
-        client_name = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])[DBClientsColumns.NAME.value]
+        client_name = self.clients_query_service.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])[DBClientsColumns.NAME.value]
         invoice_name = invoice_name + " - " + client_name
         conto_name = self.account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])[DBAccountsColumns.NAME.value]
 
@@ -1035,7 +1039,7 @@ class PaymentDetailView(ctk.CTkFrame):
         self.payment = self.payment_controller.retrieve_payment_map_by_id(payment_id)
 
         #prendo i dati della fattura associata
-        invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.payment[DBPaymentsColumns.INVOICE_ID.value])
+        invoice = self.invoices_query_service.retrieve_invoice_map_by_id(self.payment[DBPaymentsColumns.INVOICE_ID.value])
 
         # prendo il nome del conto:
         id_conto = self.payment[DBPaymentsColumns.CONTO_ID.value]
@@ -1045,13 +1049,13 @@ class PaymentDetailView(ctk.CTkFrame):
 
         # prendo il nome del cliente
         id_cliente = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-        cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)
+        cliente = self.clients_query_service.retrieve_client_map_by_id(id_cliente)
         nome_cliente = cliente[DBClientsColumns.NAME.value] if cliente else "Cliente non trovato"
         invoice[self.nome_cliente_string] = nome_cliente
 
         # prendo il nome della produzione associata
         id_prod = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-        prod = self.production_controller.retrieve_production_map_by_id(id_prod)
+        prod = self.productions_query_service.retrieve_production_map_by_id(id_prod)
         nome_produzione = prod[DBProductionsColumns.NAME.value] if prod else "Produzione non trovata"
         invoice[self.nome_produzione_associata_string] = nome_produzione
 
@@ -1097,7 +1101,7 @@ class PaymentDetailView(ctk.CTkFrame):
                 "label": "Fattura Associata",
                 "section": "Collegamenti",
                 "values": [f"{i[DBInvoicesColumns.NUMERO_FATTURA.value]}"
-                           for i in self.invoice_controller.retrieve_invoices_map_list()]
+                           for i in self.invoices_query_service.retrieve_invoices_map_list()]
             },
             DBPaymentsColumns.LINKED_RATA.value: {
                 "type": ctk.CTkOptionMenu,
@@ -1252,9 +1256,9 @@ class PaymentDetailView(ctk.CTkFrame):
 
 
         invoice_id = self.payment[DBPaymentsColumns.INVOICE_ID.value]
-        invoice = self.invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+        invoice = self.invoices_query_service.retrieve_invoice_map_by_id(invoice_id)
         prod_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-        production = self.production_controller.retrieve_production_map_by_id(prod_id)
+        production = self.productions_query_service.retrieve_production_map_by_id(prod_id)
         self.payment_info_widgets[self.nome_produzione_associata_string].configure(
             text=production[DBProductionsColumns.NAME.value])
 
@@ -1277,7 +1281,7 @@ class PaymentDetailView(ctk.CTkFrame):
         id_conto = conto[DBAccountsColumns.ID.value] if conto else None
 
         nome_fattura = self.payment_info_widgets[self.nome_fattura_string].get()
-        fattura = self.invoice_controller.retrieve_invoice_map_by_name(nome_fattura)
+        fattura = self.invoices_query_service.retrieve_invoice_map_by_name(nome_fattura)
         id_fattura = fattura[DBInvoicesColumns.ID.value]
 
         payment_data = {

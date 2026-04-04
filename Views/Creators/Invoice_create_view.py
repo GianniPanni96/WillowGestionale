@@ -318,12 +318,16 @@ class InvoiceCreateView(ctk.CTkToplevel):
         return None
 
     def populate_rivalsa_INPS(self):
-        importo_servizi = self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].get()
+        importo_servizi = self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].get().strip()
         aliquota_rivalsa_inps = float(self.fiscal_settings.partita_iva_forfettaria.aliquota_rivalsa_inps)
-        if importo_servizi != "" and importo_servizi.isdigit():
+        if importo_servizi == "":
+            return
+        try:
             rivalsa = float(importo_servizi) * aliquota_rivalsa_inps
-            self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
-            self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].insert(0, format(rivalsa, ".2f"))
+        except ValueError:
+            return
+        self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
+        self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].insert(0, format(rivalsa, ".2f"))
 
     def toggle_id_fattura_associata(self, user_name, selected_value=None):
         if selected_value == TipologiaFattura.FATTURA.value:
@@ -491,6 +495,7 @@ class InvoiceCreateView(ctk.CTkToplevel):
         self.invoice_widgets[self.nome_utente_string].set(user_full_name)
         self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].delete(0, ctk.END)
         self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].insert(0, importo_servizi)
+        self.populate_rivalsa_INPS()
         self.update_entries_on_regime_fiscale(user_full_name)
 
         if self.suggest_invoicer_window is not None and self.suggest_invoicer_window.winfo_exists():

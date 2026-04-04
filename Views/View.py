@@ -4,14 +4,9 @@ from Views.View_utils import ViewUtils, CustomTkMenuButton
 from datetime import datetime
 
 
-from Controllers import ExpenseController, ControllerUtils, SalaryController, TransfersController, \
-    UpdatesController, AccountController, UserController, PaymentsController, \
-    RefundController, Analyzer
+from Controllers import ExpenseController, ControllerUtils, AccountController, UserController, Analyzer
 
 from Controllerss.Client_controller import ClientController
-from Controllerss.Supplier_controller import SupplierController
-from Controllerss.Production_controller import ProductionController
-from Controllerss.Invoice_controller import InvoiceController
 
 from QueryServices.Suppliers_query_service import SupplierQueryService
 
@@ -19,8 +14,8 @@ from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersC
 
 from Views.Users_view import UsersView
 from Views.Clients_view_H import ClientsViewH
-from Views.Invoices_view_h import InvoicesViewH
-from Views.Payments_view import PaymentsView
+from Views.Invoices_view_H import InvoicesViewH
+from Views.Payments_view_H import PaymentsViewH
 from Views.Productions_view_H import ProductionsViewH
 from Views.Expenses_view import ExpensesView
 from Views.Suppliers_view_H import SuppliersViewH
@@ -81,17 +76,8 @@ class MainWindow(ctk.CTk):
         self.db_model:DatabaseModel = app_context.db_model  # Istanzia il modello
         self.user_controller:UserController = app_context.user_controller  # Crea il controller per gli utenti
         self.account_controller:AccountController = app_context.account_controller
-        self.salary_controller:SalaryController = app_context.salary_controller
-        self.transfer_controller:TransfersController = app_context.transfer_controller
         self.client_controller:ClientController = app_context.client_controller
-        self.supplier_controller:SupplierController = app_context.supplier_controller
         self.suppliers_query_service:SupplierQueryService = app_context.suppliers_query_service
-        self.payment_controller:PaymentsController = app_context.payment_controller
-        self.production_controller:ProductionController = app_context.production_controller
-        self.invoice_controller:InvoiceController = app_context.invoice_controller
-        self.expense_controller:ExpenseController = app_context.expense_controller
-        self.refund_controller:RefundController = app_context.refund_controller
-        self.update_controller:UpdatesController = app_context.update_controller
         self.analyzer:Analyzer = app_context.analyzer
 
         self.title("Gestionale Willow")
@@ -170,7 +156,6 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Produzioni")
         self.tabview.add("Conti")
         self.tabview.add("Fatture")
-        self.tabview.add("Fatture_H")
         self.tabview.add("Pagamenti")
         self.tabview.add("Rimborsi")
         self.tabview.add("Spese")
@@ -217,9 +202,9 @@ class MainWindow(ctk.CTk):
 
             "Clienti": lambda tab: ClientsViewH(self.app_context, tab),
 
-            "Fatture_H": lambda tab, invoice_id=None: InvoicesViewH(self.app_context, self.tabview, initial_invoice_id=invoice_id),
+            "Fatture": lambda tab, invoice_id=None: InvoicesViewH(self.app_context, self.tabview, initial_invoice_id=invoice_id),
 
-            "Pagamenti": lambda tab, payment_id=None: PaymentsView(self.app_context, self.tabview, initial_payment_id=payment_id),
+            "Pagamenti": lambda tab, payment_id=None: PaymentsViewH(self.app_context, self.tabview, initial_payment_id=payment_id),
 
             "Rimborsi": lambda tab, refund_id=None: RefundsView(self.app_context, self.tabview, initial_refund_id=refund_id),
 

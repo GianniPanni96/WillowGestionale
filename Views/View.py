@@ -23,6 +23,7 @@ from Views.Accounts_view import AccountsView
 from Views.Salaries_view import SalariesView
 from Views.Iva_trimes_view import IvaTrimesView
 from Views.Refunds_view import RefundsView
+from Views.Refunds_view_H import RefundsViewH
 from Views.Taxes_view import TaxesView
 from Views.Report_view import ReportView
 from Views.Plot_view import PlotView
@@ -206,7 +207,7 @@ class MainWindow(ctk.CTk):
 
             "Pagamenti": lambda tab, payment_id=None: PaymentsViewH(self.app_context, self.tabview, initial_payment_id=payment_id),
 
-            "Rimborsi": lambda tab, refund_id=None: RefundsView(self.app_context, self.tabview, initial_refund_id=refund_id),
+            "Rimborsi": lambda tab, refund_id=None: RefundsViewH(self.app_context, self.tabview, initial_refund_id=refund_id),
 
             "Produzioni": lambda tab, production_id=None: ProductionsViewH(self.app_context, self.tabview, initial_production_id=production_id),
 

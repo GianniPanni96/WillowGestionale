@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from Controllers import RefundController, DatabaseModel, Analyzer
+from Controllers import DatabaseModel, Analyzer
 from App_context import AppContext
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
 from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox
@@ -7,13 +7,14 @@ import re
 from datetime import datetime
 
 from Controllerss.Client_controller import ClientController
-from Controllerss.Production_controller import ProductionController
-from Controllerss.Invoice_controller import InvoiceController
 
 
 from Gestionale_Enums import *
 from QueryServices.Productions_query_service import ProductionQueryService
+from QueryServices.Invoices_query_service import InvoiceQueryService
+from QueryServices.Refunds_query_service import RefundQueryService
 from QueryServices.Clients_query_service import ClientQueryService
+from Analyzers.Refund_analyzer_service import RefundAnalyzerService
 from Analyzers.Client_analyzer_service import ClientAnalyzerService
 from Analyzers.Production_analyzer_service import ProductionAnalyzerService
 from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
@@ -25,16 +26,16 @@ class ClientDetailView(ctk.CTkFrame):
         self.app_context:AppContext = app_context
 
         self.clients_query_service:ClientQueryService = app_context.clients_query_service
+        self.invoices_query_service:InvoiceQueryService = app_context.invoices_query_service
         self.clients_analyzer_service:ClientAnalyzerService = app_context.clients_analyzer_service
         self.productions_query_service: ProductionQueryService = app_context.productions_query_service
         self.productions_analyzer_service:ProductionAnalyzerService = app_context.productions_analyzer_service
+        self.refunds_analyzer_service:RefundAnalyzerService = app_context.refunds_analyzer_service
+        self.refunds_query_service: RefundQueryService = app_context.refunds_query_service
 
-        self.invoice_controller:InvoiceController = app_context.invoice_controller
-        self.refund_controller:RefundController = app_context.refund_controller
         self.db_model:DatabaseModel = app_context.db_model
         self.back_callback = back_callback
         self.client_controller:ClientController = app_context.client_controller
-        self.production_controller:ProductionController = app_context.production_controller
         self.event_bus = app_context.event_bus
         self.current_client_id = None
         self.analyzer:Analyzer = app_context.analyzer
@@ -359,9 +360,9 @@ class ClientDetailView(ctk.CTkFrame):
         confirmation = ViewUtils.ask_confirmation_popup(self.content_frame, "Stai per eliminare questo cliente.\nDesideri continuare ?", "ELIMINAZIONE CLIENTE" )
         if confirmation:
             #check if something link to this client
-            invoices = self.invoice_controller.retrieve_invoice_map_list_by_client(self.current_client_id)
+            invoices = self.invoices_query_service.retrieve_invoice_map_list_by_client(self.current_client_id)
             productions = self.productions_query_service.retrieve_productions_map_list_by_client_id(self.current_client_id)
-            refunds = self.refund_controller.retrieve_refunds_map_list_by_client_id(self.current_client_id)
+            refunds = self.refunds_query_service.retrieve_refunds_map_list_by_client_id(self.current_client_id)
 
             if len(invoices) == 0 and len(productions) == 0 and len(refunds) == 0 :
                 success, message = self.client_controller.delete_client(self.current_client_id)
@@ -493,11 +494,11 @@ class ClientDetailView(ctk.CTkFrame):
 
         global_infos = {
             "TOT RIMBORSI (All Time)": {
-                "value": self.refund_controller.calculate_tot_refunds_of_client(self.current_client_id, year=-1),
+                "value": self.refunds_analyzer_service.calculate_tot_refunds_of_client(self.current_client_id, year=-1),
                 "uom": "€"
             },
             f"TOT RIMBORSI {datetime.now().year}": {
-                "value": self.refund_controller.calculate_tot_refunds_of_client(self.current_client_id),
+                "value": self.refunds_analyzer_service.calculate_tot_refunds_of_client(self.current_client_id),
                 "uom": "€"
             }
         }
@@ -512,7 +513,7 @@ class ClientDetailView(ctk.CTkFrame):
         refunds_frame.pack(fill="both", expand=True, padx=(10, 20), pady=(10, 20))
 
         # popolo gli invoices
-        refunds = self.refund_controller.retrieve_refunds_map_list_by_client_id(self.current_client_id)
+        refunds = self.refunds_query_service.retrieve_refunds_map_list_by_client_id(self.current_client_id)
         for ref in refunds:
             if ref[DBRefundsColumns.REFUND_NAME.value] is not None:
                 nome_refund = ref[DBRefundsColumns.REFUND_NAME.value]

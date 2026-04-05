@@ -81,7 +81,7 @@ class PaymentQueryService:
         rows = self.db_model.fetch_payments_by_invoice_id(invoice_id)
         payments = [ControllerUtils.row_to_map(row, DBPaymentsColumns) for row in rows]
 
-        return ControllerUtils.filter_payments(payments, year)
+        return ControllerUtils.filter_payments(payments=payments, year=year, db_model=self.db_model)
 
     def retrieve_payments_map_dictionary(self, keyIsName: bool = False):
         """

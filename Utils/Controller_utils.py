@@ -216,7 +216,7 @@ class ControllerUtils:
         invoices_map = {
             inv_map[DBInvoicesColumns.ID.value]: inv_map
             for inv_map in (
-                ValidationUtils._row_to_map(inv, DBInvoicesColumns)
+                ControllerUtils.row_to_map(inv, DBInvoicesColumns)
                 for inv in invoices
             )
         }
@@ -228,7 +228,7 @@ class ControllerUtils:
         payments_by_invoice = {}
 
         for p in all_payments:
-            p_map = ValidationUtils._row_to_map(p, DBPaymentsColumns)
+            p_map = ControllerUtils.row_to_map(p, DBPaymentsColumns)
             inv_id = p_map[DBPaymentsColumns.INVOICE_ID.value]
             payments_by_invoice.setdefault(inv_id, []).append(p_map)
 
@@ -347,8 +347,8 @@ class ControllerUtils:
         invoices = db_model.fetch_invoices()
         payments = db_model.fetch_payments()
 
-        invoices_map = [ValidationUtils._row_to_map(inv, DBInvoicesColumns) for inv in invoices]
-        payments_map = [ValidationUtils._row_to_map(p, DBPaymentsColumns) for p in payments]
+        invoices_map = [ControllerUtils.row_to_map(inv, DBInvoicesColumns) for inv in invoices]
+        payments_map = [ControllerUtils.row_to_map(p, DBPaymentsColumns) for p in payments]
 
         # invoice_id → lista pagamenti
         invoice_payments = {}

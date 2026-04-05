@@ -6,7 +6,7 @@ from tkcalendar import Calendar
 
 from App_context import AppContext
 from Gestionale_Enums import*
-from Views.View_utils import ViewUtils
+from Views.View_utils import ViewUtils, FilterableComboBox
 
 from Controllerss.Refund_controller import RefundController
 from Controllerss.Client_controller import ClientController
@@ -97,7 +97,7 @@ class RefundDetailView(ctk.CTkFrame):
                 "section": "Dati Fiscali"
             },
             self.CLIENT_LABEL: {
-                "type": ctk.CTkOptionMenu,
+                "type": FilterableComboBox,
                 "label": "Cliente",
                 "section": "Collegamenti",
                 "values": [c[DBClientsColumns.NAME.value] for c in self.clients_query_service.retrieve_clients_map_list()]
@@ -200,6 +200,20 @@ class RefundDetailView(ctk.CTkFrame):
         if config["type"] == ctk.CTkLabel:
             return config["type"](frame, text=str(refund_data.get(field, "")))
 
+        if config["type"] == FilterableComboBox:
+            widget = config["type"](
+                frame,
+                values=config.get("values", []),
+                autofill=True
+            )
+            if field == self.CLIENT_LABEL:
+                client = self.clients_query_service.retrieve_client_map_by_id(refund_data.get(DBRefundsColumns.CLIENT_ID.value))
+                widget.set_value(client[DBClientsColumns.NAME.value] if client else "", safe_mode=False)
+            else:
+                values = config.get("values", [""])
+                widget.set_value(str(refund_data.get(field, values[0] if values else "")), safe_mode=False)
+            return widget
+
         if config["type"] == ctk.CTkOptionMenu:
             widget = config["type"](frame, values=config.get("values", []))
             if field == self.CLIENT_LABEL:
@@ -231,6 +245,9 @@ class RefundDetailView(ctk.CTkFrame):
         for widget in parent.winfo_children():
             if isinstance(widget, (ctk.CTkEntry, ctk.CTkTextbox)):
                 widget.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            elif isinstance(widget, FilterableComboBox):
+                widget.state = state
+                widget._apply_state()
             elif isinstance(widget, ctk.CTkOptionMenu):
                 widget.configure(state=state)
             elif isinstance(widget, Calendar):
@@ -241,7 +258,7 @@ class RefundDetailView(ctk.CTkFrame):
     def save_refund_mod(self):
         account_name = self.refund_info_widgets[self.ACCOUNT_LABEL].get()
         account = self.account_controller.retrieve_account_map_by_name(account_name)
-        client_name = self.refund_info_widgets[self.CLIENT_LABEL].get()
+        client_name = self.refund_info_widgets[self.CLIENT_LABEL].get_value()
         client = self.clients_query_service.retrieve_client_map_by_name(client_name)
 
         refund_data = {

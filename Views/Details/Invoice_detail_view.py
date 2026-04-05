@@ -8,7 +8,7 @@ from App_context import AppContext
 from Gestionale_Enums import*
 from Controllerss.Invoice_controller import InvoiceController
 from Event_bus import EventBus
-from Views .View_utils import ViewUtils
+from Views .View_utils import ViewUtils, FilterableComboBox
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
@@ -153,7 +153,7 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "section": "Dati Generali"
             },
             self.nome_cliente_string: {
-                "type": ctk.CTkOptionMenu,
+                "type": FilterableComboBox,
                 "label": "Cliente",
                 "section": "Dati Generali",
                 "values": [c[DBClientsColumns.NAME.value] for c in self.clients_query_service.retrieve_clients_map_list()],
@@ -349,7 +349,15 @@ class InvoiceDetailView(ctk.CTkFrame):
                 value = str(invoice_data.get(field, ""))
                 widget = config["type"](frame, text=value)
             else:
-                if config["type"] == ctk.CTkOptionMenu:
+                if config["type"] == FilterableComboBox:
+                    widget = config["type"](
+                        frame,
+                        values=config.get("values", []),
+                        autofill=True,
+                        command=config.get("command")
+                    )
+                    widget.set_value(str(invoice_data.get(field, "")), safe_mode=False)
+                elif config["type"] == ctk.CTkOptionMenu:
                     widget = config["type"](frame, values=config.get("values", []))
                     values = config.get("values", [""])
                     if len(values) > 0:
@@ -438,6 +446,9 @@ class InvoiceDetailView(ctk.CTkFrame):
 
             if isinstance(w, ctk.CTkEntry):
                 w.configure(state=widget_state, text_color="#636363" if widget_state == ctk.DISABLED else "#c2c2c2")
+            elif isinstance(w, FilterableComboBox):
+                w.state = widget_state
+                w._apply_state()
             elif isinstance(w, ctk.CTkOptionMenu):
                 w.configure(state=widget_state)
             elif isinstance(w, Calendar):
@@ -565,7 +576,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
         id_conto = conto[DBAccountsColumns.ID.value] if conto else None
 
-        nome_cliente = self.invoice_info_widgets[self.nome_cliente_string].get()
+        nome_cliente = self.invoice_info_widgets[self.nome_cliente_string].get_value()
         cliente = self.clients_query_service.retrieve_client_map_by_name(nome_cliente)
         id_cliente = cliente[DBClientsColumns.ID.value]
 

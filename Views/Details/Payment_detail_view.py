@@ -6,7 +6,7 @@ from tkcalendar import Calendar
 
 from App_context import AppContext
 from Gestionale_Enums import DBAccountsColumns, DBClientsColumns, DBInvoicesColumns, DBPaymentsColumns, DBProductionsColumns
-from Views.View_utils import ViewUtils
+from Views.View_utils import ViewUtils, FilterableComboBox
 
 
 class PaymentDetailView(ctk.CTkFrame):
@@ -103,11 +103,11 @@ class PaymentDetailView(ctk.CTkFrame):
             },
             DBPaymentsColumns.PAYMENT_AMOUNT.value: {
                 "type": ctk.CTkEntry,
-                "label": "Importo Pagato (EUR)",
+                "label": "Importo Pagato (€)",
                 "section": "Dati Fiscali"
             },
             self.INVOICE_FIELD: {
-                "type": ctk.CTkOptionMenu,
+                "type": FilterableComboBox,
                 "label": "Fattura Associata",
                 "section": "Collegamenti",
                 "values": [
@@ -239,6 +239,18 @@ class PaymentDetailView(ctk.CTkFrame):
         if config["type"] == ctk.CTkLabel:
             return config["type"](frame, text=str(payment_data.get(field, "")))
 
+        if config["type"] == FilterableComboBox:
+            values = config.get("values", [])
+            widget = config["type"](
+                frame,
+                values=values,
+                autofill=True,
+                command=config.get("command")
+            )
+            initial_value = str(payment_data.get(field, values[0] if values else ""))
+            widget.set_value(initial_value, safe_mode=False)
+            return widget
+
         if config["type"] == ctk.CTkOptionMenu:
             values = config.get("values", [])
             widget = config["type"](frame, values=values)
@@ -277,7 +289,7 @@ class PaymentDetailView(ctk.CTkFrame):
         self._populate_linked_fields()
 
     def _populate_linked_fields(self):
-        invoice_name = self.payment_info_widgets[self.INVOICE_FIELD].get()
+        invoice_name = self.payment_info_widgets[self.INVOICE_FIELD].get_value()
         invoice = self.invoices_query_service.retrieve_invoice_map_by_name(invoice_name)
         if not invoice:
             return
@@ -296,7 +308,7 @@ class PaymentDetailView(ctk.CTkFrame):
     def save_payment_mod(self):
         account_name = self.payment_info_widgets[self.ACCOUNT_FIELD].get()
         account = self.account_controller.retrieve_account_map_by_name(account_name)
-        invoice_name = self.payment_info_widgets[self.INVOICE_FIELD].get()
+        invoice_name = self.payment_info_widgets[self.INVOICE_FIELD].get_value()
         invoice = self.invoices_query_service.retrieve_invoice_map_by_name(invoice_name)
 
         if not account or not invoice:
@@ -363,6 +375,9 @@ class PaymentDetailView(ctk.CTkFrame):
         for widget in parent.winfo_children():
             if isinstance(widget, ctk.CTkEntry):
                 widget.configure(state=state, text_color="#636363" if state == ctk.DISABLED else "#c2c2c2")
+            elif isinstance(widget, FilterableComboBox):
+                widget.state = state
+                widget._apply_state()
             elif isinstance(widget, ctk.CTkOptionMenu):
                 widget.configure(state=state)
             elif isinstance(widget, Calendar):

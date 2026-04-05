@@ -906,8 +906,6 @@ class FilterableComboBox(ctk.CTkFrame):
         self.current_value = ""
         self.parent = parent
 
-        self.y_shift = 27
-
         self.interaction_frame = ctk.CTkFrame(self)
         self.interaction_frame.pack(fill="x")
         # Entry per la ricerca
@@ -931,7 +929,8 @@ class FilterableComboBox(ctk.CTkFrame):
         self.dropdown_button.pack(fill="x", side="right")
 
         self.message_label = ctk.CTkLabel(self, text="", anchor="w")
-        self.message_label.pack(fill="x", expand=True)
+        self._default_message_label_height = self.message_label.cget("height")
+        self._set_message_label_text("")
 
 
         self.entry.bind("<KeyRelease>", self._on_key_release)
@@ -967,6 +966,33 @@ class FilterableComboBox(ctk.CTkFrame):
 
     def _sort_values(self, values):
         return sorted(values, key=lambda value: str(value).casefold()) if values else []
+
+    def _get_dropdown_anchor_geometry(self):
+        anchor = self.interaction_frame
+        return (
+            anchor.winfo_rootx(),
+            anchor.winfo_rooty() + anchor.winfo_height(),
+            max(int(anchor.winfo_width() * 8 / 9), 1)
+        )
+
+    def _set_message_label_text(self, text, text_color="white"):
+        message_text = text or ""
+        if message_text:
+            if not self.message_label.winfo_manager():
+                self.message_label.pack(fill="x", expand=True)
+            self.message_label.configure(
+                text=message_text,
+                text_color=text_color,
+                height=self._default_message_label_height
+            )
+        else:
+            self.message_label.configure(
+                text="",
+                text_color=text_color,
+                height=0
+            )
+            if self.message_label.winfo_manager():
+                self.message_label.pack_forget()
 
     def _is_disabled(self):
         return self.state == ctk.DISABLED
@@ -1057,11 +1083,13 @@ class FilterableComboBox(ctk.CTkFrame):
             self.entry.delete(0, ctk.END)
             self.entry.insert(0, valid_values[0] if valid_values else self.all_values[0])
             self.entry.configure(border_color=self.warning_color)
-            self.message_label.configure(text="Selezione dell'utente assente: valore selezionato in automatico dalla lista", text_color=self.warning_color)
+            self._set_message_label_text(
+                "Selezione dell'utente assente: valore selezionato in automatico dalla lista",
+                text_color=self.warning_color
+            )
         else:
             self.entry.configure(border_color=self.default_border_color)
-            self.message_label.configure(text="",
-                                         text_color="white")
+            self._set_message_label_text("")
 
 
     def _on_key_release(self, event):
@@ -1102,7 +1130,8 @@ class FilterableComboBox(ctk.CTkFrame):
         if self.dropdown_frame is not None:
             self.dropdown_frame.configure(height=list_height)
         if self.dropdown_window is not None and self.dropdown_visible:
-            self.dropdown_window.geometry(f"{int(self.winfo_width() * 8 / 9)}x{dropdown_height}+{self.winfo_rootx()}+{self.winfo_rooty() + self.winfo_height() - self.y_shift}")
+            x, y, dropdown_width = self._get_dropdown_anchor_geometry()
+            self.dropdown_window.geometry(f"{dropdown_width}x{dropdown_height}+{x}+{y}")
 
         for widget in self.dropdown_frame.winfo_children():
             widget.destroy()
@@ -1162,10 +1191,7 @@ class FilterableComboBox(ctk.CTkFrame):
             self._update_dropdown_position()
             return
 
-        x = self.winfo_rootx()
-        y = self.winfo_rooty() + self.winfo_height() - self.y_shift
-
-        dropdown_width = int(self.winfo_width() *8/ 9)
+        x, y, dropdown_width = self._get_dropdown_anchor_geometry()
         list_height, dropdown_height = self._calculate_dropdown_heights()
 
         # Crea una finestra Toplevel con larghezza personalizzata
@@ -1305,9 +1331,7 @@ class FilterableComboBox(ctk.CTkFrame):
 
     def _update_dropdown_position(self):
         if self.dropdown_window and self.dropdown_visible:
-            x = self.winfo_rootx()
-            y = self.winfo_rooty() + self.winfo_height() - self.y_shift
-            dropdown_width = int(self.winfo_width() * 8 / 9)
+            x, y, dropdown_width = self._get_dropdown_anchor_geometry()
             _, dropdown_height = self._calculate_dropdown_heights()
             self.dropdown_window.wm_geometry(f"{dropdown_width}x{dropdown_height}+{x}+{y}")
 

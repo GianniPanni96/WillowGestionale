@@ -2,7 +2,7 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import AccountController, ExpenseController, UserController, ControllerUtils, \
+from Controllers import AccountController, UserController, ControllerUtils, \
      UpdatesController, Analyzer
 from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
 import re
@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 
 from Controllerss.Supplier_controller import SupplierController
 from Controllerss.Invoice_controller import InvoiceController
+from Controllerss.Expense_controller import ExpenseController
+from QueryServices.Expenses_query_service import ExpenseQueryService
+from Analyzers.Expense_analyzer_service import ExpenseAnalyzerService
 
 
 from Config import ConfigManager
@@ -27,6 +30,8 @@ class ExpensesView(ctk.CTkFrame):
         self.app_context:AppContext  = app_context
         self.db_model:DatabaseModel = app_context.db_model
         self.expense_controller:ExpenseController = app_context.expense_controller
+        self.expenses_query_service:ExpenseQueryService = app_context.expenses_query_service
+        self.expenses_analyzer_service:ExpenseAnalyzerService = app_context.expenses_analyzer_service
         self.user_controller:UserController = app_context.user_controller
         self.account_controller:AccountController = app_context.account_controller
         self.supplier_controller:SupplierController = app_context.supplier_controller
@@ -236,7 +241,7 @@ class ExpensesView(ctk.CTkFrame):
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutte le spese dell'anno corrente
-        all_expenses = self.expense_controller.retrieve_expenses_map_list()
+        all_expenses = self.expenses_query_service.retrieve_expenses_map_list()
 
         # Filtra le spese: solo quelle con data di emissione >= limit_date
         filtered_expenses = []
@@ -482,7 +487,7 @@ class ExpensesView(ctk.CTkFrame):
             self.update_controller.on_adding_expense()
 
             # prendo l'ID della sesa appena creata
-            expense_map = self.expense_controller.retrieve_last_expense_insert_map()
+            expense_map = self.expenses_query_service.retrieve_last_expense_insert_map()
             print(f"Spesa {expense_data[DBExpensesColumns.NAME.value]} salvata con successo")
 
             supplier_name = self.supplier_controller.retrieve_supplier_map_by_id(expense_map[DBExpensesColumns.SUPPLIER_ID.value])[
@@ -652,7 +657,7 @@ class ExpensesView(ctk.CTkFrame):
                 # Accesso al valore tramite database
                 if len(children) > 0:
                     expense_name = children[0].cget("text")
-                    expense_map = self.expense_controller.retrieve_expense_map_by_name(expense_name)
+                    expense_map = self.expenses_query_service.retrieve_expense_map_by_name(expense_name)
                     if expense_map and db_column:
                         sort_value = expense_map.get(db_column, "")
 
@@ -735,8 +740,8 @@ class ExpensesView(ctk.CTkFrame):
         self.expenses_card_list[name] = card
 
     def populate_global_infos(self):
-        numero_spese = self.expense_controller.count_expenses(True)
-        totale_spese = round(self.expense_controller.calculate_tot_expenses(), 2)
+        numero_spese = self.expenses_analyzer_service.count_expenses()
+        totale_spese = round(self.expenses_analyzer_service.calculate_tot_expenses(), 2)
         self.global_infos[f"{ExpenseController.ExpensesAggregateData.NUMERO_SPESE.value}"] = numero_spese
         self.global_infos[f"{ExpenseController.ExpensesAggregateData.TOT_SPESE.value}"] = f"{totale_spese:.2f}"
 
@@ -1037,7 +1042,7 @@ class ExpenseDetailView(ctk.CTkFrame):
         self._clear_content()
 
         # 2. Caricamento dati
-        self.expense = self.expense_controller.retrieve_expense_map_by_id(expense_id)
+        self.expense = self.expenses_query_service.retrieve_expense_map_by_id(expense_id)
 
         # prendo il nome del conto:
         id_conto = self.expense[DBExpensesColumns.ACCOUNT_ID.value]
@@ -1457,7 +1462,7 @@ class ExpenseDetailView(ctk.CTkFrame):
         success, message = self.expense_controller.update_expense(self.current_expense_id, expense_data)
         if success:
             print(
-                f"Spesa {self.expense_controller.retrieve_expense_map_by_id(self.current_expense_id)[DBExpensesColumns.NAME.value]} salvata con successo")
+                f"Spesa {self.expenses_query_service.retrieve_expense_map_by_id(self.current_expense_id)[DBExpensesColumns.NAME.value]} salvata con successo")
             ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
             self.switch_modify.deselect()
             self.toggle_edit(self.content_frame)

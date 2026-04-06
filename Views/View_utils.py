@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from Controllers import AccountController
     from Controllers import TransfersController
     from Controllers import PaymentsController
-    from Controllers import ExpenseController
+    from Controllerss.Expense_controller import ExpenseController
     from Controllers import SupplierController
     from Controllers import SalaryController
     from Controllerss.Refund_controller import RefundController

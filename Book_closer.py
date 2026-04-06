@@ -2,13 +2,14 @@ from Model import DBAccountsColumns, DBUsersColumns
 import os
 import csv
 from datetime import datetime
-from typing import Dict, List, Any
 
-from Controllers import AccountController, Analyzer, UserController, ExpenseController, \
+from Controllers import AccountController, Analyzer, UserController, \
     SalaryController
+from Analyzers.Expense_analyzer_service import ExpenseAnalyzerService
 
-from Controllerss.Production_controller import ProductionController
-from Controllerss.Invoice_controller import InvoiceController
+
+from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
+from Analyzers.Production_analyzer_service import ProductionAnalyzerService
 
 from Config import ConfigManager
 
@@ -20,18 +21,18 @@ class BookCloser:
                  analyzer:Analyzer,
                  user_controller:UserController,
                  config_manager:ConfigManager,
-                 invoice_controller:InvoiceController,
-                 expense_controller:ExpenseController,
-                 production_controller:ProductionController,
-                 salary_controller:SalaryController):
+                 expense_analyzer_service:ExpenseAnalyzerService,
+                 salary_controller:SalaryController,
+                 invoices_analyzer_service:InvoiceAnalyzerService,
+                 productions_analyzer_service:ProductionAnalyzerService):
 
         self.environment_db_variable = environment_db_variable
         self.account_controller = account_controller
         self.user_controller = user_controller
-        self.invoice_controller = invoice_controller
-        self.expense_controller = expense_controller
-        self.production_controller = production_controller
+        self.expense_analyzer_service = expense_analyzer_service
         self.salary_controller = salary_controller
+        self.invoices_analyzer_service:InvoiceAnalyzerService = invoices_analyzer_service
+        self.productions_analyzer_service:ProductionAnalyzerService = productions_analyzer_service
         self.config_manager = config_manager
         self.analyzer = analyzer
         self.current_exercise_year = int(datetime.now().strftime('%Y')) - 1
@@ -249,11 +250,11 @@ class BookCloser:
                 )
             )
 
-        tot_fatturato = self.invoice_controller.calculate_FATT_LORDO_invoiced(year = self.current_exercise_year)
-        tot_spese = self.expense_controller.calculate_tot_expenses(year = self.current_exercise_year)
-        media_fatture = self.invoice_controller.calculate_MEDIA_FATTURA_LORDO_invoiced(year = self.current_exercise_year)
-        media_ore_per_produzione = self.production_controller.mean_hours_for_production(year = self.current_exercise_year)
-        media_prezzo_orario_produzione = self.production_controller.mean_prezzo_orario(year = self.current_exercise_year)
+        tot_fatturato = self.invoices_analyzer_service.calculate_FATT_LORDO_invoiced(year = self.current_exercise_year)
+        tot_spese = self.expense_analyzer_service.calculate_tot_expenses(year=self.current_exercise_year)
+        media_fatture = self.invoices_analyzer_service.calculate_MEDIA_FATTURA_LORDO_invoiced(year = self.current_exercise_year)
+        media_ore_per_produzione = self.productions_analyzer_service.mean_hours_for_production(year = self.current_exercise_year)
+        media_prezzo_orario_produzione = self.productions_analyzer_service.mean_prezzo_orario(year = self.current_exercise_year)
         previsione_tasse = self.analyzer.calculate_previsione_tasse_willow(year = self.current_exercise_year)
         irpef_willow = previsione_tasse["TOTALE"].get("IRPEF WILLOW", 0.0)
         inps_willow = previsione_tasse["TOTALE"].get("INPS WILLOW", 0.0)

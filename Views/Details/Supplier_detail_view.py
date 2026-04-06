@@ -6,6 +6,7 @@ from App_context import AppContext
 from Model import DBExpensesColumns, DBSuppliersColumns
 
 from QueryServices.Suppliers_query_service import SupplierQueryService
+from QueryServices.Expenses_query_service import ExpenseQueryService
 from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
 
 from Controllerss.Supplier_controller import SupplierController
@@ -19,8 +20,8 @@ class SupplierDetailView(ctk.CTkFrame):
         self.app_context: AppContext = app_context
         self.supplier_controller:SupplierController = app_context.supplier_controller
         self.supplier_query_service:SupplierQueryService = app_context.suppliers_query_service
+        self.expenses_query_service:ExpenseQueryService = app_context.expenses_query_service
         self.supplier_analyzer_service:SupplierAnalyzerService = app_context.suppliers_analyzer_service
-        self.expense_controller = app_context.expense_controller
         self.db_model = app_context.db_model
         self.back_callback = back_callback
         self.event_bus = app_context.event_bus
@@ -359,7 +360,7 @@ class SupplierDetailView(ctk.CTkFrame):
             "ELIMINAZIONE FORNITORE"
         )
         if confirmation:
-            expenses = self.expense_controller.retrieve_expense_map_list_by_supplier(self.current_supplier_id)
+            expenses = self.expenses_query_service.retrieve_expense_map_list_by_supplier(self.current_supplier_id)
 
             if len(expenses) == 0:
                 success, message = self.supplier_controller.delete_supplier(self.current_supplier_id)

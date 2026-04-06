@@ -1,3 +1,5 @@
+import datetime
+
 import customtkinter as ctk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
@@ -454,7 +456,7 @@ class AccountDetailView(ctk.CTkFrame):
             },
             DBAccountsColumns.INIT_BALANCE.value: {
                 "type": ctk.CTkEntry,
-                "label": "Saldo Iniziale",
+                "label": f"Saldo Iniziale\n(31-12-{datetime.datetime.now().year - 1})",
                 "section": "Dati Conto"
             },
             "current_balance": {

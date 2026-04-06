@@ -4,7 +4,8 @@ from Views.View_utils import ViewUtils, CustomTkMenuButton
 from datetime import datetime
 
 
-from Controllers import ExpenseController, ControllerUtils, AccountController, UserController, Analyzer
+from Controllers import ControllerUtils, AccountController, UserController, Analyzer
+from Controllerss.Expense_controller import ExpenseController
 
 from Controllerss.Client_controller import ClientController
 
@@ -17,12 +18,11 @@ from Views.Clients_view_H import ClientsViewH
 from Views.Invoices_view_H import InvoicesViewH
 from Views.Payments_view_H import PaymentsViewH
 from Views.Productions_view_H import ProductionsViewH
-from Views.Expenses_view import ExpensesView
+from Views.Expenses_view_H import ExpensesViewH
 from Views.Suppliers_view_H import SuppliersViewH
 from Views.Accounts_view import AccountsView
 from Views.Salaries_view import SalariesView
 from Views.Iva_trimes_view import IvaTrimesView
-from Views.Refunds_view import RefundsView
 from Views.Refunds_view_H import RefundsViewH
 from Views.Taxes_view import TaxesView
 from Views.Report_view import ReportView
@@ -211,7 +211,7 @@ class MainWindow(ctk.CTk):
 
             "Produzioni": lambda tab, production_id=None: ProductionsViewH(self.app_context, self.tabview, initial_production_id=production_id),
 
-            "Spese": lambda tab, expense_id=None: ExpensesView(self.app_context, self.tabview, initial_expense_id = expense_id),
+            "Spese": lambda tab, expense_id=None: ExpensesViewH(self.app_context, self.tabview, initial_expense_id=expense_id),
 
             "Fornitori": lambda tab: SuppliersViewH(self.app_context, self.tabview),
 

@@ -4,6 +4,8 @@ from Gestionale_Enums import DBAccountsColumns, DBClientsColumns, DBRefundsColum
 from Model import DatabaseModel
 from Utils.Validation_utils import ValidationUtils
 
+from QueryServices.Clients_query_service import ClientQueryService
+
 
 class RefundController:
     """
@@ -13,9 +15,9 @@ class RefundController:
     e aggregazioni a query service e analyzer service.
     """
 
-    def __init__(self, db_model: DatabaseModel, client_controller, account_controller):
-        self.db_model = db_model
-        self.client_controller = client_controller
+    def __init__(self, db_model: DatabaseModel, clients_query_service:ClientQueryService, account_controller):
+        self.db_model:DatabaseModel = db_model
+        self.clients_query_service:ClientQueryService = clients_query_service
         self.account_controller = account_controller
 
     def save_refund(self, refund_data):
@@ -37,7 +39,7 @@ class RefundController:
         id_conto = conto[DBAccountsColumns.ID.value] if conto else None
 
         nome_cliente = refund_data.get("NOME CLIENTE")
-        cliente = self.client_controller.retrieve_client_map_by_name(nome_cliente)
+        cliente = self.clients_query_service.retrieve_client_map_by_name(nome_cliente)
         id_cliente = cliente[DBClientsColumns.ID.value] if cliente else None
 
         if id_conto is None or id_cliente is None:

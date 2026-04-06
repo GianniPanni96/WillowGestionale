@@ -4,10 +4,11 @@ from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
 from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
 from Analyzers.Payment_analyzer_service import PaymentAnalyzerService
 from Analyzers.Refund_analyzer_service import RefundAnalyzerService
+from Analyzers.Expense_analyzer_service import ExpenseAnalyzerService
 
 
 from Controllers import UserController, AccountController, \
-     ExpenseController, UpdatesController, \
+     UpdatesController, \
     Analyzer, TransfersController, SalaryController
 
 
@@ -23,6 +24,7 @@ from Controllerss.Production_controller import ProductionController
 from Controllerss.Invoice_controller import InvoiceController
 from Controllerss.Payment_controller import PaymentsController
 from Controllerss.Refund_controller import RefundController
+from Controllerss.Expense_controller import ExpenseController
 
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Suppliers_query_service import SupplierQueryService
@@ -30,6 +32,7 @@ from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 from QueryServices.Payments_query_service import PaymentQueryService
 from QueryServices.Refunds_query_service import RefundQueryService
+from QueryServices.Expenses_query_service import ExpenseQueryService
 from WarningServices.Production_warning_service import ProductionWarningService
 from WarningServices.Invoice_warning_service import InvoiceWarningService
 from WarningServices.Payment_warning_service import PaymentWarningService
@@ -71,6 +74,7 @@ class AppContext:
         self.invoices_query_service:InvoiceQueryService = InvoiceQueryService(self.db_model)
         self.payments_query_service:PaymentQueryService = PaymentQueryService(self.db_model)
         self.refunds_query_service:RefundQueryService = RefundQueryService(self.db_model)
+        self.expenses_query_service:ExpenseQueryService = ExpenseQueryService(self.db_model)
         self.clients_query_service:ClientQueryService = ClientQueryService(self.productions_query_service, self.db_model)
 
         self.clients_analyzer_service:ClientAnalyzerService = ClientAnalyzerService(self.clients_query_service, self.db_model)
@@ -78,6 +82,7 @@ class AppContext:
         self.productions_analyzer_service:ProductionAnalyzerService = ProductionAnalyzerService(self.productions_query_service, self.db_model)
         self.payments_analyzer_service:PaymentAnalyzerService = PaymentAnalyzerService(self.payments_query_service, self.db_model)
         self.refunds_analyzer_service:RefundAnalyzerService = RefundAnalyzerService(self.refunds_query_service, self.db_model)
+        self.expenses_analyzer_service:ExpenseAnalyzerService = ExpenseAnalyzerService(self.expenses_query_service, self.db_model)
         self.production_warning_service:ProductionWarningService = ProductionWarningService()
         self.invoice_warning_service:InvoiceWarningService = InvoiceWarningService(self.productions_query_service)
         self.payment_warning_service:PaymentWarningService = PaymentWarningService(self.invoices_query_service)
@@ -96,10 +101,18 @@ class AppContext:
         self.invoice_controller:InvoiceController = InvoiceController(self.db_model, self.invoices_analyzer_service, self.clients_query_service,
                                                     self.invoices_query_service, self.productions_query_service,
                                                     self.user_controller, fiscal_settings, self.account_controller)
-        self.expense_controller:ExpenseController = ExpenseController(self.db_model, self.user_controller, self.account_controller,
-                                                    self.invoice_controller, self.suppliers_query_service,
-                                                    recurring_expenses_settings, catalogo_elenchi)
-        self.refund_controller:RefundController = RefundController(self.db_model, self.client_controller, self.account_controller)
+        self.expense_controller:ExpenseController = ExpenseController(
+            self.db_model,
+            self.user_controller,
+            self.account_controller,
+            self.supplier_controller,
+            self.suppliers_query_service,
+            self.invoices_query_service,
+            self.expenses_query_service,
+            recurring_expenses_settings,
+            catalogo_elenchi
+        )
+        self.refund_controller:RefundController = RefundController(self.db_model, self.clients_query_service, self.account_controller)
         self.update_controller:UpdatesController = UpdatesController(self.user_controller, self.client_controller,
                                                    self.invoice_controller, self.payment_controller,
                                                    self.account_controller, self.production_controller)
@@ -114,7 +127,8 @@ class AppContext:
                                  self.payments_analyzer_service,
                                  self.payments_query_service,
                                  self.refunds_query_service,
-                                 self.expense_controller,
+                                 self.expenses_query_service,
+                                 self.expenses_analyzer_service,
                                  self.salary_controller,
                                  self.refunds_analyzer_service,
                                  self.fiscal_settings,
@@ -133,8 +147,8 @@ class AppContext:
                                                  analyzer=self.analyzer,
                                                  user_controller=self.user_controller,
                                                  config_manager=self.config_manager,
-                                                 invoice_controller=self.invoice_controller,
-                                                 expense_controller=self.expense_controller,
-                                                 production_controller=self.production_controller,
+                                                 invoices_analyzer_service=self.invoices_analyzer_service,
+                                                 expense_analyzer_service=self.expenses_analyzer_service,
+                                                 productions_analyzer_service=self.productions_analyzer_service,
                                                  salary_controller=self.salary_controller)
 

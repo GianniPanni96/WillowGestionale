@@ -2,8 +2,9 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
-from Controllers import AccountController, ExpenseController, Analyzer, UserController, ControllerUtils, \
+from Controllers import AccountController, Analyzer, UserController, ControllerUtils, \
     SalaryController, UpdatesController
+from Controllerss.Expense_controller import ExpenseController
 from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns, DBSalariesColumns
 import re
 from datetime import datetime

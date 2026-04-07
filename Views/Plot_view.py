@@ -475,7 +475,7 @@ class PlotView (ctk.CTkFrame):
             # Usa la cache se disponibile
             if not self.salary_data_cache:
                 for month in range(1, 13):
-                    salary = self.app_context.salary_controller.calculate_mean_salary_by_month(month)
+                    salary = self.app_context.salary_analyzer_service.calculate_mean_salary_by_month(month)
                     self.salary_data_cache[month] = salary if salary is not None else 0.0
 
             # Ritorna i valori in ordine di mese

@@ -106,7 +106,7 @@ class PaymentsViewH(BaseListView):
         self.clients_query_service: ClientQueryService = app_context.clients_query_service
         self.productions_query_service:ProductionQueryService = app_context.productions_query_service
         self.account_controller: AccountController = app_context.account_controller
-        self.account_query_service:AccountQueryService = app_context.account_query_service
+        self.accounts_query_service:AccountQueryService = app_context.account_query_service
         self.invoices_query_service: InvoiceQueryService = app_context.invoices_query_service
         self.update_controller: UpdatesController = app_context.update_controller
 

@@ -3,9 +3,9 @@ import os
 import csv
 from datetime import datetime
 
-from Controllers import AccountController, Analyzer, UserController, \
-    SalaryController
+from Controllers import AccountController, Analyzer, UserController
 from Analyzers.Expense_analyzer_service import ExpenseAnalyzerService
+from Analyzers.Salary_analyzer_service import SalaryAnalyzerService
 
 
 from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
@@ -25,7 +25,7 @@ class BookCloser:
                  user_controller:UserController,
                  config_manager:ConfigManager,
                  expense_analyzer_service:ExpenseAnalyzerService,
-                 salary_controller:SalaryController,
+                 salary_analyzer_service:SalaryAnalyzerService,
                  invoices_analyzer_service:InvoiceAnalyzerService,
                  productions_analyzer_service:ProductionAnalyzerService):
 
@@ -34,7 +34,7 @@ class BookCloser:
         self.accounts_query_service:AccountQueryService = accounts_query_service
         self.user_controller = user_controller
         self.expense_analyzer_service = expense_analyzer_service
-        self.salary_controller = salary_controller
+        self.salary_analyzer_service = salary_analyzer_service
         self.invoices_analyzer_service:InvoiceAnalyzerService = invoices_analyzer_service
         self.productions_analyzer_service:ProductionAnalyzerService = productions_analyzer_service
         self.config_manager = config_manager
@@ -374,7 +374,7 @@ class BookCloser:
         for month in range(1, 13):
             # Recupera il salario medio per il mese
             try:
-                mean_salary = self.salary_controller.calculate_mean_salary_by_month(month = month, year = self.current_exercise_year)
+                mean_salary = self.salary_analyzer_service.calculate_mean_salary_by_month(month = month, year = self.current_exercise_year)
                 if mean_salary is None:
                     mean_salary = 0.0
             except Exception as e:

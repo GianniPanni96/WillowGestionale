@@ -9,10 +9,16 @@ from Crypto.Random import get_random_bytes
 import hashlib, secrets, hmac
 
 from Controllerss.Account_controller import AccountController
+from Analyzers.Salary_analyzer_service import SalaryAnalyzerService
+from Analyzers.Transfer_analyzer_service import TransferAnalyzerService
+from Controllerss.Salary_controller import SalaryController
+from Controllerss.Transfer_controller import TransferController
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, \
 DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, \
 DBSuppliersColumns, DBTransfersColumns, DBSalariesColumns, DBRefundsColumns
+from QueryServices.Transfers_query_service import TransferQueryService
+from QueryServices.Salaries_query_service import SalaryQueryService
 from QueryServices.Suppliers_query_service import SupplierQueryService
 
 from QueryServices.Invoices_query_service import InvoiceQueryService
@@ -1508,151 +1514,6 @@ class UserController:
             return False, "Password errata!", -1
 
 
-class TransfersController:
-    def __init__(self, db_model, account_controller, accounts_query_service):
-        """
-        Inizializza il controller con il model.
-        :param db_model: Istanza di db_model per accedere ai dati.
-        """
-        self.db_model = db_model
-        self.account_controller = account_controller
-        self.accounts_query_service = accounts_query_service
-
-    def save_transfer(self, transfer_data):
-        """
-        Gestisce il salvataggio di un bonifico, con validazioni di primo livello.
-        :param transfer_data: Dizionario contenente i dati del bonifico
-        :return: Tuple (success, message), dove success è True/False
-        """
-
-        # Campi obbligatori (solo quelli modellati tramite entry)
-        self.required_fields = {DBTransfersColumns.DESCRIPTION.value, DBTransfersColumns.AMOUNT.value}
-
-        # Validazione dei campi obbligatori
-        missing_fields = [field for field in self.required_fields if not transfer_data.get(field)]
-        if missing_fields:
-            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-        # Validazione importi
-        spesa_lorda = transfer_data.get(DBTransfersColumns.AMOUNT.value)
-        if not ValidationUtils.validate_amount(spesa_lorda):
-            return False, "L'importo inserito non è valido"
-
-        #prendo ID Conto Ricevente
-        receiver_account_id = None
-        receiver_account_name = transfer_data.get("CONTO RICEVENTE")
-        receiver_account = self.accounts_query_service.retrieve_account_map_by_name(receiver_account_name)
-        receiver_account_id = receiver_account[DBTransfersColumns.ID.value] if receiver_account else None
-
-        transfer_data_prepared = {
-            DBTransfersColumns.DESCRIPTION.value: transfer_data.get(DBTransfersColumns.DESCRIPTION.value),
-            DBTransfersColumns.AMOUNT.value: transfer_data.get(DBTransfersColumns.AMOUNT.value),
-            DBTransfersColumns.SENDER_ACCOUNT_ID.value: transfer_data.get(DBTransfersColumns.SENDER_ACCOUNT_ID.value),
-            DBTransfersColumns.RECEIVER_ACCOUNT_ID.value: receiver_account_id
-        }
-
-        try:
-            self.db_model.add_transfer(**transfer_data_prepared)
-            return True, "Bonifico salvato con successo!"
-        except Exception as e:
-            return False, f"Errore durante il salvataggio: {str(e)}"
-
-    def retrieve_transfer_map_by_id(self, transfer_id):
-        """
-        Recupera un trasferimento specifico per ID e lo restituisce come dizionario.
-        :param transfer_id: ID del trasferimento.
-        :return: Dizionario con i dati del trasferimento oppure None.
-        """
-        row = self.db_model.fetch_transfer_by_id(transfer_id)
-        return ValidationUtils._row_to_map(row, DBTransfersColumns)
-
-    def retrieve_transfers_map_list(self, year: int = None):
-        """
-        Recupera tutti i trasferimenti come lista di dizionari.
-        :param year: Anno di riferimento. None → anno corrente, -1 → nessun filtro
-        :return: Lista di dizionari con i dati dei trasferimenti.
-        """
-        rows = self.db_model.fetch_all_transfers()
-        transfers = [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
-        return ControllerUtils.filter_transfers(transfers, year)
-
-    def retrieve_last_transfer_insert_map(self):
-        """
-        Recupera l'ultimo trasferimento inserito come dizionario.
-        :return: Dizionario con i dati dell'ultimo trasferimento oppure None.
-        """
-        row = self.db_model.fetch_last_transfer_insert()
-        return ValidationUtils._row_to_map(row, DBTransfersColumns)
-
-    def retrieve_sent_transfers_map_by_account(self, account_id, year: int = None):
-        """
-        Recupera i trasferimenti inviati da un conto come lista di dizionari.
-        :param account_id: ID del conto mittente
-        :param year: Anno di riferimento
-        """
-        transfers = self.db_model.fetch_sent_transfers_by_account(account_id)
-        if not transfers:
-            return []
-        transfers_map = [ValidationUtils._row_to_map(tr, DBTransfersColumns) for tr in transfers]
-        return ControllerUtils.filter_transfers(transfers_map, year)
-
-    def retrieve_received_transfers_map_by_account(self, account_id, year: int = None):
-        """
-        Recupera i trasferimenti ricevuti da un conto come lista di dizionari.
-        :param account_id: ID del conto destinatario
-        :param year: Anno di riferimento
-        """
-        transfers = self.db_model.fetch_received_transfers_by_account(account_id)
-        if not transfers:
-            return []
-        transfers_map = [ValidationUtils._row_to_map(tr, DBTransfersColumns) for tr in transfers]
-        return ControllerUtils.filter_transfers(transfers_map, year)
-
-    def retrieve_received_transfers_map(self, account_id, year: int = None):
-        """
-        Recupera i trasferimenti ricevuti da un conto come lista di dizionari.
-        :param account_id: ID del conto ricevente
-        :param year: Anno di riferimento
-        :return: Lista di dizionari
-        """
-        rows = self.db_model.fetch_received_transfers_by_account(account_id)
-        transfers = [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
-        return ControllerUtils.filter_transfers(transfers, year)
-
-    def retrieve_sent_transfers_map(self, account_id, year: int = None):
-        """
-        Recupera i trasferimenti inviati da un conto come lista di dizionari.
-        :param account_id: ID del conto mittente
-        :param year: Anno di riferimento
-        :return: Lista di dizionari
-        """
-        rows = self.db_model.fetch_sended_transfers_by_account(account_id)
-        transfers = [ValidationUtils._row_to_map(row, DBTransfersColumns) for row in rows]
-        return ControllerUtils.filter_transfers(transfers, year)
-
-    def calculate_tot_amount_sent_transfers_by_account(self, account_id, year: int = None):
-        """
-        Calcola il totale dei trasferimenti inviati da un conto.
-        :param account_id: ID del conto mittente
-        :param year: Anno di riferimento
-        :return: Importo totale inviato
-        """
-        sent_transfers = self.retrieve_sent_transfers_map_by_account(account_id, year)
-        amount = sum(float(tr[DBTransfersColumns.AMOUNT.value]) for tr in sent_transfers)
-        return amount
-
-    def calculate_tot_amount_received_transfers_by_account(self, account_id, year: int = None):
-        """
-        Calcola il totale dei trasferimenti ricevuti da un conto.
-        :param account_id: ID del conto destinatario
-        :param year: Anno di riferimento
-        :return: Importo totale ricevuto
-        """
-        received_transfers = self.retrieve_received_transfers_map_by_account(account_id, year)
-        amount = sum(float(tr[DBTransfersColumns.AMOUNT.value]) for tr in received_transfers)
-        return amount
-
-
 class UpdatesController:
 
     def __init__(self, user_controller, client_controller, invoice_controller, payments_controller, account_controller, production_controller):
@@ -1743,235 +1604,6 @@ class UpdatesController:
                 print(f"ERRORE: {str(e)}")
 
 
-class SalaryController:
-
-    class SalariesAggregateData(Enum):
-        NUMERO_SALARI = "#SALARI"
-        TOT_SALARI = "TOT. SALARI"
-
-    def __init__(self, db_model, user_controller, account_controller):
-        self.db_model = db_model
-        self.user_controller = user_controller
-        self.account_controller = account_controller
-
-    def save_salary(self, salary_data):
-        """
-        Gestisce il salvataggio di un salario, con validazioni di primo livello.
-        :param salary_data: Dizionario contenente i dati del salario
-        :return: Tuple (success, message), dove success è True/False
-        """
-
-        # Campi obbligatori (solo quelli modellati tramite entry)
-        self.required_fields = {DBSalariesColumns.NAME.value, DBSalariesColumns.AMOUNT.value}
-
-        # Validazione dei campi obbligatori
-        missing_fields = [field for field in self.required_fields if not salary_data.get(field)]
-        if missing_fields:
-            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-        # Validazione importi
-        importo = salary_data.get(DBSalariesColumns.AMOUNT.value)
-        if not ValidationUtils.validate_amount(importo):
-            return False, "L'importo non è valido"
-
-        #prendo ID Utente
-        user_id = None
-        user_name = salary_data.get("NOME UTENTE")
-        if len(user_name.split(" ")) >= 2: #se è un nome di un utente vero allora è Nome Cognome
-            user_first = user_name.split(" ")[0]
-            user_last = user_name.split(" ")[1]
-            user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
-            user_id = user[DBUsersColumns.ID.value]
-
-        #prendo ID conto
-        conto_id = None
-        conto_name = salary_data.get("CONTO")
-        if conto_name:
-            conto = self.accounts_query_service.retrieve_account_map_by_name(conto_name)
-            conto_id = conto[DBAccountsColumns.ID.value]
-
-
-        salary_data_prepared = {
-            DBSalariesColumns.NAME.value: salary_data.get(DBSalariesColumns.NAME.value),
-            DBSalariesColumns.USER_ID.value: user_id,
-            DBSalariesColumns.DATE.value: salary_data.get(DBSalariesColumns.DATE.value),
-            DBSalariesColumns.AMOUNT.value: salary_data.get(DBSalariesColumns.AMOUNT.value),
-            DBSalariesColumns.ACCOUNT_ID.value: conto_id
-        }
-
-        try:
-            self.db_model.add_salary(**salary_data_prepared)
-            return True, "Salario salvato con successo!"
-        except Exception as e:
-            return False, f"Errore durante il salvataggio: {str(e)}"
-
-    def update_salary(self, salary_id, salary_data):
-        """
-        Aggiorna i dati di un salario esistente.
-        :param salary_id: ID del salario da aggiornare
-        :param salary_data: Dizionario contenente i dati da aggiornare
-        :return: Tuple (success, message), dove success è True/False
-        """
-        try:
-            # Controllo validità refund_id
-            if not salary_id or not isinstance(salary_id, int):
-                return False, "ID salario non valido. Deve essere un intero positivo."
-
-            required_fields = {DBSalariesColumns.NAME.value, DBSalariesColumns.AMOUNT.value}
-
-            # Validazione campi obbligatori
-            missing_fields = [field for field in required_fields if not salary_data.get(field)]
-            if missing_fields:
-                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-            # Validazione Importi
-            if DBSalariesColumns.AMOUNT.value in salary_data:
-                amount = salary_data[DBSalariesColumns.AMOUNT.value]
-                if amount and not ValidationUtils.validate_amount(amount):
-                    return False, "L'importo inserito non è valido."
-
-            salary_data[DBSalariesColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            # Invoca il metodo del model per aggiornare l'utente
-            self.db_model.update_salary(salary_id, **salary_data)
-            return True, "Salario aggiornato con successo!"
-
-        except ValueError as ve:
-            return False, str(ve)
-        except Exception as e:
-            return False, f"Errore durante l'aggiornamento del salario: {str(e)}"
-
-    def delete_salary(self, salary_id):
-        return self.db_model.remove_salary(salary_id)
-
-    def retrieve_salary_map_by_name(self, salary_name: str) -> dict | None:
-        """
-        Recupera un versamento-salario specifico tramite il suo nome e lo restituisce come dizionario.
-        :param salary_name: il nome del versamento-salario (campo NAME nella tabella).
-        :return: dizionario con i dati del versamento oppure None se non trovato.
-        """
-        row = self.db_model.fetch_salary_by_name(salary_name)
-        if not row:
-            return None
-        return ValidationUtils._row_to_map(row, DBSalariesColumns)
-
-    def retrieve_salary_map_by_id(self, salary_id: int) -> dict | None:
-        """
-        Recupera un versamento specifico per ID e lo restituisce come dizionario.
-        :param salary_id: ID del versamento.
-        :return: Dizionario con i dati del versamento oppure None.
-        """
-        row = self.db_model.fetch_salary_by_id(salary_id)
-        return ValidationUtils._row_to_map(row, DBSalariesColumns)
-
-    def retrieve_salaries_map_list(self, year: int = None) -> list[dict]:
-        """
-        Recupera tutti i versamenti come lista di dizionari,
-        filtrandoli per l'anno specificato.
-
-        :param year: Anno di riferimento. None → anno corrente, -1 → nessun filtro.
-        :return: Lista di dizionari con i dati dei versamenti
-        """
-        rows = self.db_model.fetch_all_salaries()
-        # Converti le tuple in dizionari
-        salaries = [ValidationUtils._row_to_map(row, DBSalariesColumns) for row in rows]
-
-        # Applica il filtro usando il metodo statico
-        return ControllerUtils.filter_salaries(salaries, year)
-
-    def retrieve_last_salary_insert_map(self) -> dict | None:
-        """
-        Recupera l'ultimo versamento inserito come dizionario.
-        :return: Dizionario con i dati dell'ultimo versamento oppure None.
-        """
-        row = self.db_model.fetch_last_salary_insert()
-        return ValidationUtils._row_to_map(row, DBSalariesColumns)
-
-    def count_salaries(self, year: int = None) -> int:
-        """
-        Conta il numero di versamenti-salario, applicando il filtro per l'anno specificato.
-
-        :param year: Anno di riferimento. None → anno corrente, -1 → nessun filtro.
-        :return: Numero di salaries (int).
-        """
-        salaries = self.retrieve_salaries_map_list(year=year)
-        return len(salaries)
-
-    def calculate_tot_salaries(self, year: int = None) -> float:
-        """
-        Calcola il totale degli importi dei versamenti-salario, filtrandoli per l'anno specificato.
-
-        :param year: Anno di riferimento. None → anno corrente, -1 → nessun filtro.
-        :return: Totale degli importi (float).
-        """
-        total = 0.0
-        salary_list = self.retrieve_salaries_map_list(year=year)
-        for sal in salary_list:
-            total += float(sal[DBSalariesColumns.AMOUNT.value])
-        return total
-
-    def sum_salaries_for_account(self, account_id, year:int = None):
-        target_year = year if year is not None else datetime.now().year
-        return self.db_model.sum_salaries_by_account(account_id, year = target_year)
-
-    def calculate_mean_salary_by_month(self, month: int, year:int = None) -> float | None:
-        """
-        Calculates the mean salary across all users for a specific month.
-
-        :param month: Month as integer (1-12)
-        :return: Mean salary as float, or None if no data or invalid month
-        """
-        # Validate month input
-        if month < 1 or month > 12:
-            print(f"SalaryController.calculate_mean_salary_by_month(): Invalid month {month}. Must be between 1-12.")
-            return None
-
-        try:
-            # Retrieve all salaries
-            salaries = self.retrieve_salaries_map_list(year = year)
-
-            # Early return if no salaries
-            if not salaries:
-                print(f"SalaryController.calculate_mean_salary_by_month(): No salary data found.")
-                return None
-
-            #filter salaries based on the year
-            filtered_salaries = ControllerUtils.filter_salaries(salaries = salaries, year = year)
-
-            monthly_tot = 0.0
-            count = 0
-
-            for salary in filtered_salaries:
-                # Get the date safely
-                date_str = salary.get(DBSalariesColumns.DATE.value)
-                if not date_str:
-                    continue
-
-                try:
-                    date = datetime.strptime(date_str, '%Y-%m-%d')
-                    if date.month == month:
-                        amount = salary.get(DBSalariesColumns.AMOUNT.value)
-                        if amount is not None:
-                            monthly_tot += float(amount)
-                            count += 1
-                except (ValueError, TypeError) as e:
-                    print(f"Warning: Invalid date format for salary: {date_str} - {e}")
-                    continue
-
-            # Return None if no salaries for this month
-            if count == 0:
-                print(f"No salary data found for month {month}")
-                return None
-
-            # Calculate and return mean
-            mean = monthly_tot / count
-            return mean
-
-        except Exception as e:
-            print(f"Error in calculate_mean_salary_by_month: {e}")
-            return None
-
-
 class Analyzer:
     def __init__(self,
                  user_controller,
@@ -1979,7 +1611,9 @@ class Analyzer:
                  account_controller,
                  accounts_query_service,
                  invoice_controller,
-                 transfer_controller,
+                 invoices_query_service,
+                 transfer_query_service,
+                 transfer_analyzer_service,
                  supplier_controller,
                  production_controller,
                  payment_controller,
@@ -1988,7 +1622,8 @@ class Analyzer:
                  refunds_query_service,
                  expenses_query_service,
                  expenses_analyzer_service,
-                 salary_controller,
+                 salary_query_service,
+                 salary_analyzer_service,
                  refunds_analyzer_service,
                  fiscal_settings,
                  recurring_expenses_settings
@@ -1998,7 +1633,9 @@ class Analyzer:
         self.account_controller = account_controller
         self.accounts_query_service = accounts_query_service
         self.invoice_controller = invoice_controller
-        self.transfer_controller = transfer_controller
+        self.invoices_query_service = invoices_query_service
+        self.transfer_query_service = transfer_query_service
+        self.transfer_analyzer_service = transfer_analyzer_service
         self.supplier_controller = supplier_controller
         self.production_controller = production_controller
         self.payment_controller = payment_controller
@@ -2007,7 +1644,8 @@ class Analyzer:
         self.payments_query_service = payments_query_service
         self.expenses_query_service = expenses_query_service
         self.expenses_analyzer_service = expenses_analyzer_service
-        self.salary_controller = salary_controller
+        self.salary_query_service = salary_query_service
+        self.salary_analyzer_service = salary_analyzer_service
         self.refunds_analyzer_service = refunds_analyzer_service
         self.fiscal_settings = fiscal_settings
         self.recurring_expenses_settings = recurring_expenses_settings
@@ -2020,9 +1658,9 @@ class Analyzer:
 
             tot_payments = self.payments_analyzer_service.sum_payments_for_account(account_id, year = year)
             tot_expenses = self.expenses_analyzer_service.sum_expenses_for_account(account_id, year=year)
-            tot_rec_transf = self.transfer_controller.calculate_tot_amount_received_transfers_by_account(account_id, year = year)
-            tot_sent_transf = self.transfer_controller.calculate_tot_amount_sent_transfers_by_account(account_id, year = year)
-            tot_salaries = self.salary_controller.sum_salaries_for_account(account_id, year = year)
+            tot_rec_transf = self.transfer_analyzer_service.calculate_tot_amount_received_transfers_by_account(account_id, year = year)
+            tot_sent_transf = self.transfer_analyzer_service.calculate_tot_amount_sent_transfers_by_account(account_id, year = year)
+            tot_salaries = self.salary_analyzer_service.sum_salaries_for_account(account_id, year = year)
             tot_refunds = self.refunds_analyzer_service.sum_refunds_for_account(account_id, year = year)
 
             tot_entrate = tot_payments + tot_rec_transf + tot_refunds
@@ -2146,7 +1784,7 @@ class Analyzer:
             })
 
         # Salaries (-) - Uscite
-        salaries = self.salary_controller.retrieve_salaries_map_list(year = year)
+        salaries = self.salary_query_service.retrieve_salaries_map_list(year = year)
         filtered_salaries = [s for s in salaries if s[DBSalariesColumns.ACCOUNT_ID.value] == account_id]
         for salary in filtered_salaries:
             movements.append({
@@ -2158,7 +1796,7 @@ class Analyzer:
             })
 
         # Transfers (bonifici) - Possono essere entrate o uscite
-        transfers = self.transfer_controller.retrieve_transfers_map_list(year = year)
+        transfers = self.transfer_query_service.retrieve_transfers_map_list(year = year)
 
         # Bonifici in entrata (ricevuti)
         incoming_transfers = [t for t in transfers if t[DBTransfersColumns.RECEIVER_ACCOUNT_ID.value] == account_id]
@@ -2644,9 +2282,9 @@ class Analyzer:
     def retrieve_monthly_data(self, year: int = None):
         # Recupera i dati per l'anno corrente
         invoices = self.invoices_query_service.retrieve_invoices_map_list(year = year, include_unpaid_invoices = False)
-        payments = self.payment_controller.retrieve_payments_map_list(year = year, include_unpaid_invoice_payments= False)
+        payments = self.payments_query_service.retrieve_payments_map_list(year = year, include_unpaid_invoice_payments= False)
         expenses = self.expenses_query_service.retrieve_expenses_map_list(year=year)
-        salaries = self.salary_controller.retrieve_salaries_map_list(year = year)
+        salaries = self.salary_query_service.retrieve_salaries_map_list(year = year)
         refunds = self.refunds_query_service.retrieve_refunds_map_list(year = year)
 
         # Inizializza la struttura per i dati mensili

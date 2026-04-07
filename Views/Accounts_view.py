@@ -2,7 +2,7 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
 from Views.Creators.Transfer_create_view import TransferCreateView
-from Controllers import AccountController, TransfersController, Analyzer, UpdatesController
+from Controllers import AccountController, Analyzer, UpdatesController
 from Model import DatabaseModel
 
 from Views.Details.Account_detail_view import AccountDetailView
@@ -16,6 +16,7 @@ import re
 from Config import ConfigManager
 from App_context import AppContext
 from Event_bus import EventBus
+from Controllerss.Transfer_controller import TransferController
 
 class AccountsView(ctk.CTkFrame):
 
@@ -28,7 +29,7 @@ class AccountsView(ctk.CTkFrame):
         self.accounts_query_service:AccountQueryService = app_context.account_query_service
         self.update_controller:UpdatesController = app_context.update_controller
         self.config_manager:ConfigManager = app_context.config_manager
-        self.transfer_controller:TransfersController = app_context.transfer_controller
+        self.transfer_controller:TransferController = app_context.transfer_controller
         self.catalogo_elenchi = app_context.catalogo_elenchi
         self.analyzer:Analyzer = app_context.analyzer
         self.tabview = tabview

@@ -2,9 +2,9 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
-from Controllers import AccountController, Analyzer, UserController, ControllerUtils, \
-    SalaryController, UpdatesController
+from Controllers import AccountController, Analyzer, UserController, ControllerUtils, UpdatesController
 from Controllerss.Expense_controller import ExpenseController
+from Controllerss.Salary_controller import SalaryController
 from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns, DBSalariesColumns
 import re
 from datetime import datetime
@@ -13,6 +13,9 @@ from datetime import datetime
 from Config import ConfigManager
 from App_context import AppContext
 from Event_bus import EventBus
+from Analyzers.Salary_analyzer_service import SalaryAnalyzerService
+from QueryServices.Salaries_query_service import SalaryQueryService
+from QueryServices.Account_query_service import AccountQueryService
 
 class SalariesView(ctk.CTkFrame):
 
@@ -22,8 +25,11 @@ class SalariesView(ctk.CTkFrame):
         self.app_context:AppContext = app_context
         self.db_model:DatabaseModel = app_context.db_model
         self.salary_controller:SalaryController = app_context.salary_controller
+        self.salary_query_service:SalaryQueryService = app_context.salary_query_service
+        self.salary_analyzer_service:SalaryAnalyzerService = app_context.salary_analyzer_service
         self.user_controller:UserController = app_context.user_controller
         self.account_controller:AccountController = app_context.account_controller
+        self.account_query_service:AccountQueryService = app_context.account_query_service
         self.update_controller:UpdatesController = app_context.update_controller
         self.analyzer:Analyzer = app_context.analyzer
         self.fiscal_settings = app_context.fiscal_settings
@@ -55,8 +61,9 @@ class SalariesView(ctk.CTkFrame):
         self.salary_detail_view = SalaryDetailView(
             parent=self,
             salary_controller=self.salary_controller,
+            salary_query_service=self.salary_query_service,
             back_callback=self.show_main_view,
-            account_controller=self.account_controller,
+            account_query_service=self.account_query_service,
             user_controller=self.user_controller,
             update_controller=self.update_controller,
             db_model=self.db_model,
@@ -128,9 +135,9 @@ class SalariesView(ctk.CTkFrame):
         for (key, info) in self.global_infos.items():
             card = ctk.CTkFrame(self.search_bar_frame, fg_color="#333333")
 
-            if key == SalaryController.SalariesAggregateData.NUMERO_SALARI.value:
+            if key == SalaryAnalyzerService.SalariesAggregateData.NUMERO_SALARI.value:
                 global_info_unità_di_misura = ""
-            elif key == SalaryController.SalariesAggregateData.TOT_SALARI.value:
+            elif key == SalaryAnalyzerService.SalariesAggregateData.TOT_SALARI.value:
                 global_info_unità_di_misura = "€"
 
             title = ctk.CTkLabel(card, text=f"{key}", font=("Arial", 12), bg_color="#1F6AA5")
@@ -199,7 +206,7 @@ class SalariesView(ctk.CTkFrame):
         limit_date = datetime.now() - timedelta(days=days)
 
         # Recupera tutte le fatture dell'anno corrente
-        all_salaries = self.salary_controller.retrieve_salaries_map_list()
+        all_salaries = self.salary_query_service.retrieve_salaries_map_list()
 
         # Filtra le fatture: solo quelle con data di emissione >= limit_date
         filtered_salaries = []
@@ -358,7 +365,7 @@ class SalariesView(ctk.CTkFrame):
                 if len(children) > 0:
                     salary_name = children[0].cget("text")  # Nome stipendio dal primo child
                     # Assumendo che esista un controller per gli stipendi con un metodo retrieve_salary_map_by_name
-                    salary_map = self.salary_controller.retrieve_salary_map_by_name(salary_name)
+                    salary_map = self.salary_query_service.retrieve_salary_map_by_name(salary_name)
                     if salary_map and db_column:
                         sort_value = salary_map.get(db_column, "")
 
@@ -391,10 +398,10 @@ class SalariesView(ctk.CTkFrame):
         self.update_idletasks()
 
     def populate_global_infos(self):
-        numero_salari = self.salary_controller.count_salaries(True)
-        totale_salari = round(self.salary_controller.calculate_tot_salaries(), 2)
-        self.global_infos[f"{SalaryController.SalariesAggregateData.NUMERO_SALARI.value}"] = numero_salari
-        self.global_infos[f"{SalaryController.SalariesAggregateData.TOT_SALARI.value}"] = f"{totale_salari:.2f}"
+        numero_salari = self.salary_analyzer_service.count_salaries(True)
+        totale_salari = round(self.salary_analyzer_service.calculate_tot_salaries(), 2)
+        self.global_infos[f"{SalaryAnalyzerService.SalariesAggregateData.NUMERO_SALARI.value}"] = numero_salari
+        self.global_infos[f"{SalaryAnalyzerService.SalariesAggregateData.TOT_SALARI.value}"] = f"{totale_salari:.2f}"
 
     def load_salaries_chunked(self, salaries_list):
 
@@ -505,7 +512,7 @@ class SalariesView(ctk.CTkFrame):
 
             elif label_text == self.nome_conto_string:
                 # recupero i conti
-                accounts = self.account_controller.retrieve_accounts_map_list()
+                accounts = self.account_query_service.retrieve_accounts_map_list()
                 widget = widget_class(self.salary_window_scrollableFrame,
                                       values=[account[DBAccountsColumns.NAME.value] for account in accounts])
 
@@ -562,7 +569,7 @@ class SalariesView(ctk.CTkFrame):
     def toggle_widgets_on_user_selection(self, selected_value):
         user = self.user_controller.retrieve_user_map_by_extended_name(selected_value.strip())
         if user:
-            account = self.account_controller.retrieve_account_map_by_id(user[DBUsersColumns.CONTO_CORRENTE_ID.value])
+            account = self.account_query_service.retrieve_account_map_by_id(user[DBUsersColumns.CONTO_CORRENTE_ID.value])
             self.salaries_widgets[DBSalariesColumns.NAME.value].delete(0, tk.END)
             self.salaries_widgets[DBSalariesColumns.NAME.value].insert(0, f"{selected_value.strip()} - {self.today.strftime("%m/%Y")}")
             self.salaries_widgets[self.nome_conto_string].set(account[DBAccountsColumns.NAME.value])
@@ -585,7 +592,7 @@ class SalariesView(ctk.CTkFrame):
         if success:
 
             # prendo l'ID della sesa appena creata
-            salary_map = self.salary_controller.retrieve_last_salary_insert_map()
+            salary_map = self.salary_query_service.retrieve_last_salary_insert_map()
             print(f"Salario {salary_data[DBSalariesColumns.NAME.value]} salvato con successo")
 
             user = self.user_controller.retrieve_user_map_by_id(salary_map[DBSalariesColumns.USER_ID.value])
@@ -594,7 +601,7 @@ class SalariesView(ctk.CTkFrame):
             user_full = user_first + " " + user_last
 
             account_name = \
-            self.account_controller.retrieve_account_map_by_id(salary_map[DBExpensesColumns.ACCOUNT_ID.value])[
+            self.account_query_service.retrieve_account_map_by_id(salary_map[DBExpensesColumns.ACCOUNT_ID.value])[
                 DBAccountsColumns.NAME.value]
 
             self.add_salary_card(
@@ -737,11 +744,12 @@ class SalariesView(ctk.CTkFrame):
 
 
 class SalaryDetailView(ctk.CTkFrame):
-    def __init__(self, parent, back_callback, salary_controller, user_controller, account_controller, update_controller, db_model, event_bus, catalogo_elenchi):
+    def __init__(self, parent, back_callback, salary_controller, salary_query_service, user_controller, account_query_service, update_controller, db_model, event_bus, catalogo_elenchi):
         super().__init__(parent)
         self.salary_controller = salary_controller
+        self.salary_query_service = salary_query_service
         self.user_controller = user_controller
-        self.account_controller = account_controller
+        self.account_query_service = account_query_service
         self.db_model = db_model
         self.back_callback = back_callback
         self.update_controller = update_controller
@@ -785,11 +793,11 @@ class SalaryDetailView(ctk.CTkFrame):
         self._clear_content()
 
         # 2. Caricamento dati
-        self.salary = self.salary_controller.retrieve_salary_map_by_id(salary_id)
+        self.salary = self.salary_query_service.retrieve_salary_map_by_id(salary_id)
 
         # prendo il nome del conto:
         id_conto = self.salary[DBSalariesColumns.ACCOUNT_ID.value]
-        conto = self.account_controller.retrieve_account_map_by_id(id_conto)
+        conto = self.account_query_service.retrieve_account_map_by_id(id_conto)
         if conto is not None:
             nome_conto = conto[DBAccountsColumns.NAME.value]
             self.salary[self.nome_conto_string] = nome_conto
@@ -838,7 +846,7 @@ class SalaryDetailView(ctk.CTkFrame):
                 "label": "Conto",
                 "section": "Collegamenti",
                 "values": [c[DBAccountsColumns.NAME.value] for c in
-                           self.account_controller.retrieve_accounts_map_list()]
+                           self.account_query_service.retrieve_accounts_map_list()]
             },
             self.nome_user_string: {
                 "type": ctk.CTkOptionMenu,
@@ -938,17 +946,17 @@ class SalaryDetailView(ctk.CTkFrame):
                     widget = config["type"](frame, values=config.get("values", []))
 
                     # Imposta il valore corrente per il conto
-                    if field == "nome_conto":
+                    if field == self.nome_conto_string:
                         account_id = salary_data.get(DBSalariesColumns.ACCOUNT_ID.value, "")
                         account_name = next(
                             (a[DBAccountsColumns.NAME.value] for a in
-                             self.account_controller.retrieve_accounts_map_list()
+                             self.account_query_service.retrieve_accounts_map_list()
                              if a[DBAccountsColumns.ID.value] == account_id),
                             "")
                         widget.set(account_name)
 
                     # Imposta il valore corrente per il dipendente
-                    elif field == "nome_utente":
+                    elif field == self.nome_user_string:
                         user_id = salary_data.get(DBSalariesColumns.USER_ID.value, "")
                         user_name = next(
                             (f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}"
@@ -1006,7 +1014,7 @@ class SalaryDetailView(ctk.CTkFrame):
     def save_salary_mod(self):
         # Recupera e converte il nome del conto in ID
         nome_conto = self.salary_info_widgets[self.nome_conto_string].get()
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        conto = self.account_query_service.retrieve_account_map_by_name(nome_conto)
         id_conto = conto[DBAccountsColumns.ID.value] if conto else None
 
         # Recupera e converte il nome dell'utente in ID
@@ -1037,7 +1045,7 @@ class SalaryDetailView(ctk.CTkFrame):
         success, message = self.salary_controller.update_salary(self.current_salary_id, salary_data)
 
         if success:
-            salary_name = self.salary_controller.retrieve_salary_map_by_id(self.current_salary_id)[DBSalariesColumns.NAME.value]
+            salary_name = self.salary_query_service.retrieve_salary_map_by_id(self.current_salary_id)[DBSalariesColumns.NAME.value]
             print(f"Stipendio {salary_name} salvato con successo")
             ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)
 

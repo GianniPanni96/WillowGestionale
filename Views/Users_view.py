@@ -7,6 +7,7 @@ import os, re
 
 from App_context import AppContext
 from Event_bus import EventBus
+from QueryServices.Account_query_service import AccountQueryService
 
 from Views.View_utils import ViewUtils
 
@@ -27,6 +28,7 @@ class UsersView(ctk.CTkFrame):
         self.db_model:DatabaseModel = app_context.db_model
         self.user_controller:UserController = app_context.user_controller
         self.account_controller:AccountController = app_context.account_controller
+        self.accounts_query_service: AccountQueryService = app_context.account_query_service
         self.production_controller:ProductionController = app_context.production_controller
         self.tab = tab
         self.fiscal_settings = app_context.fiscal_settings
@@ -181,7 +183,7 @@ class UsersView(ctk.CTkFrame):
 
         self.conto_corrente_label = ctk.CTkLabel(self.user_window_scrollableFrame, text="Conto Corrente:")
         self.conto_corrente_label.pack(pady=(5, 0))
-        accounts_map_list = self.account_controller.retrieve_accounts_map_list()
+        accounts_map_list = self.accounts_query_service.retrieve_accounts_map_list()
         self.conto_corrente_combobox = ctk.CTkOptionMenu(self.user_window_scrollableFrame, values=[account[DBAccountsColumns.NAME.value] for account in accounts_map_list])
         self.conto_corrente_combobox.pack(pady=(5, 15))
 
@@ -256,7 +258,7 @@ class UsersView(ctk.CTkFrame):
         """Salva i dati dell'utente tramite il controller"""
 
         #prendo l'id del conto
-        conto = self.account_controller.retrieve_account_map_by_name(self.conto_corrente_combobox.get().strip())
+        conto = self.accounts_query_service.retrieve_account_map_by_name(self.conto_corrente_combobox.get().strip())
         conto_id = conto[DBAccountsColumns.ID.value]
 
         user_data = {
@@ -852,6 +854,7 @@ class UserDetailView(ctk.CTkFrame):
         self.parent = parent
         self.user_controller = app_context.user_controller
         self.account_controller = app_context.account_controller
+        self.accounts_query_service: AccountQueryService = app_context.account_query_service
         self.db_model = app_context.db_model
         self.back_callback = back_callback
         self.production_controller = app_context.production_controller
@@ -907,7 +910,7 @@ class UserDetailView(ctk.CTkFrame):
 
         #prendo il nome del conto:
         id_conto = user[DBUsersColumns.CONTO_CORRENTE_ID.value]
-        conto = self.account_controller.retrieve_account_map_by_id(id_conto)
+        conto = self.accounts_query_service.retrieve_account_map_by_id(id_conto)
         nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "Conto non trovato"
 
         regime = user[DBUsersColumns.REGIME_FISCALE.value]
@@ -1048,7 +1051,7 @@ class UserDetailView(ctk.CTkFrame):
                 "label": "Conto Associato",
                 "section": "Conto Corrente",
                 "values": [acc[DBAccountsColumns.NAME.value] for acc in
-                           self.account_controller.retrieve_accounts_map_list()]
+                           self.accounts_query_service.retrieve_accounts_map_list()]
             },
 
             # Immagine Profilo
@@ -1328,7 +1331,7 @@ class UserDetailView(ctk.CTkFrame):
         """Salva i dati dell'utente tramite il controller"""
 
         nome_conto = self.user_info_widgets[self.nome_conto_string].get()
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        conto = self.accounts_query_service.retrieve_account_map_by_name(nome_conto)
         id_conto = conto[DBAccountsColumns.ID.value] if conto else None
 
         user_data = {

@@ -21,7 +21,7 @@ from Views.Productions_view_H import ProductionsViewH
 from Views.Expenses_view_H import ExpensesViewH
 from Views.Suppliers_view_H import SuppliersViewH
 from Views.Accounts_view import AccountsView
-from Views.Salaries_view import SalariesView
+from Views.Salaries_view_H import SalariesViewH
 from Views.Iva_trimes_view import IvaTrimesView
 from Views.Refunds_view_H import RefundsViewH
 from Views.Taxes_view import TaxesView
@@ -217,7 +217,7 @@ class MainWindow(ctk.CTk):
 
             "Conti": lambda tab: AccountsView(self.app_context, self.tabview),
 
-            "Salario": lambda tab, salary_id=None: SalariesView(self.app_context, self.tabview,initial_salary_id=salary_id),
+            "Salario": lambda tab, salary_id=None: SalariesViewH(self.app_context, self.tabview, initial_salary_id=salary_id),
 
             "Iva": lambda tab: IvaTrimesView(self.app_context, self.tabview),
 

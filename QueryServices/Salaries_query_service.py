@@ -22,6 +22,19 @@ class SalaryQueryService:
         salaries = [ControllerUtils.row_to_map(row, DBSalariesColumns) for row in rows]
         return ControllerUtils.filter_salaries(salaries, year)
 
+    def retrieve_salaries_map_dictionary(self, keyIsName: bool = False):
+        salaries = self.retrieve_salaries_map_list(year=-1)
+        if keyIsName:
+            return {
+                salary[DBSalariesColumns.NAME.value]: salary
+                for salary in salaries
+            }
+
+        return {
+            salary[DBSalariesColumns.ID.value]: salary
+            for salary in salaries
+        }
+
     def retrieve_last_salary_insert_map(self) -> dict | None:
         row = self.db_model.fetch_last_salary_insert()
         return ControllerUtils.row_to_map(row, DBSalariesColumns)

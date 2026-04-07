@@ -1,5 +1,3 @@
-from enum import Enum
-
 from Analyzers.Production_analyzer_service import ProductionAnalyzerService
 from Gestionale_Enums import*
 import customtkinter as ctk
@@ -7,31 +5,18 @@ import tkinter as tk
 from tkinter import Toplevel
 from PIL import Image
 import os
-
-from Model import DBExpensesColumns, DBSuppliersColumns, DBUsersColumns, DBAccountsColumns, DBSalariesColumns, DBRefundsColumns
-from Model import DBProductionsColumns, DBPaymentsColumns, DBInvoicesColumns, DBClientsColumns, DBTransfersColumns
+import traceback
 
 from Analyzers.Client_analyzer_service import  ClientAnalyzerService
 from Analyzers.Supplier_analyzer_service import  SupplierAnalyzerService
+from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Clients_query_service import ClientQueryService
-from QueryServices.Suppliers_query_service import SupplierQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from Controllers import ClientController
     from Controllers import UserController
-    from Controllers import AccountController
-    from Controllers import TransfersController
-    from Controllers import PaymentsController
-    from Controllerss.Expense_controller import ExpenseController
-    from Controllers import SupplierController
-    from Controllers import SalaryController
-    from Controllerss.Refund_controller import RefundController
-    from Controllers import InvoiceController
-    from Controllers import ProductionController
-    from Controllers import Analyzer
 
 
 class ViewUtils(ctk.CTk):
@@ -572,6 +557,11 @@ class ViewUtils(ctk.CTk):
         current_chunk_index = 0
         processed_items = 0
 
+        callback_owner = getattr(add_card_callback, "__self__", None)
+        callback_owner_name = callback_owner.__class__.__name__ if callback_owner is not None else None
+        callback_name = getattr(add_card_callback, "__name__", str(add_card_callback))
+        extractor_name = getattr(extract_args_callback, "__name__", str(extract_args_callback))
+
         def process_next_chunk():
             nonlocal current_chunk_index, processed_items
 
@@ -582,13 +572,25 @@ class ViewUtils(ctk.CTk):
 
             current_chunk = chunks[current_chunk_index]
 
-            for item in current_chunk:
+            for item_index_in_chunk, item in enumerate(current_chunk):
+                absolute_item_index = current_chunk_index * chunk_size + item_index_in_chunk
                 try:
                     args = extract_args_callback(item)
                     add_card_callback(*args)
                     processed_items += 1
                 except Exception as e:
-                    print(f"Errore nel processare item: {e}")
+                    print(
+                        "Errore durante process_items_in_chunks:\n"
+                        f"- widget: {widget.__class__.__name__}\n"
+                        f"- add_card_callback: {callback_owner_name + '.' if callback_owner_name else ''}{callback_name}\n"
+                        f"- extract_args_callback: {extractor_name}\n"
+                        f"- chunk_index: {current_chunk_index}\n"
+                        f"- item_index_in_chunk: {item_index_in_chunk}\n"
+                        f"- absolute_item_index: {absolute_item_index}\n"
+                        f"- item: {repr(item)}\n"
+                        f"- eccezione: {type(e).__name__}: {e}\n"
+                        f"{traceback.format_exc()}"
+                    )
 
             # Force UI update
             widget.update_idletasks()
@@ -608,7 +610,7 @@ class ViewUtils(ctk.CTk):
         process_next_chunk()
 
     @staticmethod
-    def create_extractor_for_expenses(supplier_controller:"SupplierController", user_controller:"UserController", account_controller:"AccountController"):
+    def create_extractor_for_expenses(supplier_controller:"SupplierController", user_controller:"UserController", accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per le spese
         Restituisce una funzione che può essere usata come extract_args_callback
@@ -635,7 +637,7 @@ class ViewUtils(ctk.CTk):
             else:
                 user_name = " ---- "
 
-            account = account_controller.retrieve_account_map_by_id(
+            account = accounts_query_service.retrieve_account_map_by_id(
                 expense[DBExpensesColumns.ACCOUNT_ID.value]
             )
             account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
@@ -718,7 +720,7 @@ class ViewUtils(ctk.CTk):
 
     @staticmethod
     def create_extractor_for_payments(invoices_query_service:"InvoiceQueryService", clients_query_service:"ClientQueryService", productions_query_service:"ProductionQueryService",
-                                      account_controller:"AccountController"):
+                                      accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per i pagamenti
         """
@@ -738,7 +740,7 @@ class ViewUtils(ctk.CTk):
             production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
             production = productions_query_service.retrieve_production_map_by_id(production_id)
             production_name = production[DBProductionsColumns.NAME.value] if production else "Produzione non trovata"
-            conto = account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
+            conto = accounts_query_service.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
             nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
 
             return (
@@ -790,7 +792,7 @@ class ViewUtils(ctk.CTk):
         return extract_production_args
 
     @staticmethod
-    def create_extractor_for_refunds(clients_query_service:"ClientQueryService", account_controller:"AccountController"):
+    def create_extractor_for_refunds(clients_query_service:"ClientQueryService", accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per i rimborsi
         """
@@ -803,7 +805,7 @@ class ViewUtils(ctk.CTk):
             cliente_id = refund[DBRefundsColumns.CLIENT_ID.value]
             client = clients_query_service.retrieve_client_map_by_id(cliente_id)
             client_name = client[DBClientsColumns.NAME.value]
-            conto = account_controller.retrieve_account_map_by_id(refund[DBRefundsColumns.CONTO_ID.value])
+            conto = accounts_query_service.retrieve_account_map_by_id(refund[DBRefundsColumns.CONTO_ID.value])
             nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
 
             return (
@@ -818,7 +820,7 @@ class ViewUtils(ctk.CTk):
         return extract_refund_args
 
     @staticmethod
-    def create_extractor_for_salaries(user_controller:"UserController", account_controller:"AccountController"):
+    def create_extractor_for_salaries(user_controller:"UserController", accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per gli stipendi
         """
@@ -838,7 +840,7 @@ class ViewUtils(ctk.CTk):
             else:
                 user_name = " ---- "
 
-            account = account_controller.retrieve_account_map_by_id(salary[DBSalariesColumns.ACCOUNT_ID.value])
+            account = accounts_query_service.retrieve_account_map_by_id(salary[DBSalariesColumns.ACCOUNT_ID.value])
             account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
 
             return (

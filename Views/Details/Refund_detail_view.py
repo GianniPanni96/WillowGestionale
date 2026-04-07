@@ -6,10 +6,10 @@ from tkcalendar import Calendar
 
 from App_context import AppContext
 from Gestionale_Enums import*
+from QueryServices.Account_query_service import AccountQueryService
 from Views.View_utils import ViewUtils, FilterableComboBox
 
 from Controllerss.Refund_controller import RefundController
-from Controllerss.Client_controller import ClientController
 from Controllers import AccountController
 
 from QueryServices.Refunds_query_service import RefundQueryService
@@ -35,7 +35,7 @@ class RefundDetailView(ctk.CTkFrame):
         self.refund_controller: RefundController = app_context.refund_controller
         self.refunds_query_service: RefundQueryService = app_context.refunds_query_service
         self.clients_query_service:ClientQueryService = app_context.clients_query_service
-        self.account_controller:AccountController = app_context.account_controller
+        self.accounts_query_service:AccountQueryService = app_context.account_query_service
         self.current_refund_id = None
 
         self.configure(fg_color="transparent")
@@ -106,7 +106,7 @@ class RefundDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Conto",
                 "section": "Collegamenti",
-                "values": [a[DBAccountsColumns.NAME.value] for a in self.account_controller.retrieve_accounts_map_list()]
+                "values": [a[DBAccountsColumns.NAME.value] for a in self.accounts_query_service.retrieve_accounts_map_list()]
             },
             DBRefundsColumns.CREATED_AT.value: {
                 "type": ctk.CTkLabel,
@@ -220,7 +220,7 @@ class RefundDetailView(ctk.CTkFrame):
                 client = self.clients_query_service.retrieve_client_map_by_id(refund_data.get(DBRefundsColumns.CLIENT_ID.value))
                 widget.set(client[DBClientsColumns.NAME.value] if client else "")
             elif field == self.ACCOUNT_LABEL:
-                account = self.account_controller.retrieve_account_map_by_id(refund_data.get(DBRefundsColumns.CONTO_ID.value))
+                account = self.accounts_query_service.retrieve_account_map_by_id(refund_data.get(DBRefundsColumns.CONTO_ID.value))
                 widget.set(account[DBAccountsColumns.NAME.value] if account else "")
             else:
                 values = config.get("values", [""])
@@ -257,7 +257,7 @@ class RefundDetailView(ctk.CTkFrame):
 
     def save_refund_mod(self):
         account_name = self.refund_info_widgets[self.ACCOUNT_LABEL].get()
-        account = self.account_controller.retrieve_account_map_by_name(account_name)
+        account = self.accounts_query_service.retrieve_account_map_by_name(account_name)
         client_name = self.refund_info_widgets[self.CLIENT_LABEL].get_value()
         client = self.clients_query_service.retrieve_client_map_by_name(client_name)
 

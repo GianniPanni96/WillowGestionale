@@ -8,6 +8,7 @@ from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
 import hashlib, secrets, hmac
 
+from Controllerss.Account_controller import AccountController
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, \
 DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, \
@@ -1507,201 +1508,15 @@ class UserController:
             return False, "Password errata!", -1
 
 
-class AccountController:
-
-    class AccountsAggregateData(Enum):
-        NUM_ACCOUNTS = "num_accounts"
-        TOTAL_BALANCE = "total_balance"
-
-    def __init__(self, db_model, user_controller):
-        """
-        Inizializza il controller con il model.
-        :param db_model: Istanza di db_model per accedere ai dati.
-        """
-        self.db_model = db_model
-        self.user_controller = user_controller
-
-        #self.CY_account_list = {}
-        #self.account_list = {}
-
-        # i dati aggregati sono variabili di classe, aggiornati ogni volta che viene fatto un save di una nuova fattura
-        self.accounts_aggregated_data = {}
-        self.CY_accounts_aggregated_data = {}
-
-        self.update_aggregate_data()
-        #self.update_accounts_lists()
-
-    def save_account(self, account_data):
-        """
-        Gestisce il salvataggio di un conto corrente, con validazioni di primo livello.
-        :param account_data: Dizionario contenente i dati del conto
-        :return: Tuple (success, message), dove success è True/False
-        """
-
-        # Campi obbligatori (solo quelli modellati tramite entry)
-        self.required_fields = {DBAccountsColumns.NAME.value, DBAccountsColumns.INIT_BALANCE.value}
-
-        # Validazione dei campi obbligatori
-        missing_fields = [field for field in self.required_fields if not account_data.get(field)]
-        if missing_fields:
-            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-        # Validazione importi
-        init_balance = account_data.get(DBAccountsColumns.INIT_BALANCE.value)
-        if not ValidationUtils.validate_amount(init_balance):
-            return False, "L'importo INIT_BALANCE non è valido"
-
-        account_data_prepared = {
-            DBAccountsColumns.NAME.value : account_data.get(DBAccountsColumns.NAME.value),
-            DBAccountsColumns.INIT_BALANCE.value: float(init_balance)
-        }
-
-        try:
-            self.db_model.add_account(**account_data_prepared)
-            self.update_aggregate_data()
-            return True, "Produzione salvata con successo!"
-        except Exception as e:
-            return False, f"Errore durante il salvataggio: {str(e)}"
-
-    def update_aggregate_data(self):
-        """
-        Inizializza (o resetta) i dati aggregati per gli account.
-        Ad esempio, si potrebbe voler contare il numero totale di account e sommare i saldi.
-        """
-        # Dati aggregati per tutti gli account
-        self.accounts_aggregated_data = {
-            AccountController.AccountsAggregateData.NUM_ACCOUNTS.value: 0,
-            AccountController.AccountsAggregateData.TOTAL_BALANCE.value: 0.0
-        }
-        # Dati aggregati per gli account dell'anno corrente
-        self.CY_accounts_aggregated_data = {
-            AccountController.AccountsAggregateData.NUM_ACCOUNTS.value: 0,
-            AccountController.AccountsAggregateData.TOTAL_BALANCE.value: 0.0
-        }
-
-        # Recupera tutte le mappe e aggiorna i totali
-        for account in self.retrieve_accounts_map_list():
-            self.accounts_aggregated_data[AccountController.AccountsAggregateData.NUM_ACCOUNTS.value] += 1
-            self.accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.INIT_BALANCE.value])
-
-        for account in self.retrieve_accounts_map_list():
-            self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.NUM_ACCOUNTS.value] += 1
-            self.CY_accounts_aggregated_data[AccountController.AccountsAggregateData.TOTAL_BALANCE.value] += float(account[DBAccountsColumns.INIT_BALANCE.value])
-
-    def update_account(self, account_id, account_data):
-        """
-        Aggiorna i dati di un conto esistente.
-        :param account_id: ID del conto da aggiornare
-        :param account_data: Dizionario contenente i dati da aggiornare
-        :return: Tuple (success, message), dove success è True/False
-        """
-        try:
-            # Controllo validità refund_id
-            if not account_id or not isinstance(account_id, int):
-                return False, "ID account non valido. Deve essere un intero positivo."
-
-            required_fields = {DBAccountsColumns.NAME.value, DBAccountsColumns.INIT_BALANCE.value}
-
-            # Validazione campi obbligatori
-            missing_fields = [field for field in required_fields if not account_data.get(field)]
-            if missing_fields:
-                return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-            # Validazione Importi
-            if DBAccountsColumns.INIT_BALANCE.value in account_data:
-                amount = account_data[DBAccountsColumns.INIT_BALANCE.value]
-                if amount and not ValidationUtils.validate_amount(amount):
-                    return False, "L'importo inserito non è valido."
-
-            account_data[DBAccountsColumns.UPDATED_AT.value] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            # Invoca il metodo del model per aggiornare l'utente
-            self.db_model.update_account(account_id, **account_data)
-            return True, "Account aggiornato con successo!"
-
-        except ValueError as ve:
-            return False, str(ve)
-        except Exception as e:
-            return False, f"Errore durante l'aggiornamento del conto: {str(e)}"
-
-    def retrieve_account_map_by_id(self, account_id):
-        """
-        Recupera un account specifico per ID e lo restituisce come dizionario,
-        opzionalmente filtrando per l'anno corrente.
-
-        :param account_id: ID dell'account.
-        :return: Dizionario con i dati dell'account oppure None.
-        """
-        row = self.db_model.fetch_account_by_id(account_id)
-        return ValidationUtils._row_to_map(row, DBAccountsColumns)
-
-    def retrieve_account_map_by_name(self, account_name):
-        """
-        Recupera un account specifico per nome, opzionalmente filtrando per l'anno corrente.
-
-        :param account_name: Nome dell'account.
-        :return: Una tupla con i dati dell'account oppure None.
-        """
-        row = self.db_model.fetch_account_by_name(account_name)
-        return ValidationUtils._row_to_map(row, DBAccountsColumns)
-
-    def retrieve_accounts_map_list(self):
-        """
-        Recupera tutti gli account e li restituisce come lista di dizionari,
-        filtrandoli per l'anno corrente se specificato.
-        :return: Lista di dizionari con i dati degli account.
-        """
-        rows = self.db_model.fetch_accounts()
-        return [ValidationUtils._row_to_map(row, DBAccountsColumns) for row in rows]
-
-    def retrieve_last_account_insert_map(self):
-        """
-        Recupera l'ultimo account inserito e lo restituisce come dizionario.
-
-        :return: Dizionario con i dati dell'ultimo account oppure None.
-        """
-        row = self.db_model.fetch_last_account_insert()
-        return ValidationUtils._row_to_map(row, DBAccountsColumns)
-
-    def count_accounts(self):
-        """
-        Conta il numero di account, applicando il filtro per l'anno corrente se specificato.
-        :return: Numero di account (int)
-        """
-        accounts = self.retrieve_accounts_map_list()
-        return len(accounts)
-
-    def get_accounts_names(self):
-        """
-        Recupera i nomi dei conti correnti dalla tabella degli accounts.
-        :return: Una lista di nomi di conti correnti.
-        """
-        accounts = self.db_model.fetch_accounts()
-        # Supponiamo che la colonna 'name' sia al secondo posto nella tabella
-        return [account[1] for account in accounts]
-
-    @staticmethod
-    def get_accounts_mapping(db_model):
-        """
-        Recupera un dizionario di mapping {nome: id} dei conti correnti.
-        Se la tabella è vuota, restituisce un dizionario vuoto.
-        :return: Dizionario con mapping {nome: id} o un messaggio predefinito.
-        """
-        accounts = db_model.fetch_accounts()
-        if not accounts:  # Verifica se la lista è vuota
-            return {}
-        return {account[1]: account[0] for account in
-                accounts}  # Supponendo che account[0] sia l'ID e account[1] il nome
-
-
 class TransfersController:
-    def __init__(self, db_model, account_controller):
+    def __init__(self, db_model, account_controller, accounts_query_service):
         """
         Inizializza il controller con il model.
         :param db_model: Istanza di db_model per accedere ai dati.
         """
         self.db_model = db_model
         self.account_controller = account_controller
+        self.accounts_query_service = accounts_query_service
 
     def save_transfer(self, transfer_data):
         """
@@ -1726,7 +1541,7 @@ class TransfersController:
         #prendo ID Conto Ricevente
         receiver_account_id = None
         receiver_account_name = transfer_data.get("CONTO RICEVENTE")
-        receiver_account = self.account_controller.retrieve_account_map_by_name(receiver_account_name)
+        receiver_account = self.accounts_query_service.retrieve_account_map_by_name(receiver_account_name)
         receiver_account_id = receiver_account[DBTransfersColumns.ID.value] if receiver_account else None
 
         transfer_data_prepared = {
@@ -1972,7 +1787,7 @@ class SalaryController:
         conto_id = None
         conto_name = salary_data.get("CONTO")
         if conto_name:
-            conto = self.account_controller.retrieve_account_map_by_name(conto_name)
+            conto = self.accounts_query_service.retrieve_account_map_by_name(conto_name)
             conto_id = conto[DBAccountsColumns.ID.value]
 
 
@@ -2162,6 +1977,7 @@ class Analyzer:
                  user_controller,
                  client_controller,
                  account_controller,
+                 accounts_query_service,
                  invoice_controller,
                  transfer_controller,
                  supplier_controller,
@@ -2180,6 +1996,7 @@ class Analyzer:
         self.user_controller = user_controller
         self.client_controller = client_controller
         self.account_controller = account_controller
+        self.accounts_query_service = accounts_query_service
         self.invoice_controller = invoice_controller
         self.transfer_controller = transfer_controller
         self.supplier_controller = supplier_controller
@@ -2196,7 +2013,7 @@ class Analyzer:
         self.recurring_expenses_settings = recurring_expenses_settings
 
     def calculate_account_balance_by_account_id(self, account_id, year:int = None, init_balance_arg:str = ""):
-        account = self.account_controller.retrieve_account_map_by_id(account_id)
+        account = self.accounts_query_service.retrieve_account_map_by_id(account_id)
         balance = 0.0
         if account:
             init_balance = float(account[DBAccountsColumns.INIT_BALANCE.value]) if init_balance_arg == "" else float(init_balance_arg)

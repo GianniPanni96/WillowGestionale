@@ -2,6 +2,7 @@ from datetime import datetime
 
 from Gestionale_Enums import DBAccountsColumns, DBClientsColumns, DBRefundsColumns
 from Model import DatabaseModel
+from QueryServices.Account_query_service import AccountQueryService
 from Utils.Validation_utils import ValidationUtils
 
 from QueryServices.Clients_query_service import ClientQueryService
@@ -15,10 +16,10 @@ class RefundController:
     e aggregazioni a query service e analyzer service.
     """
 
-    def __init__(self, db_model: DatabaseModel, clients_query_service:ClientQueryService, account_controller):
+    def __init__(self, db_model: DatabaseModel, clients_query_service:ClientQueryService, accounts_query_service:AccountQueryService):
         self.db_model:DatabaseModel = db_model
         self.clients_query_service:ClientQueryService = clients_query_service
-        self.account_controller = account_controller
+        self.accounts_query_service = accounts_query_service
 
     def save_refund(self, refund_data):
         required_fields = {
@@ -35,7 +36,7 @@ class RefundController:
             return False, "L'importo del rimborso non e valido"
 
         nome_conto = refund_data.get("NOME CONTO")
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        conto = self.accounts_query_service.retrieve_account_map_by_name(nome_conto)
         id_conto = conto[DBAccountsColumns.ID.value] if conto else None
 
         nome_cliente = refund_data.get("NOME CLIENTE")

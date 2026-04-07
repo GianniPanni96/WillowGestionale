@@ -11,6 +11,8 @@ from Analyzers.Expense_analyzer_service import ExpenseAnalyzerService
 from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
 from Analyzers.Production_analyzer_service import ProductionAnalyzerService
 
+from QueryServices.Account_query_service import AccountQueryService
+
 from Config import ConfigManager
 
 class BookCloser:
@@ -18,6 +20,7 @@ class BookCloser:
                  environment_db_variable,
                  books_path,
                  account_controller:AccountController,
+                 accounts_query_service: AccountQueryService,
                  analyzer:Analyzer,
                  user_controller:UserController,
                  config_manager:ConfigManager,
@@ -28,6 +31,7 @@ class BookCloser:
 
         self.environment_db_variable = environment_db_variable
         self.account_controller = account_controller
+        self.accounts_query_service:AccountQueryService = accounts_query_service
         self.user_controller = user_controller
         self.expense_analyzer_service = expense_analyzer_service
         self.salary_controller = salary_controller
@@ -49,7 +53,7 @@ class BookCloser:
         self.taxes_data_file_path = os.path.join(self.books_dir, "taxes_aggregated_data.csv")
 
         # Recupera tutti i conti
-        self.accounts = self.account_controller.retrieve_accounts_map_list()
+        self.accounts = self.accounts_query_service.retrieve_accounts_map_list()
 
     def set_current_exercise_year(self, year):
         self.current_exercise_year = year
@@ -836,7 +840,7 @@ class BookCloser:
                 return False, f"Nessun dato trovato per l'anno {self.current_exercise_year} nel file annuale"
 
             # Recupera tutti i conti
-            self.accounts = self.account_controller.retrieve_accounts_map_list()
+            self.accounts = self.accounts_query_service.retrieve_accounts_map_list()
 
             updated_count = 0
             errors = []

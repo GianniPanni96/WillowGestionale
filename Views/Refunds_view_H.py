@@ -89,6 +89,7 @@ class RefundsViewH(BaseListView):
         self.clients_query_service: ClientQueryService = app_context.clients_query_service
         self.client_controller = app_context.client_controller
         self.account_controller = app_context.account_controller
+        self.accounts_query_service = app_context.account_query_service
 
         self.refunds_card_list = self.cards_list
         self.refund_create_view = None
@@ -152,7 +153,7 @@ class RefundsViewH(BaseListView):
 
         extractor = ViewUtils.create_extractor_for_refunds(
             self.clients_query_service,
-            self.account_controller
+            self.accounts_query_service
         )
         ViewUtils.process_items_in_chunks(
             widget=self,

@@ -5,10 +5,10 @@ from tkcalendar import Calendar
 
 from App_context import AppContext
 from Gestionale_Enums import*
+from QueryServices.Account_query_service import AccountQueryService
 from Views.View_utils import FilterableComboBox, ViewUtils
 
 from Controllerss.Refund_controller import RefundController
-from Controllers import AccountController
 
 from QueryServices.Refunds_query_service import RefundQueryService
 from QueryServices.Clients_query_service import ClientQueryService
@@ -29,7 +29,8 @@ class RefundCreateView(ctk.CTkToplevel):
         self.refund_controller:RefundController = app_context.refund_controller
         self.refunds_query_service:RefundQueryService = app_context.refunds_query_service
         self.clients_query_service:ClientQueryService = app_context.clients_query_service
-        self.account_controller:AccountController = app_context.account_controller
+        self.accounts_query_service:AccountQueryService = app_context.account_query_service
+
 
         self.on_refund_created = on_refund_created
         self.on_close = on_close
@@ -89,7 +90,7 @@ class RefundCreateView(ctk.CTkToplevel):
         if label_text == self.ACCOUNT_NAME_FIELD:
             return widget_class(
                 self.scrollable_frame,
-                values=[item[DBAccountsColumns.NAME.value] for item in self.account_controller.retrieve_accounts_map_list()]
+                values=[item[DBAccountsColumns.NAME.value] for item in self.accounts_query_service.retrieve_accounts_map_list()]
             )
 
         if label_text == self.CLIENT_NAME_FIELD:
@@ -131,7 +132,7 @@ class RefundCreateView(ctk.CTkToplevel):
         if clients:
             self.refund_widgets[self.CLIENT_NAME_FIELD].set_value(clients[0][DBClientsColumns.NAME.value], safe_mode=False)
 
-        accounts = self.account_controller.retrieve_accounts_map_list()
+        accounts = self.accounts_query_service.retrieve_accounts_map_list()
         if accounts:
             self.refund_widgets[self.ACCOUNT_NAME_FIELD].set(accounts[0][DBAccountsColumns.NAME.value])
 

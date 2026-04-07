@@ -8,6 +8,7 @@ from App_context import AppContext
 from Gestionale_Enums import*
 from Controllerss.Invoice_controller import InvoiceController
 from Event_bus import EventBus
+from QueryServices.Account_query_service import AccountQueryService
 from Views .View_utils import ViewUtils, FilterableComboBox
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
@@ -26,7 +27,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.user_controller:UserController = app_context.user_controller
         self.clients_query_service:ClientQueryService = app_context.clients_query_service
         self.productions_query_service:ProductionQueryService = app_context.productions_query_service
-        self.account_controller:AccountController = app_context.account_controller
+        self.accounts_query_service:AccountQueryService = app_context.account_query_service
         self.back_callback = back_callback
         self.update_controller:UpdatesController = app_context.update_controller
         self.event_bus:EventBus = app_context.event_bus
@@ -82,7 +83,7 @@ class InvoiceDetailView(ctk.CTkFrame):
 
         #prendo il nome del conto:
         id_conto = invoice[DBInvoicesColumns.ID_CONTO.value]
-        conto = self.account_controller.retrieve_account_map_by_id(id_conto)
+        conto = self.accounts_query_service.retrieve_account_map_by_id(id_conto)
         nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "Conto non trovato"
         invoice[self.nome_conto_string] = nome_conto
 
@@ -196,7 +197,7 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Conto",
                 "section": "Dati Fiscali",
-                "values": [c[DBAccountsColumns.NAME.value] for c in self.account_controller.retrieve_accounts_map_list()]
+                "values": [c[DBAccountsColumns.NAME.value] for c in self.accounts_query_service.retrieve_accounts_map_list()]
             },
 
             # Dati Pagamento
@@ -573,7 +574,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.toggle_importi_derivati_fattura(None, True)
 
         nome_conto = self.invoice_info_widgets[self.nome_conto_string].get()
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        conto = self.accounts_query_service.retrieve_account_map_by_name(nome_conto)
         id_conto = conto[DBAccountsColumns.ID.value] if conto else None
 
         nome_cliente = self.invoice_info_widgets[self.nome_cliente_string].get_value()

@@ -7,7 +7,7 @@ from Model import DBExpensesColumns, DBSuppliersColumns
 
 from QueryServices.Suppliers_query_service import SupplierQueryService
 from QueryServices.Expenses_query_service import ExpenseQueryService
-from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
+from AnalyzerServices.Supplier_analyzer_service import SupplierAnalyzerService
 
 from Controllerss.Supplier_controller import SupplierController
 from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox

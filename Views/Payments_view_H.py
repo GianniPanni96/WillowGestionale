@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 import customtkinter as ctk
 
-from Analyzers.Payment_analyzer_service import PaymentAnalyzerService
+from AnalyzerServices.Payment_analyzer_service import PaymentAnalyzerService
 from App_context import AppContext
 from Controllers import AccountController, UpdatesController
 from Gestionale_Enums import DBPaymentsColumns

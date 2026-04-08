@@ -9,7 +9,7 @@ from Views.Creators.Production_create_view import ProductionCreateView
 
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Clients_query_service import ClientQueryService
-from Analyzers.Production_analyzer_service import ProductionAnalyzerService
+from AnalyzerServices.Production_analyzer_service import ProductionAnalyzerService
 from Gestionale_Enums import DBProductionsColumns, ProductionStatus
 from WarningServices.Production_warning_service import ProductionWarningService
 

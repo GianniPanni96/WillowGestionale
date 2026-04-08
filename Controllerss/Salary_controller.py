@@ -4,7 +4,7 @@ from Gestionale_Enums import DBAccountsColumns, DBSalariesColumns, DBUsersColumn
 from Model import DatabaseModel
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Salaries_query_service import SalaryQueryService
-from Analyzers.Salary_analyzer_service import SalaryAnalyzerService
+from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
 from Utils.Validation_utils import ValidationUtils
 
 

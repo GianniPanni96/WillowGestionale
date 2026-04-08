@@ -1,4 +1,4 @@
-from Analyzers.Production_analyzer_service import ProductionAnalyzerService
+from AnalyzerServices.Production_analyzer_service import ProductionAnalyzerService
 from Controllerss.Supplier_controller import SupplierController
 from Gestionale_Enums import*
 import customtkinter as ctk
@@ -8,8 +8,8 @@ from PIL import Image
 import os
 import traceback
 
-from Analyzers.Client_analyzer_service import  ClientAnalyzerService
-from Analyzers.Supplier_analyzer_service import  SupplierAnalyzerService
+from AnalyzerServices.Client_analyzer_service import  ClientAnalyzerService
+from AnalyzerServices.Supplier_analyzer_service import  SupplierAnalyzerService
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService

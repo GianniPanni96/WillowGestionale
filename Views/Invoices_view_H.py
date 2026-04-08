@@ -5,7 +5,7 @@ from enum import Enum
 import customtkinter as ctk
 
 from App_context import AppContext
-from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
+from AnalyzerServices.Invoice_analyzer_service import InvoiceAnalyzerService
 from Controllers import ControllerUtils
 from Controllerss.User_controller import UserController
 from Controllerss.Invoice_controller import InvoiceController

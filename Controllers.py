@@ -6,8 +6,8 @@ from enum import Enum
 import hashlib, secrets, hmac
 
 from Controllerss.Account_controller import AccountController
-from Analyzers.Salary_analyzer_service import SalaryAnalyzerService
-from Analyzers.Transfer_analyzer_service import TransferAnalyzerService
+from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
+from AnalyzerServices.Transfer_analyzer_service import TransferAnalyzerService
 from Controllerss.Salary_controller import SalaryController
 from Controllerss.Transfer_controller import TransferController
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, \

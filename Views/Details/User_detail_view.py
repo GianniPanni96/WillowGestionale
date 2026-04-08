@@ -3,7 +3,7 @@ import re
 import customtkinter as ctk
 from datetime import datetime
 
-from Analyzers.User_analyzer_service import UserAnalyzerService
+from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from App_context import AppContext
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 from QueryServices.Account_query_service import AccountQueryService

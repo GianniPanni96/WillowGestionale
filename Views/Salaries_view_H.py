@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import customtkinter as ctk
 
 from App_context import AppContext
-from Analyzers.Salary_analyzer_service import SalaryAnalyzerService
+from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
 from Controllerss.Salary_controller import SalaryController
 from Gestionale_Enums import DBSalariesColumns
 from QueryServices.Account_query_service import AccountQueryService

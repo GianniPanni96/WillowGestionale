@@ -10,7 +10,7 @@ from Controllerss.Client_controller import ClientController
 from App_context import AppContext
 
 from QueryServices.Clients_query_service import ClientQueryService
-from Analyzers.Client_analyzer_service import ClientAnalyzerService
+from AnalyzerServices.Client_analyzer_service import ClientAnalyzerService
 
 
 class ClientsViewH(BaseListView):

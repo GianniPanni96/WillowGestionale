@@ -13,7 +13,7 @@ from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 
-from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
+from AnalyzerServices.Invoice_analyzer_service import InvoiceAnalyzerService
 
 class InvoiceController:
 

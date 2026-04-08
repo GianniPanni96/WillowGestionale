@@ -2,7 +2,7 @@ from Gestionale_Enums import DBAccountsColumns, DBTransfersColumns
 from Model import DatabaseModel
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Transfers_query_service import TransferQueryService
-from Analyzers.Transfer_analyzer_service import TransferAnalyzerService
+from AnalyzerServices.Transfer_analyzer_service import TransferAnalyzerService
 from Utils.Validation_utils import ValidationUtils
 
 

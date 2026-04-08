@@ -14,7 +14,7 @@ from Controllerss.Supplier_controller import SupplierController
 from Controllerss.Invoice_controller import InvoiceController
 from Controllerss.Expense_controller import ExpenseController
 from QueryServices.Expenses_query_service import ExpenseQueryService
-from Analyzers.Expense_analyzer_service import ExpenseAnalyzerService
+from AnalyzerServices.Expense_analyzer_service import ExpenseAnalyzerService
 
 
 from Config import ConfigManager

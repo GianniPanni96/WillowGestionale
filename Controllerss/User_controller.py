@@ -2,9 +2,9 @@ from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 from Gestionale_Enums import DBUsersColumns, RegimeFiscale, UserStatus
 from Model import DatabaseModel
 from QueryServices.Users_query_service import UserQueryService
-from Analyzers.User_analyzer_service import UserAnalyzerService
-from Services.User_auth_service import UserAuthService
-from Services.User_crypto_service import UserCryptoService
+from AnalyzerServices.User_analyzer_service import UserAnalyzerService
+from OtherServices.User_auth_service import UserAuthService
+from OtherServices.User_crypto_service import UserCryptoService
 from Utils.Controller_utils import ControllerUtils
 from Utils.Validation_utils import ValidationUtils
 

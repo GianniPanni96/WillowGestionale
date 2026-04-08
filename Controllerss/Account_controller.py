@@ -3,7 +3,7 @@ from datetime import datetime
 from Gestionale_Enums import DBAccountsColumns
 from Model import DatabaseModel
 from QueryServices.Account_query_service import AccountQueryService
-from Analyzers.Account_analyzer_service import AccountAnalyzerService
+from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from Utils.Validation_utils import ValidationUtils
 
 

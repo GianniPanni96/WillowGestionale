@@ -5,12 +5,12 @@ from PIL import Image, ImageTk
 from datetime import datetime
 import os, re
 
-from Analyzers.User_analyzer_service import UserAnalyzerService
+from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from App_context import AppContext
 from Event_bus import EventBus
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Users_query_service import UserQueryService
-from Services.User_crypto_service import UserCryptoService
+from OtherServices.User_crypto_service import UserCryptoService
 from Views.Details.User_detail_view import UserDetailView
 
 from Views.View_utils import ViewUtils

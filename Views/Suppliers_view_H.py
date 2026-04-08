@@ -10,7 +10,7 @@ from Controllerss.Supplier_controller import SupplierController
 from App_context import AppContext
 
 from QueryServices.Suppliers_query_service import SupplierQueryService
-from Analyzers.Supplier_analyzer_service import SupplierAnalyzerService
+from AnalyzerServices.Supplier_analyzer_service import SupplierAnalyzerService
 
 
 class SuppliersViewH(BaseListView):

@@ -3,7 +3,7 @@ from tkcalendar import Calendar
 import re
 from datetime import datetime, timedelta
 
-from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
+from AnalyzerServices.Invoice_analyzer_service import InvoiceAnalyzerService
 from App_context import AppContext
 from Gestionale_Enums import*
 from Controllerss.Invoice_controller import InvoiceController

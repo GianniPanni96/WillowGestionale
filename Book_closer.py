@@ -5,12 +5,12 @@ from datetime import datetime
 
 from Controllers import AccountController, Analyzer
 from Controllerss.User_controller import UserController
-from Analyzers.Expense_analyzer_service import ExpenseAnalyzerService
-from Analyzers.Salary_analyzer_service import SalaryAnalyzerService
+from AnalyzerServices.Expense_analyzer_service import ExpenseAnalyzerService
+from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
 
 
-from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
-from Analyzers.Production_analyzer_service import ProductionAnalyzerService
+from AnalyzerServices.Invoice_analyzer_service import InvoiceAnalyzerService
+from AnalyzerServices.Production_analyzer_service import ProductionAnalyzerService
 
 from QueryServices.Account_query_service import AccountQueryService
 

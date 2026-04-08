@@ -31,7 +31,7 @@ FOCUS_DIRS = {
     "Views",
     "Controllerss",
     "QueryServices",
-    "Analyzers",
+    "AnalyzerServices",
     "WarningServices",
     "Utils",
 }
@@ -40,7 +40,7 @@ PACKAGE_COLORS = {
     "Views": "#3b82f6",
     "Controllerss": "#f97316",
     "QueryServices": "#10b981",
-    "Analyzers": "#eab308",
+    "AnalyzerServices": "#eab308",
     "WarningServices": "#ef4444",
     "Utils": "#8b5cf6",
     "Model": "#64748b",

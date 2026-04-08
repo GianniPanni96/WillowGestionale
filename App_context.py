@@ -8,11 +8,9 @@ from Analyzers.Expense_analyzer_service import ExpenseAnalyzerService
 from Analyzers.Account_analyzer_service import AccountAnalyzerService
 from Analyzers.Transfer_analyzer_service import TransferAnalyzerService
 from Analyzers.Salary_analyzer_service import SalaryAnalyzerService
+from Analyzers.User_analyzer_service import UserAnalyzerService
 
-
-from Controllers import UserController, \
-     UpdatesController, \
-    Analyzer
+from Controllers import UpdatesController, Analyzer
 
 
 from Model import DatabaseModel
@@ -31,6 +29,7 @@ from Controllerss.Expense_controller import ExpenseController
 from Controllerss.Account_controller import AccountController
 from Controllerss.Transfer_controller import TransferController
 from Controllerss.Salary_controller import SalaryController
+from Controllerss.User_controller import UserController
 
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Clients_query_service import ClientQueryService
@@ -42,6 +41,9 @@ from QueryServices.Refunds_query_service import RefundQueryService
 from QueryServices.Expenses_query_service import ExpenseQueryService
 from QueryServices.Transfers_query_service import TransferQueryService
 from QueryServices.Salaries_query_service import SalaryQueryService
+from QueryServices.Users_query_service import UserQueryService
+from Services.User_auth_service import UserAuthService
+from Services.User_crypto_service import UserCryptoService
 from WarningServices.Production_warning_service import ProductionWarningService
 from WarningServices.Invoice_warning_service import InvoiceWarningService
 from WarningServices.Payment_warning_service import PaymentWarningService
@@ -87,6 +89,7 @@ class AppContext:
         self.expenses_query_service:ExpenseQueryService = ExpenseQueryService(self.db_model)
         self.transfer_query_service:TransferQueryService = TransferQueryService(self.db_model)
         self.salary_query_service:SalaryQueryService = SalaryQueryService(self.db_model)
+        self.user_query_service:UserQueryService = UserQueryService(self.db_model, fiscal_settings)
         self.clients_query_service:ClientQueryService = ClientQueryService(self.productions_query_service, self.db_model)
 
         self.clients_analyzer_service:ClientAnalyzerService = ClientAnalyzerService(self.clients_query_service, self.db_model)
@@ -98,11 +101,25 @@ class AppContext:
         self.account_analyzer_service:AccountAnalyzerService = AccountAnalyzerService(self.account_query_service)
         self.transfer_analyzer_service:TransferAnalyzerService = TransferAnalyzerService(self.transfer_query_service)
         self.salary_analyzer_service:SalaryAnalyzerService = SalaryAnalyzerService(self.salary_query_service, self.db_model)
+        self.user_analyzer_service:UserAnalyzerService = UserAnalyzerService(
+            self.user_query_service,
+            self.db_model,
+            self.fiscal_settings
+        )
+        self.user_crypto_service:UserCryptoService = UserCryptoService()
+        self.user_auth_service:UserAuthService = UserAuthService(self.user_query_service)
         self.production_warning_service:ProductionWarningService = ProductionWarningService()
         self.invoice_warning_service:InvoiceWarningService = InvoiceWarningService(self.productions_query_service)
         self.payment_warning_service:PaymentWarningService = PaymentWarningService(self.invoices_query_service)
 
-        self.user_controller:UserController = UserController(self.db_model, self.fiscal_settings)  # Crea il controller per gli utenti
+        self.user_controller:UserController = UserController(
+            self.db_model,
+            self.fiscal_settings,
+            self.user_query_service,
+            self.user_analyzer_service,
+            self.user_crypto_service,
+            self.user_auth_service,
+        )
         self.invoices_analyzer_service:InvoiceAnalyzerService = InvoiceAnalyzerService(self.user_controller, self.invoices_query_service,
                                                                                        self.db_model, self.fiscal_settings,
                                                                                        historical_financial_data_settings)
@@ -147,6 +164,8 @@ class AppContext:
                                                    self.invoice_controller, self.payment_controller,
                                                    self.account_controller, self.production_controller)
         self.analyzer:Analyzer = Analyzer(self.user_controller,
+                                 self.user_query_service,
+                                 self.user_analyzer_service,
                                  self.client_controller,
                                  self.account_controller,
                                  self.account_query_service,

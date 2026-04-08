@@ -4,7 +4,8 @@ from Views.View_utils import ViewUtils, CustomTkMenuButton
 from datetime import datetime
 
 
-from Controllers import ControllerUtils, AccountController, UserController, Analyzer
+from Controllers import ControllerUtils, AccountController, Analyzer
+from Controllerss.User_controller import UserController
 from Controllerss.Expense_controller import ExpenseController
 
 from Controllerss.Client_controller import ClientController

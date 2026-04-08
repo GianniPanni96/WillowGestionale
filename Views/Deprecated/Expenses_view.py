@@ -2,8 +2,9 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import AccountController, UserController, ControllerUtils, \
+from Controllers import AccountController, ControllerUtils, \
      UpdatesController, Analyzer
+from Controllerss.User_controller import UserController
 from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
 import re
 

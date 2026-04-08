@@ -7,7 +7,8 @@ from Utils.Controller_utils import ControllerUtils
 
 from Config import FiscalSettings
 
-from Controllers import UserController, AccountController
+from Controllers import AccountController
+from Controllerss.User_controller import UserController
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService

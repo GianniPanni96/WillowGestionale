@@ -6,12 +6,14 @@ import customtkinter as ctk
 
 from App_context import AppContext
 from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
-from Controllers import ControllerUtils, UserController
+from Controllers import ControllerUtils
+from Controllerss.User_controller import UserController
 from Controllerss.Invoice_controller import InvoiceController
 from Model import DBInvoicesColumns, DBPaymentsColumns
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Views.BaseList_view import BaseListView
 from Views.Creators.Invoice_create_view import InvoiceCreateView
 from Views.Details.Invoice_detail_view import InvoiceDetailView
@@ -124,6 +126,7 @@ class InvoicesViewH(BaseListView):
         self.clients_query_service: ClientQueryService = app_context.clients_query_service
         self.productions_query_service: ProductionQueryService = app_context.productions_query_service
         self.user_controller: UserController = app_context.user_controller
+        self.user_query_service: UserQueryService = app_context.user_query_service
         self.update_controller = app_context.update_controller
         self.invoices_query_service: InvoiceQueryService = app_context.invoices_query_service
         self.invoice_warning_service = app_context.invoice_warning_service
@@ -252,7 +255,7 @@ class InvoicesViewH(BaseListView):
     def load_items_chunked(self, items_list):
         extractor = ViewUtils.create_extractor_for_invoices(
             self.clients_query_service,
-            self.user_controller,
+            self.user_query_service,
             self.productions_query_service,
         )
         ViewUtils.process_items_in_chunks(

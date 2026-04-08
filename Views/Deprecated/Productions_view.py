@@ -4,8 +4,9 @@ from tkcalendar import Calendar
 
 from Config import ConfigManager
 from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import  PaymentsController, InvoiceController, UserController, ControllerUtils, \
+from Controllers import  PaymentsController, InvoiceController, ControllerUtils, \
      UpdatesController
+from Controllerss.User_controller import UserController
 from Model import DatabaseModel, DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBInvoicesColumns
 from datetime import datetime, timedelta
 import re

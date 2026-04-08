@@ -9,12 +9,14 @@ from Gestionale_Enums import*
 from Controllerss.Invoice_controller import InvoiceController
 from Event_bus import EventBus
 from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Views .View_utils import ViewUtils, FilterableComboBox
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 
-from Controllers import UserController, UpdatesController, AccountController
+from Controllers import UpdatesController, AccountController
+from Controllerss.User_controller import UserController
 
 
 class InvoiceDetailView(ctk.CTkFrame):
@@ -25,6 +27,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.invoices_query_service: InvoiceQueryService = app_context.invoices_query_service
         self.invoices_analyzer_service: InvoiceAnalyzerService = app_context.invoices_analyzer_service
         self.user_controller:UserController = app_context.user_controller
+        self.user_query_service:UserQueryService = app_context.user_query_service
         self.clients_query_service:ClientQueryService = app_context.clients_query_service
         self.productions_query_service:ProductionQueryService = app_context.productions_query_service
         self.accounts_query_service:AccountQueryService = app_context.account_query_service
@@ -89,7 +92,7 @@ class InvoiceDetailView(ctk.CTkFrame):
 
         #prendo il nome dell' utente:
         id_user = invoice[DBInvoicesColumns.ID_UTENTE.value]
-        user = self.user_controller.retrieve_user_map_by_id(id_user)
+        user = self.user_query_service.retrieve_user_map_by_id(id_user)
         nome_user = user[DBUsersColumns.FIRST_NAME.value] + user[DBUsersColumns.LAST_NAME.value] if user else "Utente non trovato"
         invoice[self.nome_user_string] = nome_user
 
@@ -143,7 +146,7 @@ class InvoiceDetailView(ctk.CTkFrame):
             "label": "Utente",
             "section": "Dati Generali",
             "values": [u[DBUsersColumns.FIRST_NAME.value] + " " + u[DBUsersColumns.LAST_NAME.value] for u in
-                       self.user_controller.retrieve_users_map_list()]
+                       self.user_query_service.retrieve_users_map_list()]
         },"""
 
         self.entry_fields = {
@@ -429,7 +432,7 @@ class InvoiceDetailView(ctk.CTkFrame):
 
         # Recupera il regime fiscale dell'utente corrente
         invoice = self.invoices_query_service.retrieve_invoice_map_by_id(self.current_invoice_id)
-        user_map = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
+        user_map = self.user_query_service.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
         is_ordinario = user_map[
                            DBUsersColumns.REGIME_FISCALE.value] == self.user_controller.RegimeFiscale.ORDINARIO.value
 
@@ -463,7 +466,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         rimborsi =  float(self.invoice_info_widgets[DBInvoicesColumns.RIMBORSI.value].get())
         rivalsa_inps = float(self.invoice_info_widgets[DBInvoicesColumns.RIVALSA_INPS.value].get())
         invoice = self.invoices_query_service.retrieve_invoice_map_by_id(self.current_invoice_id)
-        user = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
+        user = self.user_query_service.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
         regime_fiscale = user[DBUsersColumns.REGIME_FISCALE.value]
         client = self.clients_query_service.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])
         tipologia_cliente = client[DBClientsColumns.TIPOLOGIA.value]

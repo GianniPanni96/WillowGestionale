@@ -6,7 +6,7 @@ from Controllers import ControllerUtils
 from Model import DatabaseModel
 from Config import FiscalSettings, HistoricalFinancialData
 
-from Controllers import UserController
+from Controllerss.User_controller import UserController
 
 from QueryServices.Invoices_query_service import InvoiceQueryService
 

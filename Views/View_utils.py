@@ -1,4 +1,5 @@
 from Analyzers.Production_analyzer_service import ProductionAnalyzerService
+from Controllerss.Supplier_controller import SupplierController
 from Gestionale_Enums import*
 import customtkinter as ctk
 import tkinter as tk
@@ -15,8 +16,12 @@ from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 
 from typing import TYPE_CHECKING
+
+from QueryServices.Suppliers_query_service import SupplierQueryService
+from QueryServices.Users_query_service import UserQueryService
+
 if TYPE_CHECKING:
-    from Controllers import UserController
+    from Controllerss.User_controller import UserController
 
 
 class ViewUtils(ctk.CTk):
@@ -610,7 +615,7 @@ class ViewUtils(ctk.CTk):
         process_next_chunk()
 
     @staticmethod
-    def create_extractor_for_expenses(supplier_controller:"SupplierController", user_controller:"UserController", accounts_query_service:"AccountQueryService"):
+    def create_extractor_for_expenses(suppliers_query_service:"SupplierQueryService", user_query_service:"UserQueryService", accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per le spese
         Restituisce una funzione che può essere usata come extract_args_callback
@@ -622,7 +627,7 @@ class ViewUtils(ctk.CTk):
             net_amount = expense[DBExpensesColumns.NET_AMOUNT.value]
             amount = expense[DBExpensesColumns.TOT_AMOUNT.value]
             supplier_id = expense[DBExpensesColumns.SUPPLIER_ID.value]
-            supplier = supplier_controller.retrieve_supplier_map_by_id(supplier_id)
+            supplier = suppliers_query_service.retrieve_supplier_map_by_id(supplier_id)
             supplier_name = supplier[DBSuppliersColumns.NAME.value]
             date = expense[DBExpensesColumns.DATE.value]
             category = expense[DBExpensesColumns.CATEGORY.value]
@@ -630,7 +635,7 @@ class ViewUtils(ctk.CTk):
             user_id = expense[DBExpensesColumns.USER_ID_DEDUZIONE.value]
 
             if user_id:
-                user = user_controller.retrieve_user_map_by_id(user_id)
+                user = user_query_service.retrieve_user_map_by_id(user_id)
                 user_first = user[DBUsersColumns.FIRST_NAME.value]
                 user_second = user[DBUsersColumns.LAST_NAME.value]
                 user_name = user_first + " " + user_second
@@ -676,7 +681,7 @@ class ViewUtils(ctk.CTk):
         return extract_client_args
 
     @staticmethod
-    def create_extractor_for_invoices(clients_query_service:"ClientQueryService", user_controller:"UserController", productions_query_service:"ProductionQueryService"):
+    def create_extractor_for_invoices(clients_query_service:"ClientQueryService", user_query_service:"UserQueryService", productions_query_service:"ProductionQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per le fatture
         """
@@ -688,7 +693,7 @@ class ViewUtils(ctk.CTk):
             invoice_client_name = clients_query_service.retrieve_client_map_by_id(invoice_client_ID)[
                 DBClientsColumns.NAME.value]
             invoice_user_id = invoice[DBInvoicesColumns.ID_UTENTE.value]
-            user_map = user_controller.retrieve_user_map_by_id(invoice_user_id)
+            user_map = user_query_service.retrieve_user_map_by_id(invoice_user_id)
             invoice_user_name = f"{user_map[DBUsersColumns.FIRST_NAME.value]} {user_map[DBUsersColumns.LAST_NAME.value]}"
             invoice_creation_date = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
             invoice_state = invoice[DBInvoicesColumns.STATUS.value]
@@ -820,7 +825,7 @@ class ViewUtils(ctk.CTk):
         return extract_refund_args
 
     @staticmethod
-    def create_extractor_for_salaries(user_controller:"UserController", accounts_query_service:"AccountQueryService"):
+    def create_extractor_for_salaries(user_query_service:"UserQueryService", accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per gli stipendi
         """
@@ -833,7 +838,7 @@ class ViewUtils(ctk.CTk):
             user_id = salary[DBSalariesColumns.USER_ID.value]
 
             if user_id:
-                user = user_controller.retrieve_user_map_by_id(user_id)
+                user = user_query_service.retrieve_user_map_by_id(user_id)
                 user_first = user[DBUsersColumns.FIRST_NAME.value]
                 user_second = user[DBUsersColumns.LAST_NAME.value]
                 user_name = user_first + " " + user_second

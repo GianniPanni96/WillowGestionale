@@ -3,9 +3,6 @@ from datetime import datetime, timedelta, date
 from Gestionale_Enums import*
 from enum import Enum
 
-from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
-from Crypto.Random import get_random_bytes
 import hashlib, secrets, hmac
 
 from Controllerss.Account_controller import AccountController
@@ -13,7 +10,6 @@ from Analyzers.Salary_analyzer_service import SalaryAnalyzerService
 from Analyzers.Transfer_analyzer_service import TransferAnalyzerService
 from Controllerss.Salary_controller import SalaryController
 from Controllerss.Transfer_controller import TransferController
-from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBInvoicesColumns, \
 DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, \
 DBSuppliersColumns, DBTransfersColumns, DBSalariesColumns, DBRefundsColumns
@@ -729,791 +725,6 @@ class ControllerUtils:
 
 
 
-class UserController:
-
-    class RegimeFiscale(Enum):
-        FORFETTARIO = "Forfettario"
-        ORDINARIO = "Ordinario"
-
-    class UserStatus(Enum):
-        ATTIVO = "attivo"
-        DISATTIVO = "disattivo"
-
-    def __init__(self, db_model: DatabaseModel, fiscal_settings):
-        """Inizializza il controller con il modello del database"""
-        self.db_model = db_model
-        self.fiscal_settings = fiscal_settings
-
-        #definisco qui i campi obbligatori chel'utente deve inserire da interfaccia per salvare/updatare uno user nel db
-        self.required_fields = {
-            DBUsersColumns.FIRST_NAME.value,
-            DBUsersColumns.LAST_NAME.value,
-            DBUsersColumns.PARTITA_IVA.value,
-            DBUsersColumns.REGIME_FISCALE.value,
-            DBUsersColumns.ANNO_APERTURA_PIVA.value,
-            DBUsersColumns.PROVIDER_FATTURE.value
-        }
-
-        self.secret_key = hashlib.sha256("Neomisia".encode()).digest()
-
-        #self.users_list = self.retrieve_users_map_list()
-
-    def save_user(self, user_data):
-        """
-        Gestisce il salvataggio di un utente, con validazioni di primo livello.
-        :param user_data: Dizionario contenente i dati dell'utente
-        :return: Tuple (success, message), dove success è True/False
-        """
-        if user_data[DBUsersColumns.PROVIDER_FATTURE.value] != FatturazioneElettronicaProvider.NESSUNO.value:
-            self.required_fields.add(DBUsersColumns.USERNAME_PROVIDER.value)
-            self.required_fields.add(DBUsersColumns.PASSWORD_PROVIDER.value)
-
-        # Validazione dei campi obbligatori
-        missing_fields = [field for field in self.required_fields if not user_data.get(field)]
-        if missing_fields:
-            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-
-        # Validazione Partita IVA
-        if not ValidationUtils.validate_partita_iva(user_data[DBUsersColumns.PARTITA_IVA.value]):
-            return False, "La partita IVA non è valida. Deve contenere esattamente 11 cifre."
-
-        # Validazione Email
-        email = user_data.get(DBUsersColumns.EMAIL.value)
-        if email and not ValidationUtils.validate_email(email):
-            return False, "L'indirizzo email non è valido."
-
-        # Cifra i dati di accesso se il provider è selezionato
-        if user_data.get(DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
-            try:
-                username_provider = user_data.get(DBUsersColumns.USERNAME_PROVIDER.value)
-                password_provider = user_data.get(DBUsersColumns.PASSWORD_PROVIDER.value)
-
-                if username_provider:
-                    user_data[DBUsersColumns.USERNAME_PROVIDER.value] = self.encrypt_string(username_provider)
-                else:
-                    user_data[DBUsersColumns.USERNAME_PROVIDER.value] = None
-
-                if password_provider:
-                    user_data[DBUsersColumns.PASSWORD_PROVIDER.value] = self.encrypt_string(password_provider)
-                else:
-                    user_data[DBUsersColumns.PASSWORD_PROVIDER.value] = None
-
-            except Exception as e:
-                # Log dell'errore per debug (da rimuovere o proteggere in produzione)
-                print(f"Errore durante la cifratura dei dati di accesso: {e}")
-
-                # Imposta i valori come None per sicurezza
-                user_data[DBUsersColumns.USERNAME_PROVIDER.value] = None
-                user_data[DBUsersColumns.PASSWORD_PROVIDER.value] = None
-
-        # Preparazione dei dati per il salvataggio
-        user_data_filtered = {
-            column.value: user_data.get(column.value)
-            for column in DBUsersColumns
-            if column.value in user_data
-        }
-
-        # Rimuove i campi None
-        user_data_filtered = {key: value for key, value in user_data_filtered.items() if value is not None}
-
-        # Salvataggio nel DB
-        try:
-            self.db_model.add_user(**user_data_filtered)
-            #self.update_users_list()
-            return True, "Utente salvato con successo!"
-        except Exception as e:
-            return False, f"Errore durante il salvataggio: {str(e)}"
-
-    def retrieve_user_by_id(self, user_id):
-        return self.db_model.fetch_user_by_id(user_id)
-
-    def retrieve_user_by_fullname(self, user_first_name, user_last_name):
-        return self.db_model.fetch_user_by_fullname(user_first_name, user_last_name)
-
-    def retrieve_user_map_by_fullname(self, user_first_name, user_last_name):
-        row = self.retrieve_user_by_fullname(user_first_name, user_last_name)
-        return ValidationUtils._row_to_map(row, DBUsersColumns)
-
-    def retrieve_user_map_by_extended_name(self, user_extended_name):
-        """
-        :param user_extended_name: str composed as following: user_first_name user_last_name
-        :return: the DBuser as a dictionary
-        """
-
-        array = user_extended_name.split(" ")
-        first = array[0]
-        last = array[1]
-
-        return self.retrieve_user_map_by_fullname(first, last)
-
-    def id_to_full_name_tuple(self, user_id:int) -> [str, str]:
-        """:return The tuple containing first and second name"""
-
-        user = self.retrieve_user_by_id(user_id)
-        return [user[DBUsersColumns.FIRST_NAME.value], user[DBUsersColumns.LAST_NAME.value]]
-
-    def id_to_full_name_str(self, user_id: int) -> str:
-        """:return The string containing first and second name"""
-
-        user = self.retrieve_user_map_by_id(user_id)
-        return user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
-
-    def retrieve_user_map_by_id(self, user_id):
-        """Recupera un utente specifico e lo restituisce come dizionario."""
-        row = self.db_model.fetch_user_by_id(user_id)
-        return ValidationUtils._row_to_map(row, DBUsersColumns)
-
-    def retrieve_users_map_list(self):
-        """Recupera tutti gli utenti e li restituisce come lista di dizionari."""
-        rows = self.db_model.fetch_users()
-        return [ValidationUtils._row_to_map(row, DBUsersColumns) for row in rows]
-
-    def retrieve_user_with_invoices_map_list(self, user_id, include_unpaid_invoices:bool = True, year: int = None):
-        """
-        Recupera lo specifico user unito alle rispettive fatture e
-        li restituisce come lista di dizionari, filtrando opzionalmente
-        per anno di emissione.
-
-        :param user_id: ID dello user
-        :param include_unpaid_invoices: booleano per includere le fatture non saldate ma di esercizi passati
-        :param year:
-            - None → anno corrente
-            - -1   → nessun filtro
-            - altro int → anno specifico
-        :return: Lista di dizionari user + invoice
-        """
-        rows = self.db_model.fetch_user_with_invoices(user_id)
-        if not rows:
-            return []
-
-        all_columns = list(DBUsersColumns) + list(DBInvoicesColumns)
-
-        mapped_rows = [
-            ValidationUtils._row_to_map(row, all_columns)
-            for row in rows
-        ]
-
-        return ControllerUtils.filter_invoices(mapped_rows, self.db_model, year, include_unpaid_invoices=include_unpaid_invoices)
-
-    def retrieve_users_with_tot_fatturato(self, year: int = None) -> dict[str, dict[str, float]]:
-        output_map = {
-            self.RegimeFiscale.FORFETTARIO.value : {},
-            self.RegimeFiscale.ORDINARIO.value: {}
-        }
-
-        for user in self.retrieve_users_map_list():
-            if user[DBUsersColumns.REGIME_FISCALE.value] == self.RegimeFiscale.FORFETTARIO.value:
-                output_map[self.RegimeFiscale.FORFETTARIO.value][user[DBUsersColumns.LAST_NAME.value]] = self.calcola_tot_fatturato_utente(user[DBUsersColumns.ID.value], year = year)
-            elif user[DBUsersColumns.REGIME_FISCALE.value] == self.RegimeFiscale.ORDINARIO.value:
-                output_map[self.RegimeFiscale.ORDINARIO.value][user[DBUsersColumns.LAST_NAME.value]] = self.calcola_tot_fatturato_utente(user[DBUsersColumns.ID.value], year = year)
-
-        return output_map
-
-    def retrieve_users_with_tot_spese(self, year:int = None) -> dict[str, float]:
-        output_map: dict[str, float] = {}
-
-        for user in self.retrieve_users_map_list():
-            user_id = user[DBUsersColumns.ID.value]
-            cognome = user[DBUsersColumns.LAST_NAME.value]
-            chiave = f"{cognome}"
-
-            output_map[chiave] = self.calcola_tot_spese_utente_dedotte(user_id, year = year)
-
-        return output_map
-
-    def retrieve_user_with_anticipated_expenses_map_list(self, user_id, year:int = None):
-        """
-        Recupera lo specifico user unito alle rispettive spese anticipate e
-        li restituisce come lista di dizionari.
-
-        Utilizza la funzione fetch_user_with_expenses per ottenere le righe,
-        quindi combina le colonne dei client e delle invoices per convertire
-        ogni riga in un dizionario tramite _row_to_map.
-        """
-        # Recupera le righe dal database per lo specifico client
-        rows = self.db_model.fetch_user_with_anticipated_expenses(user_id)
-
-        all_columns = list(DBUsersColumns) + list(DBExpensesColumns)
-
-        # Converte ogni riga in un dizionario
-        mapped_rows = [ValidationUtils._row_to_map(row, all_columns) for row in rows]
-
-        return ControllerUtils.filter_expenses(mapped_rows, year = year)
-
-    def retrieve_user_with_deducted_expenses_map_list(self, user_id, year: int = None):
-        """
-        Recupera lo specifico user unito alle rispettive spese in deduzione e
-        li restituisce come lista di dizionari, filtrando opzionalmente per anno
-        di emissione della spesa.
-
-        :param user_id: ID dello user
-        :param year:
-            - None → anno corrente
-            - -1   → nessun filtro
-            - altro int → anno specifico
-        :return: Lista di dizionari user + expense
-        """
-        rows = self.db_model.fetch_user_with_deducted_expenses(user_id)
-        if not rows:
-            return []
-
-        all_columns = list(DBUsersColumns) + list(DBExpensesColumns)
-
-        mapped_rows = [
-            ValidationUtils._row_to_map(row, all_columns)
-            for row in rows
-        ]
-
-        # Riutilizzo diretto del filtro centralizzato
-        return ControllerUtils.filter_expenses(mapped_rows, year = year)
-
-    def retrieve_user_with_salaries_map_list(self, user_id, year:int = None):
-        """
-        Recupera lo specifico user unito ai rispettivi salari e
-        li restituisce come lista di dizionari.
-        """
-        # Recupera le righe dal database per lo specifico client
-        rows = self.db_model.fetch_user_with_salaries(user_id)
-
-        all_columns = list(DBUsersColumns) + list(DBSalariesColumns)
-
-        mapped_rows = [ValidationUtils._row_to_map(row, all_columns) for row in rows]
-
-        # Converte ogni riga in un dizionario
-        return ControllerUtils.filter_salaries(mapped_rows, year = year)
-
-    def delete_user_by_ID(self, user_id):
-        """Elimina un utente dato un certo user"""
-        table = "users"
-        try:
-            self.db_model.delete_row(table, DBUsersColumns.ID.value, user_id)
-            print(f"Utente {user_id} rimmosso con successo")
-            return True, f"Utente {user_id} rimmosso con successo"
-        except Exception as e:
-            return False, f"Errore durante l'eliminazione dell'utente: {str(e)}"
-
-    def update_user(self, user_id, user_data):
-        """
-        Aggiorna i dati di un utente esistente, applicando le stesse validazioni di `save_user`.
-        :param user_id: ID dell'utente da aggiornare
-        :param user_data: Dizionario contenente i dati da aggiornare
-        :return: Tuple (success, message), dove success è True/False
-        """
-
-        # Controllo validità user_id
-        if not user_id or not isinstance(user_id, int):
-            return False, "ID utente non valido. Deve essere un intero positivo."
-
-        # Filtra solo i campi validi definiti nell'Enum
-        valid_columns = {column.value for column in DBUsersColumns}
-        update_fields = {key: value for key, value in user_data.items() if key in valid_columns}
-
-        if not update_fields:
-            return False, "Nessun campo valido fornito per l'aggiornamento."
-
-        # Validazione campi obbligatori
-        if update_fields.get(
-                DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
-            self.required_fields.add(DBUsersColumns.USERNAME_PROVIDER.value)
-            self.required_fields.add(DBUsersColumns.PASSWORD_PROVIDER.value)
-
-        missing_fields = [field for field in self.required_fields if not update_fields.get(field)]
-        if missing_fields:
-            return False, f"I campi obbligatori mancanti sono: {', '.join(missing_fields)}."
-
-        # Validazione Partita IVA
-        if DBUsersColumns.PARTITA_IVA.value in update_fields:
-            if not ValidationUtils.validate_partita_iva(update_fields[DBUsersColumns.PARTITA_IVA.value]):
-                return False, "La partita IVA non è valida. Deve contenere esattamente 11 cifre."
-
-        # Validazione Email
-        if DBUsersColumns.EMAIL.value in update_fields:
-            email = update_fields[DBUsersColumns.EMAIL.value]
-            if email and not ValidationUtils.validate_email(email):
-                return False, "L'indirizzo email non è valido."
-
-        #validazione password login
-        if DBUsersColumns.PASSWORD_LOGIN.value in update_fields:
-            login_password = update_fields[DBUsersColumns.PASSWORD_LOGIN.value]
-            if login_password and not ValidationUtils.validate_password_strength(login_password):
-                return False, "Password non valida, digitare almeno 8 caratteri"
-
-        # Gestione password login - HASHING
-        if DBUsersColumns.PASSWORD_LOGIN.value in update_fields:
-            password_value = update_fields[DBUsersColumns.PASSWORD_LOGIN.value]
-            if password_value and password_value.strip():  # Se la password non è vuota
-                try:
-                    # Crea l'hash della password
-                    hashed_password = ControllerUtils.hash_password(password_value)
-                    update_fields[DBUsersColumns.PASSWORD_LOGIN.value] = hashed_password
-                except Exception as e:
-                    print(f"Errore durante l'hashing della password di login: {e}")
-                    return False, "Errore durante la creazione della password di login."
-            else:
-                # Se la password è vuota, rimuovila dai campi da aggiornare
-                # (mantieni il valore esistente nel database)
-                update_fields.pop(DBUsersColumns.PASSWORD_LOGIN.value)
-
-        # Cifratura dei dati di accesso se il provider è selezionato
-        if update_fields.get(DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
-            try:
-                if DBUsersColumns.USERNAME_PROVIDER.value in update_fields:
-                    update_fields[DBUsersColumns.USERNAME_PROVIDER.value] = self.encrypt_string(
-                        update_fields[DBUsersColumns.USERNAME_PROVIDER.value]
-                    )
-                if DBUsersColumns.PASSWORD_PROVIDER.value in update_fields:
-                    update_fields[DBUsersColumns.PASSWORD_PROVIDER.value] = self.encrypt_string(
-                        update_fields[DBUsersColumns.PASSWORD_PROVIDER.value]
-                    )
-            except Exception as e:
-                print(f"Errore durante la cifratura dei dati di accesso: {e}")
-                return False, "Errore durante la cifratura dei dati di accesso."
-        else:
-            # Se il provider è "NESSUNO", rimuovi username e password provider
-            if DBUsersColumns.USERNAME_PROVIDER.value in update_fields:
-                update_fields.pop(DBUsersColumns.USERNAME_PROVIDER.value)
-            if DBUsersColumns.PASSWORD_PROVIDER.value in update_fields:
-                update_fields.pop(DBUsersColumns.PASSWORD_PROVIDER.value)
-
-        try:
-            # Invoca il metodo del model per aggiornare l'utente
-            self.db_model.update_user(user_id, **update_fields)
-            return True, "Utente aggiornato con successo!"
-
-        except ValueError as ve:
-            return False, str(ve)
-        except Exception as e:
-            return False, f"Errore durante l'aggiornamento dell'utente: {str(e)}"
-
-    def calcola_reddito_tot_utente(self, user_id, year:int = None):
-        """
-        Calcola il reddito di un utente a partire da un reddito esterno e la somma dei lordi delle fatture
-        :param user_id: ID dell'utente
-        :return: il reddito
-        """
-        invoices = self.db_model.fetch_invoices_by_user_id(user_id)
-        reddito_esterno = self.retrieve_user_map_by_id(user_id)[DBUsersColumns.REDDITO_ESTERNO.value]
-        reddito = reddito_esterno
-
-        filter_invoices = True
-
-        if year is not None:
-            selected_year = year
-            if year == -1:
-                filter_invoices = False
-        else:
-            selected_year = datetime.now().year
-
-        # Filtro le fatture emesse solo nell'anno corrente
-        if filter_invoices:
-            invoices = [
-                invoice
-                for invoice in invoices
-                if datetime.strptime(invoice[DBInvoicesColumns.DATA_CREAZIONE.value], "%Y-%m-%d").year == selected_year
-            ]
-
-        for invoice in invoices:
-            reddito = reddito + invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]
-
-        return reddito
-
-    def calcola_tot_fatturato_utente(self, user_id, include_unpaid_invoices:bool = True, year:int = None):
-        """
-        Calcola il fatturato di un utente come somma delle fatture
-        emesse nell'anno corrente, sfruttando il join user‑invoices.
-
-        :param user_id: ID dell'utente
-        :return: il fatturato (float)
-        """
-        # Recupera l'utente + tutte le sue fatture
-        rows = self.retrieve_user_with_invoices_map_list(user_id, include_unpaid_invoices = include_unpaid_invoices, year = year)
-        if not rows:
-            return 0.0
-
-
-        fatturato = 0.0
-        for row in rows:
-            # Se la fattura non c'è (outer join), salto
-            data_str = row.get(DBInvoicesColumns.DATA_CREAZIONE.value)
-            if not data_str:
-                continue
-
-            # Controllo che la data di creazione sia nell'anno corrente
-            try:
-                anno = datetime.strptime(data_str, "%Y-%m-%d").year
-            except ValueError:
-                # formato data non valido: skip
-                continue
-
-            if anno == year:
-                # Sommo il totale del documento
-                tot = row.get(DBInvoicesColumns.TOT_DOCUMENTO.value) or 0.0
-                fatturato += float(tot)
-
-        return fatturato
-
-    def calcola_tot_spese_utente_anticipate(self, user_id, year:int = None):
-        """
-        Calcola le spese anticipate di un utente come somma delle expenses
-        emesse nell'anno corrente, sfruttando il join user‑expenses.
-
-        :param user_id: ID dell'utente
-        :return: il totale delle spese (float)
-        """
-        # Recupera l'utente + tutte le sue spese
-        rows = self.retrieve_user_with_anticipated_expenses_map_list(user_id, year = year)
-        if not rows:
-            return 0.0
-
-        # Estraggo il regime fiscale dall'utente (prendo il primo row)
-        regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
-
-        # Calcolo l'anno corrente
-        current_year = datetime.now().year
-
-        tot_spese = 0.0
-        for row in rows:
-            # Se la fattura non c'è (outer join), salto
-            data_str = row.get(DBExpensesColumns.created_at.value)
-            if not data_str:
-                continue
-
-            # Controllo che la data di creazione sia nell'anno corrente
-            try:
-                anno = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S").year
-            except ValueError:
-                # formato data non valido: skip
-                continue
-
-            if anno == current_year:
-                # Sommo il totale del documento
-                tot = row.get(DBExpensesColumns.TOT_AMOUNT.value) or 0.0
-                tot_spese += float(tot)
-
-        return tot_spese
-
-    def calcola_tot_spese_utente_dedotte(self, user_id, year:int = None):
-        """
-        Calcola le spese in deduzione di un utente come somma delle expenses
-        emesse nell'anno corrente, sfruttando il join user‑expenses.
-
-        :param user_id: ID dell'utente
-        :return: il totale delle spese (float)
-        """
-        # Recupera l'utente + tutte le sue spese
-        rows = self.retrieve_user_with_deducted_expenses_map_list(user_id, year = year)
-        if not rows:
-            return 0.0
-
-        tot_spese = 0.0
-        for row in rows:
-            # Se la fattura non c'è (outer join), salto
-            data_str = row.get(DBExpensesColumns.created_at.value)
-            if not data_str:
-                continue
-
-            # Controllo che la data di creazione sia nell'anno corrente
-            try:
-                anno = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S").year
-            except ValueError:
-                # formato data non valido: skip
-                continue
-
-            if anno == year:
-                # Sommo il totale del documento
-                tot = row.get(DBExpensesColumns.TOT_AMOUNT.value) or 0.0
-                tot_spese += float(tot)
-
-        return tot_spese
-
-    def calcola_tot_salari_utente(self, user_id, year:int = None):
-        """
-        Calcola gli ingressi di un utente come somma dei salari
-        emesse nell'anno corrente, sfruttando il join user‑expenses.
-
-        :param user_id: ID dell'utente
-        :return: il totale delle spese (float)
-        """
-        # Recupera l'utente + tutte le sue spese
-        rows = self.retrieve_user_with_salaries_map_list(user_id, year = year)
-        if not rows:
-            return 0.0
-
-        # Estraggo il regime fiscale dall'utente (prendo il primo row)
-        regime_utente = rows[0][DBUsersColumns.REGIME_FISCALE.value]
-
-        # Calcolo l'anno corrente
-        current_year = datetime.now().year
-
-        tot_salary = 0.0
-        for row in rows:
-            # Se la fattura non c'è (outer join), salto
-            data_str = row.get(DBSalariesColumns.CREATED_AT.value)
-            if not data_str:
-                continue
-
-            # Controllo che la data di creazione sia nell'anno corrente
-            try:
-                anno = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S").year
-            except ValueError as v:
-                print(f"formato data non valido: skip {str(v)}")
-                continue
-
-            if anno == current_year:
-                # Sommo il totale del documento
-                tot = row.get(DBSalariesColumns.AMOUNT.value) or 0.0
-                tot_salary += float(tot)
-
-        return tot_salary
-
-    def calcola_tot_ritenuta_acconto_ordinaria(self, user_id, year:int = None):
-        invoices = self.retrieve_user_with_invoices_map_list(user_id, year = year)
-        invoices = ControllerUtils.clear_invoices_list_from_NDC_and_stornate(invoices)
-
-        tot = 0.0
-
-        for i in invoices:
-            if i[DBInvoicesColumns.ID_CLIENTE.value]:
-                tot = tot + float(i[DBInvoicesColumns.RITENUTA.value])
-
-        return tot
-
-    def get_regime_fiscale_by_id(self, user_id):
-        user_map = self.retrieve_user_map_by_id(user_id)
-        regime_fiscale = user_map[DBUsersColumns.REGIME_FISCALE.value]
-        return regime_fiscale
-
-    def get_regime_fiscale_by_full_name(self, user_first_name, user_last_name):
-        user_id = self.retrieve_user_by_fullname(user_first_name, user_last_name)[0]
-        return self.get_regime_fiscale_by_id(user_id)
-
-    def calcola_aliquota_tax_forfettaria(self, anno_apertura_piva):
-        """
-        Calcola l'aliquota fiscale in base al regime fiscale e all'anno di apertura della partita IVA.
-        :param anno_apertura_piva: Anno di apertura della partita IVA.
-        :return: Aliquota fiscale o None se il regime fiscale non è supportato.
-        """
-        try:
-            current_year = datetime.now().year
-            anni_di_attivita = current_year - int(anno_apertura_piva)
-            return self.fiscal_settings.partita_iva_forfettaria.aliquota_irpef_min if anni_di_attivita < int(self.fiscal_settings.partita_iva_forfettaria.anni_agevolazione) else self.fiscal_settings.partita_iva_forfettaria.aliquota_irpef_max
-        except (ValueError, AttributeError):
-            pass
-        return None
-
-    def calcola_aliquota_tax_ordinaria(self, user_id):
-        """
-        Calcola l'aliquota IRPEF per un utente con partita IVA ordinaria.
-        Il calcolo si basa sul reddito dell'utente (calcolato con calcola_reddito_utente)
-        e sugli scaglioni IRPEF definiti nel file di configurazione.
-
-        :param user_id: ID dell'utente (assunto appartenente a una partita IVA ordinaria)
-        :return: Aliquota IRPEF oppure None se non è possibile calcolarla.
-        """
-        # Calcola il reddito dell'utente (eventualmente per l'anno corrente)
-        reddito = self.calcola_reddito_tot_utente(user_id)
-
-        # Recupera la lista degli scaglioni IRPEF dalla sezione 'partita_iva_ordinaria'
-        scaglioni = self.fiscal_settings.partita_iva_ordinaria.scaglioni_irpef
-
-        # Itera sugli scaglioni (si assume che la lista sia ordinata in base all'indice)
-        for scaglione in scaglioni:
-            # Verifica se il reddito rientra nell'intervallo dello scaglione:
-            # Nota: si assume che il primo scaglione parta da 0 e l'ultimo abbia reddito_max == inf
-            if reddito >= scaglione.reddito_min and reddito <= scaglione.reddito_max:
-                # Restituisce l'aliquota
-                return scaglione.value
-
-        # Se nessuno scaglione "cattura" il reddito (ad esempio se il reddito è superiore a tutti i limiti)
-        # restituisce l'aliquota dell'ultimo scaglione.
-        if scaglioni:
-            return scaglioni[-1].value
-
-        # Se non sono definiti scaglioni, restituisce None.
-        return None
-
-    def update_tax_rates(self):
-        """
-        Aggiorna l'aliquota fiscale per tutte le partite IVA forfettarie nel database.
-        Stampa per ogni utente il risultato:
-          - se non cambia: “User id #X: nessun cambiamento (aliquota = Y)”
-          - se cambia: “User id #X: aliquota aggiornata da Y a Z”
-        Ritorna (True, msg) o (False, errore).
-        """
-        users = self.retrieve_users_map_list()
-        total = len(users)
-        updated_count = 0
-
-        for user in users:
-            try:
-                user_id = user[DBUsersColumns.ID.value]
-                regime = user[DBUsersColumns.REGIME_FISCALE.value]
-                anno = user[DBUsersColumns.ANNO_APERTURA_PIVA.value]
-
-                # 1) parse sicuro dell'aliquota corrente
-                raw_current = user.get(DBUsersColumns.ALIQUOTA_TAX.value) or "0"
-                current = float(raw_current)
-
-                # 2) calcolo della nuova (solo per forfettario)
-                new = current
-                if regime == UserController.RegimeFiscale.FORFETTARIO.value:
-                    new = self.calcola_aliquota_tax_forfettaria(anno)
-                    # se calcola None, mantengo current
-                    if new is None:
-                        new = current
-
-                # 3) confronto e update
-                if str(new) != str(current):
-                    self.db_model.update_user_tax_rate(user_id, new)
-                    updated_count += 1
-                    print(f"User id #{user_id}: aliquota aggiornata da {float(current):.2f} a {float(new):.2f}")
-                else:
-                    print(f"User id #{user_id}: nessun cambiamento (aliquota = {float(current):.2f})")
-
-
-            except Exception as e:
-                # qualsiasi altro errore
-                print(f"User id #{user_id}: errore in aggiornamento: {e}")
-
-        summary = f"Aggiornamento completato: {updated_count} su {total} utenti aggiornati."
-        return True, summary
-
-    def pick_fiscal_data_by_user_id(self, user_id: int) -> dict[str, dict[str, str]]:
-        """
-        Prepara i dati fiscali di un utente, suddivisi in due sezioni:
-          - 'aliquote': { titolo: valore }
-          - 'imponibili': { titolo: valore }
-
-        Pronto per essere mostrato in View come label-readonly.
-        """
-        user = self.retrieve_user_map_by_id(user_id)
-        regime = user.get(DBUsersColumns.REGIME_FISCALE.value)
-        anno = user.get(DBUsersColumns.ANNO_APERTURA_PIVA.value)
-
-        aliquote: dict[str, str] = {}
-        imponibili: dict[str, str] = {}
-
-        if regime == UserController.RegimeFiscale.FORFETTARIO.value:
-            f = self.fiscal_settings.partita_iva_forfettaria
-            # Aliquote
-            aliquote["IRPEF forfettaria (%)"] = f"{self.calcola_aliquota_tax_forfettaria(anno)}"
-            aliquote["INPS (%)"] = f"{f.aliquota_inps}"
-            aliquote["Rivalsa INPS (%)"] = f"{f.aliquota_rivalsa_inps}"
-            # Imponibili
-            imponibili["Imponibile forfettario (%)"] = f"{f.imponibile}"
-
-        else:
-            # Regime ordinario
-            o = self.fiscal_settings.partita_iva_ordinaria
-            iva = self.fiscal_settings.aliquota_iva
-            # Aliquote
-            aliquote["INPS (%)"] = f"{o.aliquota_inps}"
-            aliquote["Cassa INPS (%)"] = f"{o.aliquota_cassa_inps}"
-            aliquote["Ritenuta (%)"] = f"{o.aliquota_ritenuta}"
-            aliquote["IVA ordinaria (%)"] = f"{iva.aliquota_iva_ordinaria}"
-            # Imponibili
-            imponibili["Imponibile IVA (%)"] = f"{o.imponibile_iva}"
-            imponibili["Imponibile ritenuta (%)"] = f"{o.imponibile_ritenuta_acconto}"
-            imponibili["Imponibile cassa INPS (%)"] = f"{o.imponibile_cassa_inps}"
-            imponibili["Imponibile INPS (%)"] = f"{o.imponibile_inps}"
-            imponibili["Imponibile IRPEF (%)"] = f"{o.imponibile_irpef}"
-
-        return {
-            "aliquote": aliquote,
-            "imponibili": imponibili
-        }
-
-    def encrypt_string(self, plain_text: str) -> str:
-        """
-        Cripta una stringa usando AES (CBC mode) con PyCryptodome.
-        :param plain_text: La stringa da criptare.
-        :return: La stringa criptata in formato esadecimale (IV + dati criptati).
-        """
-        try:
-            # Genera un IV (Initialization Vector) casuale
-            iv = get_random_bytes(16)
-
-            # Crea il cifrario AES in modalità CBC
-            cipher = AES.new(self.secret_key, AES.MODE_CBC, iv)
-
-            # Aggiunge il padding e cifra il testo
-            encrypted_data = cipher.encrypt(pad(plain_text.encode(), AES.block_size))
-
-            # Combina IV e dati criptati e restituisce in formato esadecimale
-            return f"{iv.hex()}{encrypted_data.hex()}"
-        except Exception as e:
-            # Logga l'errore o gestiscilo a livello applicativo
-            print(f"Errore durante la crittografia: {e}")
-            return None
-
-    def decrypt_string(self, encrypted_text: str) -> str:
-        """
-        Decripta una stringa criptata usando AES (CBC mode) con PyCryptodome.
-        :param encrypted_text: La stringa criptata in esadecimale (IV + dati criptati).
-        :return: La stringa originale in chiaro.
-        """
-        try:
-            # Decodifica i dati esadecimali
-            encrypted_bytes = bytes.fromhex(encrypted_text)
-
-            # Estrai IV e dati criptati
-            iv = encrypted_bytes[:16]  # I primi 16 byte sono l'IV
-            encrypted_data = encrypted_bytes[16:]  # Il resto è il dato criptato
-
-            # Crea il cifrario AES in modalità CBC
-            cipher = AES.new(self.secret_key, AES.MODE_CBC, iv)
-
-            # Decifra e rimuove il padding
-            plain_data = unpad(cipher.decrypt(encrypted_data), AES.block_size)
-
-            return plain_data.decode("utf-8")
-        except Exception as e:
-            # Logga l'errore o gestiscilo a livello applicativo
-            print(f"Errore durante la decrittografia: {e}")
-            return None
-
-    def print_utente(self, user):
-        """
-        Stampa a scopo di debug l'utente passato come argomento.
-        :param user: Dizionario contenente i dati dell'utente.
-        """
-        if not user:
-            return f"Utente non trovato."
-
-        # Genera la stringa formattata usando l'enum DBUsersColumns
-        printed_string = "\n".join(
-            f"{column.value}: {user.get(column.value, 'N/A')}"
-            for column in DBUsersColumns
-        )
-
-        print(printed_string)
-
-    def print_utenti(self):
-        users = self.retrieve_users_map_list()
-        for user in users:
-            self.print_utente(user)
-
-
-    def check_password_for_login(self, username, password):
-        user = self.retrieve_user_map_by_extended_name(username)
-        if user:
-            db_hash = user.get(DBUsersColumns.PASSWORD_LOGIN.value)
-            if db_hash == "" or db_hash is None:
-                return False, ("L'utente selezionato non ha impostato una password per il login\n"
-                               "Impostare uno nuova password dal dettaglio dell'utente"), -1
-        else:
-            print("Utente selezionato non trovato")
-            return False, "Utente selezionato non trovato", -1
-
-        if ControllerUtils.verify_password(password, db_hash):
-            print("Login Effettuato")
-            return True, "Login Effettuato", int(user.get(DBUsersColumns.ID.value))
-        else:
-            print("Password errata!")
-            return False, "Password errata!", -1
-
-
 class UpdatesController:
 
     def __init__(self, user_controller, client_controller, invoice_controller, payments_controller, account_controller, production_controller):
@@ -1607,6 +818,8 @@ class UpdatesController:
 class Analyzer:
     def __init__(self,
                  user_controller,
+                 user_query_service,
+                 user_analyzer_service,
                  client_controller,
                  account_controller,
                  accounts_query_service,
@@ -1629,6 +842,8 @@ class Analyzer:
                  recurring_expenses_settings
                  ):
         self.user_controller = user_controller
+        self.user_query_service = user_query_service
+        self.user_analyzer_service = user_analyzer_service
         self.client_controller = client_controller
         self.account_controller = account_controller
         self.accounts_query_service = accounts_query_service
@@ -1691,8 +906,8 @@ class Analyzer:
                 return "Ott-Dic"
 
         # Recupera le spese deducibili e le fatture
-        deducted_expenses = self.user_controller.retrieve_user_with_deducted_expenses_map_list(account_id, year=year)
-        invoices = self.user_controller.retrieve_user_with_invoices_map_list(account_id, include_unpaid_invoices=False, year=year)
+        deducted_expenses = self.user_query_service.retrieve_user_with_deducted_expenses_map_list(account_id, year=year)
+        invoices = self.user_query_service.retrieve_user_with_invoices_map_list(account_id, include_unpaid_invoices=False, year=year)
         invoices = ControllerUtils.clear_invoices_list_from_NDC_and_stornate(invoices)
 
         # Elabora le spese (IVA a credito)
@@ -1736,8 +951,8 @@ class Analyzer:
     def calculate_tot_trimestral_iva(self, year:int = None):
         output_map = {}
 
-        for user in self.user_controller.retrieve_users_map_list():
-            if user[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value:
+        for user in self.user_query_service.retrieve_users_map_list():
+            if user[DBUsersColumns.REGIME_FISCALE.value] == RegimeFiscale.ORDINARIO.value:
                 user_name = user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value]
                 user_id = user[DBUsersColumns.ID.value]
                 output_map[user_name] = self.calculate_trimestral_iva_by_account_id(user_id, year=year)
@@ -1826,12 +1041,12 @@ class Analyzer:
         return movements
 
     def calculate_previsione_tasse_forfettaria(self, user_id, year:int = None):
-        user = self.user_controller.retrieve_user_map_by_id(user_id)
+        user = self.user_query_service.retrieve_user_map_by_id(user_id)
         reddito_esterno = 0.0
         fatturato_willow = 0.0
         if user:
             reddito_esterno = float(user[DBUsersColumns.REDDITO_ESTERNO.value])
-            fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id, year = year)
+            fatturato_willow = self.user_analyzer_service.calcola_tot_fatturato_utente(user_id, year = year)
             anno_apertura = int(user[DBUsersColumns.ANNO_APERTURA_PIVA.value])
         else:
             return
@@ -1851,7 +1066,7 @@ class Analyzer:
         # Calcolo valori base
         coefficiente_imponibile = float(forfettaria_settings.imponibile)
         aliquota_inps = float(forfettaria_settings.aliquota_inps)
-        aliquota_irpef = float(self.user_controller.calcola_aliquota_tax_forfettaria(
+        aliquota_irpef = float(self.user_analyzer_service.calcola_aliquota_tax_forfettaria(
             int(datetime.today().date().year) - anno_apertura
         ))
 
@@ -1966,7 +1181,7 @@ class Analyzer:
         }, versamenti_map, output_map
 
     def calculate_previsione_tasse_ordinaria(self, user_id, year:int = None):
-        user = self.user_controller.retrieve_user_map_by_id(user_id)
+        user = self.user_query_service.retrieve_user_map_by_id(user_id)
         if not user:
             return {}
 
@@ -2181,7 +1396,7 @@ class Analyzer:
         }, versamenti_map, output_map
 
     def calculate_previsione_tasse_willow(self, year:int = None):
-        list_of_users = self.user_controller.retrieve_users_map_list()
+        list_of_users = self.user_query_service.retrieve_users_map_list()
         result_map = {}
         total_saldo_willow = 0.0
         total_acconto_willow = 0.0

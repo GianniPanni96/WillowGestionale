@@ -5,6 +5,8 @@ import customtkinter as ctk
 from App_context import AppContext
 from Controllerss.Expense_controller import ExpenseController
 from Gestionale_Enums import DBExpensesColumns
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Views.BaseList_view import BaseListView
 from Views.Creators.Expense_create_view import ExpenseCreateView
 from Views.Details.Expense_detail_view import ExpenseDetailView
@@ -84,8 +86,8 @@ class ExpensesViewH(BaseListView):
         self.expenses_query_service = app_context.expenses_query_service
         self.expenses_analyzer_service = app_context.expenses_analyzer_service
         self.suppliers_query_service = app_context.suppliers_query_service
-        self.user_controller = app_context.user_controller
-        self.account_controller = app_context.account_controller
+        self.user_query_service:UserQueryService = app_context.user_query_service
+        self.accounts_query_service:AccountQueryService = app_context.account_query_service
 
         self.expenses_card_list = self.cards_list
         self.expense_create_view = None
@@ -147,8 +149,8 @@ class ExpensesViewH(BaseListView):
 
         extractor = ViewUtils.create_extractor_for_expenses(
             self.suppliers_query_service,
-            self.user_controller,
-            self.account_controller
+            self.user_query_service,
+            self.accounts_query_service
         )
 
         ViewUtils.process_items_in_chunks(

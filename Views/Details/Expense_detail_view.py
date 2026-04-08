@@ -6,8 +6,9 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 
 from App_context import AppContext
-from Controllers import UserController
-from Gestionale_Enums import DBAccountsColumns, DBExpensesColumns, DBInvoicesColumns, DBSuppliersColumns, DBUsersColumns
+from Gestionale_Enums import*
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Utils.Controller_utils import ControllerUtils
 from Views.View_utils import CatalogFilterableComboBox, FilterableComboBox, ViewUtils
 
@@ -30,8 +31,8 @@ class ExpenseDetailView(ctk.CTkFrame):
         self.expenses_query_service = app_context.expenses_query_service
         self.invoices_query_service = app_context.invoices_query_service
         self.suppliers_query_service = app_context.suppliers_query_service
-        self.user_controller = app_context.user_controller
-        self.account_controller = app_context.account_controller
+        self.user_query_service: UserQueryService = app_context.user_query_service
+        self.accounts_query_service: AccountQueryService = app_context.account_query_service
         self.update_controller = app_context.update_controller
         self.config_manager = app_context.config_manager
         self.catalogo_elenchi = app_context.catalogo_elenchi
@@ -72,10 +73,10 @@ class ExpenseDetailView(ctk.CTkFrame):
         if not expense:
             return
 
-        account = self.account_controller.retrieve_account_map_by_id(expense.get(DBExpensesColumns.ACCOUNT_ID.value))
+        account = self.accounts_query_service.retrieve_account_map_by_id(expense.get(DBExpensesColumns.ACCOUNT_ID.value))
         supplier = self.suppliers_query_service.retrieve_supplier_map_by_id(expense.get(DBExpensesColumns.SUPPLIER_ID.value))
-        user_deduzione = self.user_controller.retrieve_user_map_by_id(expense.get(DBExpensesColumns.USER_ID_DEDUZIONE.value))
-        user_anticipo = self.user_controller.retrieve_user_map_by_id(expense.get(DBExpensesColumns.USER_ID_ANTICIPO.value))
+        user_deduzione = self.user_query_service.retrieve_user_map_by_id(expense.get(DBExpensesColumns.USER_ID_DEDUZIONE.value))
+        user_anticipo = self.user_query_service.retrieve_user_map_by_id(expense.get(DBExpensesColumns.USER_ID_ANTICIPO.value))
         fattura = self.invoices_query_service.retrieve_invoice_map_by_id(expense.get(DBExpensesColumns.LINKED_INVOICE_ID.value))
 
         expense[self.ACCOUNT_FIELD] = account[DBAccountsColumns.NAME.value] if account else ""
@@ -96,11 +97,11 @@ class ExpenseDetailView(ctk.CTkFrame):
         self.toggle_edit(self.content_frame)
 
     def _create_expense_info_section(self, expense_data):
-        users = self.user_controller.retrieve_users_map_list()
+        users = self.user_query_service.retrieve_users_map_list()
         deductible_users = [
             f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}"
             for u in users
-            if u[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value
+            if u[DBUsersColumns.REGIME_FISCALE.value] == RegimeFiscale.ORDINARIO.value
         ]
         all_users = [f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}" for u in users]
 
@@ -177,7 +178,7 @@ class ExpenseDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Conto",
                 "section": "Collegamenti",
-                "values": [a[DBAccountsColumns.NAME.value] for a in self.account_controller.retrieve_accounts_map_list()]
+                "values": [a[DBAccountsColumns.NAME.value] for a in self.accounts_query_service.retrieve_accounts_map_list()]
             },
             DBExpensesColumns.created_at.value: {
                 "type": ctk.CTkLabel,
@@ -433,18 +434,18 @@ class ExpenseDetailView(ctk.CTkFrame):
         self.grab_set()
 
     def save_expense_mod(self):
-        account = self.account_controller.retrieve_account_map_by_name(self.expense_info_widgets[self.ACCOUNT_FIELD].get())
+        account = self.accounts_query_service.retrieve_account_map_by_name(self.expense_info_widgets[self.ACCOUNT_FIELD].get())
         supplier = self.suppliers_query_service.retrieve_supplier_map_by_name(self.expense_info_widgets[self.SUPPLIER_FIELD].get_value())
 
         user_deduzione = None
         if self.expense_info_widgets[self.USER_DEDUZIONE_FIELD].get():
-            user_deduzione = self.user_controller.retrieve_user_map_by_extended_name(
+            user_deduzione = self.user_query_service.retrieve_user_map_by_extended_name(
                 self.expense_info_widgets[self.USER_DEDUZIONE_FIELD].get()
             )
 
         user_anticipo = None
         if self.expense_info_widgets[self.USER_ANTICIPO_FIELD].get():
-            user_anticipo = self.user_controller.retrieve_user_map_by_extended_name(
+            user_anticipo = self.user_query_service.retrieve_user_map_by_extended_name(
                 self.expense_info_widgets[self.USER_ANTICIPO_FIELD].get()
             )
 

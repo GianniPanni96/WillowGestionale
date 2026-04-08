@@ -8,6 +8,7 @@ from Controllerss.Salary_controller import SalaryController
 from Gestionale_Enums import DBSalariesColumns
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Salaries_query_service import SalaryQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Views.BaseList_view import BaseListView
 from Views.Creators.Salary_create_view import SalaryCreateView
 from Views.Details.Salary_detail_view import SalaryDetailView
@@ -83,7 +84,7 @@ class SalariesViewH(BaseListView):
         self.salary_query_service: SalaryQueryService = app_context.salary_query_service
         self.salary_analyzer_service: SalaryAnalyzerService = app_context.salary_analyzer_service
         self.account_query_service: AccountQueryService = app_context.account_query_service
-        self.user_controller = app_context.user_controller
+        self.user_query_service:UserQueryService = app_context.user_query_service
 
         self.salaries_card_list = self.cards_list
         self.salary_create_view = None
@@ -150,7 +151,7 @@ class SalariesViewH(BaseListView):
         items_list.sort(key=self._parse_salary_updated_at, reverse=True)
 
         extractor = ViewUtils.create_extractor_for_salaries(
-            self.user_controller,
+            self.user_query_service,
             self.account_query_service
         )
         ViewUtils.process_items_in_chunks(

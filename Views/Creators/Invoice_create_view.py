@@ -18,7 +18,8 @@ from Analyzers.Invoice_analyzer_service import InvoiceAnalyzerService
 
 from Controllerss.Invoice_controller import InvoiceController
 
-from Controllers import AccountController, UserController
+from Controllers import AccountController
+from Controllerss.User_controller import UserController
 
 
 class InvoiceCreateView(ctk.CTkToplevel):

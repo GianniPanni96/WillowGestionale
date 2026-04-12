@@ -4,7 +4,7 @@ import customtkinter as ctk
 
 from AnalyzerServices.Payment_analyzer_service import PaymentAnalyzerService
 from App_context import AppContext
-from Controllers import UpdatesController
+from Updates_controller import UpdatesController
 from Gestionale_Enums import DBPaymentsColumns
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService

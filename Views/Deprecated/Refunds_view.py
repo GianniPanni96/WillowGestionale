@@ -3,7 +3,8 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
 from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
-from Controllers import AccountController, Analyzer, UpdatesController
+from Controllers import AccountController, Analyzer
+from Updates_controller import UpdatesController
 from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBRefundsColumns
 from datetime import datetime
 import re

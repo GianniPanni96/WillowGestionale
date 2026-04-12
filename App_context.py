@@ -10,8 +10,8 @@ from AnalyzerServices.Transfer_analyzer_service import TransferAnalyzerService
 from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 
-from Controllers import UpdatesController, Analyzer
-
+from Controllers import Analyzer
+from Updates_controller import UpdatesController
 
 from Model import DatabaseModel
 from Event_bus import EventBus
@@ -98,7 +98,6 @@ class AppContext:
         self.payments_analyzer_service:PaymentAnalyzerService = PaymentAnalyzerService(self.payments_query_service, self.db_model)
         self.refunds_analyzer_service:RefundAnalyzerService = RefundAnalyzerService(self.refunds_query_service, self.db_model)
         self.expenses_analyzer_service:ExpenseAnalyzerService = ExpenseAnalyzerService(self.expenses_query_service, self.db_model)
-        self.account_analyzer_service:AccountAnalyzerService = AccountAnalyzerService(self.account_query_service)
         self.transfer_analyzer_service:TransferAnalyzerService = TransferAnalyzerService(self.transfer_query_service)
         self.salary_analyzer_service:SalaryAnalyzerService = SalaryAnalyzerService(self.salary_query_service, self.db_model)
         self.user_analyzer_service:UserAnalyzerService = UserAnalyzerService(
@@ -106,6 +105,19 @@ class AppContext:
             self.db_model,
             self.fiscal_settings
         )
+        self.account_analyzer_service:AccountAnalyzerService = AccountAnalyzerService(self.account_query_service,
+                                                                                      self.user_query_service,
+                                                                                      self.payments_analyzer_service,
+                                                                                      self.payments_query_service,
+                                                                                      self.expenses_analyzer_service,
+                                                                                      self.expenses_query_service,
+                                                                                      self.transfer_analyzer_service,
+                                                                                      self.transfer_query_service,
+                                                                                      self.salary_analyzer_service,
+                                                                                      self.salary_query_service,
+                                                                                      self.refunds_analyzer_service,
+                                                                                      self.refunds_query_service,
+                                                                                      )
         self.user_crypto_service:UserCryptoService = UserCryptoService()
         self.user_auth_service:UserAuthService = UserAuthService(self.user_query_service)
         self.production_warning_service:ProductionWarningService = ProductionWarningService()
@@ -199,6 +211,7 @@ class AppContext:
                                                  books_path=self.books_path,
                                                  account_controller=self.account_controller,
                                                  accounts_query_service=self.account_query_service,
+                                                 account_analyzer_service=self.account_analyzer_service,
                                                  analyzer=self.analyzer,
                                                  user_controller=self.user_controller,
                                                  user_analyzer_service=self.user_analyzer_service,
@@ -207,5 +220,6 @@ class AppContext:
                                                  invoices_analyzer_service=self.invoices_analyzer_service,
                                                  expense_analyzer_service=self.expenses_analyzer_service,
                                                  productions_analyzer_service=self.productions_analyzer_service,
-                                                 salary_analyzer_service=self.salary_analyzer_service)
+                                                 salary_analyzer_service=self.salary_analyzer_service,
+                                                 )
 

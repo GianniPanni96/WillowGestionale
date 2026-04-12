@@ -1,8 +1,11 @@
 import customtkinter as ctk
 from tkcalendar import Calendar
+
+from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from Views.View_utils import ViewUtils
 from Views.Creators.Transfer_create_view import TransferCreateView
-from Controllers import Analyzer, UpdatesController
+from Controllers import Analyzer
+from Updates_controller import UpdatesController
 from Model import DatabaseModel
 
 from Views.Details.Account_detail_view import AccountDetailView
@@ -27,6 +30,7 @@ class AccountsView(ctk.CTkFrame):
         self.db_model:DatabaseModel = app_context.db_model
         self.account_controller:AccountController = app_context.account_controller
         self.accounts_query_service:AccountQueryService = app_context.account_query_service
+        self.account_analyzer_service:AccountAnalyzerService = app_context.account_analyzer_service
         self.update_controller:UpdatesController = app_context.update_controller
         self.config_manager:ConfigManager = app_context.config_manager
         self.transfer_controller:TransferController = app_context.transfer_controller
@@ -93,7 +97,7 @@ class AccountsView(ctk.CTkFrame):
         for account in self.accounts_query_service.retrieve_accounts_map_list():
             id =  account[DBAccountsColumns.ID.value]
             name = account[DBAccountsColumns.NAME.value]
-            balance = self.analyzer.calculate_account_balance_by_account_id(id)
+            balance = self.account_analyzer_service.calculate_account_balance_by_account_id(id)
 
             self.add_account_card(id, name, balance)
 
@@ -248,7 +252,7 @@ class AccountsView(ctk.CTkFrame):
 
     def update_accounts_balances(self):
         for account_id, label in self.balance_labels.items():
-            new_balance = self.analyzer.calculate_account_balance_by_account_id(account_id)
+            new_balance = self.account_analyzer_service.calculate_account_balance_by_account_id(account_id)
             label.configure(text=f"{new_balance:.2f} €")
 
     def save_account_data(self):

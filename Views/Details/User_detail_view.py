@@ -5,6 +5,7 @@ import customtkinter as ctk
 from datetime import datetime
 from tkinter import filedialog
 
+from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from App_context import AppContext
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
@@ -25,6 +26,7 @@ class UserDetailView(ctk.CTkFrame):
         self.user_query_service: UserQueryService = app_context.user_query_service
         self.user_analyzer_service: UserAnalyzerService = app_context.user_analyzer_service
         self.accounts_query_service: AccountQueryService = app_context.account_query_service
+        self.account_analyzer_service:AccountAnalyzerService = app_context.account_analyzer_service
         self.db_model = app_context.db_model
         self.back_callback = back_callback
         self.productions_query_service: ProductionQueryService = app_context.productions_query_service
@@ -774,7 +776,7 @@ class UserDetailView(ctk.CTkFrame):
 
         regime_fiscale = self.user_query_service.get_regime_fiscale_by_id(self.current_user_id)
         if str(regime_fiscale) == str(RegimeFiscale.FORFETTARIO.value):
-            tasse, versamenti, total = self.analyzer.calculate_previsione_tasse_forfettaria(self.current_user_id)
+            tasse, versamenti, total = self.user_analyzer_service.calculate_previsione_tasse_forfettaria(self.current_user_id)
             global_infos = {}
             versamenti_infos = {}
 
@@ -919,7 +921,7 @@ class UserDetailView(ctk.CTkFrame):
                 ViewUtils.add_tooltip(title_label, tooltip_text)
 
         elif str(regime_fiscale) == str(RegimeFiscale.ORDINARIO.value):
-            tasse_view, versamenti, tasse_total = self.analyzer.calculate_previsione_tasse_ordinaria(self.current_user_id)
+            tasse_view, versamenti, tasse_total = self.user_analyzer_service.calculate_previsione_tasse_ordinaria(self.current_user_id)
             global_infos = {}
             versamenti_infos = {}
             for k, v in tasse_view.items():
@@ -1113,7 +1115,7 @@ class UserDetailView(ctk.CTkFrame):
         self.trimestral_list_frame.pack(fill="x", expand=True, padx=10, pady=(0, 25))
 
         # Ottieni i dati IVA trimestrali
-        iva_data = self.analyzer.calculate_trimestral_iva_by_account_id(self.current_user_id)
+        iva_data = self.account_analyzer_service.calculate_trimestral_iva_by_account_id(self.current_user_id)
 
         # Ordina i trimestri nell'ordine corretto
         quarters_order = ["Gen-Marz", "Apr-Giu", "Lug-Sett", "Ott-Dic"]
@@ -1168,7 +1170,7 @@ class UserDetailView(ctk.CTkFrame):
     def toggle_taxes(self):
         """Ricalcola e aggiorna i valori delle tasse visualizzate nelle cards"""
         # Ricalcola le tasse con i nuovi parametri
-        tasse, versamenti, output_map = self.analyzer.calculate_previsione_tasse_forfettaria(self.current_user_id)
+        tasse, versamenti, output_map = self.user_analyzer_service.calculate_previsione_tasse_forfettaria(self.current_user_id)
 
         # Aggiorna le labels nelle cards esistenti
         for name, value in tasse.items():

@@ -1,6 +1,7 @@
 import customtkinter as ctk
 from datetime import datetime
 
+from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 
 
 class IvaTrimesView(ctk.CTkFrame):
@@ -9,9 +10,7 @@ class IvaTrimesView(ctk.CTkFrame):
 
         self.app_context = app_context
         self.db_model = app_context.db_model
-        self.invoice_controller = app_context.invoice_controller
-        self.user_controller = app_context.user_controller
-        self.expense_controller = app_context.expense_controller
+        self.account_analyzer_service:AccountAnalyzerService = app_context.account_analyzer_service
         self.update_controller = app_context.update_controller
         self.analyzer = app_context.analyzer
         self.tabview = tabview
@@ -67,7 +66,7 @@ class IvaTrimesView(ctk.CTkFrame):
         self.trimestral_container.pack(fill="x", expand=True)
 
         # Ottieni i dati IVA trimestrali
-        iva_data = self.analyzer.calculate_tot_trimestral_iva()
+        iva_data = self.account_analyzer_service.calculate_tot_trimestral_iva()
 
         # Calcola i totali aggregati per trimestre
         quarter_totals = {

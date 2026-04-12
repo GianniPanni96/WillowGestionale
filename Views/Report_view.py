@@ -6,7 +6,7 @@ from datetime import datetime
 from Model import DatabaseModel
 from Controllers import Analyzer
 from App_context import AppContext
-from Controllers import UpdatesController
+from Updates_controller import UpdatesController
 from Event_bus import EventBus
 
 class ReportView (ctk.CTkFrame):

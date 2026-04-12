@@ -1,3 +1,4 @@
+from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from Controllerss.Account_controller import AccountController
 from Model import DBAccountsColumns, DBUsersColumns
@@ -9,7 +10,7 @@ from Controllers import Analyzer
 from Controllerss.User_controller import UserController
 from AnalyzerServices.Expense_analyzer_service import ExpenseAnalyzerService
 from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
-
+from Gestionale_Enums import*
 
 from AnalyzerServices.Invoice_analyzer_service import InvoiceAnalyzerService
 from AnalyzerServices.Production_analyzer_service import ProductionAnalyzerService
@@ -26,6 +27,7 @@ class BookCloser:
                  books_path,
                  account_controller:AccountController,
                  accounts_query_service: AccountQueryService,
+                 account_analyzer_service:AccountAnalyzerService,
                  analyzer:Analyzer,
                  user_controller:UserController,
                  user_query_service:UserQueryService,
@@ -39,6 +41,7 @@ class BookCloser:
         self.environment_db_variable = environment_db_variable
         self.account_controller = account_controller
         self.accounts_query_service:AccountQueryService = accounts_query_service
+        self.account_analyzer_service:AccountAnalyzerService = account_analyzer_service
         self.user_controller = user_controller
         self.user_query_service = user_query_service
         self.user_analyzer_service = user_analyzer_service
@@ -167,7 +170,7 @@ class BookCloser:
         for user in users:
             user_id = user.get(DBUsersColumns.ID.value)
             if user.get(
-                    DBUsersColumns.REGIME_FISCALE.value) == self.user_controller.RegimeFiscale.ORDINARIO.value:
+                    DBUsersColumns.REGIME_FISCALE.value) == RegimeFiscale.ORDINARIO.value:
                 spese_dedotte_tot += self.user_analyzer_service.calcola_tot_spese_utente_dedotte(user_id, year = self.current_exercise_year)
 
         # Prepara i dati per la sezione historical_financial_data
@@ -195,8 +198,8 @@ class BookCloser:
         #   "ORDINARIO": {"Cognome3": 30000}
         # }
 
-        for regime in [self.user_controller.RegimeFiscale.FORFETTARIO.value,
-                       self.user_controller.RegimeFiscale.ORDINARIO.value]:
+        for regime in [RegimeFiscale.FORFETTARIO.value,
+                       RegimeFiscale.ORDINARIO.value]:
             if regime in revenues:
                 for last_name, total_revenue in revenues[regime].items():
                     # Trova l'utente corrispondente per ottenere il nome completo
@@ -256,7 +259,7 @@ class BookCloser:
             init_balance = previous_year_balances.get(column_name, "0.00")
 
             balances[account_name] = (
-                self.analyzer.calculate_account_balance_by_account_id(
+                self.account_analyzer_service.calculate_account_balance_by_account_id(
                     account_id,
                     year=self.current_exercise_year,
                     init_balance_arg=init_balance
@@ -268,7 +271,7 @@ class BookCloser:
         media_fatture = self.invoices_analyzer_service.calculate_MEDIA_FATTURA_LORDO_invoiced(year = self.current_exercise_year)
         media_ore_per_produzione = self.productions_analyzer_service.mean_hours_for_production(year = self.current_exercise_year)
         media_prezzo_orario_produzione = self.productions_analyzer_service.mean_prezzo_orario(year = self.current_exercise_year)
-        previsione_tasse = self.analyzer.calculate_previsione_tasse_willow(year = self.current_exercise_year)
+        previsione_tasse = self.user_analyzer_service.calculate_previsione_tasse_willow(year = self.current_exercise_year)
         irpef_willow = previsione_tasse["TOTALE"].get("IRPEF WILLOW", 0.0)
         inps_willow = previsione_tasse["TOTALE"].get("INPS WILLOW", 0.0)
 
@@ -666,7 +669,7 @@ class BookCloser:
         """
 
         # Recupera i dati dall'analyzer
-        tax_data = self.analyzer.calculate_previsione_tasse_willow(year=self.current_exercise_year)
+        tax_data = self.user_analyzer_service.calculate_previsione_tasse_willow(year=self.current_exercise_year)
 
         # Verifica se il file esiste
         file_exists = os.path.isfile(self.taxes_data_file_path)
@@ -718,15 +721,15 @@ class BookCloser:
             irpef_totale = 0.0
 
             try:
-                if regime_fiscale == self.user_controller.RegimeFiscale.FORFETTARIO.value:
-                    tasse_map, _, _ = self.analyzer.calculate_previsione_tasse_forfettaria(
+                if regime_fiscale == RegimeFiscale.FORFETTARIO.value:
+                    tasse_map, _, _ = self.user_analyzer_service.calculate_previsione_tasse_forfettaria(
                         user_id, year=self.current_exercise_year
                     )
                     inps_totale = tasse_map.get("INPS", 0.0)
                     irpef_totale = tasse_map.get("IRPEF", 0.0)
 
-                elif regime_fiscale == self.user_controller.RegimeFiscale.ORDINARIO.value:
-                    tasse_map, _, _ = self.analyzer.calculate_previsione_tasse_ordinaria(
+                elif regime_fiscale == RegimeFiscale.ORDINARIO.value:
+                    tasse_map, _, _ = self.user_analyzer_service.calculate_previsione_tasse_ordinaria(
                         user_id, year=self.current_exercise_year
                     )
                     inps_totale = tasse_map.get("INPS", 0.0)

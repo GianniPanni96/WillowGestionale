@@ -16,7 +16,7 @@ from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 
-from Controllers import UpdatesController
+from Updates_controller import UpdatesController
 
 
 class InvoiceDetailView(ctk.CTkFrame):

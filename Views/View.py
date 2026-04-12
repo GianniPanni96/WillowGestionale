@@ -4,7 +4,12 @@ import re, os
 from OtherServices.User_auth_service import UserAuthService
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Users_query_service import UserQueryService
-from Views.View_utils import ViewUtils, CustomTkMenuButton
+from Views.View_utils import (
+    CatalogFilterableComboBox,
+    CustomTkMenuButton,
+    FilterableComboBox,
+    ViewUtils,
+)
 from datetime import datetime
 
 
@@ -1480,6 +1485,31 @@ class MainWindow(ctk.CTk):
 
 
     #funzioni per la gestione delle spese ricorrenti
+    def _get_recurring_supplier_values(self):
+        suppliers_map_list = self.suppliers_query_service.retrieve_suppliers_map_list(year=-1)
+        return [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]
+
+    def _get_recurring_category_values(self):
+        return [
+            value for key, value in self.catalogo_elenchi["expenses_category"]
+            if key != "ADD_CATEGORY"
+        ]
+
+    def _get_recurring_iva_values(self):
+        aliquote_list = [
+            self.fiscal_settings.aliquota_iva.no_iva,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_minima
+        ]
+        return [str(aliquota) for aliquota in aliquote_list]
+
+    def _get_recurring_widget_value(self, widget):
+        if isinstance(widget, FilterableComboBox):
+            return widget.get_value()
+        return widget.get()
+
     def open_recurring_expenses_window(self):
         """Apre una finestra per gestire le spese ricorrenti."""
         # Crea la finestra di dialogo
@@ -1524,16 +1554,6 @@ class MainWindow(ctk.CTk):
             # Memorizza i widget in un dizionario annidato
             self.expense_widgets[expense_key] = {}
 
-            suppliers_map_list = self.suppliers_query_service.retrieve_suppliers_map_list()
-
-            aliquote_list = [
-                self.fiscal_settings.aliquota_iva.no_iva,
-                self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
-                self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
-                self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
-                self.fiscal_settings.aliquota_iva.aliquota_iva_minima
-            ]
-
             accounts = self.account_query_service.retrieve_accounts_map_list()
 
             users = self.user_query_service.retrieve_users_map_list()
@@ -1541,9 +1561,9 @@ class MainWindow(ctk.CTk):
             # Campi modificabili
             fields = [
                 ('amount', 'Importo:', 'entry', float),
-                ('supplier', 'Fornitore:', 'dropdown', [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]),
-                ('category', 'Categoria:', 'dropdown', [value for key, value in self.catalogo_elenchi["expenses_category"]]),
-                ('iva', 'IVA:', 'dropdown', [str(aliquota) for aliquota in aliquote_list]),
+                ('supplier', 'Fornitore:', 'dropdown', self._get_recurring_supplier_values()),
+                ('category', 'Categoria:', 'dropdown', self._get_recurring_category_values()),
+                ('iva', 'IVA:', 'dropdown', self._get_recurring_iva_values()),
                 ('deductor', 'Deduzione a\ncarico di:', 'dropdown', [user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users]),
                 ('account', 'Conto:', 'dropdown', [account[DBAccountsColumns.NAME.value] for account in accounts]),
                 ('frequency', 'Frequenza:', 'dropdown', [freq.value for freq in RecurringExpensesFrequencies])
@@ -1560,18 +1580,26 @@ class MainWindow(ctk.CTk):
                     widget = ctk.CTkEntry(frame, font=self.entry_font)
                     widget.insert(0, str(getattr(expense, field)))
                 elif field_type == 'dropdown':
-                    # per la categoria, aggiungo l'opzione ADD e il command
-                    if field == 'category':
-                        widget = ctk.CTkOptionMenu(
-                            master=frame,
-                            values=options,
-                            font=self.entry_font,
-                            dropdown_font=self.entry_font,
-                            command=lambda sel, ek=expense_key: self.open_add_expense_category(ek, sel)
+                    if field == 'supplier':
+                        widget = FilterableComboBox(
+                            parent=frame,
+                            placeholder="Cerca",
+                            autofill=True,
+                            values=options
                         )
-                        # imposto valore corrente
                         current = getattr(expense, field)
-                        widget.set(current if current in options else options[0])
+                        widget.set_value(current, safe_mode=False)
+                    elif field == 'category':
+                        widget = CatalogFilterableComboBox(
+                            parent=frame,
+                            placeholder="Cerca",
+                            autofill=True,
+                            values=options,
+                            add_button_text="Aggiungi categoria",
+                            add_button_command=lambda ek=expense_key: self.open_add_expense_category(ek)
+                        )
+                        current = getattr(expense, field)
+                        widget.set_value(current if current in options else (options[0] if options else ""), safe_mode=False)
                     elif field == "deductor":
                         current_id = getattr(expense, field)
                         current_deductor = self.user_query_service.retrieve_user_map_by_id(current_id)
@@ -1666,7 +1694,7 @@ class MainWindow(ctk.CTk):
 
             deductible = widgets["deductible"].get()
 
-            deductor_name = widgets["deductor"].get()
+            deductor_name = self._get_recurring_widget_value(widgets["deductor"])
             deductor = self.user_query_service.retrieve_user_map_by_extended_name(deductor_name) if deductible == "Sì" else None
             deductor_id = deductor[DBUsersColumns.ID.value] if deductor is not None else None
 
@@ -1685,15 +1713,15 @@ class MainWindow(ctk.CTk):
                 # campi basati sui widget della nuova tab
                 fields = {
                     "description": description,
-                    "amount": widgets["amount"].get(),
-                    "supplier": widgets["supplier"].get(),
+                    "amount": self._get_recurring_widget_value(widgets["amount"]),
+                    "supplier": self._get_recurring_widget_value(widgets["supplier"]),
                     "deductible": widgets["deductible"].get(),
-                    "category": widgets["category"].get(),
+                    "category": self._get_recurring_widget_value(widgets["category"]),
                     "deductor": deductor_id if deductible == "Sì" else None,
-                    "iva": widgets["iva"].get(),
-                    "account": widgets["account"].get(),
-                    "frequency": widgets["frequency"].get(),
-                    "status": widgets["status"].get(),
+                    "iva": self._get_recurring_widget_value(widgets["iva"]),
+                    "account": self._get_recurring_widget_value(widgets["account"]),
+                    "frequency": self._get_recurring_widget_value(widgets["frequency"]),
+                    "status": self._get_recurring_widget_value(widgets["status"]),
                 }
                 new_data[new_key] = fields
 
@@ -1702,15 +1730,15 @@ class MainWindow(ctk.CTk):
                 desc = self.recurring_expenses_settings[expense_key].description
                 fields = {
                     "description": desc,
-                    "amount": widgets["amount"].get(),
-                    "supplier": widgets["supplier"].get(),
+                    "amount": self._get_recurring_widget_value(widgets["amount"]),
+                    "supplier": self._get_recurring_widget_value(widgets["supplier"]),
                     "deductible": widgets["deductible"].get(),
-                    "category": widgets["category"].get(),
+                    "category": self._get_recurring_widget_value(widgets["category"]),
                     "deductor": deductor_id if deductible == "Sì" else None,
-                    "iva": widgets["iva"].get(),
-                    "account": widgets["account"].get(),
-                    "frequency": widgets["frequency"].get(),
-                    "status": widgets["status"].get(),
+                    "iva": self._get_recurring_widget_value(widgets["iva"]),
+                    "account": self._get_recurring_widget_value(widgets["account"]),
+                    "frequency": self._get_recurring_widget_value(widgets["frequency"]),
+                    "status": self._get_recurring_widget_value(widgets["status"]),
                 }
                 new_data[expense_key] = fields
 
@@ -1729,30 +1757,26 @@ class MainWindow(ctk.CTk):
                 message=f"Salvataggio fallito: {str(e)}"
             )
 
-    def open_add_expense_category(self, expense_key, selected_value):
-        sector_dict = dict(self.catalogo_elenchi["expenses_category"])
-        if selected_value == sector_dict.get("ADD_CATEGORY"):
-            self.current_expense_for_category = expense_key
-            self.add_category_window = ctk.CTkToplevel(self)
-            self.add_category_window.title("Aggiungi una nuova categoria di spesa")
+    def open_add_expense_category(self, expense_key):
+        self.current_expense_for_category = expense_key
+        self.add_category_window = ctk.CTkToplevel(self)
+        self.add_category_window.title("Aggiungi una nuova categoria di spesa")
 
-            # Assicurati che la finestra rimanga sopra
-            self.add_category_window.lift()  # Porta la finestra sopra quella principale
-            self.add_category_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+        # Assicurati che la finestra rimanga sopra
+        self.add_category_window.lift()
+        self.add_category_window.grab_set()
 
-            self.add_category_window.geometry("400x300")
+        self.add_category_window.geometry("400x300")
 
-            self.expense_category_window_Frame = ctk.CTkFrame(self.add_category_window)
-            self.expense_category_window_Frame.pack(fill="both", expand=True)
+        self.expense_category_window_Frame = ctk.CTkFrame(self.add_category_window)
+        self.expense_category_window_Frame.pack(fill="both", expand=True)
 
-            ctk.CTkLabel(self.expense_category_window_Frame, text="Aggiungi una caategoria di spesa alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
+        ctk.CTkLabel(self.expense_category_window_Frame, text="Aggiungi una caategoria di spesa alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
 
-            self.add_category_entry = ctk.CTkEntry(self.expense_category_window_Frame)
-            self.add_category_entry.pack(padx=10, pady=5, fill="x", expand=True)
+        self.add_category_entry = ctk.CTkEntry(self.expense_category_window_Frame)
+        self.add_category_entry.pack(padx=10, pady=5, fill="x", expand=True)
 
-            ctk.CTkButton(self.expense_category_window_Frame, text="Aggiungi una categoria", command=self.save_expense_category).pack(padx=10, pady=(15, 10))
-
-        else: return
+        ctk.CTkButton(self.expense_category_window_Frame, text="Aggiungi una categoria", command=self.save_expense_category).pack(padx=10, pady=(15, 10))
 
     def save_expense_category(self):
         new_category = self.add_category_entry.get()
@@ -1764,8 +1788,11 @@ class MainWindow(ctk.CTk):
             return
 
         widget = self.expense_widgets[self.current_expense_for_category]["category"]
-        widget.configure(values=widget._values + [new_category])  # aggiorno la lista delle opzioni
-        widget.set(new_category)
+        updated_values = list(widget.all_values)
+        if new_category not in updated_values:
+            updated_values.append(new_category)
+        widget.set_values(updated_values, preserve_current=False)
+        widget.set_value(new_category, safe_mode=False)
         self.add_category_window.destroy()
 
     def add_recurring_expenses(self):
@@ -1781,22 +1808,12 @@ class MainWindow(ctk.CTk):
         expense_key = tab_name
         self.expense_widgets[expense_key] = {}
 
-        # Prepara i valori per dropdown
-        suppliers_map_list = self.suppliers_query_service.retrieve_suppliers_map_list()
-        suppliers_opts = [s[DBSuppliersColumns.NAME.value] for s in suppliers_map_list]
-
-        aliquote_list = [
-            self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
-            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
-            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
-            self.fiscal_settings.aliquota_iva.aliquota_iva_minima
-        ]
-        iva_opts = [str(a) for a in aliquote_list]
-
         accounts = self.account_query_service.retrieve_accounts_map_list()
         account_opts = [a[DBAccountsColumns.NAME.value] for a in accounts]
 
-        category_opts = [v for _, v in self.catalogo_elenchi["expenses_category"]]
+        suppliers_opts = self._get_recurring_supplier_values()
+        iva_opts = self._get_recurring_iva_values()
+        category_opts = self._get_recurring_category_values()
         freq_opts = [f.value for f in RecurringExpensesFrequencies]
 
         users = self.user_query_service.retrieve_users_map_list()
@@ -1829,13 +1846,30 @@ class MainWindow(ctk.CTk):
                 # vuoto di default
             # Dropdown
             elif field_type == 'dropdown':
-                widget = ctk.CTkOptionMenu(
-                    master=frame,
-                    values=options,
-                    font=self.entry_font,
-                    dropdown_font=self.entry_font
-                )
-                widget.set(options[0] if options else "")
+                if field == "supplier":
+                    widget = FilterableComboBox(
+                        parent=frame,
+                        placeholder="Cerca",
+                        autofill=True,
+                        values=options
+                    )
+                elif field == "category":
+                    widget = CatalogFilterableComboBox(
+                        parent=frame,
+                        placeholder="Cerca",
+                        autofill=True,
+                        values=options,
+                        add_button_text="Aggiungi categoria",
+                        add_button_command=lambda ek=expense_key: self.open_add_expense_category(ek)
+                    )
+                else:
+                    widget = ctk.CTkOptionMenu(
+                        master=frame,
+                        values=options,
+                        font=self.entry_font,
+                        dropdown_font=self.entry_font
+                    )
+                    widget.set(options[0] if options else "")
             # Radio
             else:  # 'radio'
                 var = ctk.StringVar(value=options[0] if options else "")

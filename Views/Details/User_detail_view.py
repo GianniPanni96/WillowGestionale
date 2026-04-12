@@ -1,7 +1,9 @@
+import os
 import re
 
 import customtkinter as ctk
 from datetime import datetime
+from tkinter import filedialog
 
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from App_context import AppContext
@@ -40,7 +42,10 @@ class UserDetailView(ctk.CTkFrame):
         )
         self.title_label = ctk.CTkLabel(self.head_frame, font=("Arial", 22, "bold"))
 
-        self.user_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
+        self.user_info_widgets: dict[str, ctk.CTkEntry | ctk.CTkOptionMenu | ctk.CTkButton] = {}
+        self.selected_photo_path = ""
+        self.photo_path_button = None
+        self.photo_path_label = None
 
         self.nome_conto_string = "CONTO"
 
@@ -350,6 +355,24 @@ class UserDetailView(ctk.CTkFrame):
                 widget.grid(row=row, column=1, sticky="ew", padx=(5, 15),
                             pady=(2, 5) if field in validation_rules.keys() else (2, 35))
                 self.user_info_widgets[field] = widget
+            elif field == DBUsersColumns.PHOTO_PATH.value:
+                selector_frame = ctk.CTkFrame(frame, fg_color="transparent")
+                selector_frame.grid(row=row, column=1, sticky="ew", padx=(5, 15), pady=(2, 35))
+                selector_frame.grid_columnconfigure(1, weight=1)
+
+                self.selected_photo_path = str(user_data.get(field, "") or "")
+                self.photo_path_button = ctk.CTkButton(
+                    selector_frame,
+                    text="Scegli Immagine",
+                    command=self.choose_photo_path
+                )
+                self.photo_path_button.grid(row=0, column=0, padx=(0, 10), sticky="w")
+
+                self.photo_path_label = ctk.CTkLabel(selector_frame, text="", anchor="w", justify="left")
+                self.photo_path_label.grid(row=0, column=1, sticky="ew")
+                self._refresh_photo_path_label()
+
+                self.user_info_widgets[field] = self.photo_path_button
             else:
                 # Per i campi che vogliamo con il bottone occhio, creiamo un frame contenitore
                 if field in [DBUsersColumns.PASSWORD_LOGIN.value,
@@ -431,6 +454,35 @@ class UserDetailView(ctk.CTkFrame):
         self.save_info_btn = ctk.CTkButton(info_frame, text="Salva Modifiche", command=self.save_info_mod)
         self.save_info_btn.grid(row=2, column=1, pady=(10, 30))
 
+    def _refresh_photo_path_label(self):
+        if self.photo_path_label is None:
+            return
+
+        if self.selected_photo_path:
+            if os.path.exists(self.selected_photo_path):
+                text = os.path.basename(self.selected_photo_path)
+                text_color = "#c2c2c2"
+            else:
+                text = f"Percorso immagine non valido: {os.path.basename(self.selected_photo_path)}"
+                text_color = "#e8a23a"
+        else:
+            text = "ancora nessuna immagine selezionata"
+            text_color = "#c2c2c2"
+
+        self.photo_path_label.configure(text=text, text_color=text_color)
+
+    def choose_photo_path(self):
+        filetypes = [("Immagini", "*.png *.jpg *.jpeg *.gif")]
+        path = filedialog.askopenfilename(title="Seleziona un'immagine", filetypes=filetypes)
+
+        if path:
+            self.selected_photo_path = path
+            self._refresh_photo_path_label()
+
+            top_level = self.winfo_toplevel()
+            top_level.lift()
+            top_level.focus_force()
+
     def toggle_edit(self, parent_widget):
         """
         Abilita o disabilita la modifica dei widget nella finestra di modifica utente.
@@ -455,6 +507,9 @@ class UserDetailView(ctk.CTkFrame):
         # Gestione specifica dei bottoni occhio
         for eye_button in self.eye_buttons:
             eye_button.configure(state=state)
+
+        if self.photo_path_button is not None:
+            self.photo_path_button.configure(state=state)
 
     def toggle_sensible_data(self):
         # Determina lo stato (abilitato/disabilitato) in base al valore dello switch
@@ -514,7 +569,7 @@ class UserDetailView(ctk.CTkFrame):
             DBUsersColumns.USERNAME_PROVIDER.value: self.user_info_widgets[DBUsersColumns.USERNAME_PROVIDER.value].get().strip(),
             DBUsersColumns.PASSWORD_PROVIDER.value: self.user_info_widgets[DBUsersColumns.PASSWORD_PROVIDER.value].get().strip(),
             DBUsersColumns.REGIME_FISCALE.value: self.user_info_widgets[DBUsersColumns.REGIME_FISCALE.value].get(),
-            DBUsersColumns.PHOTO_PATH.value: self.user_info_widgets[DBUsersColumns.PHOTO_PATH.value].get().strip(),
+            DBUsersColumns.PHOTO_PATH.value: self.selected_photo_path.strip(),
             DBUsersColumns.CONTO_CORRENTE_ID.value: id_conto,  # Da aggiornare se necessario
             DBUsersColumns.ANNO_APERTURA_PIVA.value: self.user_info_widgets[DBUsersColumns.ANNO_APERTURA_PIVA.value].get(),
             DBUsersColumns.STATUS.value: self.user_info_widgets[DBUsersColumns.STATUS.value].get(),
@@ -1136,6 +1191,9 @@ class UserDetailView(ctk.CTkFrame):
         self.eye_buttons.clear()
         self.user_info_widgets.clear()
         self.login_password_is_present = False
+        self.selected_photo_path = ""
+        self.photo_path_button = None
+        self.photo_path_label = None
 
     def _on_login_changed_detail(self, data):
         self.toggle_sensible_data()

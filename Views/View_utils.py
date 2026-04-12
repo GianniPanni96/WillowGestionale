@@ -968,6 +968,8 @@ class FilterableComboBox(ctk.CTkFrame):
 
         # Per bind di eventi sul parent (bind una tantum)
         self._parent_events_bound = False
+        self._parent_configure_bind_id = None
+        self._parent_click_bind_id = None
 
         self._apply_state()
 
@@ -1053,6 +1055,24 @@ class FilterableComboBox(ctk.CTkFrame):
             return
         # Ritarda la chiusura per permettere click su elementi del dropdown
         self.after(200, self._check_focus)
+
+    def _is_widget_inside_combo_or_dropdown(self, widget):
+        current = widget
+        while current is not None:
+            if current == self or current == self.dropdown_window:
+                return True
+            current = getattr(current, "master", None)
+        return False
+
+    def _on_parent_mouse_click(self, event):
+        if not self.dropdown_visible:
+            return
+
+        clicked_widget = event.widget
+        if self._is_widget_inside_combo_or_dropdown(clicked_widget):
+            return
+
+        self._close_dropdown()
 
     def _check_focus(self):
         focused_widget = self.focus_get()
@@ -1255,9 +1275,28 @@ class FilterableComboBox(ctk.CTkFrame):
         if self._parent_events_bound:
             return
         parent_window = self.winfo_toplevel()
-        parent_window.bind("<Configure>", self._on_parent_configure, add="+")
-        # Non bindiamo ButtonPress globali che causano conflitti
+        self._parent_configure_bind_id = parent_window.bind("<Configure>", self._on_parent_configure, add="+")
+        self._parent_click_bind_id = parent_window.bind("<ButtonPress-1>", self._on_parent_mouse_click, add="+")
         self._parent_events_bound = True
+
+    def _unbind_parent_events(self):
+        if not self._parent_events_bound:
+            return
+
+        parent_window = self.winfo_toplevel()
+        if self._parent_configure_bind_id:
+            try:
+                parent_window.unbind("<Configure>", self._parent_configure_bind_id)
+            except Exception:
+                pass
+        if self._parent_click_bind_id:
+            try:
+                parent_window.unbind("<ButtonPress-1>", self._parent_click_bind_id)
+            except Exception:
+                pass
+        self._parent_configure_bind_id = None
+        self._parent_click_bind_id = None
+        self._parent_events_bound = False
 
     def _on_parent_configure(self, event):
         if self.dropdown_visible:
@@ -1345,6 +1384,7 @@ class FilterableComboBox(ctk.CTkFrame):
     def _hide_dropdown(self):
         if self.dropdown_visible:
             self._tracking_movement = False
+            self._unbind_parent_events()
             # rimuovi i binding mousewheel che abbiamo applicato
             try:
                 self._unbind_mousewheel_from_children()

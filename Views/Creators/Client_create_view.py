@@ -1,7 +1,9 @@
 import customtkinter as ctk
 
 from Gestionale_Enums import *
-from Views.View_utils import CatalogFilterableComboBox, FilterableComboBox, ViewUtils
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
 
 from App_context import AppContext

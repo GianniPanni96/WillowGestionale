@@ -1,6 +1,5 @@
 import tkinter as tk
 from datetime import datetime
-from enum import Enum
 
 import customtkinter as ctk
 
@@ -14,7 +13,7 @@ from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Users_query_service import UserQueryService
-from Views.BaseList_view import BaseListView
+from Views.ListViews.BaseList_view import BaseListView
 from Views.Creators.Invoice_create_view import InvoiceCreateView
 from Views.Details.Invoice_detail_view import InvoiceDetailView
 from Views.View_utils import ViewUtils

@@ -9,7 +9,8 @@ from App_context import AppContext
 from Model import DBAccountsColumns, DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBUsersColumns
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Users_query_service import UserQueryService
-from Views.View_utils import FilterableComboBox, ViewUtils
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from Gestionale_Enums import*
 
 from QueryServices.Clients_query_service import ClientQueryService

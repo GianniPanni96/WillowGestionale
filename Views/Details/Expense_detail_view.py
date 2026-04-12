@@ -10,7 +10,9 @@ from Gestionale_Enums import*
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Users_query_service import UserQueryService
 from Utils.Controller_utils import ControllerUtils
-from Views.View_utils import CatalogFilterableComboBox, FilterableComboBox, ViewUtils
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 
 
 class ExpenseDetailView(ctk.CTkFrame):

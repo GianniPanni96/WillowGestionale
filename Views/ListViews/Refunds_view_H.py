@@ -8,7 +8,7 @@ from Controllerss.Refund_controller import RefundController
 from Gestionale_Enums import DBRefundsColumns, RefundsAggregateData
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Refunds_query_service import RefundQueryService
-from Views.BaseList_view import BaseListView
+from Views.ListViews.BaseList_view import BaseListView
 from Views.Creators.Refund_create_view import RefundCreateView
 from Views.Details.Refund_detail_view import RefundDetailView
 from Views.View_utils import ViewUtils

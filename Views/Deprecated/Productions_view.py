@@ -3,7 +3,8 @@ import tkinter as tk
 from tkcalendar import Calendar
 
 from Config import ConfigManager
-from Views.View_utils import ViewUtils, FilterableComboBox
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from Controllers import  PaymentsController, InvoiceController, ControllerUtils, \
      UpdatesController
 from Controllerss.User_controller import UserController

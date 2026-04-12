@@ -8,7 +8,7 @@ from Controllers import UpdatesController
 from Gestionale_Enums import DBPaymentsColumns
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
-from Views.BaseList_view import BaseListView
+from Views.ListViews.BaseList_view import BaseListView
 from Views.Creators.Payment_create_view import PaymentCreateView
 from Views.Details.Payment_detail_view import PaymentDetailView
 from Views.View_utils import ViewUtils

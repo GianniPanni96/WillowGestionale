@@ -2,7 +2,7 @@ import customtkinter as ctk
 from Views.Details.Supplier_detail_view import SupplierDetailView
 from Views.Creators.Supplier_create_view import SupplierCreateView
 
-from Views.BaseList_view import BaseListView
+from Views.ListViews.BaseList_view import BaseListView
 from Views.View_utils import ViewUtils
 
 from Controllerss.Supplier_controller import SupplierController

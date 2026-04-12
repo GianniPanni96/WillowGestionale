@@ -11,7 +11,8 @@ from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 from QueryServices.Payments_query_service import PaymentQueryService
-from Views.View_utils import FilterableComboBox, ViewUtils
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 
 
 class PaymentCreateView(ctk.CTkToplevel):

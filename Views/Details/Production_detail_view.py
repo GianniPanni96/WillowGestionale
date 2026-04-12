@@ -12,7 +12,9 @@ from Gestionale_Enums import*
 from QueryServices.Invoices_query_service import InvoiceQueryService
 from Views.Adders.Production_output_type_adder_view import ProductionOutputTypeAdderView
 from Views.Adders.Production_type_adder_view import ProductionTypeAdderView
-from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 
 from App_context import AppContext
 from Event_bus import EventBus

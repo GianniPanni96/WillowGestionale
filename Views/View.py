@@ -5,11 +5,11 @@ from OtherServices.User_auth_service import UserAuthService
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Users_query_service import UserQueryService
 from Views.View_utils import (
-    CatalogFilterableComboBox,
     CustomTkMenuButton,
-    FilterableComboBox,
     ViewUtils,
 )
+from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from datetime import datetime
 
 
@@ -20,16 +20,16 @@ from Gestionale_Enums import*
 from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
 
 from Views.Users_view import UsersView
-from Views.Clients_view_H import ClientsViewH
-from Views.Invoices_view_H import InvoicesViewH
-from Views.Payments_view_H import PaymentsViewH
-from Views.Productions_view_H import ProductionsViewH
-from Views.Expenses_view_H import ExpensesViewH
-from Views.Suppliers_view_H import SuppliersViewH
+from Views.ListViews.Clients_view_H import ClientsViewH
+from Views.ListViews.Invoices_view_H import InvoicesViewH
+from Views.ListViews.Payments_view_H import PaymentsViewH
+from Views.ListViews.Productions_view_H import ProductionsViewH
+from Views.ListViews.Expenses_view_H import ExpensesViewH
+from Views.ListViews.Suppliers_view_H import SuppliersViewH
 from Views.Accounts_view import AccountsView
-from Views.Salaries_view_H import SalariesViewH
+from Views.ListViews.Salaries_view_H import SalariesViewH
 from Views.Iva_trimes_view import IvaTrimesView
-from Views.Refunds_view_H import RefundsViewH
+from Views.ListViews.Refunds_view_H import RefundsViewH
 from Views.Taxes_view import TaxesView
 from Views.Report_view import ReportView
 from Views.Plot_view import PlotView
@@ -98,9 +98,9 @@ class MainWindow(ctk.CTk):
             text="Gestione Backup",
             items=[
                 ("Impostazioni backup", self.open_backup_settings_window),
-                ("Esegui un backup manuale del Database", self.execute_db_backup),
+                ("Esegui un backup manuale del DatabaseCreation", self.execute_db_backup),
                 ("Esegui un backup manuale dei libri contabili", self.execute_books_backup),
-                ("Carica un backup del Database", self.open_load_backup),
+                ("Carica un backup del DatabaseCreation", self.open_load_backup),
             ],
         )
         self.backup_menu.pack(side="left", padx=15, pady=15)
@@ -637,7 +637,7 @@ class MainWindow(ctk.CTk):
         backup_settings = current_config.get("backup_settings", {})
 
         # Titolo 1
-        title1 = ctk.CTkLabel(self.backup_database_frame, text="Impostazioni Database", font=("Arial", 14))
+        title1 = ctk.CTkLabel(self.backup_database_frame, text="Impostazioni DatabaseCreation", font=("Arial", 14))
         title1.pack(pady=20)
 
         # Titolo 2

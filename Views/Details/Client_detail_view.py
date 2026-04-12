@@ -4,7 +4,9 @@ from datetime import datetime
 
 from App_context import AppContext
 from Model import DatabaseModel
-from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from Controllers import Analyzer
 
 from Controllerss.Client_controller import ClientController

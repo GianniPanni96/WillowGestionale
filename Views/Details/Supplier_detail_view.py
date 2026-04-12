@@ -10,7 +10,9 @@ from QueryServices.Expenses_query_service import ExpenseQueryService
 from AnalyzerServices.Supplier_analyzer_service import SupplierAnalyzerService
 
 from Controllerss.Supplier_controller import SupplierController
-from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
 
 

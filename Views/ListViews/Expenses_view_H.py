@@ -3,11 +3,10 @@ from datetime import datetime, timedelta
 import customtkinter as ctk
 
 from App_context import AppContext
-from Controllerss.Expense_controller import ExpenseController
 from Gestionale_Enums import*
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Users_query_service import UserQueryService
-from Views.BaseList_view import BaseListView
+from Views.ListViews.BaseList_view import BaseListView
 from Views.Creators.Expense_create_view import ExpenseCreateView
 from Views.Details.Expense_detail_view import ExpenseDetailView
 from Views.View_utils import ViewUtils

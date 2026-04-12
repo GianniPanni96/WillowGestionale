@@ -9,7 +9,7 @@ from Gestionale_Enums import DBSalariesColumns
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Salaries_query_service import SalaryQueryService
 from QueryServices.Users_query_service import UserQueryService
-from Views.BaseList_view import BaseListView
+from Views.ListViews.BaseList_view import BaseListView
 from Views.Creators.Salary_create_view import SalaryCreateView
 from Views.Details.Salary_detail_view import SalaryDetailView
 from Views.View_utils import ViewUtils

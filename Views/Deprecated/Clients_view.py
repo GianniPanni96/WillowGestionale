@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import re
-from Views.View_utils import ViewUtils, FilterableComboBox
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from Controllers import ControllerUtils, ClientController, ProductionController, InvoiceController, RefundController, DatabaseModel, Analyzer
 from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
 from datetime import datetime, timedelta

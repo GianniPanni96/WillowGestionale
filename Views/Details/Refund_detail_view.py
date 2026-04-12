@@ -7,7 +7,8 @@ from tkcalendar import Calendar
 from App_context import AppContext
 from Gestionale_Enums import*
 from QueryServices.Account_query_service import AccountQueryService
-from Views.View_utils import ViewUtils, FilterableComboBox
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 
 from Controllerss.Refund_controller import RefundController
 

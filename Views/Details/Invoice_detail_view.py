@@ -10,7 +10,8 @@ from Controllerss.Invoice_controller import InvoiceController
 from Event_bus import EventBus
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Users_query_service import UserQueryService
-from Views .View_utils import ViewUtils, FilterableComboBox
+from Views .View_utils import ViewUtils
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService

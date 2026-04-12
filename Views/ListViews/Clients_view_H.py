@@ -2,7 +2,7 @@ import customtkinter as ctk
 from Views.Details.Client_detail_view import ClientDetailView
 from Views.Creators.Client_create_view import ClientCreateView
 
-from Views.BaseList_view import BaseListView
+from Views.ListViews.BaseList_view import BaseListView
 from Views.View_utils import ViewUtils
 
 from Controllerss.Client_controller import ClientController

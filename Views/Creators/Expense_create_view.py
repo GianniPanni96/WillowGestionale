@@ -14,7 +14,9 @@ from QueryServices.Suppliers_query_service import SupplierQueryService
 from QueryServices.Users_query_service import UserQueryService
 from Utils.Controller_utils import ControllerUtils
 from Gestionale_Enums import*
-from Views.View_utils import CatalogFilterableComboBox, FilterableComboBox, ViewUtils
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 
 
 class ExpenseCreateView(ctk.CTkToplevel):

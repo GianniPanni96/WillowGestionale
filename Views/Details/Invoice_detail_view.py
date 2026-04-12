@@ -15,8 +15,7 @@ from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 
-from Controllers import UpdatesController, AccountController
-from Controllerss.User_controller import UserController
+from Controllers import UpdatesController
 
 
 class InvoiceDetailView(ctk.CTkFrame):
@@ -26,7 +25,6 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.invoice_controller:InvoiceController = app_context.invoice_controller
         self.invoices_query_service: InvoiceQueryService = app_context.invoices_query_service
         self.invoices_analyzer_service: InvoiceAnalyzerService = app_context.invoices_analyzer_service
-        self.user_controller:UserController = app_context.user_controller
         self.user_query_service:UserQueryService = app_context.user_query_service
         self.clients_query_service:ClientQueryService = app_context.clients_query_service
         self.productions_query_service:ProductionQueryService = app_context.productions_query_service
@@ -434,7 +432,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         invoice = self.invoices_query_service.retrieve_invoice_map_by_id(self.current_invoice_id)
         user_map = self.user_query_service.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
         is_ordinario = user_map[
-                           DBUsersColumns.REGIME_FISCALE.value] == self.user_controller.RegimeFiscale.ORDINARIO.value
+                           DBUsersColumns.REGIME_FISCALE.value] == RegimeFiscale.ORDINARIO.value
 
         for w in parent.winfo_children():
             # Ottieni il campo associato a questo widget, se esiste

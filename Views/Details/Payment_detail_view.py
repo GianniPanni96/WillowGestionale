@@ -5,7 +5,13 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 
 from App_context import AppContext
+from Controllerss.Payment_controller import PaymentsController
 from Gestionale_Enums import DBAccountsColumns, DBClientsColumns, DBInvoicesColumns, DBPaymentsColumns, DBProductionsColumns
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Clients_query_service import ClientQueryService
+from QueryServices.Invoices_query_service import InvoiceQueryService
+from QueryServices.Payments_query_service import PaymentQueryService
+from QueryServices.Productions_query_service import ProductionQueryService
 from Views.View_utils import ViewUtils, FilterableComboBox
 
 
@@ -29,12 +35,12 @@ class PaymentDetailView(ctk.CTkFrame):
         self.back_callback = back_callback
         self.on_payment_changed = on_payment_changed
 
-        self.payment_controller = app_context.payment_controller
-        self.payment_query_service = app_context.payments_query_service
-        self.account_controller = app_context.account_controller
-        self.clients_query_service = app_context.clients_query_service
-        self.invoices_query_service = app_context.invoices_query_service
-        self.productions_query_service = app_context.productions_query_service
+        self.payment_controller:PaymentsController = app_context.payment_controller
+        self.payment_query_service:PaymentQueryService = app_context.payments_query_service
+        self.account_query_service:AccountQueryService = app_context.account_query_service
+        self.clients_query_service:ClientQueryService = app_context.clients_query_service
+        self.invoices_query_service:InvoiceQueryService = app_context.invoices_query_service
+        self.productions_query_service:ProductionQueryService = app_context.productions_query_service
         self.update_controller = app_context.update_controller
         self.event_bus = app_context.event_bus
 
@@ -79,7 +85,7 @@ class PaymentDetailView(ctk.CTkFrame):
 
         invoice = self.invoices_query_service.retrieve_invoice_map_by_id(payment[DBPaymentsColumns.INVOICE_ID.value])
         if invoice:
-            account = self.account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
+            account = self.account_query_service.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
             client = self.clients_query_service.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])
             production = self.productions_query_service.retrieve_production_map_by_id(invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value])
 
@@ -130,7 +136,7 @@ class PaymentDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Conto",
                 "section": "Collegamenti",
-                "values": [account[DBAccountsColumns.NAME.value] for account in self.account_controller.retrieve_accounts_map_list()]
+                "values": [account[DBAccountsColumns.NAME.value] for account in self.account_query_service.retrieve_accounts_map_list()]
             },
             DBPaymentsColumns.CREATED_AT.value: {
                 "type": ctk.CTkLabel,
@@ -307,7 +313,7 @@ class PaymentDetailView(ctk.CTkFrame):
 
     def save_payment_mod(self):
         account_name = self.payment_info_widgets[self.ACCOUNT_FIELD].get()
-        account = self.account_controller.retrieve_account_map_by_name(account_name)
+        account = self.account_query_service.retrieve_account_map_by_name(account_name)
         invoice_name = self.payment_info_widgets[self.INVOICE_FIELD].get_value()
         invoice = self.invoices_query_service.retrieve_invoice_map_by_name(invoice_name)
 
@@ -329,7 +335,6 @@ class PaymentDetailView(ctk.CTkFrame):
             ViewUtils.show_error_popup(self.content_frame, "ERRORE", message)
             return
 
-        #self.update_controller.update_invoices(invoice[DBInvoicesColumns.ID.value])
         self.update_controller.on_adding_payment()
 
         ViewUtils.show_confirm_popup_2(self.content_frame, "SALVATAGGIO COMPLETATO", message)

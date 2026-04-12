@@ -147,11 +147,12 @@ class AppContext:
         self.production_controller:ProductionController = ProductionController(self.db_model, self.clients_query_service)
         self.invoice_controller:InvoiceController = InvoiceController(self.db_model, self.invoices_analyzer_service, self.clients_query_service,
                                                     self.invoices_query_service, self.productions_query_service,
-                                                    self.user_controller, fiscal_settings, self.account_controller)
+                                                    self.user_query_service, fiscal_settings, self.account_query_service)
         self.expense_controller:ExpenseController = ExpenseController(
             self.db_model,
-            self.user_controller,
+            self.user_query_service,
             self.account_controller,
+            self.account_query_service,
             self.supplier_controller,
             self.suppliers_query_service,
             self.invoices_query_service,
@@ -200,6 +201,8 @@ class AppContext:
                                                  accounts_query_service=self.account_query_service,
                                                  analyzer=self.analyzer,
                                                  user_controller=self.user_controller,
+                                                 user_analyzer_service=self.user_analyzer_service,
+                                                 user_query_service=self.user_query_service,
                                                  config_manager=self.config_manager,
                                                  invoices_analyzer_service=self.invoices_analyzer_service,
                                                  expense_analyzer_service=self.expenses_analyzer_service,

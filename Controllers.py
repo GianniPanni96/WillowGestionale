@@ -467,9 +467,9 @@ class Analyzer:
         # Recupero dati utente
         reddito_esterno = float(user.get(DBUsersColumns.REDDITO_ESTERNO.value, 0.0))
         spese_esterne = float(user.get(DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value, 0.0))
-        fatturato_willow = self.user_controller.calcola_tot_fatturato_utente(user_id, year = year, include_unpaid_invoices = False)
-        spese_willow = self.user_controller.calcola_tot_spese_utente_dedotte(user_id, year = year)
-        tot_ritenuta = self.user_controller.calcola_tot_ritenuta_acconto_ordinaria(user_id, year = year)
+        fatturato_willow = self.user_analyzer_service.calcola_tot_fatturato_utente(user_id, year = year, include_unpaid_invoices = False)
+        spese_willow = self.user_analyzer_service.calcola_tot_spese_utente_dedotte(user_id, year = year)
+        tot_ritenuta = self.user_analyzer_service.calcola_tot_ritenuta_acconto_ordinaria(user_id, year = year)
         acconto_anno_precedente_IRPEF = float(user.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value, 0.0))
         acconto_anno_precedente_INPS = float(user.get(DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value, 0.0))
         acconto_anno_precedente = acconto_anno_precedente_IRPEF + acconto_anno_precedente_INPS

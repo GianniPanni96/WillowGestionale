@@ -10,9 +10,6 @@ from Utils.Validation_utils import ValidationUtils
 
 
 class UserController:
-    RegimeFiscale = RegimeFiscale
-    UserStatus = UserStatus
-
     def __init__(
         self,
         db_model: DatabaseModel,
@@ -63,10 +60,10 @@ class UserController:
                 username_provider = user_data.get(DBUsersColumns.USERNAME_PROVIDER.value)
                 password_provider = user_data.get(DBUsersColumns.PASSWORD_PROVIDER.value)
                 user_data[DBUsersColumns.USERNAME_PROVIDER.value] = (
-                    self.encrypt_string(username_provider) if username_provider else None
+                    self.user_crypto_service.encrypt_string(username_provider) if username_provider else None
                 )
                 user_data[DBUsersColumns.PASSWORD_PROVIDER.value] = (
-                    self.encrypt_string(password_provider) if password_provider else None
+                    self.user_crypto_service.encrypt_string(password_provider) if password_provider else None
                 )
             except Exception as exc:
                 print(f'Errore durante la cifratura dei dati di accesso: {exc}')
@@ -140,11 +137,11 @@ class UserController:
         if update_fields.get(DBUsersColumns.PROVIDER_FATTURE.value) != FatturazioneElettronicaProvider.NESSUNO.value:
             try:
                 if DBUsersColumns.USERNAME_PROVIDER.value in update_fields:
-                    update_fields[DBUsersColumns.USERNAME_PROVIDER.value] = self.encrypt_string(
+                    update_fields[DBUsersColumns.USERNAME_PROVIDER.value] = self.user_crypto_service.encrypt_string(
                         update_fields[DBUsersColumns.USERNAME_PROVIDER.value]
                     )
                 if DBUsersColumns.PASSWORD_PROVIDER.value in update_fields:
-                    update_fields[DBUsersColumns.PASSWORD_PROVIDER.value] = self.encrypt_string(
+                    update_fields[DBUsersColumns.PASSWORD_PROVIDER.value] = self.user_crypto_service.encrypt_string(
                         update_fields[DBUsersColumns.PASSWORD_PROVIDER.value]
                     )
             except Exception as exc:

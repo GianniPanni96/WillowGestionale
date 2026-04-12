@@ -69,7 +69,3 @@ class AccountController:
         except Exception as e:
             return False, f"Errore durante l'eliminazione del conto: {str(e)}"
 
-
-    @staticmethod
-    def get_accounts_mapping(db_model):
-        return AccountQueryService.get_accounts_mapping(db_model)

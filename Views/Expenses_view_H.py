@@ -4,7 +4,7 @@ import customtkinter as ctk
 
 from App_context import AppContext
 from Controllerss.Expense_controller import ExpenseController
-from Gestionale_Enums import DBExpensesColumns
+from Gestionale_Enums import*
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Users_query_service import UserQueryService
 from Views.BaseList_view import BaseListView
@@ -19,8 +19,8 @@ class ExpensesViewH(BaseListView):
     ADD_BUTTON_TEXT = "Aggiungi una spesa"
 
     aggregate_UOM = {
-        ExpenseController.ExpensesAggregateData.NUMERO_SPESE.value: "",
-        ExpenseController.ExpensesAggregateData.TOT_SPESE.value: "EUR",
+        ExpensesAggregateData.NUMERO_SPESE.value: "",
+        ExpensesAggregateData.TOT_SPESE.value: "EUR",
     }
 
     HEADERS = [
@@ -109,8 +109,8 @@ class ExpensesViewH(BaseListView):
             self.show_main_view()
 
     def populate_global_infos(self):
-        self.global_infos[ExpenseController.ExpensesAggregateData.NUMERO_SPESE.value] = self.expenses_analyzer_service.count_expenses()
-        self.global_infos[ExpenseController.ExpensesAggregateData.TOT_SPESE.value] = f"{self.expenses_analyzer_service.calculate_tot_expenses():.2f}"
+        self.global_infos[ExpensesAggregateData.NUMERO_SPESE.value] = self.expenses_analyzer_service.count_expenses()
+        self.global_infos[ExpensesAggregateData.TOT_SPESE.value] = f"{self.expenses_analyzer_service.calculate_tot_expenses():.2f}"
 
     def open_add_window(self):
         if self.expense_create_view is not None and self.expense_create_view.winfo_exists():

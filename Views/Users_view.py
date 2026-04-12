@@ -5,7 +5,6 @@ from PIL import Image, ImageTk
 from datetime import datetime
 import os, re
 
-from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from App_context import AppContext
 from Event_bus import EventBus
 from QueryServices.Account_query_service import AccountQueryService
@@ -15,16 +14,13 @@ from Views.Details.User_detail_view import UserDetailView
 
 from Views.View_utils import ViewUtils
 
-from Controllers import AccountController, Analyzer
+from Controllers import Analyzer
 from Controllerss.User_controller import UserController
 from Utils.Validation_utils import ValidationUtils
-from Model import DatabaseModel, DBUsersColumns, DBAccountsColumns, DBInvoicesColumns, DBExpensesColumns, DBProductionsColumns, \
-    DBSalariesColumns
+from Model import DatabaseModel
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
-
+from Gestionale_Enums import*
 from Controllerss.Production_controller import ProductionController
-
-from QueryServices.Productions_query_service import ProductionQueryService
 
 class UsersView(ctk.CTkFrame):
     def __init__(self, app_context:AppContext, tab, logged_user_id, login_status):
@@ -33,7 +29,6 @@ class UsersView(ctk.CTkFrame):
         self.app_context:AppContext = app_context
         self.db_model:DatabaseModel = app_context.db_model
         self.user_controller:UserController = app_context.user_controller
-        self.account_controller:AccountController = app_context.account_controller
         self.user_query_service: UserQueryService = app_context.user_query_service
         self.user_crypto_service:UserCryptoService = app_context.user_crypto_service
         self.accounts_query_service: AccountQueryService = app_context.account_query_service
@@ -58,7 +53,7 @@ class UsersView(ctk.CTkFrame):
         self.event_bus.subscribe(ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value, self._on_login_changed)
 
         #construct accounts_names list
-        self.accounts_mapping = AccountController.get_accounts_mapping(self.db_model)
+        self.accounts_mapping = self.accounts_query_service.get_accounts_mapping(self.db_model)
         if self.accounts_mapping == {}:
             self.accounts_list = [self.no_data_string]
         else:

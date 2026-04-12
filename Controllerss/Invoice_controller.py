@@ -2,13 +2,13 @@ from datetime import datetime
 
 from Model import DatabaseModel
 from Gestionale_Enums import*
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Utils.Validation_utils import ValidationUtils
 from Utils.Controller_utils import ControllerUtils
 
 from Config import FiscalSettings
 
-from Controllers import AccountController
-from Controllerss.User_controller import UserController
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
@@ -22,17 +22,17 @@ class InvoiceController:
                  clients_query_service:ClientQueryService,
                  invoices_query_service:InvoiceQueryService,
                  productions_query_service:ProductionQueryService,
-                 user_controller:UserController,
+                 user_query_service:UserQueryService,
                  fiscal_settings:FiscalSettings,
-                 account_controller:AccountController):
+                 account_query_service:AccountQueryService):
 
         """Inizializza il controller con il modello del database"""
         self.clients_query_service:ClientQueryService = clients_query_service
         self.productions_query_service:ProductionQueryService = productions_query_service
         self.invoices_query_service:InvoiceQueryService = invoices_query_service
         self.fiscal_settings:FiscalSettings = fiscal_settings
-        self.user_controller:UserController = user_controller
-        self.account_controller:AccountController = account_controller
+        self.user_query_service:UserQueryService = user_query_service
+        self.account_query_service:AccountQueryService = account_query_service
         self.invoice_analyzer_service: InvoiceAnalyzerService = invoice_analyzer_service
         self.db_model = db_model
 
@@ -71,7 +71,7 @@ class InvoiceController:
 
         #prendo i dati necessari dell'utente
         nome_utente = invoice_data.get("NOME UTENTE").split(" ")
-        utente = self.user_controller.retrieve_user_map_by_fullname(nome_utente[0], nome_utente[1])
+        utente = self.user_query_service.retrieve_user_map_by_fullname(nome_utente[0], nome_utente[1])
         id_utente = utente[DBUsersColumns.ID.value]
         regime_fiscale = utente[DBUsersColumns.REGIME_FISCALE.value]
 
@@ -85,7 +85,7 @@ class InvoiceController:
 
         #prendo i dati necessari al conto
         nome_conto = invoice_data.get("CONTO")
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        conto = self.account_query_service.retrieve_account_map_by_name(nome_conto)
         if conto:
             conto_id = conto[DBAccountsColumns.ID.value]
 

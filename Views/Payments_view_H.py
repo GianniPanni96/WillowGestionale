@@ -4,7 +4,7 @@ import customtkinter as ctk
 
 from AnalyzerServices.Payment_analyzer_service import PaymentAnalyzerService
 from App_context import AppContext
-from Controllers import AccountController, UpdatesController
+from Controllers import UpdatesController
 from Gestionale_Enums import DBPaymentsColumns
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
@@ -105,7 +105,6 @@ class PaymentsViewH(BaseListView):
 
         self.clients_query_service: ClientQueryService = app_context.clients_query_service
         self.productions_query_service:ProductionQueryService = app_context.productions_query_service
-        self.account_controller: AccountController = app_context.account_controller
         self.accounts_query_service:AccountQueryService = app_context.account_query_service
         self.invoices_query_service: InvoiceQueryService = app_context.invoices_query_service
         self.update_controller: UpdatesController = app_context.update_controller

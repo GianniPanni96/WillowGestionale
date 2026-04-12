@@ -2,11 +2,11 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 from Views.View_utils import ViewUtils
 from Views.Creators.Transfer_create_view import TransferCreateView
-from Controllers import AccountController, Analyzer, UpdatesController
+from Controllers import Analyzer, UpdatesController
 from Model import DatabaseModel
 
 from Views.Details.Account_detail_view import AccountDetailView
-
+from Controllerss.Account_controller import AccountController
 from Gestionale_Enums import*
 
 from QueryServices.Account_query_service import AccountQueryService

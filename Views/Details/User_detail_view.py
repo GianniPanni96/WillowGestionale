@@ -20,13 +20,11 @@ class UserDetailView(ctk.CTkFrame):
         self.app_context:AppContext = app_context
         self.parent = parent
         self.user_controller = app_context.user_controller
-        self.account_controller = app_context.account_controller
         self.user_query_service: UserQueryService = app_context.user_query_service
         self.user_analyzer_service: UserAnalyzerService = app_context.user_analyzer_service
         self.accounts_query_service: AccountQueryService = app_context.account_query_service
         self.db_model = app_context.db_model
         self.back_callback = back_callback
-        self.production_controller = app_context.production_controller
         self.productions_query_service: ProductionQueryService = app_context.productions_query_service
         self.fiscal_settings = app_context.fiscal_settings
         self.event_bus = app_context.event_bus
@@ -161,7 +159,7 @@ class UserDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Regime Fiscale",
                 "section": "Dati Fiscali",
-                "values": [item.value for item in self.user_controller.RegimeFiscale]
+                "values": [item.value for item in RegimeFiscale]
             },
             DBUsersColumns.ANNO_APERTURA_PIVA.value: {
                 "type": ctk.CTkOptionMenu,
@@ -235,7 +233,7 @@ class UserDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Status",
                 "section": "Status",
-                "values": [item.value for item in self.user_controller.UserStatus]
+                "values": [item.value for item in UserStatus]
             }
         }
 
@@ -333,7 +331,7 @@ class UserDetailView(ctk.CTkFrame):
         # Popolamento delle sezioni
         for field, config in self.entry_fields.items():
             if (str(user_data[DBUsersColumns.REGIME_FISCALE.value]) == str(
-                    self.user_controller.RegimeFiscale.FORFETTARIO.value) and field == DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value):
+                    RegimeFiscale.FORFETTARIO.value) and field == DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value):
                 continue
 
             section = sections[config["section"]]
@@ -720,7 +718,7 @@ class UserDetailView(ctk.CTkFrame):
                                                                                                padx=15)
 
         regime_fiscale = self.user_query_service.get_regime_fiscale_by_id(self.current_user_id)
-        if str(regime_fiscale) == str(self.user_controller.RegimeFiscale.FORFETTARIO.value):
+        if str(regime_fiscale) == str(RegimeFiscale.FORFETTARIO.value):
             tasse, versamenti, total = self.analyzer.calculate_previsione_tasse_forfettaria(self.current_user_id)
             global_infos = {}
             versamenti_infos = {}
@@ -865,7 +863,7 @@ class UserDetailView(ctk.CTkFrame):
 
                 ViewUtils.add_tooltip(title_label, tooltip_text)
 
-        elif str(regime_fiscale) == str(self.user_controller.RegimeFiscale.ORDINARIO.value):
+        elif str(regime_fiscale) == str(RegimeFiscale.ORDINARIO.value):
             tasse_view, versamenti, tasse_total = self.analyzer.calculate_previsione_tasse_ordinaria(self.current_user_id)
             global_infos = {}
             versamenti_infos = {}

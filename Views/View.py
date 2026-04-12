@@ -1,17 +1,17 @@
 import customtkinter as ctk
 import re, os
+
+from OtherServices.User_auth_service import UserAuthService
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Views.View_utils import ViewUtils, CustomTkMenuButton
 from datetime import datetime
 
 
-from Controllers import ControllerUtils, AccountController, Analyzer
-from Controllerss.User_controller import UserController
-from Controllerss.Expense_controller import ExpenseController
-
-from Controllerss.Client_controller import ClientController
+from Controllers import ControllerUtils, Analyzer
 
 from QueryServices.Suppliers_query_service import SupplierQueryService
-
+from Gestionale_Enums import*
 from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
 
 from Views.Users_view import UsersView
@@ -76,11 +76,11 @@ class MainWindow(ctk.CTk):
 
 
         self.db_model:DatabaseModel = app_context.db_model  # Istanzia il modello
-        self.user_controller:UserController = app_context.user_controller  # Crea il controller per gli utenti
-        self.account_controller:AccountController = app_context.account_controller
-        self.client_controller:ClientController = app_context.client_controller
+        self.user_query_service:UserQueryService = app_context.user_query_service  # Crea il controller per gli utenti
+        self.account_query_service:AccountQueryService = app_context.account_query_service
         self.suppliers_query_service:SupplierQueryService = app_context.suppliers_query_service
         self.analyzer:Analyzer = app_context.analyzer
+        self.user_auth_service:UserAuthService = app_context.user_auth_service
 
         self.title("Gestionale Willow")
 
@@ -540,7 +540,7 @@ class MainWindow(ctk.CTk):
         ctk.CTkLabel(self.login_window, text="SCEGLI L'UTENTE E INSERISCI LA PASSWORD").pack(pady=60, padx=20, fill="x", expand=True)
 
         #retrieve users
-        users = self.user_controller.retrieve_users_map_list()
+        users = self.user_query_service.retrieve_users_map_list()
 
         self.login_username = ctk.CTkOptionMenu(self.login_window, values = [user[DBUsersColumns.FIRST_NAME.value] +
                                                        " " + user[DBUsersColumns.LAST_NAME.value] for user in users])
@@ -556,7 +556,7 @@ class MainWindow(ctk.CTk):
                       ).pack(pady=(40, 20), padx=20)
 
     def try_to_login(self, username, password):
-        success, message, user_id = self.user_controller.check_password_for_login(username, password)
+        success, message, user_id = self.user_auth_service.check_password_for_login(username, password)
         if success:
             ViewUtils.show_confirm_popup(self.login_window, message=message)
             self.login_status = True
@@ -576,7 +576,7 @@ class MainWindow(ctk.CTk):
 
             #creo un'immagine PIL da inserire nell'icona a partire dall'immagine dell'utente
             #prendo il path dell'immagine dell'utente loggato
-            logged_user_image_path = self.user_controller.retrieve_user_map_by_id(self.logged_user_id
+            logged_user_image_path = self.user_query_service.retrieve_user_map_by_id(self.logged_user_id
                                                                                   ).get(DBUsersColumns.PHOTO_PATH.value)
 
             if logged_user_image_path is not None and logged_user_image_path != "":
@@ -1116,10 +1116,18 @@ class MainWindow(ctk.CTk):
         self.forfettaria_labels["rateizzazione_title"] = ctk.CTkLabel(frame_forf_rateizzazione, text="Rateizzazione Tasse",
                                                                  font=("Arial", 16, "bold"))
         self.forfettaria_labels["rateizzazione_title"].pack(anchor="w", pady=(5, 15), padx=10)
+        forf_rateizzazione_defaults = {
+            "percentuale_acconto_imposta_primo": "0.40",
+            "percentuale_acconto_imposta_secondo": "0.60",
+            "percentuale_acconto_inps_forfettario": "1.00",
+            "percentuale_rata_acconto_inps_forfettario": "0.50",
+        }
         for key in ["percentuale_acconto_imposta_primo", "percentuale_acconto_imposta_secondo", "percentuale_acconto_inps_forfettario", "percentuale_rata_acconto_inps_forfettario"]:
             if key in piva_forf_data:
                 data = piva_forf_data.get(key, {})
                 value = data.get("value", "")
+                if value in ("", None):
+                    value = forf_rateizzazione_defaults.get(key, "")
                 description = data.get("description", key)
                 lbl = ctk.CTkLabel(frame_forf_rateizzazione, text=description, font=("Arial", 14))
                 lbl.pack(anchor="w", padx=10, pady=5)
@@ -1433,6 +1441,8 @@ class MainWindow(ctk.CTk):
                     "percentuale_rata_acconto_inps_forfettario"]:
             if key in self.forfettaria_entries:
                 forf_data[key] = {"value": self.forfettaria_entries[key].get()}
+            elif key in self.forfettaria_rateizzazione_entries:
+                forf_data[key] = {"value": self.forfettaria_rateizzazione_entries[key].get()}
             else:
                 forf_data[key] = {"value": ""}
         fiscal_data["partita_iva_forfettaria"] = forf_data
@@ -1524,9 +1534,9 @@ class MainWindow(ctk.CTk):
                 self.fiscal_settings.aliquota_iva.aliquota_iva_minima
             ]
 
-            accounts = self.account_controller.retrieve_accounts_map_list()
+            accounts = self.account_query_service.retrieve_accounts_map_list()
 
-            users = self.user_controller.retrieve_users_map_list()
+            users = self.user_query_service.retrieve_users_map_list()
 
             # Campi modificabili
             fields = [
@@ -1536,7 +1546,7 @@ class MainWindow(ctk.CTk):
                 ('iva', 'IVA:', 'dropdown', [str(aliquota) for aliquota in aliquote_list]),
                 ('deductor', 'Deduzione a\ncarico di:', 'dropdown', [user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users]),
                 ('account', 'Conto:', 'dropdown', [account[DBAccountsColumns.NAME.value] for account in accounts]),
-                ('frequency', 'Frequenza:', 'dropdown', [freq.value for freq in ExpenseController.RecurringExpensesFrequencies])
+                ('frequency', 'Frequenza:', 'dropdown', [freq.value for freq in RecurringExpensesFrequencies])
             ]
 
             for field, label_text, field_type, options in fields:
@@ -1564,7 +1574,7 @@ class MainWindow(ctk.CTk):
                         widget.set(current if current in options else options[0])
                     elif field == "deductor":
                         current_id = getattr(expense, field)
-                        current_deductor = self.user_controller.retrieve_user_map_by_id(current_id)
+                        current_deductor = self.user_query_service.retrieve_user_map_by_id(current_id)
                         widget = ctk.CTkOptionMenu(
                             master=frame,
                             values=options,
@@ -1625,9 +1635,9 @@ class MainWindow(ctk.CTk):
                 radio_frame = ctk.CTkFrame(frame)
                 radio_frame.pack(side="left", fill="x", expand=True)
 
-                var = ctk.StringVar(value=ExpenseController.RecurringExpensesStatus.ATTIVA.value if getattr(expense, field) else ExpenseController.RecurringExpensesStatus.SOSPESA.value)
+                var = ctk.StringVar(value=RecurringExpensesStatus.ATTIVA.value if getattr(expense, field) else RecurringExpensesStatus.SOSPESA.value)
 
-                for option in [stati.value for stati in ExpenseController.RecurringExpensesStatus]:
+                for option in [stati.value for stati in RecurringExpensesStatus]:
                     rb = ctk.CTkRadioButton(
                         radio_frame,
                         text=option,
@@ -1657,7 +1667,7 @@ class MainWindow(ctk.CTk):
             deductible = widgets["deductible"].get()
 
             deductor_name = widgets["deductor"].get()
-            deductor = self.user_controller.retrieve_user_map_by_extended_name(deductor_name) if deductible == "Sì" else None
+            deductor = self.user_query_service.retrieve_user_map_by_extended_name(deductor_name) if deductible == "Sì" else None
             deductor_id = deductor[DBUsersColumns.ID.value] if deductor is not None else None
 
             # Se è la tab “Nuova Spesa”, creo un nuovo key
@@ -1783,13 +1793,13 @@ class MainWindow(ctk.CTk):
         ]
         iva_opts = [str(a) for a in aliquote_list]
 
-        accounts = self.account_controller.retrieve_accounts_map_list()
+        accounts = self.account_query_service.retrieve_accounts_map_list()
         account_opts = [a[DBAccountsColumns.NAME.value] for a in accounts]
 
         category_opts = [v for _, v in self.catalogo_elenchi["expenses_category"]]
-        freq_opts = [f.value for f in ExpenseController.RecurringExpensesFrequencies]
+        freq_opts = [f.value for f in RecurringExpensesFrequencies]
 
-        users = self.user_controller.retrieve_users_map_list()
+        users = self.user_query_service.retrieve_users_map_list()
 
         # Definizione dei campi, con type e options
         fields = [
@@ -1803,7 +1813,7 @@ class MainWindow(ctk.CTk):
             ('account', 'Conto:', 'dropdown', account_opts),
             ('frequency', 'Frequenza:', 'dropdown', freq_opts),
             ('deductible', 'Deducibile:', 'radio', ["Sì", "No"]),
-            ('status', 'Stato:', 'radio', [st.value for st in ExpenseController.RecurringExpensesStatus]),
+            ('status', 'Stato:', 'radio', [st.value for st in RecurringExpensesStatus]),
         ]
 
         for field, label_text, field_type, options in fields:

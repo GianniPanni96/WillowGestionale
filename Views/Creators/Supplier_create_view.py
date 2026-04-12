@@ -1,6 +1,8 @@
 import customtkinter as ctk
 
+from Controllerss.Supplier_controller import SupplierController
 from Model import DBSuppliersColumns
+from QueryServices.Suppliers_query_service import SupplierQueryService
 from Views.View_utils import CatalogFilterableComboBox, FilterableComboBox, ViewUtils
 from Views.Adders.Business_sector_adder_view import BusinessSectorAdderView
 
@@ -32,7 +34,8 @@ class SupplierCreateView(ctk.CTkToplevel):
         super().__init__(parent)
 
         self.app_context = app_context
-        self.supplier_controller = app_context.supplier_controller
+        self.supplier_query_service:SupplierQueryService = app_context.suppliers_query_service
+        self.supplier_controller:SupplierController = app_context.supplier_controller
         self.catalogo_elenchi = app_context.catalogo_elenchi
 
         self.on_supplier_created = on_supplier_created
@@ -148,7 +151,7 @@ class SupplierCreateView(ctk.CTkToplevel):
             ViewUtils.show_error_popup(self, "ERRORE", message)
             return
 
-        supplier_row = self.supplier_controller.retrieve_last_supplier_insert_map()
+        supplier_row = self.supplier_query_service.retrieve_last_supplier_insert_map()
         supplier_id = supplier_row[DBSuppliersColumns.ID.value] if supplier_row else None
 
         if self.on_supplier_created:

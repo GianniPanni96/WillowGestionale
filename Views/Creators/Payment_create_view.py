@@ -5,7 +5,12 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 
 from App_context import AppContext
+from Controllerss.Payment_controller import PaymentsController
 from Gestionale_Enums import DBAccountsColumns, DBClientsColumns, DBInvoicesColumns, DBPaymentsColumns, DBProductionsColumns, Rateizzazione
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Clients_query_service import ClientQueryService
+from QueryServices.Invoices_query_service import InvoiceQueryService
+from QueryServices.Payments_query_service import PaymentQueryService
 from Views.View_utils import FilterableComboBox, ViewUtils
 
 
@@ -23,15 +28,13 @@ class PaymentCreateView(ctk.CTkToplevel):
     def __init__(self, parent, app_context: AppContext, on_payment_created=None, on_close=None):
         super().__init__(parent)
 
-        self.app_context = app_context
-        self.payment_controller = app_context.payment_controller
+        self.app_context:AppContext = app_context
+        self.payment_controller:PaymentsController = app_context.payment_controller
         self.update_controller = app_context.update_controller
-        self.user_controller = app_context.user_controller
-        self.account_controller = app_context.account_controller
-        self.clients_query_service = app_context.clients_query_service
-        self.invoices_query_service = app_context.invoices_query_service
-        self.production_controller = app_context.production_controller
-        self.payment_query_service = app_context.payments_query_service
+        self.account_query_service:AccountQueryService = app_context.account_query_service
+        self.clients_query_service:ClientQueryService = app_context.clients_query_service
+        self.invoices_query_service:InvoiceQueryService = app_context.invoices_query_service
+        self.payment_query_service:PaymentQueryService = app_context.payments_query_service
 
         self.on_payment_created = on_payment_created
         self.on_close = on_close
@@ -103,7 +106,7 @@ class PaymentCreateView(ctk.CTkToplevel):
         if label_text == self.ACCOUNT_FIELD:
             return widget_class(
                 self.scrollable_frame,
-                values=[item[DBAccountsColumns.NAME.value] for item in self.account_controller.retrieve_accounts_map_list()]
+                values=[item[DBAccountsColumns.NAME.value] for item in self.account_query_service.retrieve_accounts_map_list()]
             )
 
         if label_text == DBPaymentsColumns.LINKED_RATA.value:
@@ -145,7 +148,7 @@ class PaymentCreateView(ctk.CTkToplevel):
             self.payment_widgets[self.INVOICE_FIELD].set_value(invoice_values[0], safe_mode=False)
             self._on_invoice_selected(invoice_values[0])
 
-        accounts = self.account_controller.retrieve_accounts_map_list()
+        accounts = self.account_query_service.retrieve_accounts_map_list()
         if accounts:
             self.payment_widgets[self.ACCOUNT_FIELD].set(accounts[0][DBAccountsColumns.NAME.value])
 

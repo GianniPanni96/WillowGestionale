@@ -9,6 +9,7 @@ from Controllerss.Invoice_controller import InvoiceController
 from Controllerss.Client_controller import ClientController
 from Controllerss.Production_controller import ProductionController
 from Gestionale_Enums import*
+from QueryServices.Invoices_query_service import InvoiceQueryService
 from Views.Adders.Production_output_type_adder_view import ProductionOutputTypeAdderView
 from Views.Adders.Production_type_adder_view import ProductionTypeAdderView
 from Views.View_utils import CatalogFilterableComboBox, ViewUtils, FilterableComboBox
@@ -26,8 +27,7 @@ class ProductionDetailView(ctk.CTkFrame):
         self.production_query_service = app_context.productions_query_service
         self.production_analyzer_service = app_context.productions_analyzer_service
         self.client_query_service = app_context.clients_query_service
-        self.client_controller:ClientController = app_context.client_controller
-        self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.invoice_query_service:InvoiceQueryService = app_context.invoices_query_service
         self.production_controller:ProductionController = app_context.production_controller
         self.db_model:DatabaseModel = app_context.db_model
         self.back_callback = back_callback
@@ -339,7 +339,7 @@ class ProductionDetailView(ctk.CTkFrame):
 
     def save_production_mod(self):
 
-        invoices_map_list = self.invoice_controller.retrieve_invoice_map_list_by_production(self.current_production_id)
+        invoices_map_list = self.invoice_query_service.retrieve_invoice_map_list_by_production(self.current_production_id)
         confirmation = True
         if len(invoices_map_list) > 0:
             confirmation = ViewUtils.ask_confirmation_popup(self.info_frame, "Questa produzione presenta una o più fatture associate.\n"
@@ -461,7 +461,7 @@ class ProductionDetailView(ctk.CTkFrame):
 
     def delete_production(self):
 
-        invoices_map_list = self.invoice_controller.retrieve_invoice_map_list_by_production(self.current_production_id)
+        invoices_map_list = self.invoice_query_service.retrieve_invoice_map_list_by_production(self.current_production_id)
         invoices_presence = False
         if len(invoices_map_list) > 0:
             invoices_presence = True

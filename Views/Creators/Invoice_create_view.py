@@ -7,6 +7,8 @@ from tkcalendar import Calendar
 
 from App_context import AppContext
 from Model import DBAccountsColumns, DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBUsersColumns
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Views.View_utils import FilterableComboBox, ViewUtils
 from Gestionale_Enums import*
 
@@ -18,21 +20,18 @@ from AnalyzerServices.Invoice_analyzer_service import InvoiceAnalyzerService
 
 from Controllerss.Invoice_controller import InvoiceController
 
-from Controllers import AccountController
-from Controllerss.User_controller import UserController
-
 
 class InvoiceCreateView(ctk.CTkToplevel):
     def __init__(self, parent, app_context: AppContext, on_invoice_created=None, on_close=None):
         super().__init__(parent)
         self.app_context = app_context
         self.invoice_controller: InvoiceController = app_context.invoice_controller
-        self.user_controller: UserController = app_context.user_controller
+        self.user_query_service:UserQueryService = app_context.user_query_service
         self.clients_query_service: ClientQueryService = app_context.clients_query_service
         self.productions_query_service: ProductionQueryService = app_context.productions_query_service
         self.invoices_query_service: InvoiceQueryService = app_context.invoices_query_service
         self.invoices_analyzer_service: InvoiceAnalyzerService = app_context.invoices_analyzer_service
-        self.account_controller: AccountController = app_context.account_controller
+        self.account_query_service: AccountQueryService = app_context.account_query_service
         self.fiscal_settings = app_context.fiscal_settings
         self.on_invoice_created = on_invoice_created
         self.on_close = on_close
@@ -127,7 +126,7 @@ class InvoiceCreateView(ctk.CTkToplevel):
 
         self.prod_already_invoiced_control(self.invoice_widgets[self.nome_produzione_string].get())
         self.selected_user = self.invoice_widgets[self.nome_utente_string].get()
-        if self.get_regime_fiscale_from_view(self.selected_user) == self.user_controller.RegimeFiscale.ORDINARIO.value:
+        if self.get_regime_fiscale_from_view(self.selected_user) == RegimeFiscale.ORDINARIO.value:
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].configure(
                 state=ctk.DISABLED,
                 border_color=ViewUtils.disabled_label_color,
@@ -148,7 +147,7 @@ class InvoiceCreateView(ctk.CTkToplevel):
         if label_text == self.nome_utente_string:
             return widget_class(
                 self.user_selection_frame,
-                values=[f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}" for u in self.user_controller.retrieve_users_map_list()],
+                values=[f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}" for u in self.user_query_service.retrieve_users_map_list()],
                 command=lambda selected_value: self.update_entries_on_regime_fiscale(selected_value),
             )
         if label_text == self.nome_cliente_string:
@@ -194,7 +193,7 @@ class InvoiceCreateView(ctk.CTkToplevel):
         if label_text == self.nome_conto_string:
             return widget_class(
                 self.invoice_window_scrollableFrame,
-                values=[a[DBAccountsColumns.NAME.value] for a in self.account_controller.retrieve_accounts_map_list()],
+                values=[a[DBAccountsColumns.NAME.value] for a in self.account_query_service.retrieve_accounts_map_list()],
             )
         return widget_class(self.invoice_window_scrollableFrame)
 
@@ -248,14 +247,14 @@ class InvoiceCreateView(ctk.CTkToplevel):
         self.populate_invoice_list_by_selected_user(selected_value)
         regime_fiscale = self.get_regime_fiscale_from_view(selected_value)
 
-        if regime_fiscale == self.user_controller.RegimeFiscale.ORDINARIO.value:
+        if regime_fiscale == RegimeFiscale.ORDINARIO.value:
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].insert(0, "0")
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].configure(
                 state=ctk.DISABLED, border_color=ViewUtils.disabled_label_color, text_color=ViewUtils.disabled_label_color
             )
             self.invoice_labels[DBInvoicesColumns.RIVALSA_INPS.value].configure(text_color=ViewUtils.disabled_label_color)
-        elif regime_fiscale == self.user_controller.RegimeFiscale.FORFETTARIO.value:
+        elif regime_fiscale == RegimeFiscale.FORFETTARIO.value:
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].delete(0, tk.END)
             self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].configure(state=ctk.NORMAL)
             self.invoice_labels[DBInvoicesColumns.RIVALSA_INPS.value].configure(text_color=ctk.ThemeManager.theme["CTkLabel"]["text_color"])
@@ -299,7 +298,7 @@ class InvoiceCreateView(ctk.CTkToplevel):
         user_name = user_full_name.split(" ")
         if len(user_name) < 2:
             return
-        user_id = self.user_controller.retrieve_user_by_fullname(user_name[0], user_name[1])[0]
+        user_id = self.user_query_service.retrieve_user_by_fullname(user_name[0], user_name[1])[0]
         self.invoices_list_of_user = self.invoices_query_service.retrieve_invoices_map_list_by_user(user_id, True)
 
     def populate_production_list_by_selected_client(self, client_name):
@@ -315,7 +314,7 @@ class InvoiceCreateView(ctk.CTkToplevel):
     def get_regime_fiscale_from_view(self, user_full_name):
         user_name = user_full_name.split(" ")
         if len(user_name) >= 2:
-            return self.user_controller.get_regime_fiscale_by_full_name(user_name[0], user_name[1])
+            return self.user_query_service.get_regime_fiscale_by_full_name(user_name[0], user_name[1])
         return None
 
     def populate_rivalsa_INPS(self):
@@ -387,7 +386,7 @@ class InvoiceCreateView(ctk.CTkToplevel):
 
     def auto_compile_invoice_name(self, user_name=None):
         user_full_name = user_name.split(" ") if user_name else self.invoice_widgets.get(self.nome_utente_string).get().split(" ")
-        user_id = self.user_controller.retrieve_user_map_by_fullname(user_full_name[0], user_full_name[1]).get(DBUsersColumns.ID.value)
+        user_id = self.user_query_service.retrieve_user_map_by_fullname(user_full_name[0], user_full_name[1]).get(DBUsersColumns.ID.value)
         user_invoices = self.invoices_query_service.retrieve_invoices_map_list_by_user(user_id, year=-1)
         selected_year = datetime.strptime(self.invoice_widgets.get(DBInvoicesColumns.DATA_CREAZIONE.value).get_date(), "%Y-%m-%d").year
         user_invoice_numbers = {"": []}

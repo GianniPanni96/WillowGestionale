@@ -1,47 +1,26 @@
 from datetime import date, datetime, timedelta
-from enum import Enum
 
-from Controllers import AccountController
-from Controllerss.User_controller import UserController
-from Gestionale_Enums import (
-    DBAccountsColumns,
-    DBExpensesColumns,
-    DBInvoicesColumns,
-    DBSuppliersColumns,
-    DBUsersColumns,
-)
+from Controllerss.Account_controller import AccountController
+from Controllerss.Supplier_controller import SupplierController
+from Gestionale_Enums import*
 from Model import DatabaseModel
+from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Expenses_query_service import ExpenseQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 from QueryServices.Suppliers_query_service import SupplierQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Utils.Controller_utils import ControllerUtils
 from Utils.Validation_utils import ValidationUtils
 
 
 class ExpenseController:
-    class ExpensesAggregateData(Enum):
-        NUMERO_SPESE = "#SPESE"
-        TOT_SPESE = "TOT. SPESE"
-
-    class RecurringExpensesFrequencies(Enum):
-        SETTIMANALE = "SETTIMANALE"
-        MENSILE = "MENSILE"
-        BIMESTRALE = "BIMESTRALE"
-        TRIMESTRALE = "TRIMESTRALE"
-        QUADRIMESTRALE = "QUADRIMESTRALE"
-        SEMESTRALE = "SEMESTRALE"
-        ANNUALE = "ANNUALE"
-
-    class RecurringExpensesStatus(Enum):
-        ATTIVA = "Attiva"
-        SOSPESA = "Sospesa"
-
     def __init__(
         self,
         db_model: DatabaseModel,
-        user_controller: UserController,
+        user_query_service: UserQueryService,
         account_controller: AccountController,
-        supplier_controller,
+        account_query_service: AccountQueryService,
+        supplier_controller:SupplierController,
         supplier_query_service: SupplierQueryService,
         invoices_query_service: InvoiceQueryService,
         expenses_query_service: ExpenseQueryService,
@@ -49,12 +28,13 @@ class ExpenseController:
         catalogo_elenchi,
     ):
         self.db_model = db_model
-        self.user_controller = user_controller
-        self.account_controller = account_controller
+        self.user_query_service:UserQueryService = user_query_service
+        self.account_controller: AccountController = account_controller
+        self.account_query_service:AccountQueryService = account_query_service
         self.supplier_controller = supplier_controller
-        self.supplier_query_service = supplier_query_service
-        self.invoices_query_service = invoices_query_service
-        self.expenses_query_service = expenses_query_service
+        self.supplier_query_service:SupplierQueryService = supplier_query_service
+        self.invoices_query_service:InvoiceQueryService = invoices_query_service
+        self.expenses_query_service:ExpenseQueryService = expenses_query_service
         self.recurring_expenses_settings = recurring_expenses_settings
         self.catalogo_elenchi = catalogo_elenchi
 
@@ -75,7 +55,7 @@ class ExpenseController:
         if user_name and len(user_name.split(" ")) >= 2:
             user_first = user_name.split(" ")[0]
             user_last = user_name.split(" ")[1]
-            user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
+            user = self.user_query_service.retrieve_user_map_by_fullname(user_first, user_last)
             user_id_anticipo = user[DBUsersColumns.ID.value]
 
         user_id_deduzione = None
@@ -83,7 +63,7 @@ class ExpenseController:
         if user_name is not None and len(user_name.split(" ")) >= 2:
             user_first = user_name.split(" ")[0]
             user_last = user_name.split(" ")[1]
-            user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
+            user = self.user_query_service.retrieve_user_map_by_fullname(user_first, user_last)
             user_id_deduzione = user[DBUsersColumns.ID.value]
 
         invoice_id = None
@@ -106,7 +86,7 @@ class ExpenseController:
         conto_id = None
         conto_name = expense_data.get("CONTO")
         if conto_name:
-            conto = self.account_controller.retrieve_account_map_by_name(conto_name)
+            conto = self.account_query_service.retrieve_account_map_by_name(conto_name)
             conto_id = conto[DBAccountsColumns.ID.value]
 
         nome_spesa = supplier_name + " - " + expense_data.get(DBExpensesColumns.NAME.value)
@@ -190,7 +170,7 @@ class ExpenseController:
         all_expenses = self.expenses_query_service.retrieve_expenses_map_list()
 
         def is_same_period(freq: str, ref: date, candidate: date) -> bool:
-            f = ExpenseController.RecurringExpensesFrequencies
+            f = RecurringExpensesFrequencies
 
             if freq == f.SETTIMANALE.value:
                 start = ref - timedelta(days=7)
@@ -257,7 +237,7 @@ class ExpenseController:
                 )
                 continue
 
-            acct = self.account_controller.retrieve_account_map_by_name(exp.account)
+            acct = self.account_query_service.retrieve_account_map_by_name(exp.account)
             acct_id = acct.get(DBAccountsColumns.ID.value) if acct else None
 
             gross = exp.amount
@@ -307,7 +287,7 @@ class ExpenseController:
             else:
                 print(f"Fornitore '{supplier_name}' gia presente. SKIPPING")
 
-            acc_map = self.account_controller.retrieve_account_map_by_name(account_name)
+            acc_map = self.account_query_service.retrieve_account_map_by_name(account_name)
             if acc_map is None:
                 esito, to_print = self.account_controller.save_account(
                     account_data={

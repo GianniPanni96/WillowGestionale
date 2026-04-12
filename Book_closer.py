@@ -1,9 +1,11 @@
+from AnalyzerServices.User_analyzer_service import UserAnalyzerService
+from Controllerss.Account_controller import AccountController
 from Model import DBAccountsColumns, DBUsersColumns
 import os
 import csv
 from datetime import datetime
 
-from Controllers import AccountController, Analyzer
+from Controllers import Analyzer
 from Controllerss.User_controller import UserController
 from AnalyzerServices.Expense_analyzer_service import ExpenseAnalyzerService
 from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
@@ -15,6 +17,8 @@ from AnalyzerServices.Production_analyzer_service import ProductionAnalyzerServi
 from QueryServices.Account_query_service import AccountQueryService
 
 from Config import ConfigManager
+from QueryServices.Users_query_service import UserQueryService
+
 
 class BookCloser:
     def __init__(self,
@@ -24,6 +28,8 @@ class BookCloser:
                  accounts_query_service: AccountQueryService,
                  analyzer:Analyzer,
                  user_controller:UserController,
+                 user_query_service:UserQueryService,
+                 user_analyzer_service:UserAnalyzerService,
                  config_manager:ConfigManager,
                  expense_analyzer_service:ExpenseAnalyzerService,
                  salary_analyzer_service:SalaryAnalyzerService,
@@ -34,6 +40,8 @@ class BookCloser:
         self.account_controller = account_controller
         self.accounts_query_service:AccountQueryService = accounts_query_service
         self.user_controller = user_controller
+        self.user_query_service = user_query_service
+        self.user_analyzer_service = user_analyzer_service
         self.expense_analyzer_service = expense_analyzer_service
         self.salary_analyzer_service = salary_analyzer_service
         self.invoices_analyzer_service:InvoiceAnalyzerService = invoices_analyzer_service
@@ -142,8 +150,8 @@ class BookCloser:
 
         year_str = str(self.current_exercise_year)
 
-        revenues = self.user_controller.retrieve_users_with_tot_fatturato(year = self.current_exercise_year)
-        users = self.user_controller.retrieve_users_map_list()
+        revenues = self.user_analyzer_service.retrieve_users_with_tot_fatturato(year = self.current_exercise_year)
+        users = self.user_query_service.retrieve_users_map_list()
 
         # Crea una mappa ID -> nome completo per facilitare la ricerca
         user_id_to_name = {}
@@ -160,7 +168,7 @@ class BookCloser:
             user_id = user.get(DBUsersColumns.ID.value)
             if user.get(
                     DBUsersColumns.REGIME_FISCALE.value) == self.user_controller.RegimeFiscale.ORDINARIO.value:
-                spese_dedotte_tot += self.user_controller.calcola_tot_spese_utente_dedotte(user_id, year = self.current_exercise_year)
+                spese_dedotte_tot += self.user_analyzer_service.calcola_tot_spese_utente_dedotte(user_id, year = self.current_exercise_year)
 
         # Prepara i dati per la sezione historical_financial_data
         historical_data = {
@@ -696,14 +704,14 @@ class BookCloser:
 
             # Recupera user_id dal nome esteso
             try:
-                user_map = self.user_controller.retrieve_user_map_by_extended_name(user_name)
+                user_map = self.user_query_service.retrieve_user_map_by_extended_name(user_name)
                 user_id = user_map.get(DBUsersColumns.ID.value)
             except Exception as e:
                 print(f"Impossibile risalire all'ID per l'utente '{user_name}': {e}")
                 user_id = None
 
             # Recupera regime fiscale
-            user_map = self.user_controller.retrieve_user_map_by_id(user_id)
+            user_map = self.user_query_service.retrieve_user_map_by_id(user_id)
             regime_fiscale = user_map.get(DBUsersColumns.REGIME_FISCALE.value)
 
             inps_totale = 0.0

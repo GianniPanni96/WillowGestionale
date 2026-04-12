@@ -1,9 +1,9 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog
-from PIL import Image, ImageTk
+from PIL import Image
 from datetime import datetime
-import os, re
+import os
 
 from App_context import AppContext
 from Event_bus import EventBus
@@ -192,7 +192,7 @@ class UsersView(ctk.CTkFrame):
 
         self.regime_fiscale_label = ctk.CTkLabel(self.user_window_scrollableFrame, text="Regime Fiscale:")
         self.regime_fiscale_label.pack(pady=(35, 0))
-        self.regime_fiscale_combobox = ctk.CTkOptionMenu(self.user_window_scrollableFrame, values=[item.value for item in self.user_controller.RegimeFiscale])
+        self.regime_fiscale_combobox = ctk.CTkOptionMenu(self.user_window_scrollableFrame, values=[item.value for item in RegimeFiscale])
         self.regime_fiscale_combobox.pack(pady=(5, 5))
 
         years = [str(year) for year in range(2000, self.current_year + 1)]  # Elenco anni fino all'anno corrente
@@ -278,7 +278,7 @@ class UsersView(ctk.CTkFrame):
             DBUsersColumns.PHOTO_PATH.value: self.image_path.get(),
             DBUsersColumns.CONTO_CORRENTE_ID.value: conto_id,  # Da aggiornare se necessario
             DBUsersColumns.ANNO_APERTURA_PIVA.value: self.anno_apertura_piva_combobox.get(),
-            DBUsersColumns.STATUS.value: self.user_controller.UserStatus.ATTIVO.value,
+            DBUsersColumns.STATUS.value: UserStatus.ATTIVO.value,
         }
 
         # Chiamata al controller per salvare i dati
@@ -403,7 +403,7 @@ class UsersView(ctk.CTkFrame):
         self.regime_fiscale_label = ctk.CTkLabel(self.modify_window_scrollableFrame, text="Regime Fiscale:")
         self.regime_fiscale_label.pack(pady=(35, 0))
         self.regime_fiscale_combobox = ctk.CTkOptionMenu(self.modify_window_scrollableFrame, values=[item.value for item in
-                                                                                                 self.user_controller.RegimeFiscale])
+                                                                                                 RegimeFiscale])
         self.regime_fiscale_combobox.pack(pady=(5, 5))
 
         years = [str(year) for year in range(2000, self.current_year + 1)]  # Elenco anni fino all'anno corrente
@@ -447,7 +447,7 @@ class UsersView(ctk.CTkFrame):
             self.conto_corrente_combobox.set(user[DBUsersColumns.CONTO_CORRENTE_ID.value])
 
         # Imposta il valore del combobox del regime fiscale
-        if user[DBUsersColumns.REGIME_FISCALE.value] in [item.value for item in self.user_controller.RegimeFiscale]:
+        if user[DBUsersColumns.REGIME_FISCALE.value] in [item.value for item in RegimeFiscale]:
             self.regime_fiscale_combobox.set(user[DBUsersColumns.REGIME_FISCALE.value])
 
         # Imposta il valore del combobox dell'anno di apertura p. iva
@@ -566,7 +566,7 @@ class UsersView(ctk.CTkFrame):
             DBUsersColumns.PHOTO_PATH.value: self.image_path.get(),
             DBUsersColumns.CONTO_CORRENTE_ID.value: self.conto_corrente_combobox.get(),  # Da aggiornare se necessario
             DBUsersColumns.ANNO_APERTURA_PIVA.value: self.anno_apertura_piva_combobox.get(),
-            DBUsersColumns.STATUS.value: self.user_controller.UserStatus.ATTIVO.value,
+            DBUsersColumns.STATUS.value: UserStatus.ATTIVO.value,
         }
 
         # Chiamata al controller per aggiornare i dati

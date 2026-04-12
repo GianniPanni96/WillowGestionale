@@ -6,9 +6,11 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 
 from App_context import AppContext
+from Controllerss.Salary_controller import SalaryController
 from Gestionale_Enums import DBAccountsColumns, DBSalariesColumns, DBUsersColumns
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Salaries_query_service import SalaryQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Views.View_utils import ViewUtils
 
 
@@ -20,10 +22,10 @@ class SalaryCreateView(ctk.CTkToplevel):
         super().__init__(parent)
 
         self.app_context = app_context
-        self.salary_controller = app_context.salary_controller
+        self.salary_controller:SalaryController = app_context.salary_controller
         self.salary_query_service: SalaryQueryService = app_context.salary_query_service
         self.account_query_service: AccountQueryService = app_context.account_query_service
-        self.user_controller = app_context.user_controller
+        self.user_query_service:UserQueryService = app_context.user_query_service
 
         self.on_salary_created = on_salary_created
         self.on_close = on_close
@@ -82,7 +84,7 @@ class SalaryCreateView(ctk.CTkToplevel):
 
     def _create_field_widget(self, label_text, widget_class):
         if label_text == self.USER_NAME_FIELD:
-            users = self.user_controller.retrieve_users_map_list()
+            users = self.user_query_service.retrieve_users_map_list()
             return widget_class(
                 self.scrollable_frame,
                 values=[
@@ -131,7 +133,7 @@ class SalaryCreateView(ctk.CTkToplevel):
             self.toggle_widgets_on_user_selection(selected_user)
 
     def toggle_widgets_on_user_selection(self, selected_value):
-        user = self.user_controller.retrieve_user_map_by_extended_name(selected_value.strip())
+        user = self.user_query_service.retrieve_user_map_by_extended_name(selected_value.strip())
         if not user:
             return
 

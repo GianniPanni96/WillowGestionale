@@ -5,9 +5,15 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 
 from App_context import AppContext
-from Controllerss.User_controller import UserController
+from Config import ConfigManager, FiscalSettings
+from Controllerss.Expense_controller import ExpenseController
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Expenses_query_service import ExpenseQueryService
+from QueryServices.Invoices_query_service import InvoiceQueryService
+from QueryServices.Suppliers_query_service import SupplierQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Utils.Controller_utils import ControllerUtils
-from Gestionale_Enums import DBAccountsColumns, DBExpensesColumns, DBInvoicesColumns, DBSuppliersColumns, DBUsersColumns
+from Gestionale_Enums import*
 from Views.View_utils import CatalogFilterableComboBox, FilterableComboBox, ViewUtils
 
 
@@ -23,17 +29,17 @@ class ExpenseCreateView(ctk.CTkToplevel):
         super().__init__(parent)
 
         self.parent = parent
-        self.app_context = app_context
-        self.expense_controller = app_context.expense_controller
-        self.expenses_query_service = app_context.expenses_query_service
-        self.suppliers_query_service = app_context.suppliers_query_service
-        self.invoices_query_service = app_context.invoices_query_service
-        self.user_controller = app_context.user_controller
-        self.account_controller = app_context.account_controller
+        self.app_context:AppContext = app_context
+        self.expense_controller:ExpenseController = app_context.expense_controller
+        self.expenses_query_service:ExpenseQueryService = app_context.expenses_query_service
+        self.suppliers_query_service:SupplierQueryService = app_context.suppliers_query_service
+        self.invoices_query_service:InvoiceQueryService = app_context.invoices_query_service
+        self.user_query_service:UserQueryService = app_context.user_query_service
+        self.account_query_service: AccountQueryService = app_context.account_query_service
         self.update_controller = app_context.update_controller
-        self.config_manager = app_context.config_manager
+        self.config_manager: ConfigManager = app_context.config_manager
         self.catalogo_elenchi = app_context.catalogo_elenchi
-        self.fiscal_settings = app_context.fiscal_settings
+        self.fiscal_settings:FiscalSettings = app_context.fiscal_settings
 
         self.on_expense_created = on_expense_created
         self.on_close = on_close
@@ -142,15 +148,15 @@ class ExpenseCreateView(ctk.CTkToplevel):
         if label_text == self.USER_DEDUZIONE_FIELD:
             users = [
                 f"{user[DBUsersColumns.FIRST_NAME.value]} {user[DBUsersColumns.LAST_NAME.value]}"
-                for user in self.user_controller.retrieve_users_map_list()
-                if user[DBUsersColumns.REGIME_FISCALE.value] == UserController.RegimeFiscale.ORDINARIO.value
+                for user in self.user_query_service.retrieve_users_map_list()
+                if user[DBUsersColumns.REGIME_FISCALE.value] == RegimeFiscale.ORDINARIO.value
             ]
             return widget_class(self.scrollable_frame, values=users)
 
         if label_text == self.USER_ANTICIPO_FIELD:
             users = [
                 f"{user[DBUsersColumns.FIRST_NAME.value]} {user[DBUsersColumns.LAST_NAME.value]}"
-                for user in self.user_controller.retrieve_users_map_list()
+                for user in self.user_query_service.retrieve_users_map_list()
             ]
             return widget_class(self.scrollable_frame, values=[" ----- "] + users)
 
@@ -177,7 +183,7 @@ class ExpenseCreateView(ctk.CTkToplevel):
             )
 
         if label_text == self.ACCOUNT_FIELD:
-            accounts = self.account_controller.retrieve_accounts_map_list()
+            accounts = self.account_query_service.retrieve_accounts_map_list()
             return widget_class(
                 self.scrollable_frame,
                 values=[account[DBAccountsColumns.NAME.value] for account in accounts]

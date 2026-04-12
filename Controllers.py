@@ -693,14 +693,14 @@ class Analyzer:
             inps_willow = 0.0
 
             try:
-                if regime_fiscale == self.user_controller.RegimeFiscale.ORDINARIO.value:
+                if regime_fiscale == RegimeFiscale.ORDINARIO.value:
                     tasse_map, versamenti, _ = self.calculate_previsione_tasse_ordinaria(user_id, year = year)
                     saldo_willow = versamenti.get("SALDO WILLOW", 0.0)
                     acconto_willow = versamenti.get("ACCONTO WILLOW", 0.0)
                     irpef_willow = tasse_map.get("WILLOW IRPEF", 0.0)
                     inps_willow = tasse_map.get("WILLOW INPS", 0.0)
 
-                elif regime_fiscale == self.user_controller.RegimeFiscale.FORFETTARIO.value:
+                elif regime_fiscale == RegimeFiscale.FORFETTARIO.value:
                     tasse_map, versamenti, _ = self.calculate_previsione_tasse_forfettaria(user_id, year = year)
                     saldo_willow = versamenti.get("SALDO WILLOW", 0.0)
                     acconto_willow = versamenti.get("ACCONTO WILLOW", 0.0)

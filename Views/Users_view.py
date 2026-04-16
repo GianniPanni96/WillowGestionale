@@ -771,6 +771,11 @@ class UsersView(ctk.CTkFrame):
         try:
             print(f"Cleanup di {self.__class__.__name__}")
 
+            self.event_bus.unsubscribe(ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value, self._on_login_changed)
+
+            if hasattr(self, "user_detail_view") and self.user_detail_view is not None:
+                self.user_detail_view.cleanup()
+
             # 1. Cancella tutti gli after scheduled
             if hasattr(self, '_after_ids'):
                 for after_id in self._after_ids:

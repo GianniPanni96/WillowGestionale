@@ -66,6 +66,18 @@ class UpdatesController:
     def register_on_delete_production_view_cllbks(self, *callbacks):
         self.on_delete_production_view_cllbks = list(callbacks)
 
+    def unregister_on_modify_invoice_view_cllbk(self, callback):
+        try:
+            self.on_modify_invoice_view_cllbks.remove(callback)
+        except ValueError:
+            pass
+
+    def unregister_on_delete_production_view_cllbk(self, callback):
+        try:
+            self.on_delete_production_view_cllbks.remove(callback)
+        except ValueError:
+            pass
+
     def on_adding_payment(self):
         for callback in self.on_adding_payment_view_cllbks:
             try:

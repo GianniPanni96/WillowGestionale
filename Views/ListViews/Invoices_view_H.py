@@ -227,6 +227,19 @@ class InvoicesViewH(BaseListView):
             suffix = f" {uom}" if uom else ""
             label.configure(text=f"{current_infos.get(key, 0)}{suffix}")
 
+    def get_additional_ui_state(self):
+        return {
+            "lordo_netto_enabled": bool(self.lordo_netto_switch_var.get())
+        }
+
+    def apply_additional_ui_state(self, state):
+        lordo_netto_enabled = state.get("lordo_netto_enabled")
+        if lordo_netto_enabled is None:
+            return
+
+        self.lordo_netto_switch_var.set(bool(lordo_netto_enabled))
+        self.switch_lordo_netto()
+
     def open_add_window(self):
         if self.invoice_create_view is not None and self.invoice_create_view.winfo_exists():
             self.invoice_create_view.focus()
@@ -455,3 +468,7 @@ class InvoicesViewH(BaseListView):
             if isinstance(child, ctk.CTkButton):
                 ViewUtils.add_tooltip(child, warning)
                 break
+
+    def _cleanup_extra_references(self):
+        if hasattr(self, "update_controller") and self.update_controller is not None:
+            self.update_controller.unregister_on_delete_production_view_cllbk(self.attach_warning_on_a_card)

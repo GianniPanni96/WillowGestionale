@@ -44,6 +44,9 @@ class BaseListView(ctk.CTkFrame):
         self.amount_aggregate_labels = {}
         self.cards_list = {}
         self.cards_warnings = {}
+        self._after_ids = set()
+        self._orig_after = self.after
+        self.after = self._track_after
 
         self.order_bar_option_menu_values_types = {"DECRESCENTE": "DECRESCENTE", "CRESCENTE": "CRESCENTE"}
 
@@ -224,6 +227,53 @@ class BaseListView(ctk.CTkFrame):
         self.load_items_chunked(items_list)
         self.sort_cards()
 
+    def get_ui_state(self):
+        state = {
+            "search_text": self.search_bar.get() if hasattr(self, "search_bar") else "",
+            "search_type": self.search_bar_optionMenu.get() if hasattr(self, "search_bar_optionMenu") else "",
+            "sort_type": self.order_bar_optionMenu.get() if hasattr(self, "order_bar_optionMenu") else "",
+            "sort_order": self.order_bar_optionMenu_types.get() if hasattr(self, "order_bar_optionMenu_types") else "",
+            "show_last": self.show_last_cards_optionMenu.get() if hasattr(self, "show_last_cards_optionMenu") else "",
+        }
+        state.update(self.get_additional_ui_state())
+        return state
+
+    def get_additional_ui_state(self):
+        return {}
+
+    def apply_ui_state(self, state):
+        if not state:
+            return
+
+        search_type = state.get("search_type")
+        if search_type and hasattr(self, "search_bar_optionMenu"):
+            self.search_bar_optionMenu.set(search_type)
+
+        sort_type = state.get("sort_type")
+        if sort_type and hasattr(self, "order_bar_optionMenu"):
+            self.order_bar_optionMenu.set(sort_type)
+
+        sort_order = state.get("sort_order")
+        if sort_order and hasattr(self, "order_bar_optionMenu_types"):
+            self.order_bar_optionMenu_types.set(sort_order)
+
+        show_last = state.get("show_last")
+        if show_last and hasattr(self, "show_last_cards_optionMenu"):
+            self.show_last_cards_optionMenu.set(show_last)
+            self.show_last_cards()
+
+        search_text = state.get("search_text")
+        if search_text is not None and hasattr(self, "search_bar"):
+            self.search_bar.delete(0, "end")
+            self.search_bar.insert(0, search_text)
+
+        self.apply_additional_ui_state(state)
+        self.filter_cards(None)
+        self.sort_cards()
+
+    def apply_additional_ui_state(self, state):
+        return
+
     def finalize_item_card(self, card:ctk.CTkFrame, item_key, primary_widget:ctk.CTkButton=None):
         """
         Registra una card nella lista e applica l'eventuale warning visuale.
@@ -378,6 +428,52 @@ class BaseListView(ctk.CTkFrame):
         """Mostra il contenitore principale e nasconde l'eventuale dettaglio."""
         self.detail_container.pack_forget()
         self.main_container.pack(fill="both", expand=True)
+
+    def cleanup(self):
+        try:
+            for after_id in list(getattr(self, "_after_ids", set())):
+                try:
+                    self.after_cancel(after_id)
+                except Exception:
+                    pass
+            self._after_ids.clear()
+
+            if hasattr(self, "search_bar"):
+                try:
+                    self.search_bar.unbind("<KeyRelease>")
+                except Exception:
+                    pass
+
+            self.clear_cards()
+            self.cards_warnings.clear()
+            self.global_infos.clear()
+            self.amount_aggregate_labels.clear()
+
+            detail_view = self._get_detail_view_for_cleanup()
+            if detail_view is not None and hasattr(detail_view, "cleanup"):
+                detail_view.cleanup()
+
+            self._cleanup_extra_references()
+        except Exception as e:
+            print(f"Errore durante cleanup di {self.__class__.__name__}: {e}")
+
+    def _get_detail_view_for_cleanup(self):
+        for attr_name in dir(self):
+            if not attr_name.endswith("_detail_view"):
+                continue
+
+            detail_view = getattr(self, attr_name, None)
+            if detail_view is not None:
+                return detail_view
+        return None
+
+    def _cleanup_extra_references(self):
+        return
+
+    def _track_after(self, ms, callback=None, *args):
+        after_id = self._orig_after(ms, callback, *args)
+        self._after_ids.add(after_id)
+        return after_id
 
     def populate_global_infos(self):
         """Popola ``self.global_infos`` prima della visualizzazione."""

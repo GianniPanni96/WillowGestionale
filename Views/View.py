@@ -58,6 +58,7 @@ class MainWindow(ctk.CTk):
 
         self.app_context:AppContext = app_context
         self.event_bus:EventBus = app_context.event_bus
+        self.tab_ui_state_store = app_context.tab_ui_state_store
 
         # ConfigManager per la gestione della configurazione
         self.config_manager:ConfigManager = app_context.config_manager
@@ -290,6 +291,10 @@ class MainWindow(ctk.CTk):
             instance.pack(in_=tab_frame, fill="both", expand=True)
             self.tab_instances[tab_name] = instance
 
+            saved_state = self.tab_ui_state_store.get_state(tab_name)
+            if saved_state and hasattr(instance, "apply_ui_state"):
+                instance.apply_ui_state(saved_state)
+
             # Forza il rendering
             self.update_idletasks()
 
@@ -299,6 +304,9 @@ class MainWindow(ctk.CTk):
             print(f"Distruzione tab: {tab_name}")
             try:
                 instance = self.tab_instances[tab_name]
+
+                if hasattr(instance, "get_ui_state"):
+                    self.tab_ui_state_store.save_state(tab_name, instance.get_ui_state())
 
                 # Chiama cleanup se esiste
                 if hasattr(instance, 'cleanup'):

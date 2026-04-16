@@ -4,10 +4,10 @@ import customtkinter as ctk
 
 from AnalyzerServices.Payment_analyzer_service import PaymentAnalyzerService
 from App_context import AppContext
-from Updates_controller import UpdatesController
 from Gestionale_Enums import DBPaymentsColumns
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
+from Updates_controller import UpdatesController
 from Views.ListViews.BaseList_view import BaseListView
 from Views.Creators.Payment_create_view import PaymentCreateView
 from Views.Details.Payment_detail_view import PaymentDetailView
@@ -247,6 +247,10 @@ class PaymentsViewH(BaseListView):
         button = next((child for child in card.winfo_children() if isinstance(child, ctk.CTkButton)), None)
         if button is not None:
             ViewUtils.add_tooltip(button, warning)
+
+    def _cleanup_extra_references(self):
+        if hasattr(self, "update_controller") and self.update_controller is not None:
+            self.update_controller.unregister_on_modify_invoice_view_cllbk(self.attach_warning_on_a_card)
 
     def _parse_payment_updated_at(self, payment):
         return self._parse_datetime_value(payment.get(DBPaymentsColumns.UPDATED_AT.value)) or datetime.min

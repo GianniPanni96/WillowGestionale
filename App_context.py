@@ -54,6 +54,7 @@ from WarningServices.Payment_warning_service import PaymentWarningService
 
 from Config import ConfigManager
 from Backup_manager import BackupImporter, BackupScheduler
+from Tab_ui_state_store import TabUIStateStore
 
 
 class AppContext:
@@ -187,6 +188,7 @@ class AppContext:
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager:ConfigManager = config_manager
         self.event_bus:EventBus = EventBus()
+        self.tab_ui_state_store:TabUIStateStore = TabUIStateStore()
         self.backup_importer:BackupImporter = backup_importer
         self.backup_scheduler:BackupScheduler = backup_scheduler
         self.historical_financial_data_settings = historical_financial_data_settings

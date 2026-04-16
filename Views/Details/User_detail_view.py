@@ -115,6 +115,12 @@ class UserDetailView(ctk.CTkFrame):
         if regime == RegimeFiscale.ORDINARIO.value:
             self._create_iva_section()
 
+    def cleanup(self):
+        try:
+            self.event_bus.unsubscribe(ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value, self._on_login_changed_detail)
+        except Exception:
+            pass
+
     def _clear_content(self):
         """Distrugge tutti i widget dinamici"""
         for widget in self.content_frame.winfo_children():

@@ -5,6 +5,10 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from datetime import datetime
 
+from App_context import AppContext
+from Model import DatabaseModel
+
+
 class AnnualData(Enum):
     """Enumerativo per i dati annuali"""
     TOTALE_FATTURATO = "Fatturato"
@@ -51,16 +55,13 @@ class MonthlyData(Enum):
 
 
 class PlotView (ctk.CTkFrame):
-    def __init__(self, app_context , tabview):
+    def __init__(self, app_context:AppContext , tabview):
         super().__init__(tabview.tab("Plots"))
 
-        self.app_context = app_context
-        self.db_model = app_context.db_model
-        self.update_controller = app_context.update_controller
+        self.app_context:AppContext = app_context
+        self.db_model:DatabaseModel = app_context.db_model
         self.tabview = tabview
         self.tab = tabview.tab("Plots")
-        self.analyzer = app_context.analyzer
-        self.event_bus = app_context.event_bus
         self.books_retriever = app_context.books_retriever
 
         # Container principale
@@ -435,7 +436,7 @@ class PlotView (ctk.CTkFrame):
         try:
             # Carica i dati correnti se non già caricati
             if self.current_year_monthly_data is None:
-                self.current_year_monthly_data = self.app_context.analyzer.retrieve_monthly_data()
+                self.current_year_monthly_data = self.app_context.monthly_report_analyzer_service.retrieve_monthly_data()
 
             # Mappatura tra enum e chiavi dei dati
             data_mapping = {

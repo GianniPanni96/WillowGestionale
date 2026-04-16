@@ -5,10 +5,10 @@ from tkcalendar import Calendar
 from Config import ConfigManager
 from Views.View_utils import ViewUtils
 from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
-from Controllers import  PaymentsController, InvoiceController, ControllerUtils
+from AnalyzerServices.Monthly_report_analyzer_service import  PaymentsController, InvoiceController, ControllerUtils
 from Updates_controller import UpdatesController
 from Controllerss.User_controller import UserController
-from Model import DatabaseModel, DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBInvoicesColumns
+from Model import DatabaseModel, DBProductionsColumns, DBClientsColumns, DBInvoicesColumns
 from datetime import datetime, timedelta
 import re
 

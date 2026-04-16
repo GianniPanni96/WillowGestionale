@@ -1,6 +1,6 @@
 import customtkinter as ctk
 
-from Controllers import ControllerUtils
+from Utils.Controller_utils import ControllerUtils
 from Views.View_utils import ViewUtils
 
 from App_context import AppContext

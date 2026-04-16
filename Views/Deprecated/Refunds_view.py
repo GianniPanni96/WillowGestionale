@@ -1,11 +1,12 @@
 import customtkinter as ctk
 
 from tkcalendar import Calendar
+
+from Controllerss.Account_controller import AccountController
 from Views.View_utils import ViewUtils
 from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
-from Controllers import AccountController, Analyzer
 from Updates_controller import UpdatesController
-from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBRefundsColumns
+from Model import DatabaseModel, DBClientsColumns, DBAccountsColumns, DBRefundsColumns
 from datetime import datetime
 import re
 
@@ -34,7 +35,6 @@ class RefundsView(ctk.CTkFrame):
         self.update_controller:UpdatesController = app_context.update_controller
         self.tab_view = tab_view
         self.tab = tab_view.tab("Rimborsi")
-        self.analyzer:Analyzer = app_context.analyzer
         self.event_bus:EventBus = app_context.event_bus
 
         self.global_infos = {}

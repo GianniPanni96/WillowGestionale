@@ -1,4 +1,5 @@
 from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
+from AnalyzerServices.Iva_analyzer_service import IvaAnalyzerService
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from Controllerss.Account_controller import AccountController
 from Model import DBAccountsColumns, DBUsersColumns
@@ -6,7 +7,7 @@ import os
 import csv
 from datetime import datetime
 
-from Controllers import Analyzer
+from AnalyzerServices.Monthly_report_analyzer_service import MonthlyReportAnalyzerService
 from Controllerss.User_controller import UserController
 from AnalyzerServices.Expense_analyzer_service import ExpenseAnalyzerService
 from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
@@ -28,7 +29,7 @@ class BookCloser:
                  account_controller:AccountController,
                  accounts_query_service: AccountQueryService,
                  account_analyzer_service:AccountAnalyzerService,
-                 analyzer:Analyzer,
+                 monthly_report_analyzer_service:MonthlyReportAnalyzerService,
                  user_controller:UserController,
                  user_query_service:UserQueryService,
                  user_analyzer_service:UserAnalyzerService,
@@ -36,8 +37,10 @@ class BookCloser:
                  expense_analyzer_service:ExpenseAnalyzerService,
                  salary_analyzer_service:SalaryAnalyzerService,
                  invoices_analyzer_service:InvoiceAnalyzerService,
-                 productions_analyzer_service:ProductionAnalyzerService):
+                 productions_analyzer_service:ProductionAnalyzerService,
+                 iva_analyzer_service:IvaAnalyzerService):
 
+        self.iva_analyzer_service: IvaAnalyzerService = iva_analyzer_service
         self.environment_db_variable = environment_db_variable
         self.account_controller = account_controller
         self.accounts_query_service:AccountQueryService = accounts_query_service
@@ -50,7 +53,7 @@ class BookCloser:
         self.invoices_analyzer_service:InvoiceAnalyzerService = invoices_analyzer_service
         self.productions_analyzer_service:ProductionAnalyzerService = productions_analyzer_service
         self.config_manager = config_manager
-        self.analyzer = analyzer
+        self.monthly_report_analyzer_service: MonthlyReportAnalyzerService = monthly_report_analyzer_service
         self.current_exercise_year = int(datetime.now().strftime('%Y')) - 1
 
         # Crea la directory se non esiste
@@ -115,7 +118,7 @@ class BookCloser:
                         continue
 
                     # Recupera i movimenti per questo conto
-                    movements = self.analyzer.retrieve_account_movements_by_account_id(account_id, year = self.current_exercise_year)
+                    movements = self.account_analyzer_service.retrieve_account_movements_by_account_id(account_id, year = self.current_exercise_year)
 
                     if not movements:
                         continue
@@ -375,7 +378,7 @@ class BookCloser:
         """
 
         # Recupera i dati mensili dall'analyzer
-        monthly_data = self.analyzer.retrieve_monthly_data(year = self.current_exercise_year)
+        monthly_data = self.monthly_report_analyzer_service.retrieve_monthly_data(year = self.current_exercise_year)
 
         # Verifica se il file esiste per determinare se scrivere l'header
         file_exists = os.path.isfile(self.monthly_data_file_path)
@@ -551,7 +554,7 @@ class BookCloser:
         """
 
         # Recupera i dati IVA trimestrali dall'analyzer
-        iva_data = self.analyzer.calculate_tot_trimestral_iva(year = self.current_exercise_year)
+        iva_data = self.iva_analyzer_service.calculate_tot_trimestral_iva(year = self.current_exercise_year)
 
         # Verifica se il file esiste
         file_exists = os.path.isfile(self.iva_data_file_path)

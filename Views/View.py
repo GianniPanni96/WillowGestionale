@@ -4,16 +4,14 @@ import re, os
 from OtherServices.User_auth_service import UserAuthService
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Users_query_service import UserQueryService
+from Utils.Controller_utils import ControllerUtils
 from Views.View_utils import (
-    CustomTkMenuButton,
     ViewUtils,
 )
+from Views.CustomWidgets.Custom_tk_menu_button import CustomTkMenuButton
 from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
 from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from datetime import datetime
-
-
-from Controllers import ControllerUtils, Analyzer
 
 from QueryServices.Suppliers_query_service import SupplierQueryService
 from Gestionale_Enums import*
@@ -84,7 +82,6 @@ class MainWindow(ctk.CTk):
         self.user_query_service:UserQueryService = app_context.user_query_service  # Crea il controller per gli utenti
         self.account_query_service:AccountQueryService = app_context.account_query_service
         self.suppliers_query_service:SupplierQueryService = app_context.suppliers_query_service
-        self.analyzer:Analyzer = app_context.analyzer
         self.user_auth_service:UserAuthService = app_context.user_auth_service
 
         self.title("Gestionale Willow")

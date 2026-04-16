@@ -1,10 +1,13 @@
 import customtkinter as ctk
-import re
+
+from Controllerss.Client_controller import ClientController
+from Controllerss.Invoice_controller import InvoiceController
+from Controllerss.Production_controller import ProductionController
+from Controllerss.Refund_controller import RefundController
+from Utils.Controller_utils import ControllerUtils
 from Views.View_utils import ViewUtils
 from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
-from Controllers import ControllerUtils, ClientController, ProductionController, InvoiceController, RefundController, DatabaseModel, Analyzer
-from Model import DBClientsColumns, DBInvoicesColumns, DBProductionsColumns, DBRefundsColumns
-from datetime import datetime, timedelta
+from Model import DBClientsColumns, DBProductionsColumns, DatabaseModel
 from Views.Details.Client_detail_view import ClientDetailView
 
 
@@ -25,7 +28,6 @@ class ClientsView(ctk.CTkFrame):
         self.invoice_controller:InvoiceController = app_context.invoice_controller
         self.refund_controller:RefundController = app_context.refund_controller
         self.event_bus = app_context.event_bus
-        self.analyzer:Analyzer = app_context.analyzer
 
         self.clients_card_list = {}
 

@@ -7,7 +7,6 @@ from Model import DatabaseModel
 from Views.View_utils import ViewUtils
 from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
 from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
-from Controllers import Analyzer
 
 from Controllerss.Client_controller import ClientController
 
@@ -40,7 +39,6 @@ class ClientDetailView(ctk.CTkFrame):
         self.client_controller:ClientController = app_context.client_controller
         self.event_bus = app_context.event_bus
         self.current_client_id = None
-        self.analyzer:Analyzer = app_context.analyzer
         self.catalogo_elenchi = app_context.catalogo_elenchi
         self.business_sector_adder_view = None
 

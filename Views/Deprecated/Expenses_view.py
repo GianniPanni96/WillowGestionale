@@ -1,13 +1,14 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
+
+from Controllerss.Account_controller import AccountController
+from Utils.Controller_utils import ControllerUtils
 from Views.View_utils import ViewUtils
 from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
-from Controllers import AccountController, ControllerUtils, \
-    Analyzer
 from Updates_controller import UpdatesController
 from Controllerss.User_controller import UserController
-from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBProductionsColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
+from Model import DatabaseModel, DBInvoicesColumns, DBUsersColumns, DBAccountsColumns, DBExpensesColumns, DBSuppliersColumns
 import re
 
 from datetime import datetime, timedelta
@@ -40,7 +41,6 @@ class ExpensesView(ctk.CTkFrame):
         self.supplier_controller:SupplierController = app_context.supplier_controller
         self.invoice_controller:InvoiceController = app_context.invoice_controller
         self.update_controller:UpdatesController = app_context.update_controller
-        self.analyzer:Analyzer = app_context.analyzer
         self.fiscal_settings = app_context.fiscal_settings
         self.catalogo_elenchi = app_context.catalogo_elenchi
         self.config_manager:ConfigManager = app_context.config_manager

@@ -1,14 +1,16 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 
+from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from Gestionale_Enums import *
-from Controllers import ControllerUtils
 from Model import DatabaseModel
 from Config import FiscalSettings, HistoricalFinancialData
 
 from Controllerss.User_controller import UserController
 
 from QueryServices.Invoices_query_service import InvoiceQueryService
+from QueryServices.Users_query_service import UserQueryService
+from Utils.Controller_utils import ControllerUtils
 
 
 class InvoiceAnalyzerService:
@@ -20,10 +22,12 @@ class InvoiceAnalyzerService:
     mantenendo fuori dalla UI la logica di analisi.
     """
 
-    def __init__(self, user_controller:UserController, invoices_query_service: InvoiceQueryService,
+    def __init__(self, user_controller:UserController, user_query_service:UserQueryService, user_analyzer_service:UserAnalyzerService, invoices_query_service: InvoiceQueryService,
                  database_model: DatabaseModel, fiscal_settings:FiscalSettings, historical_financial_data_settings:HistoricalFinancialData):
         """Memorizza i servizi necessari per query e calcoli aggregati."""
         self.user_controller:UserController = user_controller
+        self.user_query_service:UserQueryService = user_query_service
+        self.user_analyzer_service:UserAnalyzerService = user_analyzer_service
         self.fiscal_settings:FiscalSettings = fiscal_settings
         self.historical_financial_data_settings:HistoricalFinancialData = historical_financial_data_settings
         self.invoices_query_service: InvoiceQueryService = invoices_query_service
@@ -362,7 +366,7 @@ class InvoiceAnalyzerService:
         specialmente per la partita IVA ordinaria.
         """
         # 1. Recupero dati base
-        user_list = self.user_controller.retrieve_users_map_list()
+        user_list = self.user_query_service.retrieve_users_map_list()
         id_to_last_name = {user[DBUsersColumns.ID.value]: user[DBUsersColumns.LAST_NAME.value] for user in user_list}
         id_to_full_name = {
             user[DBUsersColumns.ID.value]: f"{user[DBUsersColumns.FIRST_NAME.value]} {user[DBUsersColumns.LAST_NAME.value]}"
@@ -371,8 +375,8 @@ class InvoiceAnalyzerService:
         name_to_id = {v: k for k, v in id_to_last_name.items()}
 
         # 2. Fatturati e spese correnti
-        fatturati = self.user_controller.retrieve_users_with_tot_fatturato()
-        spese = self.user_controller.retrieve_users_with_tot_spese()
+        fatturati = self.user_analyzer_service.retrieve_users_with_tot_fatturato()
+        spese = self.user_analyzer_service.retrieve_users_with_tot_spese()
 
         ordinari = fatturati.get(RegimeFiscale.ORDINARIO.value, {})
         if len(ordinari) != 1:
@@ -405,7 +409,7 @@ class InvoiceAnalyzerService:
             "amount": f.get(DBInvoicesColumns.TOT_DOCUMENTO.value)
         } for f in fatture]
 
-        spese_ordinaria_raw = self.user_controller.retrieve_user_with_deducted_expenses_map_list(id_ordinaria)
+        spese_ordinaria_raw = self.user_query_service.retrieve_user_with_deducted_expenses_map_list(id_ordinaria)
         storico_spese_ordinaria = [{
             "data": s.get(DBExpensesColumns.DATE.value),
             "amount": s.get(DBExpensesColumns.TOT_AMOUNT.value)
@@ -443,7 +447,7 @@ class InvoiceAnalyzerService:
         # 7. Previsioni semplificate (solo per bilanciamento)
         previsioni = {}
         for piva, data in {**piva_forfettarie, **piva_ordinaria}.items():
-            nome = self.user_controller.id_to_full_name_str(piva)
+            nome = self.user_query_service.id_to_full_name_str(piva)
 
             # Recupera dati storici se disponibili
             storico_annuale = 0
@@ -568,4 +572,3 @@ class InvoiceAnalyzerService:
             punteggi_finali[full_name] = round((score / max_punteggio) * 100, 2) if max_punteggio > 0 else 0
 
         return dict(sorted(punteggi_finali.items(), key=lambda x: x[1], reverse=True))
-

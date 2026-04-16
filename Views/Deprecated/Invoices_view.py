@@ -1,9 +1,11 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
+
+from Controllerss.Account_controller import AccountController
+from Utils.Controller_utils import ControllerUtils
 from Views.View_utils import ViewUtils
 from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
-from Controllers import ControllerUtils, AccountController
 from Updates_controller import UpdatesController
 from Controllerss.User_controller import UserController
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns, DBInvoicesColumns
@@ -52,7 +54,6 @@ class InvoicesView(ctk.CTkFrame):
         self.fiscal_settings = app_context.fiscal_settings
         self.historical_financial_data_settings = app_context.historical_financial_data_settings
         self.event_bus = app_context.event_bus
-        self.analyzer = app_context.analyzer
 
         self.invoices_card_list = {}
         self.invoice_card_labels_status = {}

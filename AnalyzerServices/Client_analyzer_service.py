@@ -1,10 +1,10 @@
 from datetime import datetime
 
 from Gestionale_Enums import *
-from Controllers import ControllerUtils
 
 from Model import DatabaseModel
 from QueryServices.Clients_query_service import ClientQueryService
+from Utils.Controller_utils import ControllerUtils
 
 
 class ClientAnalyzerService:

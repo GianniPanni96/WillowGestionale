@@ -6,6 +6,7 @@ from datetime import datetime
 from tkinter import filedialog
 
 from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
+from AnalyzerServices.Iva_analyzer_service import IvaAnalyzerService
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from App_context import AppContext
 from Fatturazione_elettronica_API import FatturazioneElettronicaProvider
@@ -20,6 +21,7 @@ from Gestionale_Enums import*
 class UserDetailView(ctk.CTkFrame):
     def __init__(self, parent, app_context:AppContext, back_callback):
         super().__init__(parent)
+        self.iva_analyzer_service:IvaAnalyzerService = app_context.iva_analyzer_service
         self.app_context:AppContext = app_context
         self.parent = parent
         self.user_controller = app_context.user_controller
@@ -33,7 +35,6 @@ class UserDetailView(ctk.CTkFrame):
         self.fiscal_settings = app_context.fiscal_settings
         self.event_bus = app_context.event_bus
         self.current_user_id = None
-        self.analyzer = app_context.analyzer
 
         # Widgets persistenti (vanno creati una volta sola)
         self.head_frame = ctk.CTkFrame(self, fg_color="#2b2b2b")
@@ -1115,7 +1116,7 @@ class UserDetailView(ctk.CTkFrame):
         self.trimestral_list_frame.pack(fill="x", expand=True, padx=10, pady=(0, 25))
 
         # Ottieni i dati IVA trimestrali
-        iva_data = self.account_analyzer_service.calculate_trimestral_iva_by_account_id(self.current_user_id)
+        iva_data = self.iva_analyzer_service.calculate_trimestral_iva_by_user_id(self.current_user_id)
 
         # Ordina i trimestri nell'ordine corretto
         quarters_order = ["Gen-Marz", "Apr-Giu", "Lug-Sett", "Ott-Dic"]

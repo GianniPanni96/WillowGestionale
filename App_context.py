@@ -1,4 +1,5 @@
 from AnalyzerServices.Client_analyzer_service import ClientAnalyzerService
+from AnalyzerServices.Iva_analyzer_service import IvaAnalyzerService
 from AnalyzerServices.Production_analyzer_service import ProductionAnalyzerService
 from AnalyzerServices.Supplier_analyzer_service import SupplierAnalyzerService
 from AnalyzerServices.Invoice_analyzer_service import InvoiceAnalyzerService
@@ -10,7 +11,7 @@ from AnalyzerServices.Transfer_analyzer_service import TransferAnalyzerService
 from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 
-from Controllers import Analyzer
+from AnalyzerServices.Monthly_report_analyzer_service import MonthlyReportAnalyzerService
 from Updates_controller import UpdatesController
 
 from Model import DatabaseModel
@@ -105,6 +106,7 @@ class AppContext:
             self.db_model,
             self.fiscal_settings
         )
+        self.iva_analyzer_service:IvaAnalyzerService = IvaAnalyzerService(self.user_query_service)
         self.account_analyzer_service:AccountAnalyzerService = AccountAnalyzerService(self.account_query_service,
                                                                                       self.user_query_service,
                                                                                       self.payments_analyzer_service,
@@ -132,7 +134,8 @@ class AppContext:
             self.user_crypto_service,
             self.user_auth_service,
         )
-        self.invoices_analyzer_service:InvoiceAnalyzerService = InvoiceAnalyzerService(self.user_controller, self.invoices_query_service,
+        self.invoices_analyzer_service:InvoiceAnalyzerService = InvoiceAnalyzerService(self.user_controller, self.user_query_service, self.user_analyzer_service,
+                                                                                       self.invoices_query_service,
                                                                                        self.db_model, self.fiscal_settings,
                                                                                        historical_financial_data_settings)
         self.account_controller:AccountController = AccountController(
@@ -176,29 +179,12 @@ class AppContext:
         self.update_controller:UpdatesController = UpdatesController(self.user_controller, self.client_controller,
                                                    self.invoice_controller, self.payment_controller,
                                                    self.account_controller, self.production_controller)
-        self.analyzer:Analyzer = Analyzer(self.user_controller,
-                                 self.user_query_service,
-                                 self.user_analyzer_service,
-                                 self.client_controller,
-                                 self.account_controller,
-                                 self.account_query_service,
-                                 self.invoice_controller,
+        self.monthly_report_analyzer_service:MonthlyReportAnalyzerService = MonthlyReportAnalyzerService(
                                  self.invoices_query_service,
-                                 self.transfer_query_service,
-                                 self.transfer_analyzer_service,
-                                 self.supplier_controller,
-                                 self.production_controller,
-                                 self.payment_controller,
-                                 self.payments_analyzer_service,
                                  self.payments_query_service,
-                                 self.refunds_query_service,
                                  self.expenses_query_service,
-                                 self.expenses_analyzer_service,
                                  self.salary_query_service,
-                                 self.salary_analyzer_service,
-                                 self.refunds_analyzer_service,
-                                 self.fiscal_settings,
-                                 recurring_expenses_settings)
+                                 self.refunds_query_service)
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager:ConfigManager = config_manager
         self.event_bus:EventBus = EventBus()
@@ -212,7 +198,7 @@ class AppContext:
                                                  account_controller=self.account_controller,
                                                  accounts_query_service=self.account_query_service,
                                                  account_analyzer_service=self.account_analyzer_service,
-                                                 analyzer=self.analyzer,
+                                                 monthly_report_analyzer_service=self.monthly_report_analyzer_service,
                                                  user_controller=self.user_controller,
                                                  user_analyzer_service=self.user_analyzer_service,
                                                  user_query_service=self.user_query_service,
@@ -221,5 +207,5 @@ class AppContext:
                                                  expense_analyzer_service=self.expenses_analyzer_service,
                                                  productions_analyzer_service=self.productions_analyzer_service,
                                                  salary_analyzer_service=self.salary_analyzer_service,
-                                                 )
+                                                 iva_analyzer_service=self.iva_analyzer_service)
 

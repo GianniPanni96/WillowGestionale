@@ -4,7 +4,6 @@ from tkcalendar import Calendar
 from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from Views.View_utils import ViewUtils
 from Views.Creators.Transfer_create_view import TransferCreateView
-from Controllers import Analyzer
 from Updates_controller import UpdatesController
 from Model import DatabaseModel
 
@@ -35,7 +34,6 @@ class AccountsView(ctk.CTkFrame):
         self.config_manager:ConfigManager = app_context.config_manager
         self.transfer_controller:TransferController = app_context.transfer_controller
         self.catalogo_elenchi = app_context.catalogo_elenchi
-        self.analyzer:Analyzer = app_context.analyzer
         self.tabview = tabview
         self.tab = tabview.tab("Conti")
         self.event_bus:EventBus = app_context.event_bus

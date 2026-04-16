@@ -28,7 +28,6 @@ class SupplierDetailView(ctk.CTkFrame):
         self.back_callback = back_callback
         self.event_bus = app_context.event_bus
         self.current_client_id = None
-        self.analyzer = app_context.analyzer
         self.catalogo_elenchi = app_context.catalogo_elenchi
         self.business_sector_adder_view = None
 

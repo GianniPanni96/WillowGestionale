@@ -14,7 +14,6 @@ from Views.Details.User_detail_view import UserDetailView
 
 from Views.View_utils import ViewUtils
 
-from Controllers import Analyzer
 from Controllerss.User_controller import UserController
 from Utils.Validation_utils import ValidationUtils
 from Model import DatabaseModel
@@ -35,7 +34,6 @@ class UsersView(ctk.CTkFrame):
         self.production_controller:ProductionController = app_context.production_controller
         self.tab = tab
         self.fiscal_settings = app_context.fiscal_settings
-        self.analyzer:Analyzer = app_context.analyzer
         self.event_bus:EventBus = app_context.event_bus
 
         #tool variables

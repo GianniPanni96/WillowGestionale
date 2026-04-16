@@ -5,7 +5,6 @@ import customtkinter as ctk
 
 from App_context import AppContext
 from AnalyzerServices.Invoice_analyzer_service import InvoiceAnalyzerService
-from Controllers import ControllerUtils
 from Controllerss.User_controller import UserController
 from Controllerss.Invoice_controller import InvoiceController
 from Model import DBInvoicesColumns, DBPaymentsColumns
@@ -13,6 +12,7 @@ from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Users_query_service import UserQueryService
+from Utils.Controller_utils import ControllerUtils
 from Views.ListViews.BaseList_view import BaseListView
 from Views.Creators.Invoice_create_view import InvoiceCreateView
 from Views.Details.Invoice_detail_view import InvoiceDetailView

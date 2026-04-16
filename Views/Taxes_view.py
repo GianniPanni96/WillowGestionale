@@ -13,8 +13,6 @@ class TaxesView(ctk.CTkFrame):
         self.app_context = app_context
         self.books_retriever = app_context.books_retriever
         self.db_model = app_context.db_model
-        self.update_controller = app_context.update_controller
-        self.analyzer = app_context.analyzer
         self.user_analyzer_service:UserAnalyzerService = app_context.user_analyzer_service
         self.config_manager = app_context.config_manager
         self.catalogo_elenchi = app_context.catalogo_elenchi

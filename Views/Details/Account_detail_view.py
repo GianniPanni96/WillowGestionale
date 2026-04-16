@@ -1,7 +1,10 @@
 import customtkinter as ctk
 from datetime import datetime
 
+from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from App_context import AppContext
+from Controllerss.Account_controller import AccountController
+from Model import DatabaseModel
 from Views.View_utils import ViewUtils
 
 from QueryServices.Account_query_service import AccountQueryService
@@ -11,13 +14,11 @@ from Gestionale_Enums import*
 class AccountDetailView(ctk.CTkFrame):
     def __init__(self, parent, back_callback, app_context:AppContext):
         super().__init__(parent)
-        self.account_controller = app_context.account_controller
+        self.account_controller:AccountController = app_context.account_controller
         self.accounts_query_service:AccountQueryService = app_context.account_query_service
-        self.analyzer = app_context.analyzer
-        self.db_model = app_context.db_model
+        self.account_analyzer_service: AccountAnalyzerService = app_context.account_analyzer_service
+        self.db_model:DatabaseModel = app_context.db_model
         self.back_callback = back_callback
-        self.update_controller = app_context.update_controller
-        self.event_bus = app_context.event_bus
         self.current_expense_id = None
         self.catalogo_elenchi = app_context.catalogo_elenchi
         self.parent = parent
@@ -73,7 +74,7 @@ class AccountDetailView(ctk.CTkFrame):
 
     def _create_account_info_section(self, account_data):
         # Recupera i movimenti del conto
-        movements = self.analyzer.retrieve_account_movements_by_account_id(self.current_account_id)
+        movements = self.account_analyzer_service.retrieve_account_movements_by_account_id(self.current_account_id)
 
         # Calcola il saldo corrente
         current_balance = float(account_data[DBAccountsColumns.INIT_BALANCE.value])

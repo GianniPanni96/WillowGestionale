@@ -4,7 +4,7 @@ import tkinter.font as tkfont
 from datetime import datetime
 
 from Model import DatabaseModel
-from Controllers import Analyzer
+from AnalyzerServices.Monthly_report_analyzer_service import MonthlyReportAnalyzerService
 from App_context import AppContext
 from Updates_controller import UpdatesController
 from Event_bus import EventBus
@@ -19,7 +19,7 @@ class ReportView (ctk.CTkFrame):
         self.tabview = tabview
         self.tab = tabview.tab(f"Report {datetime.now().strftime('%Y')}")
         self.fiscal_settings = app_context.fiscal_settings
-        self.analyzer:Analyzer = app_context.analyzer
+        self.monthly_report_analyzer_service:MonthlyReportAnalyzerService = app_context.monthly_report_analyzer_service
         self.event_bus:EventBus = app_context.event_bus
 
         # Container principale
@@ -35,7 +35,7 @@ class ReportView (ctk.CTkFrame):
 
     def create_report_tab(self):
 
-        monthly_data = self.analyzer.retrieve_monthly_data()
+        monthly_data = self.monthly_report_analyzer_service.retrieve_monthly_data()
 
         # Titolo principale
         title_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")

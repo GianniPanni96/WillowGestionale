@@ -3,7 +3,7 @@ import customtkinter as ctk
 from datetime import datetime, timedelta
 
 from App_context import AppContext
-from Controllers import SupplierController
+from AnalyzerServices.Monthly_report_analyzer_service import SupplierController
 from Model import DBExpensesColumns, DBSuppliersColumns
 from Views.Creators.Supplier_create_view import SupplierCreateView
 from Views.Details.Supplier_detail_view import SupplierDetailView

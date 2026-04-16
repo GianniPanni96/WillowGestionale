@@ -1,16 +1,12 @@
 {
-  "name": "willowGestionale",
-  "version": "2.0.0",
-  "description": "Descrizione del progetto",
-  "main": "Main.py",
-  
-  "dependencies": {
-    "customtkinter": "*",
-    "pillow": "*",
-    "tkcalendar": "*",
-    "pycryptodome": "*"
+  "name": "willow-gestionale",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Project metadata and helper scripts for the Willow Gestionale Python app.",
+  "scripts": {
+    "build:win": "pyinstaller --onefile --windowed --icon=Data/images/WillowLogo.ico Main.py",
+    "deps:graph": "python .\\ArchitectureTools\\generate_dependency_report.py"
   },
-  
   "author": "Panza Gianluca",
   "license": "ISC"
 }

@@ -2,14 +2,15 @@ from datetime import datetime
 
 from Model import DatabaseModel
 from Gestionale_Enums import *
+from QueryServices.Account_query_service import AccountQueryService
 from Utils.Validation_utils import ValidationUtils
 
 
 class PaymentsController:
 
-    def __init__(self, db_model: DatabaseModel, account_controller):
-        self.db_model = db_model
-        self.account_controller = account_controller
+    def __init__(self, db_model: DatabaseModel, account_query_service:AccountQueryService):
+        self.db_model:DatabaseModel = db_model
+        self.account_query_service:AccountQueryService = account_query_service
 
         self.on_adding_payment_callbacks = []
 
@@ -35,7 +36,7 @@ class PaymentsController:
 
         # prendo i dati necessari del conto
         nome_conto = payment_data.get("NOME CONTO")
-        conto = self.account_controller.retrieve_account_map_by_name(nome_conto)
+        conto = self.account_query_service.retrieve_account_map_by_name(nome_conto)
         id_conto = conto[DBAccountsColumns.ID.value]
 
 

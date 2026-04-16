@@ -5,9 +5,11 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 
 from App_context import AppContext
+from Controllerss.Salary_controller import SalaryController
 from Gestionale_Enums import DBAccountsColumns, DBSalariesColumns, DBUsersColumns
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Salaries_query_service import SalaryQueryService
+from QueryServices.Users_query_service import UserQueryService
 from Views.View_utils import ViewUtils
 
 
@@ -18,15 +20,14 @@ class SalaryDetailView(ctk.CTkFrame):
     def __init__(self, parent, app_context: AppContext, back_callback, on_salary_changed=None):
         super().__init__(parent)
         self.parent = parent
-        self.app_context = app_context
+        self.app_context:AppContext = app_context
         self.back_callback = back_callback
         self.on_salary_changed = on_salary_changed
+        self.user_query_service:UserQueryService = app_context.user_query_service
 
-        self.salary_controller = app_context.salary_controller
+        self.salary_controller:SalaryController = app_context.salary_controller
         self.salary_query_service: SalaryQueryService = app_context.salary_query_service
         self.account_query_service: AccountQueryService = app_context.account_query_service
-        self.user_controller = app_context.user_controller
-        self.update_controller = app_context.update_controller
         self.current_salary_id = None
 
         self.configure(fg_color="transparent")
@@ -72,7 +73,7 @@ class SalaryDetailView(ctk.CTkFrame):
             self.salary[self.ACCOUNT_LABEL] = account[DBAccountsColumns.NAME.value]
 
         user_id = self.salary[DBSalariesColumns.USER_ID.value]
-        user = self.user_controller.retrieve_user_map_by_id(user_id)
+        user = self.user_query_service.retrieve_user_map_by_id(user_id)
         if user is not None:
             self.salary[self.USER_LABEL] = f"{user[DBUsersColumns.FIRST_NAME.value]} {user[DBUsersColumns.LAST_NAME.value]}"
 
@@ -109,7 +110,7 @@ class SalaryDetailView(ctk.CTkFrame):
                 "section": "Collegamenti",
                 "values": [
                     f"{u[DBUsersColumns.FIRST_NAME.value]} {u[DBUsersColumns.LAST_NAME.value]}"
-                    for u in self.user_controller.retrieve_users_map_list()
+                    for u in self.user_query_service.retrieve_users_map_list()
                 ]
             },
             DBSalariesColumns.CREATED_AT.value: {
@@ -255,7 +256,7 @@ class SalaryDetailView(ctk.CTkFrame):
             parts = user_name.split(" ", 1)
             first_name = parts[0] if len(parts) > 0 else ""
             last_name = parts[1] if len(parts) > 1 else ""
-            user = self.user_controller.retrieve_user_map_by_fullname(first_name, last_name)
+            user = self.user_query_service.retrieve_user_map_by_fullname(first_name, last_name)
             user_id = user[DBUsersColumns.ID.value] if user else None
 
         salary_data = {

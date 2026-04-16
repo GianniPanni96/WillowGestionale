@@ -5,6 +5,7 @@ from Model import DatabaseModel
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Salaries_query_service import SalaryQueryService
 from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
+from QueryServices.Users_query_service import UserQueryService
 from Utils.Validation_utils import ValidationUtils
 
 
@@ -12,13 +13,13 @@ class SalaryController:
     def __init__(
         self,
         db_model: DatabaseModel,
-        user_controller,
+        user_query_service:UserQueryService,
         account_query_service: AccountQueryService,
         salary_query_service: SalaryQueryService,
         salary_analyzer_service: SalaryAnalyzerService,
     ):
         self.db_model = db_model
-        self.user_controller = user_controller
+        self.user_query_service:UserQueryService = user_query_service
         self.account_query_service = account_query_service
         self.salary_query_service = salary_query_service
         self.salary_analyzer_service = salary_analyzer_service
@@ -38,7 +39,7 @@ class SalaryController:
         if user_name and len(user_name.split(" ")) >= 2:
             user_first = user_name.split(" ")[0]
             user_last = user_name.split(" ")[1]
-            user = self.user_controller.retrieve_user_map_by_fullname(user_first, user_last)
+            user = self.user_query_service.retrieve_user_map_by_fullname(user_first, user_last)
             user_id = user[DBUsersColumns.ID.value] if user else None
 
         account_id = None

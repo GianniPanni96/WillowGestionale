@@ -51,10 +51,9 @@ from WarningServices.Payment_warning_service import PaymentWarningService
 
 
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from Config import ConfigManager
-    from Backup_manager import BackupImporter, BackupScheduler
+
+from Config import ConfigManager
+from Backup_manager import BackupImporter, BackupScheduler
 
 
 class AppContext:
@@ -145,7 +144,7 @@ class AppContext:
         )
         self.salary_controller:SalaryController = SalaryController(
             self.db_model,
-            self.user_controller,
+            self.user_query_service,
             self.account_query_service,
             self.salary_query_service,
             self.salary_analyzer_service
@@ -158,7 +157,7 @@ class AppContext:
         )
         self.client_controller:ClientController = ClientController(self.db_model)
         self.supplier_controller:SupplierController = SupplierController(self.db_model)
-        self.payment_controller:PaymentsController = PaymentsController(self.db_model, self.account_controller)
+        self.payment_controller:PaymentsController = PaymentsController(self.db_model, self.account_query_service)
         self.production_controller:ProductionController = ProductionController(self.db_model, self.clients_query_service)
         self.invoice_controller:InvoiceController = InvoiceController(self.db_model, self.invoices_analyzer_service, self.clients_query_service,
                                                     self.invoices_query_service, self.productions_query_service,

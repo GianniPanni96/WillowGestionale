@@ -1,5 +1,7 @@
 import customtkinter as ctk
 import re, os
+import tkinter as tk
+from pathlib import Path
 
 from OtherServices.User_auth_service import UserAuthService
 from QueryServices.Account_query_service import AccountQueryService
@@ -41,6 +43,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from App_context import AppContext
 
+from Utils.App_paths import is_windows
+
 
 class MainWindow(ctk.CTk):
     def __init__(self, app_context:"AppContext"):
@@ -68,11 +72,7 @@ class MainWindow(ctk.CTk):
         self.data_path = app_context.data_path
         self.images_path = app_context.images_path
 
-        #Imposta l'icona della finestra
-        try:
-            self.iconbitmap(os.path.join(self.images_path, "WillowLogo.ico"))
-        except Exception as e:
-            print(f"Errore nell'impostazione dell'icona della finestra: {e}")
+        self._set_window_icon()
 
         self.login_status = False
         self.logged_user_id = -1
@@ -180,6 +180,22 @@ class MainWindow(ctk.CTk):
         self.after(100, lambda: self.state("zoomed"))
 
         self._setup_event_subscriptions()
+
+    def _set_window_icon(self):
+        try:
+            images_dir = Path(self.images_path)
+            if is_windows():
+                icon_path = images_dir / "WillowLogo.ico"
+                if icon_path.exists():
+                    self.iconbitmap(str(icon_path))
+                    return
+
+            png_icon_path = images_dir / "user.png"
+            if png_icon_path.exists():
+                self._window_icon_image = tk.PhotoImage(file=str(png_icon_path))
+                self.iconphoto(True, self._window_icon_image)
+        except Exception as e:
+            print(f"Errore nell'impostazione dell'icona della finestra: {e}")
 
     def _track_after(self, ms, callback=None, *args):
         after_id = self._orig_after(ms, callback, *args)

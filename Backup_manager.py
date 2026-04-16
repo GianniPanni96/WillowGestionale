@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import threading
 import os, re, json
 from typing import List, Dict, Tuple, Optional
+from Utils.App_paths import get_runtime_paths
 
 
 
@@ -99,20 +100,16 @@ class BackupScheduler:
         delta_days = delta_days if delta_days is not None else self.delta_days
 
 
-        # Recupera il percorso del DB tramite la variabile di ambiente
-        db_path = os.getenv("GESTIONALE_DB_PATH")
-        if not db_path:
-            print("Errore: variabile di ambiente GESTIONALE_DB_PATH non definita.")
-            return
+        runtime_paths = get_runtime_paths()
 
         # Verifica che il file gestionale.db esista
-        db_file = os.path.join(db_path, "gestionale.db")
+        db_file = str(runtime_paths.db_file)
         if not os.path.exists(db_file):
             print(f"Errore: Il file {db_file} non esiste.")
             return
 
         # Verifica che il file app_config esista
-        config_file = os.path.join(db_path, "app_config.json")
+        config_file = str(runtime_paths.config_file)
         if not os.path.exists(config_file):
             print(f"Errore: Il file {config_file} non esiste.")
             return

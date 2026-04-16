@@ -3,17 +3,13 @@ import os
 from enum import Enum
 import shutil
 from datetime import datetime, timedelta
+from Utils.App_paths import get_runtime_paths
 
 # Nome della variabile d'ambiente
 DB_PATH_ENV_VAR = "GESTIONALE_DB_PATH"
 
 # Ottieni il percorso del database dalla variabile d'ambiente
-db_path = os.environ.get(DB_PATH_ENV_VAR)
-
-if not db_path:
-    raise EnvironmentError(f"La variabile d'ambiente {DB_PATH_ENV_VAR} non è stata configurata.")
-
-db_path = os.path.join(db_path, "gestionale.db")
+db_path = str(get_runtime_paths().db_file)
 
 
 

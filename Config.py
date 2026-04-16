@@ -3,6 +3,7 @@ from typing import List
 from dataclasses import dataclass, field
 from Gestionale_Enums import*
 from typing import Optional, Union
+from Utils.App_paths import DB_PATH_ENV_VAR, get_runtime_paths
 
 from typing import Dict
 from dataclasses import dataclass
@@ -19,15 +20,10 @@ class ConfigManager:
         """
         Inizializza la classe ConfigManager e imposta il percorso del file di configurazione.
         """
-        # Nome della variabile d'ambiente
-        self.DB_PATH_ENV_VAR = "GESTIONALE_DB_PATH"
-
-        # Ottieni il percorso del database dalla variabile d'ambiente
-        self.db_path = os.environ.get(self.DB_PATH_ENV_VAR)
-        if not self.db_path:
-            raise EnvironmentError(f"La variabile d'ambiente {self.DB_PATH_ENV_VAR} non è impostata.")
-
-        self.CONFIG_FILE = os.path.join(self.db_path, "app_config.json")
+        self.DB_PATH_ENV_VAR = DB_PATH_ENV_VAR
+        runtime_paths = get_runtime_paths()
+        self.db_path = str(runtime_paths.storage_root)
+        self.CONFIG_FILE = str(runtime_paths.config_file)
 
     def load_config(self):
         """Carica le impostazioni dal file di configurazione."""

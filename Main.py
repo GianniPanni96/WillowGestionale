@@ -4,23 +4,19 @@ import os
 from Config import ConfigManager, RecurringExpense, FiscalSettings, PartitaIVAOrdinaria, PartitaIVAForfettaria, AliquotaIva, ScaglioneIrpef, HistoricalFinancialData
 from Backup_manager import BackupScheduler, BackupImporter
 from App_context import AppContext
+from Utils.App_paths import DB_PATH_ENV_VAR, get_runtime_paths
 
 # Avvia l'applicazione
 if __name__ == "__main__":
 
-    # Nome della variabile d'ambiente
-    PATH_ENV_VAR = "GESTIONALE_DB_PATH"
+    runtime_paths = get_runtime_paths()
+    path = str(runtime_paths.storage_root)
+    os.environ[DB_PATH_ENV_VAR] = path
 
-    # Ottieni il percorso del database dalla variabile d'ambiente
-    path = os.environ.get(PATH_ENV_VAR)
-
-    if not path:
-        raise EnvironmentError(f"La variabile d'ambiente {PATH_ENV_VAR} non è stata configurata.")
-
-    db_path = os.path.join(path, "gestionale.db")
-    data_path = os.path.join(path, "Data")
-    images_path = os.path.join(data_path, "images")
-    books_default_path = os.path.join(path, "Books")
+    db_path = str(runtime_paths.db_file)
+    data_path = str(runtime_paths.data_dir)
+    images_path = str(runtime_paths.images_dir)
+    books_default_path = str(runtime_paths.books_dir)
 
 
     # Inizializza il gestore delle configurazioni
@@ -35,6 +31,9 @@ if __name__ == "__main__":
     db_backup_base_path = backup_settings.get("backup_base_path", {}).get("value")
     books_backup_path = backup_settings.get("backup_books_path", {}).get("value")
     delta_days = backup_settings.get("delta_days", {}).get("value", 7)
+
+    if not db_backup_base_path:
+        db_backup_base_path = str(runtime_paths.backups_dir)
 
     # Estrai le impostazioni fiscali dalla configurazione
     fiscal_config = config.get("fiscal_settings", {})

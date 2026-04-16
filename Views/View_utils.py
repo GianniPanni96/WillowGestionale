@@ -1,28 +1,20 @@
-from enum import Enum
+from AnalyzerServices.Production_analyzer_service import ProductionAnalyzerService
+from Gestionale_Enums import*
 import customtkinter as ctk
 import tkinter as tk
-from tkinter import Toplevel
 from PIL import Image
 import os
+import traceback
 
-from Model import DBExpensesColumns, DBSuppliersColumns, DBUsersColumns, DBAccountsColumns, DBSalariesColumns, DBRefundsColumns
-from Model import DBProductionsColumns, DBPaymentsColumns, DBInvoicesColumns, DBClientsColumns, DBTransfersColumns
+from AnalyzerServices.Client_analyzer_service import  ClientAnalyzerService
+from AnalyzerServices.Supplier_analyzer_service import  SupplierAnalyzerService
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Clients_query_service import ClientQueryService
+from QueryServices.Productions_query_service import ProductionQueryService
+from QueryServices.Invoices_query_service import InvoiceQueryService
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from Controllers import ClientController
-    from Controllers import UserController
-    from Controllers import AccountController
-    from Controllers import TransfersController
-    from Controllers import PaymentsController
-    from Controllers import ExpenseController
-    from Controllers import SupplierController
-    from Controllers import SalaryController
-    from Controllers import RefundController
-    from Controllers import InvoiceController
-    from Controllers import ProductionController
-    from Controllers import Analyzer
-
+from QueryServices.Suppliers_query_service import SupplierQueryService
+from QueryServices.Users_query_service import UserQueryService
 
 class ViewUtils(ctk.CTk):
 
@@ -406,6 +398,39 @@ class ViewUtils(ctk.CTk):
     @staticmethod
     def add_tooltip(widget, text):
         tooltip = None
+        horizontal_offset = 14
+        vertical_offset = 18
+        screen_margin = 8
+
+        def place_tooltip(event):
+            nonlocal tooltip
+            if tooltip is None:
+                return
+
+            tooltip.update_idletasks()
+
+            tooltip_width = tooltip.winfo_reqwidth()
+            tooltip_height = tooltip.winfo_reqheight()
+            screen_width = widget.winfo_screenwidth()
+            screen_height = widget.winfo_screenheight()
+
+            # Posizione preferita: subito a destra e sotto il puntatore.
+            x = event.x_root + horizontal_offset
+            y = event.y_root + vertical_offset
+
+            # Se il tooltip uscirebbe a destra, prova a posizionarlo a sinistra.
+            if x + tooltip_width + screen_margin > screen_width:
+                x = event.x_root - tooltip_width - horizontal_offset
+
+            # Se il tooltip uscirebbe in basso, prova a posizionarlo sopra.
+            if y + tooltip_height + screen_margin > screen_height:
+                y = event.y_root - tooltip_height - vertical_offset
+
+            # Clamp finale per evitare qualsiasi uscita dallo schermo.
+            x = max(screen_margin, min(x, screen_width - tooltip_width - screen_margin))
+            y = max(screen_margin, min(y, screen_height - tooltip_height - screen_margin))
+
+            tooltip.wm_geometry(f"+{int(x)}+{int(y)}")
 
         def show_tooltip(event):
             nonlocal tooltip
@@ -430,29 +455,7 @@ class ViewUtils(ctk.CTk):
                              pady=6)
             label.pack()
 
-            # Calcola dimensioni del tooltip
-            tooltip.update_idletasks()  # Forza il calcolo delle dimensioni
-
-            # Offset personalizzabile (regola questo valore in base alle tue esigenze)
-            vertical_offset = -170  # Sposta il tooltip 100px sopra il puntatore
-
-            # Calcola posizione finale
-            x = event.x_root + 15
-            y = event.y_root + vertical_offset
-
-            # Controllo per evitare che il tooltip esca dallo schermo in alto
-            screen_height = widget.winfo_screenheight()
-            if y < 0:
-                # Se il tooltip andrebbe sopra lo schermo, mostralo sotto il puntatore
-                y = event.y_root + 20
-
-            # Controllo per evitare che il tooltip esca dallo schermo a destra
-            tooltip_width = tooltip.winfo_width()
-            screen_width = widget.winfo_screenwidth()
-            if (x + tooltip_width) > screen_width:
-                x = screen_width - tooltip_width - 10  # 10px di margine
-
-            tooltip.wm_geometry(f"+{int(x)}+{int(y)}")
+            place_tooltip(event)
 
         def hide_tooltip(event):
             nonlocal tooltip
@@ -460,8 +463,9 @@ class ViewUtils(ctk.CTk):
                 tooltip.destroy()
                 tooltip = None
 
-        widget.bind("<Enter>", show_tooltip)
-        widget.bind("<Leave>", hide_tooltip)
+        widget.bind("<Enter>", show_tooltip, add="+")
+        widget.bind("<Motion>", place_tooltip, add="+")
+        widget.bind("<Leave>", hide_tooltip, add="+")
 
     @staticmethod
     def create_PIL_image_from_path(path):
@@ -550,6 +554,11 @@ class ViewUtils(ctk.CTk):
         current_chunk_index = 0
         processed_items = 0
 
+        callback_owner = getattr(add_card_callback, "__self__", None)
+        callback_owner_name = callback_owner.__class__.__name__ if callback_owner is not None else None
+        callback_name = getattr(add_card_callback, "__name__", str(add_card_callback))
+        extractor_name = getattr(extract_args_callback, "__name__", str(extract_args_callback))
+
         def process_next_chunk():
             nonlocal current_chunk_index, processed_items
 
@@ -560,13 +569,25 @@ class ViewUtils(ctk.CTk):
 
             current_chunk = chunks[current_chunk_index]
 
-            for item in current_chunk:
+            for item_index_in_chunk, item in enumerate(current_chunk):
+                absolute_item_index = current_chunk_index * chunk_size + item_index_in_chunk
                 try:
                     args = extract_args_callback(item)
                     add_card_callback(*args)
                     processed_items += 1
                 except Exception as e:
-                    print(f"Errore nel processare item: {e}")
+                    print(
+                        "Errore durante process_items_in_chunks:\n"
+                        f"- widget: {widget.__class__.__name__}\n"
+                        f"- add_card_callback: {callback_owner_name + '.' if callback_owner_name else ''}{callback_name}\n"
+                        f"- extract_args_callback: {extractor_name}\n"
+                        f"- chunk_index: {current_chunk_index}\n"
+                        f"- item_index_in_chunk: {item_index_in_chunk}\n"
+                        f"- absolute_item_index: {absolute_item_index}\n"
+                        f"- item: {repr(item)}\n"
+                        f"- eccezione: {type(e).__name__}: {e}\n"
+                        f"{traceback.format_exc()}"
+                    )
 
             # Force UI update
             widget.update_idletasks()
@@ -586,7 +607,7 @@ class ViewUtils(ctk.CTk):
         process_next_chunk()
 
     @staticmethod
-    def create_extractor_for_expenses(supplier_controller:"SupplierController", user_controller:"UserController", account_controller:"AccountController"):
+    def create_extractor_for_expenses(suppliers_query_service:"SupplierQueryService", user_query_service:"UserQueryService", accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per le spese
         Restituisce una funzione che può essere usata come extract_args_callback
@@ -598,7 +619,7 @@ class ViewUtils(ctk.CTk):
             net_amount = expense[DBExpensesColumns.NET_AMOUNT.value]
             amount = expense[DBExpensesColumns.TOT_AMOUNT.value]
             supplier_id = expense[DBExpensesColumns.SUPPLIER_ID.value]
-            supplier = supplier_controller.retrieve_supplier_map_by_id(supplier_id)
+            supplier = suppliers_query_service.retrieve_supplier_map_by_id(supplier_id)
             supplier_name = supplier[DBSuppliersColumns.NAME.value]
             date = expense[DBExpensesColumns.DATE.value]
             category = expense[DBExpensesColumns.CATEGORY.value]
@@ -606,14 +627,14 @@ class ViewUtils(ctk.CTk):
             user_id = expense[DBExpensesColumns.USER_ID_DEDUZIONE.value]
 
             if user_id:
-                user = user_controller.retrieve_user_map_by_id(user_id)
+                user = user_query_service.retrieve_user_map_by_id(user_id)
                 user_first = user[DBUsersColumns.FIRST_NAME.value]
                 user_second = user[DBUsersColumns.LAST_NAME.value]
                 user_name = user_first + " " + user_second
             else:
                 user_name = " ---- "
 
-            account = account_controller.retrieve_account_map_by_id(
+            account = accounts_query_service.retrieve_account_map_by_id(
                 expense[DBExpensesColumns.ACCOUNT_ID.value]
             )
             account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
@@ -624,7 +645,7 @@ class ViewUtils(ctk.CTk):
         return extract_expense_args
 
     @staticmethod
-    def create_extractor_for_clients(client_controller:"ClientController"):
+    def create_extractor_for_clients(client_analyzer_service:"ClientAnalyzerService"):
         """
         Crea una funzione di estrazione parametri specifica per i clienti
         """
@@ -634,25 +655,25 @@ class ViewUtils(ctk.CTk):
             name = client[DBClientsColumns.NAME.value]
 
             # Costruisci i dati aggregati per singolo cliente
-            aggregate_data = client_controller.construct_client_map_aggregate_data(client_id, year=-1)
+            aggregate_data = client_analyzer_service.construct_client_map_aggregate_data(client_id, year=-1)
 
             return (
                 client_id,
                 name,
-                round(aggregate_data[client_controller.Aggregate_data.TOT_ENTRATE.value], 2),
-                aggregate_data[client_controller.Aggregate_data.NUM_FATTURE.value],
-                round(aggregate_data[client_controller.Aggregate_data.MEDIA_FATTURE.value], 2),
-                round(aggregate_data[client_controller.Aggregate_data.TOT_CREDITI.value], 2),
-                round(client_controller.calcola_tot_rimborsi_by_client(client_id)),
-                round(aggregate_data[client_controller.Aggregate_data.PAGAM_ORARIO_MEDIO.value], 2),
-                aggregate_data[client_controller.Aggregate_data.TOT_GIORNI_RIT.value],
-                round(aggregate_data[client_controller.Aggregate_data.MEDIA_RITARDO.value], 2)
+                round(aggregate_data[ClientsAggregateData.TOT_ENTRATE.value], 2),
+                aggregate_data[ClientsAggregateData.NUM_FATTURE.value],
+                round(aggregate_data[ClientsAggregateData.MEDIA_FATTURE.value], 2),
+                round(aggregate_data[ClientsAggregateData.TOT_CREDITI.value], 2),
+                round(aggregate_data[ClientsAggregateData.TOT_RIMBORSI.value], 2),
+                round(aggregate_data[ClientsAggregateData.PAGAM_ORARIO_MEDIO.value], 2),
+                aggregate_data[ClientsAggregateData.TOT_GIORNI_RIT.value],
+                round(aggregate_data[ClientsAggregateData.MEDIA_RITARDO.value], 2)
             )
 
         return extract_client_args
 
     @staticmethod
-    def create_extractor_for_invoices(client_controller:"ClientController", user_controller:"UserController", production_controller:"ProductionController"):
+    def create_extractor_for_invoices(clients_query_service:"ClientQueryService", user_query_service:"UserQueryService", productions_query_service:"ProductionQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per le fatture
         """
@@ -661,10 +682,10 @@ class ViewUtils(ctk.CTk):
             invoice_id = invoice[DBInvoicesColumns.ID.value]
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
             invoice_client_ID = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-            invoice_client_name = client_controller.retrieve_client_map_by_id(invoice_client_ID)[
+            invoice_client_name = clients_query_service.retrieve_client_map_by_id(invoice_client_ID)[
                 DBClientsColumns.NAME.value]
             invoice_user_id = invoice[DBInvoicesColumns.ID_UTENTE.value]
-            user_map = user_controller.retrieve_user_map_by_id(invoice_user_id)
+            user_map = user_query_service.retrieve_user_map_by_id(invoice_user_id)
             invoice_user_name = f"{user_map[DBUsersColumns.FIRST_NAME.value]} {user_map[DBUsersColumns.LAST_NAME.value]}"
             invoice_creation_date = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
             invoice_state = invoice[DBInvoicesColumns.STATUS.value]
@@ -673,7 +694,7 @@ class ViewUtils(ctk.CTk):
             invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
             invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
 
-            production = production_controller.retrieve_production_map_by_id(invoice_production_id)
+            production = productions_query_service.retrieve_production_map_by_id(invoice_production_id)
             if production:
                 invoice_production_name = production[DBProductionsColumns.NAME.value]
             else:
@@ -695,8 +716,8 @@ class ViewUtils(ctk.CTk):
         return extract_invoice_args
 
     @staticmethod
-    def create_extractor_for_payments(invoice_controller:"InvoiceController", client_controller:"ClientController", production_controller:"ProductionController",
-                                      account_controller:"AccountController"):
+    def create_extractor_for_payments(invoices_query_service:"InvoiceQueryService", clients_query_service:"ClientQueryService", productions_query_service:"ProductionQueryService",
+                                      accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per i pagamenti
         """
@@ -708,15 +729,15 @@ class ViewUtils(ctk.CTk):
             payment_date = payment[DBPaymentsColumns.PAYMENT_DATE.value]
             linked_rata = payment[DBPaymentsColumns.LINKED_RATA.value]
             invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
-            invoice = invoice_controller.retrieve_invoice_map_by_id(invoice_id)
+            invoice = invoices_query_service.retrieve_invoice_map_by_id(invoice_id)
             invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
             cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-            client = client_controller.retrieve_client_map_by_id(cliente_id)
+            client = clients_query_service.retrieve_client_map_by_id(cliente_id)
             client_name = client[DBClientsColumns.NAME.value]
             production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-            production = production_controller.retrieve_production_map_by_id(production_id)
+            production = productions_query_service.retrieve_production_map_by_id(production_id)
             production_name = production[DBProductionsColumns.NAME.value] if production else "Produzione non trovata"
-            conto = account_controller.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
+            conto = accounts_query_service.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
             nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
 
             return (
@@ -734,7 +755,7 @@ class ViewUtils(ctk.CTk):
         return extract_payment_args
 
     @staticmethod
-    def create_extractor_for_productions(production_controller:"ProductionController", client_controller:"ClientController"):
+    def create_extractor_for_productions(production_analyzer_service:"ProductionAnalyzerService", clients_query_service:"ClientQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per le produzioni
         """
@@ -743,14 +764,14 @@ class ViewUtils(ctk.CTk):
             production_id = production[DBProductionsColumns.ID.value]
             production_name = production[DBProductionsColumns.NAME.value]
             client_id = production[DBProductionsColumns.CLIENT_ID.value]
-            client_name = client_controller.retrieve_client_map_by_id(client_id)[DBClientsColumns.NAME.value]
+            client_name = clients_query_service.retrieve_client_map_by_id(client_id)[DBClientsColumns.NAME.value]
             tipologia_produzione = production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value]
             tipologia_output = production[DBProductionsColumns.TIPOLOGIA_OUTPUT.value]
             produzione_stato = production[DBProductionsColumns.STATO.value]
             data_di_consegna = production[DBProductionsColumns.END_DATE.value]
             totale_preventivo = production[DBProductionsColumns.TOTALE_PREVENTIVO.value]
             durata_produzione = production[DBProductionsColumns.HOURS.value]
-            prezzo_orario = production_controller.calculate_production_cost_per_hour(production_id)
+            prezzo_orario = production_analyzer_service.calculate_production_cost_per_hour(production_id)
 
             return (
                 production_id,
@@ -768,7 +789,7 @@ class ViewUtils(ctk.CTk):
         return extract_production_args
 
     @staticmethod
-    def create_extractor_for_refunds(client_controller:"ClientController", account_controller:"AccountController"):
+    def create_extractor_for_refunds(clients_query_service:"ClientQueryService", accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per i rimborsi
         """
@@ -779,9 +800,9 @@ class ViewUtils(ctk.CTk):
             amount = refund[DBRefundsColumns.REFUND_AMOUNT.value]
             refund_date = refund[DBRefundsColumns.REFUND_DATE.value]
             cliente_id = refund[DBRefundsColumns.CLIENT_ID.value]
-            client = client_controller.retrieve_client_map_by_id(cliente_id)
+            client = clients_query_service.retrieve_client_map_by_id(cliente_id)
             client_name = client[DBClientsColumns.NAME.value]
-            conto = account_controller.retrieve_account_map_by_id(refund[DBRefundsColumns.CONTO_ID.value])
+            conto = accounts_query_service.retrieve_account_map_by_id(refund[DBRefundsColumns.CONTO_ID.value])
             nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
 
             return (
@@ -796,7 +817,7 @@ class ViewUtils(ctk.CTk):
         return extract_refund_args
 
     @staticmethod
-    def create_extractor_for_salaries(user_controller:"UserController", account_controller:"AccountController"):
+    def create_extractor_for_salaries(user_query_service:"UserQueryService", accounts_query_service:"AccountQueryService"):
         """
         Crea una funzione di estrazione parametri specifica per gli stipendi
         """
@@ -809,14 +830,14 @@ class ViewUtils(ctk.CTk):
             user_id = salary[DBSalariesColumns.USER_ID.value]
 
             if user_id:
-                user = user_controller.retrieve_user_map_by_id(user_id)
+                user = user_query_service.retrieve_user_map_by_id(user_id)
                 user_first = user[DBUsersColumns.FIRST_NAME.value]
                 user_second = user[DBUsersColumns.LAST_NAME.value]
                 user_name = user_first + " " + user_second
             else:
                 user_name = " ---- "
 
-            account = account_controller.retrieve_account_map_by_id(salary[DBSalariesColumns.ACCOUNT_ID.value])
+            account = accounts_query_service.retrieve_account_map_by_id(salary[DBSalariesColumns.ACCOUNT_ID.value])
             account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
 
             return (
@@ -831,7 +852,7 @@ class ViewUtils(ctk.CTk):
         return extract_salary_args
 
     @staticmethod
-    def create_extractor_for_suppliers(supplier_controller:"SupplierController"):
+    def create_extractor_for_suppliers(suppliers_analyzer_service: "SupplierAnalyzerService"):
         """
         Crea una funzione di estrazione parametri specifica per i fornitori
         """
@@ -844,510 +865,20 @@ class ViewUtils(ctk.CTk):
             contatto = supplier[DBSuppliersColumns.CONTATTO.value]
 
             # Costruisci i dati aggregati per singolo fornitore
-            aggregate_data = supplier_controller.construct_supplier_map_aggregate_data(supplier_id)
+            aggregate_data = suppliers_analyzer_service.construct_supplier_map_aggregate_data(supplier_id)
 
             return (
                 supplier_id,
                 supplier_name,
                 partita_iva,
-                aggregate_data[supplier_controller.Aggregate_data.NUM_SPESE.value],
-                round(aggregate_data[supplier_controller.Aggregate_data.MEDIA_SPESE.value], 2),
-                round(aggregate_data[supplier_controller.Aggregate_data.TOT_SPESE.value], 2),
+                aggregate_data[SupplierAggregateData.NUM_SPESE.value],
+                round(aggregate_data[SupplierAggregateData.MEDIA_SPESE.value], 2),
+                round(aggregate_data[SupplierAggregateData.TOT_SPESE.value], 2),
                 note,
                 contatto
             )
 
         return extract_supplier_args
-
-
-class FilterableComboBox(ctk.CTkFrame):
-    def __init__(self, parent, values, placeholder="Seleziona...", autofill=False, command=None, **kwargs):
-        super().__init__(parent, **kwargs)
-
-        self.all_values = sorted(values) if values else []
-        self.filtered_values = self.all_values.copy()
-        self.autofill = autofill
-        self.command = command
-        self.current_value = ""
-        self.parent = parent
-
-        self.y_shift = 27
-
-        self.interaction_frame = ctk.CTkFrame(self)
-        self.interaction_frame.pack(fill="x")
-        # Entry per la ricerca
-        if not autofill:
-            self.entry = ctk.CTkEntry(self.interaction_frame, placeholder_text=placeholder)
-        else:
-            try:
-                self.entry = ctk.CTkEntry(self.interaction_frame)
-                self.current_value = self.all_values[0]
-                self.entry.insert(0, self.all_values[0])
-
-            except IndexError:
-                self.entry = ctk.CTkEntry(self, placeholder_text="NO VALUES")
-                return
-
-        self.entry.pack(fill="x", expand=True, side="left")
-
-        self.dropdown_button_status = False
-
-        self.dropdown_button = ctk.CTkButton(self.interaction_frame, text=">", command=self._on_dropdown_icon_click, width=30)
-        self.dropdown_button.pack(fill="x", side="right")
-
-        self.message_label = ctk.CTkLabel(self, text="", anchor="w")
-        self.message_label.pack(fill="x", expand=True)
-
-
-        self.entry.bind("<KeyRelease>", self._on_key_release)
-        # apri dropdown anche su click esplicito nell'entry
-        self.entry.bind("<Button-1>", self._on_entry_click, add="+")
-        self.entry.bind("<FocusOut>", self._on_focus_out)
-
-        #colors
-        self.default_border_color = self.entry.cget("border_color")
-        self.warning_color = "#e39e27"
-
-        # Dropdown
-        self.dropdown_window = None
-        self.dropdown_frame = None
-        self.dropdown_visible = False
-        self.current_selection_index = -1
-        self.dropdown_buttons = []
-
-        # Tracciamento movimento
-        self._last_x = None
-        self._last_y = None
-        self._tracking_movement = False
-
-        # Per gestire i bind mousewheel fatti sul dropdown e figli (per poterli rimuovere)
-        self._mousewheel_bound_widgets = []
-
-        # Per bind di eventi sul parent (bind una tantum)
-        self._parent_events_bound = False
-
-    # --- Entry click: mostra sempre il dropdown (evita dipendere solo da focus events) ---
-    def _on_entry_click(self, event):
-        #self.after(1, self._show_dropdown_with_current_filter)
-        self._show_dropdown_with_current_filter()
-        return None
-
-    def _on_dropdown_icon_click(self):
-
-        if not self.dropdown_visible:
-            self._show_dropdown_with_current_filter()
-        else:
-            self._close_dropdown()
-
-    def _configure_dropdown_button(self):
-        if self.dropdown_visible:
-            self.dropdown_button.configure(text="<")
-        else:
-            self.dropdown_button.configure(text=">")
-
-    def _on_focus_out(self, event):
-        # Ritarda la chiusura per permettere click su elementi del dropdown
-        self.after(200, self._check_focus)
-
-    def _check_focus(self):
-        focused_widget = self.focus_get()
-
-        entry_has_focus = (focused_widget == self.entry)
-        dropdown_has_focus = focused_widget in self._get_dropdown_widgets()
-
-        # Se né entry né dropdown hanno focus → chiudi dropdown
-        if not entry_has_focus and not dropdown_has_focus:
-
-            # Ora chiudiamo il dropdown
-            self._close_dropdown()
-
-    def _close_dropdown(self):
-        # Prima di chiudere: validiamo il contenuto dell'entry
-        self._validate_or_autofix_entry_value()
-
-        # Ora chiudiamo il dropdown
-        x, y = self.winfo_pointerx(), self.winfo_pointery()
-        widget_under_pointer = self.winfo_containing(x, y)
-
-        if widget_under_pointer is None or widget_under_pointer not in self._get_dropdown_widgets():
-            self._hide_dropdown()
-
-        self._configure_dropdown_button()
-
-    def _validate_or_autofix_entry_value(self):
-        current = self.entry.get().strip()
-
-        # Lista dei valori compatibili col filtro attuale
-        valid_values = self.filtered_values
-
-        if current not in valid_values:
-            # Imposta il primo valore valido
-            self.entry.delete(0, ctk.END)
-            self.entry.insert(0, valid_values[0] if valid_values else self.all_values[0])
-            self.entry.configure(border_color=self.warning_color)
-            self.message_label.configure(text="Selezione dell'utente assente: valore selezionato in automatico dalla lista", text_color=self.warning_color)
-        else:
-            self.entry.configure(border_color=self.default_border_color)
-            self.message_label.configure(text="",
-                                         text_color="white")
-
-
-    def _on_key_release(self, event):
-        search_text = self.entry.get().lower()
-        if not search_text:
-            self.filtered_values = self.all_values.copy()
-        else:
-            self.filtered_values = [v for v in self.all_values if search_text in v.lower()]
-
-        self._update_dropdown()
-        if not self.dropdown_visible and self.filtered_values:
-            self._show_dropdown()
-
-    def _show_dropdown_with_current_filter(self):
-        current_text = self.entry.get().lower()
-        if not current_text:
-            self.filtered_values = self.all_values.copy()
-        else:
-            self.filtered_values = [value for value in self.all_values if current_text in value.lower()]
-
-        self._update_dropdown()
-        self._show_dropdown()
-        self._configure_dropdown_button()
-
-    def _update_dropdown(self):
-        if self.dropdown_frame is None:
-            return
-
-        for widget in self.dropdown_frame.winfo_children():
-            widget.destroy()
-
-        if not self.filtered_values:
-            empty_label = ctk.CTkLabel(self.dropdown_frame, text="Nessun risultato", text_color="gray", height=30)
-            empty_label.pack(fill="x", padx=2, pady=1)
-            self.dropdown_buttons = []
-            return
-
-        self.dropdown_buttons = []
-        for i, value in enumerate(self.filtered_values):
-            btn = ctk.CTkButton(
-                self.dropdown_frame,
-                text=value,
-                fg_color="transparent",
-                text_color=("black", "white"),
-                hover_color=("#F0F0F0", "#2A2A2A"),
-                anchor="w",
-                height=30,
-                command=lambda v=value: self._on_dropdown_button_clicked(v)  # <- usa command
-            )
-
-            btn.pack(fill="x", padx=2, pady=1)
-
-            self.dropdown_buttons.append(btn)
-
-        self.current_selection_index = -1
-
-    def _on_dropdown_button_clicked(self, value):
-        # aggiorna l'entry PRIMA di nascondere per evitare race con focus/close
-        self.entry.delete(0, "end")
-        self.entry.insert(0, value)
-        self.current_value = value
-        if self.command:
-            try:
-                self.command(value)
-            except Exception:
-                pass
-        # nascondi solo DOPO aver aggiornato
-        self._hide_dropdown()
-
-    def _show_dropdown(self):
-        if self.dropdown_visible:
-            self._update_dropdown_position()
-            return
-
-        x = self.winfo_rootx()
-        y = self.winfo_rooty() + self.winfo_height() - self.y_shift
-
-        dropdown_width = int(self.winfo_width() *8/ 9)
-        dropdown_height = min(42, len(self.filtered_values) * 32 + 10)
-
-        # Crea una finestra Toplevel con larghezza personalizzata
-        self.dropdown_window = Toplevel(self, bg="#545454", height=dropdown_height)
-        self.dropdown_window.wm_overrideredirect(True)
-        self.dropdown_window.wm_geometry(f"+{x}+{y}")
-
-
-        self.dropdown_window.configure(borderwidth=2)
-        self.dropdown_window.attributes("-topmost", True)
-
-        self.dropdown_frame = ctk.CTkScrollableFrame(
-            self.dropdown_window,
-            width=dropdown_width,
-            height=dropdown_height,
-            fg_color="#3d3d3d"
-        )
-        self.dropdown_frame.pack(fill="both", expand=True)
-
-        self._update_dropdown()
-
-        self.dropdown_visible = True
-
-        # Bind locali: focusout del dropdown e mouse wheel su dropdown
-        self.dropdown_window.bind("<FocusOut>", lambda e: self.after(100, self._check_focus), add="+")
-        self.dropdown_window.bind("<MouseWheel>", self._on_mousewheel, add="+")
-        self.dropdown_window.bind("<Button-4>", self._on_mousewheel_linux, add="+")
-        self.dropdown_window.bind("<Button-5>", self._on_mousewheel_linux, add="+")
-
-        # Bindiamo la rotella su tutti i figli del dropdown (non globalmente)
-        self._bind_mousewheel_to_children(self.dropdown_window)
-
-        # Bind agli eventi parent (una tantum)
-        self._bind_to_parent_events()
-
-        # Inizia a tracciare la posizione
-        self._start_tracking_movement()
-
-    def _bind_to_parent_events(self):
-        # Assicuriamoci di bindare gli eventi del parent solo una volta
-        if self._parent_events_bound:
-            return
-        parent_window = self.winfo_toplevel()
-        parent_window.bind("<Configure>", self._on_parent_configure, add="+")
-        # Non bindiamo ButtonPress globali che causano conflitti
-        self._parent_events_bound = True
-
-    def _on_parent_configure(self, event):
-        if self.dropdown_visible:
-            # se la finestra si sposta/ridimensiona, chiudiamo il dropdown
-            self._hide_dropdown()
-
-    # --- binding mousewheel solo sui widget del dropdown (non globali) ---
-    def _bind_mousewheel_to_children(self, widget):
-        # pulisci lista precedente (se presente)
-        self._mousewheel_bound_widgets = []
-
-        def _bind_recursive(w):
-            try:
-                # bind mousewheel per Windows/Mac
-                w.bind("<MouseWheel>", self._on_mousewheel, add="+")
-                w.bind("<Button-4>", self._on_mousewheel_linux, add="+")
-                w.bind("<Button-5>", self._on_mousewheel_linux, add="+")
-                self._mousewheel_bound_widgets.append(w)
-            except Exception:
-                pass
-            for child in w.winfo_children():
-                _bind_recursive(child)
-
-        _bind_recursive(widget)
-
-    def _unbind_mousewheel_from_children(self):
-        # rimuovi i binding che abbiamo aggiunto sui widget creati
-        for w in self._mousewheel_bound_widgets:
-            try:
-                w.unbind("<MouseWheel>")
-                w.unbind("<Button-4>")
-                w.unbind("<Button-5>")
-            except Exception:
-                pass
-        self._mousewheel_bound_widgets = []
-
-    def _on_mousewheel(self, event):
-        # scrolla il canvas del dropdown e interrompi la propagazione
-        if self.dropdown_frame:
-            try:
-                scroll_amount = int(-25 * (event.delta / 120))
-                self.dropdown_frame._parent_canvas.yview_scroll(scroll_amount, "units")
-            except Exception:
-                # fallback generico: prova spostare di 1 unità
-                try:
-                    self.dropdown_frame._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-                except Exception:
-                    pass
-        return "break"
-
-    def _on_mousewheel_linux(self, event):
-        if self.dropdown_frame:
-            try:
-                if event.num == 4:
-                    self.dropdown_frame._parent_canvas.yview_scroll(-25, "units")
-                elif event.num == 5:
-                    self.dropdown_frame._parent_canvas.yview_scroll(25, "units")
-            except Exception:
-                pass
-        return "break"
-
-    def _start_tracking_movement(self):
-        self._last_x = self.winfo_rootx()
-        self._last_y = self.winfo_rooty()
-        self._tracking_movement = True
-        self._check_movement()
-
-    def _check_movement(self):
-        if not self._tracking_movement or not self.dropdown_visible:
-            return
-        current_x = self.winfo_rootx()
-        current_y = self.winfo_rooty()
-        if current_x != self._last_x or current_y != self._last_y:
-            self._last_x = current_x
-            self._last_y = current_y
-            self._update_dropdown_position()
-        self.after(50, self._check_movement)
-
-    def _update_dropdown_position(self):
-        if self.dropdown_window and self.dropdown_visible:
-            x = self.winfo_rootx()
-            y = self.winfo_rooty() + self.winfo_height() - self.y_shift
-            self.dropdown_window.wm_geometry(f"+{x}+{y}")
-
-    def _hide_dropdown(self):
-        if self.dropdown_visible:
-            self._tracking_movement = False
-            # rimuovi i binding mousewheel che abbiamo applicato
-            try:
-                self._unbind_mousewheel_from_children()
-            except Exception:
-                pass
-
-            if self.dropdown_window:
-                try:
-                    self.dropdown_window.destroy()
-                except Exception:
-                    pass
-                self.dropdown_window = None
-                self.dropdown_frame = None
-            self.dropdown_visible = False
-            self.current_selection_index = -1
-            self.dropdown_buttons = []
-
-    def _get_dropdown_widgets(self):
-        widgets = []
-        if self.dropdown_window:
-            widgets.append(self.dropdown_window)
-            widgets.extend(self.dropdown_window.winfo_children())
-            if self.dropdown_frame:
-                widgets.extend(self.dropdown_frame.winfo_children())
-        return widgets
-
-    def get_value(self):
-        return self.current_value
-
-    def set_value(self, value, safe_mode=True):
-        if safe_mode:
-            if value in self.all_values:
-                self.entry.delete(0, "end")
-                self.entry.insert(0, value)
-                self.current_value = value
-        else:
-            self.entry.delete(0, "end")
-            self.entry.insert(0, value)
-            self.current_value = value
-
-    def clear_value(self):
-        self.entry.delete(0, "end")
-        self.current_value = ""
-
-    def destroy(self):
-        # rimuovi binding e dropdown in modo sicuro
-        try:
-            self._hide_dropdown()
-        except Exception:
-            pass
-        super().destroy()
-
-
-class customTKMenuButton(tk.Menubutton):
-    """
-    Menubutton tkinter con stile dark e API semplificata:
-    items = [
-        ("Impostazioni backup", callback1),
-        ("Carica un backup", callback2),
-    ]
-    """
-
-    def __init__(self, parent, text, items=None, **kwargs):
-        # ---- DEFAULT STYLING (centralizzato) ----
-        defaults = {
-            "relief": "raised",
-            "bd": 0,
-            "bg": "#595959",
-            "fg": "white",
-            "activebackground": "#1665b5",
-            "activeforeground": "white",
-            "padx": 8,
-            "pady": 6,
-            "anchor": "w",
-            "font": ("Segoe UI", 10),
-        }
-
-        # permetti override puntuale
-        cfg = {**defaults, **kwargs}
-
-        super().__init__(
-            parent,
-            text=text,
-            relief=cfg["relief"],
-            bd=cfg["bd"],
-            bg=cfg["bg"],
-            fg=cfg["fg"],
-            activebackground=cfg["activebackground"],
-            activeforeground=cfg["activeforeground"],
-            padx=cfg["padx"],
-            pady=cfg["pady"],
-            anchor=cfg["anchor"],
-            font=cfg["font"],
-        )
-
-        # ---- MENU ----
-        self.menu = tk.Menu(
-            self,
-            tearoff=0,
-            bg=cfg["bg"],
-            fg=cfg["fg"],
-            activebackground=cfg["activebackground"],
-            activeforeground=cfg["activeforeground"],
-            bd=0,
-            relief="flat",
-            font=cfg["font"],
-        )
-
-        self.configure(menu=self.menu)
-
-        if items:
-            self.set_items(items)
-
-        # ---- Hover effect (simile CTk) ----
-        self._normal_bg = cfg["bg"]
-        self._hover_bg = cfg.get("hover", "#1f1f1f")
-
-        self.bind("<Enter>", self._on_enter)
-        self.bind("<Leave>", self._on_leave)
-
-    # ---------- API PUBBLICA ----------
-
-    def set_items(self, items):
-        """
-        items: iterable di tuple (label, command)
-        """
-        self.menu.delete(0, "end")
-
-        for label, command in items:
-            if not callable(command):
-                raise ValueError(f"Command for menu item '{label}' is not callable")
-
-            self.menu.add_command(label=label, command=command)
-
-    def add_item(self, label, command):
-        if not callable(command):
-            raise ValueError("command must be callable")
-
-        self.menu.add_command(label=label, command=command)
-
-    # ---------- Hover handlers ----------
-
-    def _on_enter(self, _):
-        self.configure(bg=self._hover_bg, activebackground=self._hover_bg)
-
-    def _on_leave(self, _):
-        self.configure(bg=self._normal_bg, activebackground=self._normal_bg)
 
 
 

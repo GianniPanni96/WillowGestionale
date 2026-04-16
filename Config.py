@@ -1,7 +1,7 @@
 import os, re, json
 from typing import List
 from dataclasses import dataclass, field
-from Controllers import ExpenseController
+from Gestionale_Enums import*
 from typing import Optional, Union
 
 from typing import Dict
@@ -532,6 +532,27 @@ class ConfigManager:
             raise Exception(f"Errore durante l'aggiornamento dei dati finanziari storici: {str(e)}")
 
 
+def _coerce_config_float(value, default: float = 0.0) -> float:
+    if value in (None, ""):
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_config_int(value, default: int = 0) -> int:
+    if value in (None, ""):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return default
+
+
 @dataclass
 class PartitaIVAForfettaria:
     aliquota_irpef_min: float
@@ -548,16 +569,24 @@ class PartitaIVAForfettaria:
     @staticmethod
     def from_dict(data: dict):
         return PartitaIVAForfettaria(
-            aliquota_irpef_min=data.get("aliquota_irpef_min", {}).get("value", 0.0),
-            aliquota_irpef_max=data.get("aliquota_irpef_max", {}).get("value", 0.0),
-            anni_agevolazione=data.get("anni_agevolazione", {}).get("value", 0),
-            aliquota_inps=data.get("aliquota_inps", {}).get("value", 0.0),
-            imponibile=data.get("imponibile", {}).get("value", 0.0),
-            aliquota_rivalsa_inps = data.get("aliquota_rivalsa_inps", {}).get("value", 0.0),
-            percentuale_acconto_imposta_primo=data.get("percentuale_acconto_imposta_primo", {}).get("value", 0.0),
-            percentuale_acconto_imposta_secondo=data.get("percentuale_acconto_imposta_secondo", {}).get("value", 0.0),
-            percentuale_acconto_inps_forfettario=data.get("percentuale_acconto_inps_forfettario", {}).get("value", 0.0),
-            percentuale_rata_acconto_inps_forfettario=data.get("percentuale_rata_acconto_inps_forfettario", {}).get("value", 0.0)
+            aliquota_irpef_min=_coerce_config_float(data.get("aliquota_irpef_min", {}).get("value"), 0.05),
+            aliquota_irpef_max=_coerce_config_float(data.get("aliquota_irpef_max", {}).get("value"), 0.15),
+            anni_agevolazione=_coerce_config_int(data.get("anni_agevolazione", {}).get("value"), 5),
+            aliquota_inps=_coerce_config_float(data.get("aliquota_inps", {}).get("value"), 0.2607),
+            imponibile=_coerce_config_float(data.get("imponibile", {}).get("value"), 0.78),
+            aliquota_rivalsa_inps=_coerce_config_float(data.get("aliquota_rivalsa_inps", {}).get("value"), 0.04),
+            percentuale_acconto_imposta_primo=_coerce_config_float(
+                data.get("percentuale_acconto_imposta_primo", {}).get("value"), 0.40
+            ),
+            percentuale_acconto_imposta_secondo=_coerce_config_float(
+                data.get("percentuale_acconto_imposta_secondo", {}).get("value"), 0.60
+            ),
+            percentuale_acconto_inps_forfettario=_coerce_config_float(
+                data.get("percentuale_acconto_inps_forfettario", {}).get("value"), 1.00
+            ),
+            percentuale_rata_acconto_inps_forfettario=_coerce_config_float(
+                data.get("percentuale_rata_acconto_inps_forfettario", {}).get("value"), 0.50
+            )
         )
 
 @dataclass
@@ -587,8 +616,8 @@ class ScaglioneIrpef:
             reddito_max_val = reddito_max_raw
 
         return ScaglioneIrpef(
-            value=data.get("value", 0.0),
-            reddito_min=data.get("reddito_min", 0.0),
+            value=_coerce_config_float(data.get("value"), 0.0),
+            reddito_min=_coerce_config_float(data.get("reddito_min"), 0.0),
             reddito_max=reddito_max_val,
             description=data.get("description", "")
         )
@@ -627,18 +656,26 @@ class PartitaIVAOrdinaria:
 
         return PartitaIVAOrdinaria(
             scaglioni_irpef=scaglioni_list,
-            aliquota_inps=data.get("aliquota_inps", {}).get("value", 0.0),
-            aliquota_cassa_inps=data.get("aliquota_cassa_inps", {}).get("value", 0.0),
-            aliquota_ritenuta=data.get("aliquota_ritenuta", {}).get("value", 0.0),
-            imponibile_iva=data.get("imponibile_iva", {}).get("value", 0.0),
-            imponibile_ritenuta_acconto=data.get("imponibile_ritenuta_acconto", {}).get("value", 0.0),
-            imponibile_cassa_inps=data.get("imponibile_cassa_inps", {}).get("value", 0.0),
-            imponibile_inps=data.get("imponibile_inps", {}).get("value", 0.0),
-            imponibile_irpef = data.get("imponibile_irpef", {}).get("value", 0.0),
-            percentuale_acconto_irpef_primo = data.get("percentuale_acconto_irpef_primo", {}).get("value", 0.0),
-            percentuale_acconto_irpef_secondo=data.get("percentuale_acconto_irpef_secondo", {}).get("value", 0.0),
-            percentuale_acconto_inps=data.get("percentuale_acconto_inps", {}).get("value", 0.0),
-            percentuale_rata_acconto_inps=data.get("percentuale_rata_acconto_inps", {}).get("value", 0.0)
+            aliquota_inps=_coerce_config_float(data.get("aliquota_inps", {}).get("value"), 0.2607),
+            aliquota_cassa_inps=_coerce_config_float(data.get("aliquota_cassa_inps", {}).get("value"), 0.04),
+            aliquota_ritenuta=_coerce_config_float(data.get("aliquota_ritenuta", {}).get("value"), 0.2),
+            imponibile_iva=_coerce_config_float(data.get("imponibile_iva", {}).get("value"), 1.0),
+            imponibile_ritenuta_acconto=_coerce_config_float(
+                data.get("imponibile_ritenuta_acconto", {}).get("value"), 1.0
+            ),
+            imponibile_cassa_inps=_coerce_config_float(data.get("imponibile_cassa_inps", {}).get("value"), 1.0),
+            imponibile_inps=_coerce_config_float(data.get("imponibile_inps", {}).get("value"), 1.0),
+            imponibile_irpef=_coerce_config_float(data.get("imponibile_irpef", {}).get("value"), 1.0),
+            percentuale_acconto_irpef_primo=_coerce_config_float(
+                data.get("percentuale_acconto_irpef_primo", {}).get("value"), 0.40
+            ),
+            percentuale_acconto_irpef_secondo=_coerce_config_float(
+                data.get("percentuale_acconto_irpef_secondo", {}).get("value"), 0.60
+            ),
+            percentuale_acconto_inps=_coerce_config_float(data.get("percentuale_acconto_inps", {}).get("value"), 0.80),
+            percentuale_rata_acconto_inps=_coerce_config_float(
+                data.get("percentuale_rata_acconto_inps", {}).get("value"), 0.50
+            )
         )
 
 @dataclass
@@ -743,7 +780,7 @@ class RecurringExpense:
             descr_account=data.get("account", {}).get("description", ""),
             frequency=data.get("frequency", {}).get("value", ""),
             descr_frequency=data.get("frequency", {}).get("description", ""),
-            status=data.get("status", {}).get("value", ExpenseController.RecurringExpensesStatus.SOSPESA.value) == ExpenseController.RecurringExpensesStatus.ATTIVA.value,
+            status=data.get("status", {}).get("value", RecurringExpensesStatus.SOSPESA.value) == RecurringExpensesStatus.ATTIVA.value,
             descr_status=data.get("status", {}).get("description", ""),
         )
 

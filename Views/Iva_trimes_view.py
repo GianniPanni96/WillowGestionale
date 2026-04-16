@@ -1,25 +1,19 @@
 import customtkinter as ctk
-import tkinter as tk
-from tkcalendar import Calendar, DateEntry
-from Views.View_utils import ViewUtils
-from Controllers import ValidationUtils, InvoiceController, UserController, ControllerUtils
-from Model import DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns
 from datetime import datetime
-import re
-from enum import Enum
+
+from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
+from AnalyzerServices.Iva_analyzer_service import IvaAnalyzerService
 
 
 class IvaTrimesView(ctk.CTkFrame):
     def __init__(self, app_context, tabview):
         super().__init__(tabview.tab("Iva"))
 
+        self.iva_analyzer_service: IvaAnalyzerService = app_context.iva_analyzer_service
         self.app_context = app_context
         self.db_model = app_context.db_model
-        self.invoice_controller = app_context.invoice_controller
-        self.user_controller = app_context.user_controller
-        self.expense_controller = app_context.expense_controller
+        self.account_analyzer_service:AccountAnalyzerService = app_context.account_analyzer_service
         self.update_controller = app_context.update_controller
-        self.analyzer = app_context.analyzer
         self.tabview = tabview
         self.tab = tabview.tab("Iva")
         self.event_bus = app_context.event_bus
@@ -73,7 +67,7 @@ class IvaTrimesView(ctk.CTkFrame):
         self.trimestral_container.pack(fill="x", expand=True)
 
         # Ottieni i dati IVA trimestrali
-        iva_data = self.analyzer.calculate_tot_trimestral_iva()
+        iva_data = self.iva_analyzer_service.calculate_tot_trimestral_iva()
 
         # Calcola i totali aggregati per trimestre
         quarter_totals = {

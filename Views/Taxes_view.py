@@ -1,5 +1,7 @@
 import customtkinter as ctk
 from datetime import datetime
+
+from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from Books_retriever import BooksRetriever
 
 
@@ -11,8 +13,7 @@ class TaxesView(ctk.CTkFrame):
         self.app_context = app_context
         self.books_retriever = app_context.books_retriever
         self.db_model = app_context.db_model
-        self.update_controller = app_context.update_controller
-        self.analyzer = app_context.analyzer
+        self.user_analyzer_service:UserAnalyzerService = app_context.user_analyzer_service
         self.config_manager = app_context.config_manager
         self.catalogo_elenchi = app_context.catalogo_elenchi
         self.tab_view = tab_view
@@ -92,7 +93,7 @@ class TaxesView(ctk.CTkFrame):
         """Recupera i dati delle tasse in base alla selezione dello switch"""
         if self.show_current_year.get():
             # Usa i dati calcolati in tempo reale per l'anno corrente
-            return self.analyzer.calculate_previsione_tasse_willow()
+            return self.user_analyzer_service.calculate_previsione_tasse_willow()
         else:
             # Usa i dati dal CSV per l'anno passato
             last_year = datetime.now().year - 1

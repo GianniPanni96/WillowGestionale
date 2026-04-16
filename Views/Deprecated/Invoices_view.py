@@ -1,15 +1,28 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
-from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import InvoiceController, UserController, ControllerUtils, ProductionController, UpdatesController, ClientController, AccountController
+
+from Controllerss.Account_controller import AccountController
+from Utils.Controller_utils import ControllerUtils
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
+from Updates_controller import UpdatesController
+from Controllerss.User_controller import UserController
 from Model import DatabaseModel, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBPaymentsColumns, DBAccountsColumns, DBExpensesColumns, DBInvoicesColumns
 from datetime import datetime, timedelta
 import re
 from enum import Enum
 
+from Controllerss.Client_controller import ClientController
+from Controllerss.Production_controller import ProductionController
+from Controllerss.Invoice_controller import InvoiceController
+
+
 from App_context import AppContext
 from Event_bus import EventBus
+
+from QueryServices.Clients_query_service import ClientQueryService
+from QueryServices.Productions_query_service import ProductionQueryService
 
 class InvoicesView(ctk.CTkFrame):
 
@@ -30,6 +43,8 @@ class InvoicesView(ctk.CTkFrame):
         self.invoice_controller = app_context.invoice_controller
         self.user_controller = app_context.user_controller
         self.client_controller = app_context.client_controller
+        self.clients_query_service:ClientQueryService = app_context.clients_query_service
+        self.productions_query_service:ProductionQueryService = app_context.productions_query_service
         self.production_controller = app_context.production_controller
         self.payment_controller = app_context.payment_controller
         self.account_controller = app_context.account_controller
@@ -39,7 +54,6 @@ class InvoicesView(ctk.CTkFrame):
         self.fiscal_settings = app_context.fiscal_settings
         self.historical_financial_data_settings = app_context.historical_financial_data_settings
         self.event_bus = app_context.event_bus
-        self.analyzer = app_context.analyzer
 
         self.invoices_card_list = {}
         self.invoice_card_labels_status = {}
@@ -54,8 +68,8 @@ class InvoicesView(ctk.CTkFrame):
 
         self.invoices_list_of_user = self.invoice_controller.retrieve_invoices_map_list_by_user(1, True) #inizializzo la lista delle fatture con le sole fatture dell'utente con ID 1
         self.productions_list_of_client = {}
-        if len(self.client_controller.retrieve_clients_map_list()) > 0:
-            self.populate_production_list_by_selected_client(self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
+        if len(self.clients_query_service.retrieve_clients_map_list()) > 0:
+            self.populate_production_list_by_selected_client(self.clients_query_service.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
 
         # Container principale
         self.main_container = ctk.CTkFrame(self, fg_color="transparent")
@@ -378,11 +392,11 @@ class InvoicesView(ctk.CTkFrame):
                                       command=lambda selected_value: self.update_entries_on_regime_fiscale(selected_value))
             elif label_text == self.nome_cliente_string:
                 widget = widget_class(parent=self.invoice_window_scrollableFrame, placeholder="Cerca", autofill=True,
-                                      values=[f"{item[DBClientsColumns.NAME.value]}" for item in self.client_controller.retrieve_clients_map_list()],
+                                      values=[f"{item[DBClientsColumns.NAME.value]}" for item in self.clients_query_service.retrieve_clients_map_list()],
                                       command=lambda selected_value: self.update_productions_list(selected_value))
             elif label_text == self.nome_produzione_string:
                 widget = widget_class(self.invoice_window_scrollableFrame,
-                                      values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.production_controller.retrieve_productions_map_list(include_prod_with_unpaid_invoices=True)],
+                                      values=[f"{item[DBProductionsColumns.NAME.value]}" for item in self.productions_query_service.retrieve_productions_map_list(include_prod_with_unpaid_invoices=True)],
                                       command=lambda selected_value : self.prod_already_invoiced_control(selected_value))
             elif label_text == DBInvoicesColumns.NUMERO_FATTURA.value:
                 self.name_frame = ctk.CTkFrame(self.invoice_window_scrollableFrame)
@@ -430,7 +444,7 @@ class InvoicesView(ctk.CTkFrame):
 
         selected_client_name = self.invoice_widgets[self.nome_cliente_string].get_value()
 
-        client_list = self.client_controller.retrieve_clients_map_list()
+        client_list = self.clients_query_service.retrieve_clients_map_list()
 
         # imposto la lista delle fatture in funzione del cliente impostato
         matched_client = next(
@@ -440,7 +454,7 @@ class InvoicesView(ctk.CTkFrame):
         if matched_client:
             self.update_productions_list(matched_client[DBClientsColumns.NAME.value])
         else:
-            self.update_productions_list(self.client_controller.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
+            self.update_productions_list(self.clients_query_service.retrieve_clients_map_list()[0][DBClientsColumns.NAME.value])
 
         self.prod_already_invoiced_control(self.invoice_widgets[self.nome_produzione_string].get())
 
@@ -526,7 +540,7 @@ class InvoicesView(ctk.CTkFrame):
         self.collect_invoice_warnings(invoices_list)
 
         extractor = ViewUtils.create_extractor_for_invoices(
-            self.client_controller,
+            self.clients_query_service,
             self.user_controller,
             self.production_controller
         )
@@ -550,7 +564,7 @@ class InvoicesView(ctk.CTkFrame):
                 invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
                 invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
                 inv_creation_date = datetime.strptime(invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value), '%Y-%m-%d')
-                production = self.production_controller.retrieve_production_map_by_id(invoice_production_id)
+                production = self.productions_query_service.retrieve_production_map_by_id(invoice_production_id)
                 if not production:
                     self.cards_warnings[
                         invoice_name] = "La produzione associata a questa fattura non esiste nel database.\n" \
@@ -915,10 +929,10 @@ class InvoicesView(ctk.CTkFrame):
         self.productions_list_of_client.clear()
 
         #ottengo l'ID del cliente in funzione del nome
-        client = self.client_controller.retrieve_client_map_by_name(client_name)
+        client = self.clients_query_service.retrieve_client_map_by_name(client_name)
         client_id = client[DBClientsColumns.ID.value]
         #retrievo la lista delle produzioni associate allo specifico cliente
-        self.productions_list_of_client = self.production_controller.retrieve_productions_map_list_by_client_id(client_id=client_id, include_prod_with_unpaid_invoices=True)
+        self.productions_list_of_client = self.productions_query_service.retrieve_productions_map_list_by_client_id(client_id=client_id, include_prod_with_unpaid_invoices=True)
 
     def get_regime_fiscale_from_view(self, user_full_name):
         user_name = user_full_name.split(" ")
@@ -995,9 +1009,9 @@ class InvoicesView(ctk.CTkFrame):
         nome_fattura = nome_fattura_array[0] + " - " + nome_fattura_array[1] + " - NDC"
         servizi = invoice[DBInvoicesColumns.SERVIZI.value]
         id_cliente = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-        nome_cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)[DBClientsColumns.NAME.value]
+        nome_cliente = self.clients_query_service.retrieve_client_map_by_id(id_cliente)[DBClientsColumns.NAME.value]
         id_produzione = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-        nome_produzione = self.production_controller.retrieve_production_map_by_id(id_produzione)[DBProductionsColumns.NAME.value]
+        nome_produzione = self.productions_query_service.retrieve_production_map_by_id(id_produzione)[DBProductionsColumns.NAME.value]
         rimborsi = invoice[DBInvoicesColumns.RIMBORSI.value]
         rivalsa = invoice[DBInvoicesColumns.RIVALSA_INPS.value]
         metodo_pagamento = invoice[DBInvoicesColumns.METODO_PAGAMENTO.value]
@@ -1356,7 +1370,7 @@ class InvoicesView(ctk.CTkFrame):
                 self.amount_aggregate_labels[key].configure(text=f"{self.global_infos_netti[key]}")
 
     def prod_already_invoiced_control(self, selected_value):
-        production = self.production_controller.retrieve_production_map_by_name(selected_value)
+        production = self.productions_query_service.retrieve_production_map_by_name(selected_value)
         if production:
             fatture_associate = self.invoice_controller.retrieve_invoice_map_list_by_production(production.get(DBProductionsColumns.ID.value))
         else:
@@ -1479,6 +1493,7 @@ class InvoicesView(ctk.CTkFrame):
                         card = card
                         continue
 
+
         ViewUtils.toggle_warning_on_card(card, self.cards_warnings)
 
     def cleanup(self):
@@ -1569,6 +1584,8 @@ class InvoiceDetailView(ctk.CTkFrame):
         self.invoice_controller:InvoiceController = app_context.invoice_controller
         self.user_controller:UserController = app_context.user_controller
         self.client_controller:ClientController = app_context.client_controller
+        self.clients_query_service:ClientQueryService = app_context.clients_query_service
+        self.productions_query_service:ProductionQueryService = app_context.productions_query_service
         self.account_controller:AccountController = app_context.account_controller
         self.db_model:DatabaseModel = app_context.db_model
         self.back_callback = back_callback
@@ -1641,13 +1658,13 @@ class InvoiceDetailView(ctk.CTkFrame):
 
         #prendo il nome del cliente
         id_cliente = invoice[DBInvoicesColumns.ID_CLIENTE.value]
-        cliente = self.client_controller.retrieve_client_map_by_id(id_cliente)
+        cliente = self.clients_query_service.retrieve_client_map_by_id(id_cliente)
         nome_cliente = cliente[DBClientsColumns.NAME.value] if cliente else "Cliente non trovato"
         invoice[self.nome_cliente_string] = nome_cliente
 
         #prendo il nome della produzione associata
         id_prod = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
-        prod = self.production_controller.retrieve_production_map_by_id(id_prod)
+        prod = self.productions_query_service.retrieve_production_map_by_id(id_prod)
         nome_produzione = prod[DBProductionsColumns.NAME.value] if prod else "Produzione non trovata"
         invoice[self.nome_produzione_associata_string] = nome_produzione
 
@@ -1703,7 +1720,7 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "type": ctk.CTkOptionMenu,
                 "label": "Cliente",
                 "section": "Dati Generali",
-                "values": [c[DBClientsColumns.NAME.value] for c in self.client_controller.retrieve_clients_map_list()],
+                "values": [c[DBClientsColumns.NAME.value] for c in self.clients_query_service.retrieve_clients_map_list()],
                 "command": lambda selected_value: self.toggle_production_list(selected_value)
             },
 
@@ -1776,7 +1793,7 @@ class InvoiceDetailView(ctk.CTkFrame):
                 "label": "Produzione Associata",
                 "section": "Collegamenti",
                 "values": [p[DBProductionsColumns.NAME.value] for p in
-                           self.production_controller.retrieve_productions_map_list_by_client_id(
+                           self.productions_query_service.retrieve_productions_map_list_by_client_id(
                                invoice_data[DBInvoicesColumns.ID_CLIENTE.value],
                                include_prod_with_unpaid_invoices = True
                            )]
@@ -2000,7 +2017,7 @@ class InvoiceDetailView(ctk.CTkFrame):
         invoice = self.invoice_controller.retrieve_invoice_map_by_id(self.current_invoice_id)
         user = self.user_controller.retrieve_user_map_by_id(invoice[DBInvoicesColumns.ID_UTENTE.value])
         regime_fiscale = user[DBUsersColumns.REGIME_FISCALE.value]
-        client = self.client_controller.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])
+        client = self.clients_query_service.retrieve_client_map_by_id(invoice[DBInvoicesColumns.ID_CLIENTE.value])
         tipologia_cliente = client[DBClientsColumns.TIPOLOGIA.value]
 
         #ottengo gli importi derivati
@@ -2086,10 +2103,10 @@ class InvoiceDetailView(ctk.CTkFrame):
             self.invoice_info_widgets[DBInvoicesColumns.NETTO_A_PAGARE.value].configure(state=tk.DISABLED)
 
     def toggle_production_list(self, selected_value):
-        cliente = self.client_controller.retrieve_client_map_by_name(selected_value)
+        cliente = self.clients_query_service.retrieve_client_map_by_name(selected_value)
         if cliente:
             cliente_id = cliente[DBClientsColumns.ID.value]
-            productions_of_client = self.production_controller.retrieve_productions_map_list_by_client_id(cliente_id)
+            productions_of_client = self.productions_query_service.retrieve_productions_map_list_by_client_id(cliente_id)
             self.invoice_info_widgets[self.nome_produzione_associata_string].configure(values=[p[DBProductionsColumns.NAME.value] for p in productions_of_client])
             self.invoice_info_widgets[self.nome_produzione_associata_string].set(productions_of_client[0][DBProductionsColumns.NAME.value])
 
@@ -2113,11 +2130,11 @@ class InvoiceDetailView(ctk.CTkFrame):
         id_conto = conto[DBAccountsColumns.ID.value] if conto else None
 
         nome_cliente = self.invoice_info_widgets[self.nome_cliente_string].get()
-        cliente = self.client_controller.retrieve_client_map_by_name(nome_cliente)
+        cliente = self.clients_query_service.retrieve_client_map_by_name(nome_cliente)
         id_cliente = cliente[DBClientsColumns.ID.value]
 
         nome_produzione = self.invoice_info_widgets[self.nome_produzione_associata_string].get()
-        produzione = self.production_controller.retrieve_production_map_by_name(nome_produzione)
+        produzione = self.productions_query_service.retrieve_production_map_by_name(nome_produzione)
         id_produzione = produzione[DBProductionsColumns.ID.value]
 
         invoice_data = {

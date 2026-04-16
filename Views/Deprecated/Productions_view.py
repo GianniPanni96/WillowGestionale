@@ -3,15 +3,23 @@ import tkinter as tk
 from tkcalendar import Calendar
 
 from Config import ConfigManager
-from Views.View_utils import ViewUtils, FilterableComboBox
-from Controllers import ProductionController, PaymentsController, InvoiceController, UserController, ControllerUtils, \
-    ClientController, UpdatesController
-from Model import DatabaseModel, DBProductionsColumns, DBUsersColumns, DBClientsColumns, DBPaymentsColumns, DBInvoicesColumns
+from Views.View_utils import ViewUtils
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
+from AnalyzerServices.Monthly_report_analyzer_service import  PaymentsController, InvoiceController, ControllerUtils
+from Updates_controller import UpdatesController
+from Controllerss.User_controller import UserController
+from Model import DatabaseModel, DBProductionsColumns, DBClientsColumns, DBInvoicesColumns
 from datetime import datetime, timedelta
 import re
 
+from Controllerss.Client_controller import ClientController
+from Controllerss.Production_controller import ProductionController
+
 from App_context import AppContext
 from Event_bus import EventBus
+
+from QueryServices.Clients_query_service import ClientQueryService
+
 
 class ProductionsView(ctk.CTkFrame):
 
@@ -22,6 +30,7 @@ class ProductionsView(ctk.CTkFrame):
         self.db_model:DatabaseModel = app_context.db_model
         self.production_controller:ProductionController = app_context.production_controller
         self.invoice_controller:InvoiceController = app_context.invoice_controller
+        self.clients_query_service:ClientQueryService = app_context.clients_query_service
         self.user_controller:UserController = app_context.user_controller
         self.client_controller:ClientController = app_context.client_controller
         self.payment_controller:PaymentsController = app_context.payment_controller
@@ -537,7 +546,8 @@ class ProductionsView(ctk.CTkFrame):
 
         extractor = ViewUtils.create_extractor_for_productions(
             self.production_controller,
-            self.client_controller
+            self.clients_query_service
+
         )
 
         ViewUtils.process_items_in_chunks(

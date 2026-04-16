@@ -1,0 +1,3107 @@
+{
+  "classes": {
+    "Analyzers.Client_analyzer_service.ClientAnalyzerService": {
+      "class_name": "ClientAnalyzerService",
+      "module_name": "Analyzers.Client_analyzer_service",
+      "file_path": "Analyzers\\Client_analyzer_service.py",
+      "package": "Analyzers",
+      "bases": [],
+      "uses": [
+        "Model.DatabaseModel",
+        "QueryServices.Clients_query_service.ClientQueryService"
+      ],
+      "position": {
+        "x": 1800,
+        "y": 140
+      }
+    },
+    "Analyzers.Production_analyzer_service.ProductionAnalyzerService": {
+      "class_name": "ProductionAnalyzerService",
+      "module_name": "Analyzers.Production_analyzer_service",
+      "file_path": "Analyzers\\Production_analyzer_service.py",
+      "package": "Analyzers",
+      "bases": [],
+      "uses": [
+        "Model.DatabaseModel",
+        "QueryServices.Productions_query_service.ProductionQueryService"
+      ],
+      "position": {
+        "x": 1800,
+        "y": 252
+      }
+    },
+    "Analyzers.Supplier_analyzer_service.SupplierAnalyzerService": {
+      "class_name": "SupplierAnalyzerService",
+      "module_name": "Analyzers.Supplier_analyzer_service",
+      "file_path": "Analyzers\\Supplier_analyzer_service.py",
+      "package": "Analyzers",
+      "bases": [],
+      "uses": [
+        "Model.DatabaseModel",
+        "QueryServices.Suppliers_query_service.SupplierQueryService"
+      ],
+      "position": {
+        "x": 1800,
+        "y": 364
+      }
+    },
+    "App_context.AppContext": {
+      "class_name": "AppContext",
+      "module_name": "App_context",
+      "file_path": "App_context.py",
+      "package": "App_context",
+      "bases": [],
+      "uses": [
+        "Analyzers.Client_analyzer_service.ClientAnalyzerService",
+        "Analyzers.Production_analyzer_service.ProductionAnalyzerService",
+        "Analyzers.Supplier_analyzer_service.SupplierAnalyzerService",
+        "Backup_manager.BackupImporter",
+        "Backup_manager.BackupScheduler",
+        "Book_closer.BookCloser",
+        "Books_retriever.BooksRetriever",
+        "Config.ConfigManager",
+        "Controllers.AccountController",
+        "Controllers.Analyzer",
+        "Controllers.ExpenseController",
+        "Controllers.InvoiceController",
+        "Controllers.PaymentsController",
+        "Controllers.RefundController",
+        "Controllers.SalaryController",
+        "Controllers.TransfersController",
+        "Controllers.UpdatesController",
+        "Controllers.UserController",
+        "Controllerss.Client_controller.ClientController",
+        "Controllerss.Production_controller.ProductionController",
+        "Controllerss.Supplier_controller.SupplierController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "QueryServices.Clients_query_service.ClientQueryService",
+        "QueryServices.Productions_query_service.ProductionQueryService",
+        "QueryServices.Suppliers_query_service.SupplierQueryService",
+        "WarningServices.Production_warning_service.ProductionWarningService"
+      ],
+      "position": {
+        "x": 4500,
+        "y": 140
+      }
+    },
+    "ArchitectureTools.generate_dependency_report.ClassInfo": {
+      "class_name": "ClassInfo",
+      "module_name": "ArchitectureTools.generate_dependency_report",
+      "file_path": "ArchitectureTools\\generate_dependency_report.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 140
+      }
+    },
+    "Backup_manager.BackupImporter": {
+      "class_name": "BackupImporter",
+      "module_name": "Backup_manager",
+      "file_path": "Backup_manager.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 252
+      }
+    },
+    "Backup_manager.BackupScheduler": {
+      "class_name": "BackupScheduler",
+      "module_name": "Backup_manager",
+      "file_path": "Backup_manager.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 330
+      }
+    },
+    "Book_closer.BookCloser": {
+      "class_name": "BookCloser",
+      "module_name": "Book_closer",
+      "file_path": "Book_closer.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 442
+      }
+    },
+    "Books_retriever.BooksRetriever": {
+      "class_name": "BooksRetriever",
+      "module_name": "Books_retriever",
+      "file_path": "Books_retriever.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 554
+      }
+    },
+    "Config.AliquotaIva": {
+      "class_name": "AliquotaIva",
+      "module_name": "Config",
+      "file_path": "Config.py",
+      "package": "Config",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3960,
+        "y": 140
+      }
+    },
+    "Config.ConfigManager": {
+      "class_name": "ConfigManager",
+      "module_name": "Config",
+      "file_path": "Config.py",
+      "package": "Config",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3996,
+        "y": 218
+      }
+    },
+    "Config.FiscalSettings": {
+      "class_name": "FiscalSettings",
+      "module_name": "Config",
+      "file_path": "Config.py",
+      "package": "Config",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3960,
+        "y": 296
+      }
+    },
+    "Config.HistoricalFinancialData": {
+      "class_name": "HistoricalFinancialData",
+      "module_name": "Config",
+      "file_path": "Config.py",
+      "package": "Config",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3996,
+        "y": 374
+      }
+    },
+    "Config.PartitaIVAForfettaria": {
+      "class_name": "PartitaIVAForfettaria",
+      "module_name": "Config",
+      "file_path": "Config.py",
+      "package": "Config",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3960,
+        "y": 452
+      }
+    },
+    "Config.PartitaIVAOrdinaria": {
+      "class_name": "PartitaIVAOrdinaria",
+      "module_name": "Config",
+      "file_path": "Config.py",
+      "package": "Config",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3996,
+        "y": 530
+      }
+    },
+    "Config.RecurringExpense": {
+      "class_name": "RecurringExpense",
+      "module_name": "Config",
+      "file_path": "Config.py",
+      "package": "Config",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3960,
+        "y": 608
+      }
+    },
+    "Config.ScaglioneIrpef": {
+      "class_name": "ScaglioneIrpef",
+      "module_name": "Config",
+      "file_path": "Config.py",
+      "package": "Config",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3996,
+        "y": 686
+      }
+    },
+    "Controllers.AccountController": {
+      "class_name": "AccountController",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 666
+      }
+    },
+    "Controllers.Analyzer": {
+      "class_name": "Analyzer",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 744
+      }
+    },
+    "Controllers.ControllerUtils": {
+      "class_name": "ControllerUtils",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 822
+      }
+    },
+    "Controllers.ExpenseController": {
+      "class_name": "ExpenseController",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [
+        "Controllers.AccountController",
+        "Controllers.InvoiceController",
+        "Controllers.UserController",
+        "Model.DatabaseModel",
+        "QueryServices.Suppliers_query_service.SupplierQueryService"
+      ],
+      "position": {
+        "x": 5076,
+        "y": 900
+      }
+    },
+    "Controllers.InvoiceController": {
+      "class_name": "InvoiceController",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 978
+      }
+    },
+    "Controllers.PaymentsController": {
+      "class_name": "PaymentsController",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 1056
+      }
+    },
+    "Controllers.RefundController": {
+      "class_name": "RefundController",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 1134
+      }
+    },
+    "Controllers.SalaryController": {
+      "class_name": "SalaryController",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 1212
+      }
+    },
+    "Controllers.TransfersController": {
+      "class_name": "TransfersController",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 1290
+      }
+    },
+    "Controllers.UpdatesController": {
+      "class_name": "UpdatesController",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 1368
+      }
+    },
+    "Controllers.UserController": {
+      "class_name": "UserController",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 1446
+      }
+    },
+    "Controllers.ValidationUtils": {
+      "class_name": "ValidationUtils",
+      "module_name": "Controllers",
+      "file_path": "Controllers.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 1524
+      }
+    },
+    "Controllerss.Client_controller.ClientController": {
+      "class_name": "ClientController",
+      "module_name": "Controllerss.Client_controller",
+      "file_path": "Controllerss\\Client_controller.py",
+      "package": "Controllerss",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 720,
+        "y": 140
+      }
+    },
+    "Controllerss.Production_controller.ProductionController": {
+      "class_name": "ProductionController",
+      "module_name": "Controllerss.Production_controller",
+      "file_path": "Controllerss\\Production_controller.py",
+      "package": "Controllerss",
+      "bases": [],
+      "uses": [
+        "Model.DatabaseModel",
+        "QueryServices.Clients_query_service.ClientQueryService"
+      ],
+      "position": {
+        "x": 720,
+        "y": 252
+      }
+    },
+    "Controllerss.Supplier_controller.SupplierController": {
+      "class_name": "SupplierController",
+      "module_name": "Controllerss.Supplier_controller",
+      "file_path": "Controllerss\\Supplier_controller.py",
+      "package": "Controllerss",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 720,
+        "y": 364
+      }
+    },
+    "Event_bus.EventBus": {
+      "class_name": "EventBus",
+      "module_name": "Event_bus",
+      "file_path": "Event_bus.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 1636
+      }
+    },
+    "Fatturazione_elettronica_API.ArubaFatturazioneAPI": {
+      "class_name": "ArubaFatturazioneAPI",
+      "module_name": "Fatturazione_elettronica_API",
+      "file_path": "Fatturazione_elettronica_API.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 1748
+      }
+    },
+    "Fatturazione_elettronica_API.FatturazioneElettronicaProvider": {
+      "class_name": "FatturazioneElettronicaProvider",
+      "module_name": "Fatturazione_elettronica_API",
+      "file_path": "Fatturazione_elettronica_API.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 1826
+      }
+    },
+    "Gestionale_Enums.AccountsAggregateData": {
+      "class_name": "AccountsAggregateData",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 1938
+      }
+    },
+    "Gestionale_Enums.BusinessSector": {
+      "class_name": "BusinessSector",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 2016
+      }
+    },
+    "Gestionale_Enums.ClientsAggregateData": {
+      "class_name": "ClientsAggregateData",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 2094
+      }
+    },
+    "Gestionale_Enums.DBAccountsColumns": {
+      "class_name": "DBAccountsColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 2172
+      }
+    },
+    "Gestionale_Enums.DBClientsColumns": {
+      "class_name": "DBClientsColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 2250
+      }
+    },
+    "Gestionale_Enums.DBExpensesColumns": {
+      "class_name": "DBExpensesColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 2328
+      }
+    },
+    "Gestionale_Enums.DBInvoicesColumns": {
+      "class_name": "DBInvoicesColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 2406
+      }
+    },
+    "Gestionale_Enums.DBPaymentsColumns": {
+      "class_name": "DBPaymentsColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 2484
+      }
+    },
+    "Gestionale_Enums.DBProductionsColumns": {
+      "class_name": "DBProductionsColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 2562
+      }
+    },
+    "Gestionale_Enums.DBRefundsColumns": {
+      "class_name": "DBRefundsColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 2640
+      }
+    },
+    "Gestionale_Enums.DBSalariesColumns": {
+      "class_name": "DBSalariesColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 2718
+      }
+    },
+    "Gestionale_Enums.DBSuppliersColumns": {
+      "class_name": "DBSuppliersColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 2796
+      }
+    },
+    "Gestionale_Enums.DBTransfersColumns": {
+      "class_name": "DBTransfersColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 2874
+      }
+    },
+    "Gestionale_Enums.DBUsersColumns": {
+      "class_name": "DBUsersColumns",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 2952
+      }
+    },
+    "Gestionale_Enums.InvoiceAggregatedData": {
+      "class_name": "InvoiceAggregatedData",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 3030
+      }
+    },
+    "Gestionale_Enums.InvoiceRateizzSatus": {
+      "class_name": "InvoiceRateizzSatus",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 3108
+      }
+    },
+    "Gestionale_Enums.InvoiceSatus": {
+      "class_name": "InvoiceSatus",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 3186
+      }
+    },
+    "Gestionale_Enums.PaymentsAggregateData": {
+      "class_name": "PaymentsAggregateData",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 3264
+      }
+    },
+    "Gestionale_Enums.PaymentsMethods": {
+      "class_name": "PaymentsMethods",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 3342
+      }
+    },
+    "Gestionale_Enums.ProductionStatus": {
+      "class_name": "ProductionStatus",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 3498
+      }
+    },
+    "Gestionale_Enums.ProductionsAggregateData": {
+      "class_name": "ProductionsAggregateData",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 3420
+      }
+    },
+    "Gestionale_Enums.Rateizzazione": {
+      "class_name": "Rateizzazione",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 3576
+      }
+    },
+    "Gestionale_Enums.RefundsAggregateData": {
+      "class_name": "RefundsAggregateData",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 3654
+      }
+    },
+    "Gestionale_Enums.RegimeFiscale": {
+      "class_name": "RegimeFiscale",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 3732
+      }
+    },
+    "Gestionale_Enums.SalariesAggregateData": {
+      "class_name": "SalariesAggregateData",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 3810
+      }
+    },
+    "Gestionale_Enums.SupplierAggregateData": {
+      "class_name": "SupplierAggregateData",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 3888
+      }
+    },
+    "Gestionale_Enums.TipologiaCliente": {
+      "class_name": "TipologiaCliente",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 3966
+      }
+    },
+    "Gestionale_Enums.TipologiaFattura": {
+      "class_name": "TipologiaFattura",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 4044
+      }
+    },
+    "Gestionale_Enums.TipologiaOutput": {
+      "class_name": "TipologiaOutput",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 4122
+      }
+    },
+    "Gestionale_Enums.TipologiaProduzione": {
+      "class_name": "TipologiaProduzione",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5076,
+        "y": 4200
+      }
+    },
+    "Gestionale_Enums.UserStatus": {
+      "class_name": "UserStatus",
+      "module_name": "Gestionale_Enums",
+      "file_path": "Gestionale_Enums.py",
+      "package": "Other",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 5040,
+        "y": 4278
+      }
+    },
+    "Model.DBAccountsColumns": {
+      "class_name": "DBAccountsColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3456,
+        "y": 218
+      }
+    },
+    "Model.DBClientsColumns": {
+      "class_name": "DBClientsColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3420,
+        "y": 296
+      }
+    },
+    "Model.DBExpensesColumns": {
+      "class_name": "DBExpensesColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3456,
+        "y": 374
+      }
+    },
+    "Model.DBInvoicesColumns": {
+      "class_name": "DBInvoicesColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3420,
+        "y": 452
+      }
+    },
+    "Model.DBPaymentsColumns": {
+      "class_name": "DBPaymentsColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3456,
+        "y": 530
+      }
+    },
+    "Model.DBProductionsColumns": {
+      "class_name": "DBProductionsColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3420,
+        "y": 608
+      }
+    },
+    "Model.DBRefundsColumns": {
+      "class_name": "DBRefundsColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3456,
+        "y": 686
+      }
+    },
+    "Model.DBSalariesColumns": {
+      "class_name": "DBSalariesColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3420,
+        "y": 764
+      }
+    },
+    "Model.DBSuppliersColumns": {
+      "class_name": "DBSuppliersColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3456,
+        "y": 842
+      }
+    },
+    "Model.DBTransfersColumns": {
+      "class_name": "DBTransfersColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3420,
+        "y": 920
+      }
+    },
+    "Model.DBUsersColumns": {
+      "class_name": "DBUsersColumns",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3456,
+        "y": 998
+      }
+    },
+    "Model.DatabaseModel": {
+      "class_name": "DatabaseModel",
+      "module_name": "Model",
+      "file_path": "Model.py",
+      "package": "Model",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 3420,
+        "y": 140
+      }
+    },
+    "QueryServices.Clients_query_service.ClientQueryService": {
+      "class_name": "ClientQueryService",
+      "module_name": "QueryServices.Clients_query_service",
+      "file_path": "QueryServices\\Clients_query_service.py",
+      "package": "QueryServices",
+      "bases": [],
+      "uses": [
+        "Model.DatabaseModel",
+        "QueryServices.Productions_query_service.ProductionQueryService"
+      ],
+      "position": {
+        "x": 1260,
+        "y": 140
+      }
+    },
+    "QueryServices.Productions_query_service.ProductionQueryService": {
+      "class_name": "ProductionQueryService",
+      "module_name": "QueryServices.Productions_query_service",
+      "file_path": "QueryServices\\Productions_query_service.py",
+      "package": "QueryServices",
+      "bases": [],
+      "uses": [
+        "Model.DatabaseModel"
+      ],
+      "position": {
+        "x": 1260,
+        "y": 252
+      }
+    },
+    "QueryServices.Suppliers_query_service.SupplierQueryService": {
+      "class_name": "SupplierQueryService",
+      "module_name": "QueryServices.Suppliers_query_service",
+      "file_path": "QueryServices\\Suppliers_query_service.py",
+      "package": "QueryServices",
+      "bases": [],
+      "uses": [
+        "Model.DatabaseModel"
+      ],
+      "position": {
+        "x": 1260,
+        "y": 364
+      }
+    },
+    "Utils.Controller_utils.ControllerUtils": {
+      "class_name": "ControllerUtils",
+      "module_name": "Utils.Controller_utils",
+      "file_path": "Utils\\Controller_utils.py",
+      "package": "Utils",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 2880,
+        "y": 140
+      }
+    },
+    "Utils.Validation_utils.ValidationUtils": {
+      "class_name": "ValidationUtils",
+      "module_name": "Utils.Validation_utils",
+      "file_path": "Utils\\Validation_utils.py",
+      "package": "Utils",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 2880,
+        "y": 252
+      }
+    },
+    "Views.Accounts_view.AccountDetailView": {
+      "class_name": "AccountDetailView",
+      "module_name": "Views.Accounts_view",
+      "file_path": "Views\\Accounts_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 140
+      }
+    },
+    "Views.Accounts_view.AccountsView": {
+      "class_name": "AccountsView",
+      "module_name": "Views.Accounts_view",
+      "file_path": "Views\\Accounts_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Config.ConfigManager",
+        "Controllers.AccountController",
+        "Controllers.Analyzer",
+        "Controllers.TransfersController",
+        "Controllers.UpdatesController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "Views.Accounts_view.AccountDetailView",
+        "Views.Accounts_view.TransfersView"
+      ],
+      "position": {
+        "x": 216,
+        "y": 218
+      }
+    },
+    "Views.Accounts_view.TransfersView": {
+      "class_name": "TransfersView",
+      "module_name": "Views.Accounts_view",
+      "file_path": "Views\\Accounts_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 296
+      }
+    },
+    "Views.Adders.Base_catalog_item_adder_view.BaseCatalogItemAdderView": {
+      "class_name": "BaseCatalogItemAdderView",
+      "module_name": "Views.Adders.Base_catalog_item_adder_view",
+      "file_path": "Views\\Adders\\Base_catalog_item_adder_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 408
+      }
+    },
+    "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView": {
+      "class_name": "BusinessSectorAdderView",
+      "module_name": "Views.Adders.Business_sector_adder_view",
+      "file_path": "Views\\Adders\\Business_sector_adder_view.py",
+      "package": "Views",
+      "bases": [
+        "Views.Adders.Base_catalog_item_adder_view.BaseCatalogItemAdderView"
+      ],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 520
+      }
+    },
+    "Views.Adders.Production_output_type_adder_view.ProductionOutputTypeAdderView": {
+      "class_name": "ProductionOutputTypeAdderView",
+      "module_name": "Views.Adders.Production_output_type_adder_view",
+      "file_path": "Views\\Adders\\Production_output_type_adder_view.py",
+      "package": "Views",
+      "bases": [
+        "Views.Adders.Base_catalog_item_adder_view.BaseCatalogItemAdderView"
+      ],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 632
+      }
+    },
+    "Views.Adders.Production_type_adder_view.ProductionTypeAdderView": {
+      "class_name": "ProductionTypeAdderView",
+      "module_name": "Views.Adders.Production_type_adder_view",
+      "file_path": "Views\\Adders\\Production_type_adder_view.py",
+      "package": "Views",
+      "bases": [
+        "Views.Adders.Base_catalog_item_adder_view.BaseCatalogItemAdderView"
+      ],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 744
+      }
+    },
+    "Views.BaseList_view.BaseListView": {
+      "class_name": "BaseListView",
+      "module_name": "Views.BaseList_view",
+      "file_path": "Views\\BaseList_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 856
+      }
+    },
+    "Views.Business_sector_create_view.BusinessSectorCreateView": {
+      "class_name": "BusinessSectorCreateView",
+      "module_name": "Views.Business_sector_create_view",
+      "file_path": "Views\\Business_sector_create_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 968
+      }
+    },
+    "Views.Clients_view_H.ClientsViewH": {
+      "class_name": "ClientsViewH",
+      "module_name": "Views.Clients_view_H",
+      "file_path": "Views\\Clients_view_H.py",
+      "package": "Views",
+      "bases": [
+        "Views.BaseList_view.BaseListView"
+      ],
+      "uses": [
+        "Analyzers.Client_analyzer_service.ClientAnalyzerService",
+        "App_context.AppContext",
+        "Controllerss.Client_controller.ClientController",
+        "QueryServices.Clients_query_service.ClientQueryService",
+        "Views.Creators.Client_create_view.ClientCreateView",
+        "Views.Details.Client_detail_view.ClientDetailView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 1080
+      }
+    },
+    "Views.Creators.Client_create_view.ClientCreateView": {
+      "class_name": "ClientCreateView",
+      "module_name": "Views.Creators.Client_create_view",
+      "file_path": "Views\\Creators\\Client_create_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 1192
+      }
+    },
+    "Views.Creators.Production_create_view.ProductionCreateView": {
+      "class_name": "ProductionCreateView",
+      "module_name": "Views.Creators.Production_create_view",
+      "file_path": "Views\\Creators\\Production_create_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "Views.Adders.Production_output_type_adder_view.ProductionOutputTypeAdderView",
+        "Views.Adders.Production_type_adder_view.ProductionTypeAdderView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 1304
+      }
+    },
+    "Views.Creators.Supplier_create_view.SupplierCreateView": {
+      "class_name": "SupplierCreateView",
+      "module_name": "Views.Creators.Supplier_create_view",
+      "file_path": "Views\\Creators\\Supplier_create_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 1416
+      }
+    },
+    "Views.Deprecated.Clients_view.ClientsView": {
+      "class_name": "ClientsView",
+      "module_name": "Views.Deprecated.Clients_view",
+      "file_path": "Views\\Deprecated\\Clients_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Controllers.Analyzer",
+        "Controllers.InvoiceController",
+        "Controllers.RefundController",
+        "Controllerss.Client_controller.ClientController",
+        "Controllerss.Production_controller.ProductionController",
+        "Model.DatabaseModel",
+        "Views.Details.Client_detail_view.ClientDetailView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 1528
+      }
+    },
+    "Views.Deprecated.Suppliers_view.SuppliersView": {
+      "class_name": "SuppliersView",
+      "module_name": "Views.Deprecated.Suppliers_view",
+      "file_path": "Views\\Deprecated\\Suppliers_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Views.Creators.Supplier_create_view.SupplierCreateView",
+        "Views.Details.Supplier_detail_view.SupplierDetailView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 1640
+      }
+    },
+    "Views.Details.Client_detail_view.ClientDetailView": {
+      "class_name": "ClientDetailView",
+      "module_name": "Views.Details.Client_detail_view",
+      "file_path": "Views\\Details\\Client_detail_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "Analyzers.Client_analyzer_service.ClientAnalyzerService",
+        "Analyzers.Production_analyzer_service.ProductionAnalyzerService",
+        "App_context.AppContext",
+        "Controllers.Analyzer",
+        "Controllers.InvoiceController",
+        "Controllers.RefundController",
+        "Controllerss.Client_controller.ClientController",
+        "Controllerss.Production_controller.ProductionController",
+        "Model.DatabaseModel",
+        "QueryServices.Clients_query_service.ClientQueryService",
+        "QueryServices.Productions_query_service.ProductionQueryService",
+        "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 1752
+      }
+    },
+    "Views.Details.Production_detail_view.ProductionDetailView": {
+      "class_name": "ProductionDetailView",
+      "module_name": "Views.Details.Production_detail_view",
+      "file_path": "Views\\Details\\Production_detail_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Config.ConfigManager",
+        "Controllers.InvoiceController",
+        "Controllerss.Client_controller.ClientController",
+        "Controllerss.Production_controller.ProductionController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "Views.Adders.Production_output_type_adder_view.ProductionOutputTypeAdderView",
+        "Views.Adders.Production_type_adder_view.ProductionTypeAdderView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 1864
+      }
+    },
+    "Views.Details.Supplier_detail_view.SupplierDetailView": {
+      "class_name": "SupplierDetailView",
+      "module_name": "Views.Details.Supplier_detail_view",
+      "file_path": "Views\\Details\\Supplier_detail_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "Analyzers.Supplier_analyzer_service.SupplierAnalyzerService",
+        "App_context.AppContext",
+        "Controllerss.Supplier_controller.SupplierController",
+        "QueryServices.Suppliers_query_service.SupplierQueryService",
+        "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 1976
+      }
+    },
+    "Views.Expenses_view.ExpenseDetailView": {
+      "class_name": "ExpenseDetailView",
+      "module_name": "Views.Expenses_view",
+      "file_path": "Views\\Expenses_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 2088
+      }
+    },
+    "Views.Expenses_view.ExpensesView": {
+      "class_name": "ExpensesView",
+      "module_name": "Views.Expenses_view",
+      "file_path": "Views\\Expenses_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Config.ConfigManager",
+        "Controllers.AccountController",
+        "Controllers.Analyzer",
+        "Controllers.ExpenseController",
+        "Controllers.InvoiceController",
+        "Controllers.UpdatesController",
+        "Controllers.UserController",
+        "Controllerss.Supplier_controller.SupplierController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "Views.Expenses_view.ExpenseDetailView"
+      ],
+      "position": {
+        "x": 216,
+        "y": 2166
+      }
+    },
+    "Views.Invoices_view.InvoiceDetailView": {
+      "class_name": "InvoiceDetailView",
+      "module_name": "Views.Invoices_view",
+      "file_path": "Views\\Invoices_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Controllers.AccountController",
+        "Controllers.InvoiceController",
+        "Controllers.UpdatesController",
+        "Controllers.UserController",
+        "Controllerss.Client_controller.ClientController",
+        "Controllerss.Production_controller.ProductionController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "QueryServices.Clients_query_service.ClientQueryService",
+        "QueryServices.Productions_query_service.ProductionQueryService"
+      ],
+      "position": {
+        "x": 180,
+        "y": 2278
+      }
+    },
+    "Views.Invoices_view.InvoicesView": {
+      "class_name": "InvoicesView",
+      "module_name": "Views.Invoices_view",
+      "file_path": "Views\\Invoices_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Model.DatabaseModel",
+        "QueryServices.Clients_query_service.ClientQueryService",
+        "QueryServices.Productions_query_service.ProductionQueryService",
+        "Views.Invoices_view.InvoiceDetailView"
+      ],
+      "position": {
+        "x": 216,
+        "y": 2356
+      }
+    },
+    "Views.Iva_trimes_view.IvaTrimesView": {
+      "class_name": "IvaTrimesView",
+      "module_name": "Views.Iva_trimes_view",
+      "file_path": "Views\\Iva_trimes_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 2468
+      }
+    },
+    "Views.Loading_screen.LoadingScreen": {
+      "class_name": "LoadingScreen",
+      "module_name": "Views.Loading_screen",
+      "file_path": "Views\\Loading_screen.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 2580
+      }
+    },
+    "Views.Payments_view.PaymentDetailView": {
+      "class_name": "PaymentDetailView",
+      "module_name": "Views.Payments_view",
+      "file_path": "Views\\Payments_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 2692
+      }
+    },
+    "Views.Payments_view.PaymentsView": {
+      "class_name": "PaymentsView",
+      "module_name": "Views.Payments_view",
+      "file_path": "Views\\Payments_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Controllers.AccountController",
+        "Controllers.InvoiceController",
+        "Controllers.PaymentsController",
+        "Controllers.UpdatesController",
+        "Controllers.UserController",
+        "Controllerss.Client_controller.ClientController",
+        "Controllerss.Production_controller.ProductionController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "QueryServices.Clients_query_service.ClientQueryService",
+        "Views.Payments_view.PaymentDetailView"
+      ],
+      "position": {
+        "x": 216,
+        "y": 2770
+      }
+    },
+    "Views.Plot_view.AnnualData": {
+      "class_name": "AnnualData",
+      "module_name": "Views.Plot_view",
+      "file_path": "Views\\Plot_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 2882
+      }
+    },
+    "Views.Plot_view.MonthlyData": {
+      "class_name": "MonthlyData",
+      "module_name": "Views.Plot_view",
+      "file_path": "Views\\Plot_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 216,
+        "y": 2960
+      }
+    },
+    "Views.Plot_view.PlotView": {
+      "class_name": "PlotView",
+      "module_name": "Views.Plot_view",
+      "file_path": "Views\\Plot_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 3038
+      }
+    },
+    "Views.Productions_view.ProductionDetailView": {
+      "class_name": "ProductionDetailView",
+      "module_name": "Views.Productions_view",
+      "file_path": "Views\\Productions_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Config.ConfigManager",
+        "Controllers.InvoiceController",
+        "Controllers.UpdatesController",
+        "Controllerss.Client_controller.ClientController",
+        "Controllerss.Production_controller.ProductionController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel"
+      ],
+      "position": {
+        "x": 180,
+        "y": 3150
+      }
+    },
+    "Views.Productions_view.ProductionsView": {
+      "class_name": "ProductionsView",
+      "module_name": "Views.Productions_view",
+      "file_path": "Views\\Productions_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Config.ConfigManager",
+        "Controllers.InvoiceController",
+        "Controllers.PaymentsController",
+        "Controllers.UpdatesController",
+        "Controllers.UserController",
+        "Controllerss.Client_controller.ClientController",
+        "Controllerss.Production_controller.ProductionController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "QueryServices.Clients_query_service.ClientQueryService",
+        "Views.Details.Production_detail_view.ProductionDetailView",
+        "Views.Productions_view.ProductionDetailView"
+      ],
+      "position": {
+        "x": 216,
+        "y": 3228
+      }
+    },
+    "Views.Productions_view_H.ProductionsViewH": {
+      "class_name": "ProductionsViewH",
+      "module_name": "Views.Productions_view_H",
+      "file_path": "Views\\Productions_view_H.py",
+      "package": "Views",
+      "bases": [
+        "Views.BaseList_view.BaseListView"
+      ],
+      "uses": [
+        "Analyzers.Production_analyzer_service.ProductionAnalyzerService",
+        "App_context.AppContext",
+        "QueryServices.Clients_query_service.ClientQueryService",
+        "QueryServices.Productions_query_service.ProductionQueryService",
+        "Views.Creators.Production_create_view.ProductionCreateView",
+        "Views.Details.Production_detail_view.ProductionDetailView",
+        "WarningServices.Production_warning_service.ProductionWarningService"
+      ],
+      "position": {
+        "x": 180,
+        "y": 3340
+      }
+    },
+    "Views.Refunds_view.RefundDetailView": {
+      "class_name": "RefundDetailView",
+      "module_name": "Views.Refunds_view",
+      "file_path": "Views\\Refunds_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 3452
+      }
+    },
+    "Views.Refunds_view.RefundsView": {
+      "class_name": "RefundsView",
+      "module_name": "Views.Refunds_view",
+      "file_path": "Views\\Refunds_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Controllers.AccountController",
+        "Controllers.Analyzer",
+        "Controllers.RefundController",
+        "Controllers.UpdatesController",
+        "Controllerss.Client_controller.ClientController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "Views.Refunds_view.RefundDetailView"
+      ],
+      "position": {
+        "x": 216,
+        "y": 3530
+      }
+    },
+    "Views.Report_view.ReportView": {
+      "class_name": "ReportView",
+      "module_name": "Views.Report_view",
+      "file_path": "Views\\Report_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Controllers.Analyzer",
+        "Controllers.UpdatesController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel"
+      ],
+      "position": {
+        "x": 180,
+        "y": 3642
+      }
+    },
+    "Views.Salaries_view.SalariesView": {
+      "class_name": "SalariesView",
+      "module_name": "Views.Salaries_view",
+      "file_path": "Views\\Salaries_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Config.ConfigManager",
+        "Controllers.AccountController",
+        "Controllers.Analyzer",
+        "Controllers.SalaryController",
+        "Controllers.UpdatesController",
+        "Controllers.UserController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "Views.Salaries_view.SalaryDetailView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 3754
+      }
+    },
+    "Views.Salaries_view.SalaryDetailView": {
+      "class_name": "SalaryDetailView",
+      "module_name": "Views.Salaries_view",
+      "file_path": "Views\\Salaries_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 216,
+        "y": 3832
+      }
+    },
+    "Views.Suppliers_view_H.SuppliersViewH": {
+      "class_name": "SuppliersViewH",
+      "module_name": "Views.Suppliers_view_H",
+      "file_path": "Views\\Suppliers_view_H.py",
+      "package": "Views",
+      "bases": [
+        "Views.BaseList_view.BaseListView"
+      ],
+      "uses": [
+        "Analyzers.Supplier_analyzer_service.SupplierAnalyzerService",
+        "App_context.AppContext",
+        "Controllerss.Supplier_controller.SupplierController",
+        "QueryServices.Suppliers_query_service.SupplierQueryService",
+        "Views.Creators.Supplier_create_view.SupplierCreateView",
+        "Views.Details.Supplier_detail_view.SupplierDetailView"
+      ],
+      "position": {
+        "x": 180,
+        "y": 3944
+      }
+    },
+    "Views.Taxes_view.TaxesView": {
+      "class_name": "TaxesView",
+      "module_name": "Views.Taxes_view",
+      "file_path": "Views\\Taxes_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 4056
+      }
+    },
+    "Views.Users_view.UserDetailView": {
+      "class_name": "UserDetailView",
+      "module_name": "Views.Users_view",
+      "file_path": "Views\\Users_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "QueryServices.Productions_query_service.ProductionQueryService"
+      ],
+      "position": {
+        "x": 180,
+        "y": 4168
+      }
+    },
+    "Views.Users_view.UsersView": {
+      "class_name": "UsersView",
+      "module_name": "Views.Users_view",
+      "file_path": "Views\\Users_view.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Controllers.AccountController",
+        "Controllers.Analyzer",
+        "Controllers.UserController",
+        "Controllerss.Production_controller.ProductionController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "Views.Users_view.UserDetailView"
+      ],
+      "position": {
+        "x": 216,
+        "y": 4246
+      }
+    },
+    "Views.View.MainWindow": {
+      "class_name": "MainWindow",
+      "module_name": "Views.View",
+      "file_path": "Views\\View.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [
+        "App_context.AppContext",
+        "Backup_manager.BackupImporter",
+        "Backup_manager.BackupScheduler",
+        "Config.ConfigManager",
+        "Controllers.AccountController",
+        "Controllers.Analyzer",
+        "Controllers.ExpenseController",
+        "Controllers.InvoiceController",
+        "Controllers.PaymentsController",
+        "Controllers.RefundController",
+        "Controllers.SalaryController",
+        "Controllers.TransfersController",
+        "Controllers.UpdatesController",
+        "Controllers.UserController",
+        "Controllerss.Client_controller.ClientController",
+        "Controllerss.Production_controller.ProductionController",
+        "Controllerss.Supplier_controller.SupplierController",
+        "Event_bus.EventBus",
+        "Model.DatabaseModel",
+        "Views.Accounts_view.AccountsView",
+        "Views.Clients_view_H.ClientsViewH",
+        "Views.Expenses_view.ExpensesView",
+        "Views.Invoices_view.InvoicesView",
+        "Views.Iva_trimes_view.IvaTrimesView",
+        "Views.Payments_view.PaymentsView",
+        "Views.Plot_view.PlotView",
+        "Views.Productions_view_H.ProductionsViewH",
+        "Views.Refunds_view.RefundsView",
+        "Views.Report_view.ReportView",
+        "Views.Salaries_view.SalariesView",
+        "Views.Suppliers_view_H.SuppliersViewH",
+        "Views.Taxes_view.TaxesView",
+        "Views.Users_view.UsersView",
+        "Views.View_utils.CustomTkMenuButton"
+      ],
+      "position": {
+        "x": 180,
+        "y": 4358
+      }
+    },
+    "Views.View_utils.CatalogFilterableComboBox": {
+      "class_name": "CatalogFilterableComboBox",
+      "module_name": "Views.View_utils",
+      "file_path": "Views\\View_utils.py",
+      "package": "Views",
+      "bases": [
+        "Views.View_utils.FilterableComboBox"
+      ],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 4470
+      }
+    },
+    "Views.View_utils.CustomTkMenuButton": {
+      "class_name": "CustomTkMenuButton",
+      "module_name": "Views.View_utils",
+      "file_path": "Views\\View_utils.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 216,
+        "y": 4548
+      }
+    },
+    "Views.View_utils.FilterableComboBox": {
+      "class_name": "FilterableComboBox",
+      "module_name": "Views.View_utils",
+      "file_path": "Views\\View_utils.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 180,
+        "y": 4626
+      }
+    },
+    "Views.View_utils.ViewUtils": {
+      "class_name": "ViewUtils",
+      "module_name": "Views.View_utils",
+      "file_path": "Views\\View_utils.py",
+      "package": "Views",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 216,
+        "y": 4704
+      }
+    },
+    "WarningServices.Production_warning_service.ProductionWarningService": {
+      "class_name": "ProductionWarningService",
+      "module_name": "WarningServices.Production_warning_service",
+      "file_path": "WarningServices\\Production_warning_service.py",
+      "package": "WarningServices",
+      "bases": [],
+      "uses": [],
+      "position": {
+        "x": 2340,
+        "y": 140
+      }
+    }
+  },
+  "edges": [
+    {
+      "source": "Analyzers.Client_analyzer_service.ClientAnalyzerService",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Analyzers.Client_analyzer_service.ClientAnalyzerService",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Analyzers.Production_analyzer_service.ProductionAnalyzerService",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Analyzers.Production_analyzer_service.ProductionAnalyzerService",
+      "target": "QueryServices.Productions_query_service.ProductionQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Analyzers.Supplier_analyzer_service.SupplierAnalyzerService",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Analyzers.Supplier_analyzer_service.SupplierAnalyzerService",
+      "target": "QueryServices.Suppliers_query_service.SupplierQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Analyzers.Client_analyzer_service.ClientAnalyzerService",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Analyzers.Production_analyzer_service.ProductionAnalyzerService",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Analyzers.Supplier_analyzer_service.SupplierAnalyzerService",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Backup_manager.BackupImporter",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Backup_manager.BackupScheduler",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Book_closer.BookCloser",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Books_retriever.BooksRetriever",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Config.ConfigManager",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.ExpenseController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.PaymentsController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.RefundController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.SalaryController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.TransfersController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllers.UserController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Controllerss.Supplier_controller.SupplierController",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "QueryServices.Productions_query_service.ProductionQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "QueryServices.Suppliers_query_service.SupplierQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "App_context.AppContext",
+      "target": "WarningServices.Production_warning_service.ProductionWarningService",
+      "relation": "uses"
+    },
+    {
+      "source": "Controllers.ExpenseController",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "Controllers.ExpenseController",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Controllers.ExpenseController",
+      "target": "Controllers.UserController",
+      "relation": "uses"
+    },
+    {
+      "source": "Controllers.ExpenseController",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Controllers.ExpenseController",
+      "target": "QueryServices.Suppliers_query_service.SupplierQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Controllerss.Production_controller.ProductionController",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Controllerss.Production_controller.ProductionController",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "QueryServices.Clients_query_service.ClientQueryService",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "QueryServices.Clients_query_service.ClientQueryService",
+      "target": "QueryServices.Productions_query_service.ProductionQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "QueryServices.Productions_query_service.ProductionQueryService",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "QueryServices.Suppliers_query_service.SupplierQueryService",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "Config.ConfigManager",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "Controllers.TransfersController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "Views.Accounts_view.AccountDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Accounts_view.AccountsView",
+      "target": "Views.Accounts_view.TransfersView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView",
+      "target": "Views.Adders.Base_catalog_item_adder_view.BaseCatalogItemAdderView",
+      "relation": "inherits"
+    },
+    {
+      "source": "Views.Adders.Production_output_type_adder_view.ProductionOutputTypeAdderView",
+      "target": "Views.Adders.Base_catalog_item_adder_view.BaseCatalogItemAdderView",
+      "relation": "inherits"
+    },
+    {
+      "source": "Views.Adders.Production_type_adder_view.ProductionTypeAdderView",
+      "target": "Views.Adders.Base_catalog_item_adder_view.BaseCatalogItemAdderView",
+      "relation": "inherits"
+    },
+    {
+      "source": "Views.Clients_view_H.ClientsViewH",
+      "target": "Analyzers.Client_analyzer_service.ClientAnalyzerService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Clients_view_H.ClientsViewH",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Clients_view_H.ClientsViewH",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Clients_view_H.ClientsViewH",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Clients_view_H.ClientsViewH",
+      "target": "Views.BaseList_view.BaseListView",
+      "relation": "inherits"
+    },
+    {
+      "source": "Views.Clients_view_H.ClientsViewH",
+      "target": "Views.Creators.Client_create_view.ClientCreateView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Clients_view_H.ClientsViewH",
+      "target": "Views.Details.Client_detail_view.ClientDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Creators.Client_create_view.ClientCreateView",
+      "target": "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Creators.Production_create_view.ProductionCreateView",
+      "target": "Views.Adders.Production_output_type_adder_view.ProductionOutputTypeAdderView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Creators.Production_create_view.ProductionCreateView",
+      "target": "Views.Adders.Production_type_adder_view.ProductionTypeAdderView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Creators.Supplier_create_view.SupplierCreateView",
+      "target": "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Clients_view.ClientsView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Clients_view.ClientsView",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Clients_view.ClientsView",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Clients_view.ClientsView",
+      "target": "Controllers.RefundController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Clients_view.ClientsView",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Clients_view.ClientsView",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Clients_view.ClientsView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Clients_view.ClientsView",
+      "target": "Views.Details.Client_detail_view.ClientDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Suppliers_view.SuppliersView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Suppliers_view.SuppliersView",
+      "target": "Views.Creators.Supplier_create_view.SupplierCreateView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Deprecated.Suppliers_view.SuppliersView",
+      "target": "Views.Details.Supplier_detail_view.SupplierDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "Analyzers.Client_analyzer_service.ClientAnalyzerService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "Analyzers.Production_analyzer_service.ProductionAnalyzerService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "Controllers.RefundController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "QueryServices.Productions_query_service.ProductionQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Client_detail_view.ClientDetailView",
+      "target": "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Production_detail_view.ProductionDetailView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Production_detail_view.ProductionDetailView",
+      "target": "Config.ConfigManager",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Production_detail_view.ProductionDetailView",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Production_detail_view.ProductionDetailView",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Production_detail_view.ProductionDetailView",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Production_detail_view.ProductionDetailView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Production_detail_view.ProductionDetailView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Production_detail_view.ProductionDetailView",
+      "target": "Views.Adders.Production_output_type_adder_view.ProductionOutputTypeAdderView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Production_detail_view.ProductionDetailView",
+      "target": "Views.Adders.Production_type_adder_view.ProductionTypeAdderView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Supplier_detail_view.SupplierDetailView",
+      "target": "Analyzers.Supplier_analyzer_service.SupplierAnalyzerService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Supplier_detail_view.SupplierDetailView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Supplier_detail_view.SupplierDetailView",
+      "target": "Controllerss.Supplier_controller.SupplierController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Supplier_detail_view.SupplierDetailView",
+      "target": "QueryServices.Suppliers_query_service.SupplierQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Details.Supplier_detail_view.SupplierDetailView",
+      "target": "Views.Adders.Business_sector_adder_view.BusinessSectorAdderView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Config.ConfigManager",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Controllers.ExpenseController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Controllers.UserController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Controllerss.Supplier_controller.SupplierController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Expenses_view.ExpensesView",
+      "target": "Views.Expenses_view.ExpenseDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "Controllers.UserController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoiceDetailView",
+      "target": "QueryServices.Productions_query_service.ProductionQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoicesView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoicesView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoicesView",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoicesView",
+      "target": "QueryServices.Productions_query_service.ProductionQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Invoices_view.InvoicesView",
+      "target": "Views.Invoices_view.InvoiceDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Controllers.PaymentsController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Controllers.UserController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Payments_view.PaymentsView",
+      "target": "Views.Payments_view.PaymentDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionDetailView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionDetailView",
+      "target": "Config.ConfigManager",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionDetailView",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionDetailView",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionDetailView",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionDetailView",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionDetailView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionDetailView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Config.ConfigManager",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Controllers.PaymentsController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Controllers.UserController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Views.Details.Production_detail_view.ProductionDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view.ProductionsView",
+      "target": "Views.Productions_view.ProductionDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view_H.ProductionsViewH",
+      "target": "Analyzers.Production_analyzer_service.ProductionAnalyzerService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view_H.ProductionsViewH",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view_H.ProductionsViewH",
+      "target": "QueryServices.Clients_query_service.ClientQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view_H.ProductionsViewH",
+      "target": "QueryServices.Productions_query_service.ProductionQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view_H.ProductionsViewH",
+      "target": "Views.BaseList_view.BaseListView",
+      "relation": "inherits"
+    },
+    {
+      "source": "Views.Productions_view_H.ProductionsViewH",
+      "target": "Views.Creators.Production_create_view.ProductionCreateView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view_H.ProductionsViewH",
+      "target": "Views.Details.Production_detail_view.ProductionDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Productions_view_H.ProductionsViewH",
+      "target": "WarningServices.Production_warning_service.ProductionWarningService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Refunds_view.RefundsView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Refunds_view.RefundsView",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Refunds_view.RefundsView",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Refunds_view.RefundsView",
+      "target": "Controllers.RefundController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Refunds_view.RefundsView",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Refunds_view.RefundsView",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Refunds_view.RefundsView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Refunds_view.RefundsView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Refunds_view.RefundsView",
+      "target": "Views.Refunds_view.RefundDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Report_view.ReportView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Report_view.ReportView",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Report_view.ReportView",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Report_view.ReportView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Report_view.ReportView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "Config.ConfigManager",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "Controllers.SalaryController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "Controllers.UserController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Salaries_view.SalariesView",
+      "target": "Views.Salaries_view.SalaryDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Suppliers_view_H.SuppliersViewH",
+      "target": "Analyzers.Supplier_analyzer_service.SupplierAnalyzerService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Suppliers_view_H.SuppliersViewH",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Suppliers_view_H.SuppliersViewH",
+      "target": "Controllerss.Supplier_controller.SupplierController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Suppliers_view_H.SuppliersViewH",
+      "target": "QueryServices.Suppliers_query_service.SupplierQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Suppliers_view_H.SuppliersViewH",
+      "target": "Views.BaseList_view.BaseListView",
+      "relation": "inherits"
+    },
+    {
+      "source": "Views.Suppliers_view_H.SuppliersViewH",
+      "target": "Views.Creators.Supplier_create_view.SupplierCreateView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Suppliers_view_H.SuppliersViewH",
+      "target": "Views.Details.Supplier_detail_view.SupplierDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UserDetailView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UserDetailView",
+      "target": "QueryServices.Productions_query_service.ProductionQueryService",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UsersView",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UsersView",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UsersView",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UsersView",
+      "target": "Controllers.UserController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UsersView",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UsersView",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UsersView",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.Users_view.UsersView",
+      "target": "Views.Users_view.UserDetailView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "App_context.AppContext",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Backup_manager.BackupImporter",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Backup_manager.BackupScheduler",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Config.ConfigManager",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.AccountController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.Analyzer",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.ExpenseController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.InvoiceController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.PaymentsController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.RefundController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.SalaryController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.TransfersController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.UpdatesController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllers.UserController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllerss.Client_controller.ClientController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllerss.Production_controller.ProductionController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Controllerss.Supplier_controller.SupplierController",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Event_bus.EventBus",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Model.DatabaseModel",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Accounts_view.AccountsView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Clients_view_H.ClientsViewH",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Expenses_view.ExpensesView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Invoices_view.InvoicesView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Iva_trimes_view.IvaTrimesView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Payments_view.PaymentsView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Plot_view.PlotView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Productions_view_H.ProductionsViewH",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Refunds_view.RefundsView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Report_view.ReportView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Salaries_view.SalariesView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Suppliers_view_H.SuppliersViewH",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Taxes_view.TaxesView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.Users_view.UsersView",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View.MainWindow",
+      "target": "Views.View_utils.CustomTkMenuButton",
+      "relation": "uses"
+    },
+    {
+      "source": "Views.View_utils.CatalogFilterableComboBox",
+      "target": "Views.View_utils.FilterableComboBox",
+      "relation": "inherits"
+    }
+  ],
+  "module_cycles": []
+}

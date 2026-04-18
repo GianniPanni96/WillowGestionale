@@ -96,9 +96,9 @@ class MainWindow(ctk.CTk):
             text="Gestione Backup",
             items=[
                 ("Impostazioni backup", self.open_backup_settings_window),
-                ("Esegui un backup manuale del DatabaseCreation", self.execute_db_backup),
+                ("Esegui un backup manuale del Database", self.execute_db_backup),
                 ("Esegui un backup manuale dei libri contabili", self.execute_books_backup),
-                ("Carica un backup del DatabaseCreation", self.open_load_backup),
+                ("Carica un backup del Database", self.open_load_backup),
             ],
         )
         self.backup_menu.pack(side="left", padx=15, pady=15)
@@ -658,7 +658,7 @@ class MainWindow(ctk.CTk):
         backup_settings = current_config.get("backup_settings", {})
 
         # Titolo 1
-        title1 = ctk.CTkLabel(self.backup_database_frame, text="Impostazioni DatabaseCreation", font=("Arial", 14))
+        title1 = ctk.CTkLabel(self.backup_database_frame, text="Impostazioni Database", font=("Arial", 14))
         title1.pack(pady=20)
 
         # Titolo 2

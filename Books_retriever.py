@@ -710,3 +710,24 @@ class BooksRetriever:
 
 
         return summary
+
+    def get_monthly_averages(self, column_name: str) -> List[float]:
+        """
+        Per ogni mese (1-12) restituisce la media del campo `column_name`
+        su tutti gli anni presenti nel CSV mensile.
+
+        Returns:
+            Lista di 12 float (indice 0 = Gennaio … 11 = Dicembre).
+            Restituisce 0.0 per i mesi senza dati o colonna assente.
+        """
+        monthly_df = self.get_monthly_dataframe()
+
+        if monthly_df.empty or column_name not in monthly_df.columns:
+            return [0.0] * 12
+
+        averages = []
+        for month in range(1, 13):
+            month_rows = monthly_df.loc[monthly_df['mese'] == month, column_name]
+            averages.append(float(month_rows.mean()) if not month_rows.empty else 0.0)
+
+        return averages

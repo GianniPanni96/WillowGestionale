@@ -95,6 +95,11 @@ class AnnualReportChartsView(ctk.CTkFrame):
     def _build_view(self):
         breakdown_data = self.report_breakdown_analyzer_service.retrieve_annual_breakdown_data(year=self.selected_year)
 
+        self._build_financial_charts_section(
+            parent=self.scroll_frame,
+            data=breakdown_data["financial"]
+        )
+
         self._build_section(
             parent=self.scroll_frame,
             title="SEZIONE FATTURATO",
@@ -164,6 +169,62 @@ class AnnualReportChartsView(ctk.CTkFrame):
             ).pack(anchor="w", padx=16, pady=(14, 8))
 
             self._render_chart(card, items)
+
+    def _build_financial_charts_section(self, parent, data: dict):
+        section_frame = ctk.CTkFrame(parent, fg_color="#23313f", corner_radius=16)
+        section_frame.pack(fill="x", pady=(10, 16))
+
+        ctk.CTkLabel(
+            section_frame,
+            text="ANALISI FINANZIARIA",
+            font=("Arial", 18, "bold"),
+            text_color="#e8f4f8",
+        ).pack(anchor="w", padx=20, pady=(16, 4))
+
+        ctk.CTkLabel(
+            section_frame,
+            text=f"Distribuzioni di Patrimonio, Entrate e Uscite - {self.year_selector.get()}",
+            font=("Arial", 12),
+            text_color="#9fb3c8",
+        ).pack(anchor="w", padx=20, pady=(0, 12))
+
+        charts_grid = ctk.CTkFrame(section_frame, fg_color="transparent")
+        charts_grid.pack(fill="x", padx=14, pady=(0, 16))
+
+        for index in range(3):
+            charts_grid.grid_columnconfigure(index, weight=1, uniform="fin-chart")
+
+        financial_sections = [
+            ("SEZIONE PATRIMONIO", data["patrimonio"]),
+            ("SEZIONE ENTRATE", data["entrate"]),
+            ("SEZIONE USCITE", data["uscite"]),
+        ]
+
+        for index, (chart_title, items) in enumerate(financial_sections):
+            card = ctk.CTkFrame(charts_grid, fg_color="#2f4253", corner_radius=14)
+            card.grid(row=0, column=index, padx=8, pady=8, sticky="nsew")
+
+            ctk.CTkLabel(
+                card,
+                text=chart_title,
+                font=("Arial", 14, "bold"),
+                text_color="#e8f4f8",
+                wraplength=280,
+                justify="left",
+            ).pack(anchor="w", padx=16, pady=(14, 8))
+
+            # Controllo per la sezione Patrimonio: mostriamo il grafico solo per l'anno corrente
+            if chart_title == "SEZIONE PATRIMONIO" and self.selected_year != datetime.today().year:
+                ctk.CTkLabel(
+                    card,
+                    text="La suddivisione del patrimonio tra i conti è visualizzabile solo selezionando l'anno corrente, poiché rappresenta i saldi attuali in tempo reale.",
+                    font=("Arial", 12),
+                    text_color="#9fb3c8",
+                    wraplength=250,
+                    justify="center",
+                ).pack(fill="both", expand=True, padx=20, pady=(20, 30))
+            else:
+                self._render_chart(card, items)
 
     def _render_chart(self, parent, items: list[dict]):
         compact_items = self._compact_items(items, max_items=6)

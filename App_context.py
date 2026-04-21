@@ -186,7 +186,11 @@ class AppContext:
                                  self.productions_query_service,
                                  self.clients_query_service,
                                  self.expenses_query_service,
-                                 self.suppliers_query_service)
+                                 self.suppliers_query_service,
+                                 self.salary_query_service,
+                                 self.refunds_query_service,
+                                 self.account_query_service,
+                                 self.account_analyzer_service)
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager:ConfigManager = config_manager
         self.event_bus:EventBus = EventBus()

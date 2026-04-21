@@ -7,21 +7,24 @@ from Gestionale_Enums import (
     DBInvoicesColumns,
     DBProductionsColumns,
     DBSuppliersColumns,
+    DBSalariesColumns,
+    DBRefundsColumns,
 )
+from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
+from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Expenses_query_service import ExpenseQueryService
 from QueryServices.Invoices_query_service import InvoiceQueryService
 from QueryServices.Productions_query_service import ProductionQueryService
 from QueryServices.Suppliers_query_service import SupplierQueryService
+from QueryServices.Salaries_query_service import SalaryQueryService
+from QueryServices.Refunds_query_service import RefundQueryService
 from Utils.Controller_utils import ControllerUtils
 
 
 class ReportBreakdownAnalyzerService:
     """
     Aggrega i dati annuali necessari alla reportistica grafica.
-
-    La view riceve dati gia' pronti per i grafici, senza doversi occupare di
-    collegare manualmente fatture, produzioni, clienti e spese.
     """
 
     def __init__(
@@ -31,12 +34,20 @@ class ReportBreakdownAnalyzerService:
         clients_query_service: ClientQueryService,
         expenses_query_service: ExpenseQueryService,
         suppliers_query_service: SupplierQueryService,
+        salaries_query_service: SalaryQueryService,
+        refunds_query_service: RefundQueryService,
+        account_query_service: AccountQueryService,
+        account_analyzer_service: AccountAnalyzerService,
     ):
         self.invoices_query_service = invoices_query_service
         self.productions_query_service = productions_query_service
         self.clients_query_service = clients_query_service
         self.expenses_query_service = expenses_query_service
         self.suppliers_query_service = suppliers_query_service
+        self.salaries_query_service = salaries_query_service
+        self.refunds_query_service = refunds_query_service
+        self.account_query_service = account_query_service
+        self.account_analyzer_service = account_analyzer_service
 
     def retrieve_annual_breakdown_data(self, year: int = None) -> dict:
         target_year = year if year is not None else datetime.now().year
@@ -65,6 +76,65 @@ class ReportBreakdownAnalyzerService:
                 year=target_year,
                 suppliers_by_id=suppliers_by_id,
             ),
+            "financial": self.retrieve_financial_breakdown(year=target_year),
+        }
+
+    def retrieve_financial_breakdown(self, year: int = None) -> dict:
+        """
+        Prepara i dati per i 3 grafici a torta finanziari:
+        - Patrimonio: Distribuzione tra conti (Saldi calcolati runtime)
+        - Entrate: Fatturato vs Rimborsi
+        - Uscite: IVA vs Salari vs Spese Operative
+        """
+        target_year = year if year is not None else datetime.now().year
+
+        # 1. Patrimonio (Suddivisione tra conti correnti calcolata tramite Analyzer)
+        accounts = self.account_query_service.retrieve_accounts_map_list()
+        patrimonio_data = []
+        
+        for acc in accounts:
+            account_id = acc.get("ID")
+            # Calcoliamo il saldo reale usando l'analyzer
+            balance_value = self.account_analyzer_service.calculate_account_balance_by_account_id(account_id, year=target_year)
+            
+            if balance_value > 0:
+                patrimonio_data.append({
+                    "label": acc.get("NAME", f"Conto {account_id}"),
+                    "value": round(balance_value, 2)
+                })
+
+        # 2. Entrate (Fatturato vs Rimborsi)
+        invoices = self.invoices_query_service.retrieve_invoices_map_list(year=target_year, include_unpaid_invoices=False)
+        invoices = ControllerUtils.clear_invoices_list_from_NDC_and_stornate(invoices)
+        total_revenue = sum(self._calculate_invoice_revenue(inv) for inv in invoices)
+        
+        refunds = self.refunds_query_service.retrieve_refunds_map_list(year=target_year)
+        total_refunds = sum(self._to_float(ref.get(DBRefundsColumns.REFUND_AMOUNT.value)) for ref in refunds)
+
+        entrate_data = [
+            {"label": "Fatturato (Netto IVA)", "value": round(total_revenue, 2)},
+            {"label": "Rimborsi", "value": round(total_refunds, 2)},
+        ]
+
+        # 3. Uscite (IVA vs Salari vs Spese Operative)
+        total_iva = sum(self._to_float(inv.get(DBInvoicesColumns.IVA.value)) for inv in invoices)
+        
+        salaries = self.salaries_query_service.retrieve_salaries_map_list(year=target_year)
+        total_salaries = sum(self._to_float(sal.get(DBSalariesColumns.AMOUNT.value)) for sal in salaries)
+        
+        expenses = self.expenses_query_service.retrieve_expenses_map_list(year=target_year)
+        total_expenses = sum(self._to_float(exp.get(DBExpensesColumns.TOT_AMOUNT.value)) for exp in expenses)
+
+        uscite_data = [
+            {"label": "IVA versata", "value": round(total_iva, 2)},
+            {"label": "Costi Personale", "value": round(total_salaries, 2)},
+            {"label": "Spese Operative", "value": round(total_expenses, 2)},
+        ]
+
+        return {
+            "patrimonio": patrimonio_data,
+            "entrate": entrate_data,
+            "uscite": uscite_data
         }
 
     def _aggregate_revenue_breakdowns(

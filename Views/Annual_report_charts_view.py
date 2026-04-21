@@ -32,7 +32,7 @@ class AnnualReportChartsView(ctk.CTkFrame):
         self.main_container.pack(fill="both", expand=True)
         self.selected_year = datetime.today().year
 
-        self.year_list = [str(y) for y in range(2020, datetime.today().year + 1)] + ["All Time"]
+        self.year_list = [str(y) for y in range(2023, datetime.today().year + 1)] + ["All Time"]
 
         self.year_selector_frame = ctk.CTkFrame(self.main_container, fg_color="transparent")
         self.year_selector_frame.pack(fill="x")

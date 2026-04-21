@@ -65,17 +65,37 @@ class ReportBreakdownAnalyzerService:
             for supplier in self.suppliers_query_service.retrieve_suppliers_map_list(year=-1)
         }
 
+        revenue_data = self._aggregate_revenue_breakdowns(
+            year=target_year,
+            productions_by_id=productions_by_id,
+            clients_by_id=clients_by_id,
+        )
+        expense_data = self._aggregate_expense_breakdowns(
+            year=target_year,
+            suppliers_by_id=suppliers_by_id,
+        )
+
+        # Calcolo Rapporto Spese/Fatturato per il nuovo chart
+        total_revenue = sum(item["value"] for item in revenue_data["by_production_type"])
+        # Nota: _aggregate_expense_breakdowns usa TOT_AMOUNT, ma per il confronto IVA esclusa 
+        # dovremmo usare NET_AMOUNT o scorporare. Uso il NET_AMOUNT per coerenza con la richiesta.
+        expenses_raw = self.expenses_query_service.retrieve_expenses_map_list(year=target_year)
+        total_net_expenses = sum(self._to_float(exp.get(DBExpensesColumns.NET_AMOUNT.value)) for exp in expenses_raw)
+        #TODO: togliere le spese legate a iva e tasse dal calcolo delle spese
+
+        expense_vs_revenue = []
+        if total_revenue > 0:
+            remaining = max(0, total_revenue - total_net_expenses)
+            expense_vs_revenue = [
+                {"label": "Spese Totali (Netto IVA)", "value": round(total_net_expenses, 2)},
+                {"label": "Utile Netto", "value": round(remaining, 2)},
+            ]
+
         return {
             "year": target_year,
-            "revenue": self._aggregate_revenue_breakdowns(
-                year=target_year,
-                productions_by_id=productions_by_id,
-                clients_by_id=clients_by_id,
-            ),
-            "expenses": self._aggregate_expense_breakdowns(
-                year=target_year,
-                suppliers_by_id=suppliers_by_id,
-            ),
+            "revenue": revenue_data,
+            "expenses": expense_data,
+            "expense_vs_revenue": expense_vs_revenue,
             "financial": self.retrieve_financial_breakdown(year=target_year),
         }
 

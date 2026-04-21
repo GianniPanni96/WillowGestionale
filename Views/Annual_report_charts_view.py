@@ -120,19 +120,27 @@ class AnnualReportChartsView(ctk.CTkFrame):
             ],
         )
 
+        # Recuperiamo la soglia fiscale per il goal (1 - imponibile)
+        imponibile = float(self.app_context.fiscal_settings.partita_iva_forfettaria.imponibile)
+        soglia_spese_max_pct = round((1 - imponibile) * 100, 1)
+
         self._build_section(
             parent=self.scroll_frame,
             title="SEZIONE SPESE",
             subtitle=f"Distribuzioni percentuali del totale speso - {self.year_selector.get()}",
             charts=[
-                ("Per categoria di spesa", breakdown_data["expenses"]["by_category"]),
-                ("Per fornitore", breakdown_data["expenses"]["by_supplier"]),
+                (f"Spese vs Fatturato (Goal: < {soglia_spese_max_pct}%)", breakdown_data["expense_vs_revenue"]),
                 ("Deducibile vs non deducibile", breakdown_data["expenses"]["by_deductibility"]),
+                ("Per categoria di spesa", breakdown_data["expenses"]["by_category"]),
+                ("Per fornitore", breakdown_data["expenses"]["by_supplier"])
             ],
+            cols=4 # Aumentiamo le colonne a 4 per far spazio al nuovo chart
         )
 
-    def _build_section(self, parent, title: str, subtitle: str, charts: list[tuple[str, list[dict]]]):
-        section_frame = ctk.CTkFrame(parent, fg_color="#23313f", corner_radius=16)
+    def _build_section(self, parent, title: str, subtitle: str, charts: list[tuple[str, list[dict]]], cols: int = 3):
+        is_scrollable = cols > 3
+        minsize = 580
+        section_frame = ctk.CTkFrame(parent, fg_color="#23313f", corner_radius=16) if not is_scrollable else ctk.CTkScrollableFrame(parent, fg_color="#23313f", corner_radius=16, orientation="horizontal", height=550)
         section_frame.pack(fill="x", pady=(10, 16))
 
         ctk.CTkLabel(
@@ -150,20 +158,51 @@ class AnnualReportChartsView(ctk.CTkFrame):
         ).pack(anchor="w", padx=20, pady=(0, 12))
 
         charts_grid = ctk.CTkFrame(section_frame, fg_color="transparent")
-        charts_grid.pack(fill="x", padx=14, pady=(0, 16))
+        if is_scrollable:
+            charts_grid.pack(padx=14, pady=(0, 16))
+        else:
+            charts_grid.pack(fill="x", padx=14, pady=(0, 16))
 
-        for index in range(3):
-            charts_grid.grid_columnconfigure(index, weight=1, uniform="report-chart")
+        for index in range(cols):
+            charts_grid.grid_columnconfigure(
+                index,
+                weight=1,
+                uniform="report-chart",
+                minsize=minsize
+            )
 
         for index, (chart_title, items) in enumerate(charts):
-            card = ctk.CTkFrame(charts_grid, fg_color="#2f4253", corner_radius=14)
+            card = ctk.CTkFrame(
+                charts_grid,
+                fg_color="#2f4253",
+                corner_radius=14,
+                width=minsize
+            )
             card.grid(row=0, column=index, padx=8, pady=8, sticky="nsew")
+
+            # Evidenzia il goal se superato (titolo rosso se soglia superata)
+            title_color = "#e8f4f8"
+            if "Goal:" in chart_title:
+                try:
+                    # Estraiamo la percentuale attuale dalle items
+                    spese = items[0]["value"] if items else 0
+                    restante = items[1]["value"] if len(items) > 1 else 0
+                    totale = spese + restante
+                    pct_attuale = (spese / totale * 100) if totale > 0 else 0
+
+                    # Estraiamo la soglia dal titolo tramite regex o split
+                    soglia = float(chart_title.split("< ")[1].split("%")[0])
+
+                    if pct_attuale > soglia:
+                        title_color = "#f25f5c" # Rosso errore
+                except:
+                    pass
 
             ctk.CTkLabel(
                 card,
                 text=chart_title,
                 font=("Arial", 14, "bold"),
-                text_color="#e8f4f8",
+                text_color=title_color,
                 wraplength=280,
                 justify="left",
             ).pack(anchor="w", padx=16, pady=(14, 8))

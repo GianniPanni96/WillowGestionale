@@ -18,7 +18,7 @@ from AnalyzerServices.Production_analyzer_service import ProductionAnalyzerServi
 
 from QueryServices.Account_query_service import AccountQueryService
 
-from Config import ConfigManager
+from ConfigManagers import ConfigManager
 from QueryServices.Users_query_service import UserQueryService
 
 
@@ -176,21 +176,6 @@ class BookCloser:
                     DBUsersColumns.REGIME_FISCALE.value) == RegimeFiscale.ORDINARIO.value:
                 spese_dedotte_tot += self.user_analyzer_service.calcola_tot_spese_utente_dedotte(user_id, year = self.current_exercise_year)
 
-        # Prepara i dati per la sezione historical_financial_data
-        historical_data = {
-            "revenues": {},
-            "deducted_expenses": {}
-        }
-
-        # Carica i dati esistenti
-        config = self.config_manager.load_config()
-
-        if "historical_financial_data" in config:
-            # Mantieni i dati esistenti
-            existing_data = config["historical_financial_data"]
-            historical_data["revenues"] = existing_data.get("revenues", {})
-            historical_data["deducted_expenses"] = existing_data.get("deducted_expenses", {})
-
         # Processa i ricavi
         revenues_dict = {}
 
@@ -221,11 +206,15 @@ class BookCloser:
                         # Fallback: usa solo il cognome
                         revenues_dict[last_name] = float(total_revenue)
 
-        # Aggiungi/Aggiorna i dati per l'anno corrente
-        historical_data["revenues"][year_str] = revenues_dict
-        historical_data["deducted_expenses"][year_str] = spese_dedotte_tot
+        historical_data = {
+            "revenues": {
+                year_str: revenues_dict,
+            },
+            "deducted_expenses": {
+                year_str: spese_dedotte_tot,
+            }
+        }
 
-        # Aggiungi al config manager (aggiorna direttamente la sezione)
         self.config_manager.update_historical_financial_data(historical_data)
 
     def export_annual_data(self):

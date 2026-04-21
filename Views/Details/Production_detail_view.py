@@ -18,7 +18,7 @@ from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 
 from App_context import AppContext
 from Event_bus import EventBus
-from Config import ConfigManager
+from ConfigManagers import ConfigManager
 
 
 

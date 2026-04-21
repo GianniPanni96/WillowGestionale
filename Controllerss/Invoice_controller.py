@@ -7,7 +7,7 @@ from QueryServices.Users_query_service import UserQueryService
 from Utils.Validation_utils import ValidationUtils
 from Utils.Controller_utils import ControllerUtils
 
-from Config import FiscalSettings
+from ConfigManagers import FiscalSettings
 
 from QueryServices.Clients_query_service import ClientQueryService
 from QueryServices.Productions_query_service import ProductionQueryService

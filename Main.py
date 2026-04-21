@@ -1,7 +1,7 @@
 import threading
 from Views.View import MainWindow
 import os
-from Config import ConfigManager, RecurringExpense, FiscalSettings, PartitaIVAOrdinaria, PartitaIVAForfettaria, AliquotaIva, ScaglioneIrpef, HistoricalFinancialData
+from ConfigManagers import ConfigManager, RecurringExpense, FiscalSettings, HistoricalFinancialData
 from Backup_manager import BackupScheduler, BackupImporter
 from App_context import AppContext
 from Utils.App_paths import DB_PATH_ENV_VAR, get_runtime_paths

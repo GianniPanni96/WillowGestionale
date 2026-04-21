@@ -18,7 +18,7 @@ from Model import DatabaseModel
 from Event_bus import EventBus
 from Books_retriever import BooksRetriever
 from Book_closer import BookCloser
-from Config import FiscalSettings
+from ConfigManagers import ConfigManager, FiscalSettings
 
 from Controllerss.Client_controller import ClientController
 from Controllerss.Supplier_controller import SupplierController
@@ -48,11 +48,6 @@ from OtherServices.User_crypto_service import UserCryptoService
 from WarningServices.Production_warning_service import ProductionWarningService
 from WarningServices.Invoice_warning_service import InvoiceWarningService
 from WarningServices.Payment_warning_service import PaymentWarningService
-
-
-
-
-from Config import ConfigManager
 from Backup_manager import BackupImporter, BackupScheduler
 from Tab_ui_state_store import TabUIStateStore
 

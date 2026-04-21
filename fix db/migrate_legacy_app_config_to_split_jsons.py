@@ -1,0 +1,101 @@
+import json
+from pathlib import Path
+
+from ConfigManagers.defaults import (
+    APP_SETTINGS_DEFAULT,
+    CATALOGS_DEFAULT,
+    FISCAL_RULES_DEFAULT,
+    HISTORICAL_FINANCIAL_DATA_DEFAULT,
+    RECURRING_EXPENSES_DEFAULT,
+    clone_default_config,
+)
+from ConfigManagers.historical_financial_data_manager import normalize_historical_file_data
+from Utils.App_paths import DB_PATH_ENV_VAR, get_runtime_paths
+
+
+def read_json_file(file_path: Path) -> dict:
+    with open(file_path, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+
+def write_json_file(file_path: Path, payload: dict):
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(file_path, "w", encoding="utf-8") as file:
+        json.dump(payload, file, indent=4)
+
+
+def build_app_settings_payload(legacy_config: dict) -> dict:
+    payload = clone_default_config(APP_SETTINGS_DEFAULT)
+    payload["backup_settings"] = legacy_config.get(
+        "backup_settings",
+        payload["backup_settings"],
+    )
+    return payload
+
+
+def build_fiscal_rules_payload(legacy_config: dict) -> dict:
+    payload = clone_default_config(FISCAL_RULES_DEFAULT)
+    payload["fiscal_settings"] = legacy_config.get(
+        "fiscal_settings",
+        payload["fiscal_settings"],
+    )
+    return payload
+
+
+def build_catalogs_payload(legacy_config: dict) -> dict:
+    payload = clone_default_config(CATALOGS_DEFAULT)
+    for key in payload.keys():
+        payload[key] = legacy_config.get(key, payload[key])
+    return payload
+
+
+def build_recurring_expenses_payload(legacy_config: dict) -> dict:
+    return legacy_config.get(
+        "recurring_expenses",
+        clone_default_config(RECURRING_EXPENSES_DEFAULT),
+    )
+
+
+def build_historical_financial_data_payload(legacy_config: dict) -> dict:
+    legacy_historical_data = legacy_config.get(
+        "historical_financial_data",
+        clone_default_config(HISTORICAL_FINANCIAL_DATA_DEFAULT),
+    )
+    return normalize_historical_file_data(legacy_historical_data)
+
+
+def migrate_legacy_app_config():
+    runtime_paths = get_runtime_paths()
+    storage_root = runtime_paths.storage_root
+    legacy_config_path = runtime_paths.config_file
+
+    if not legacy_config_path.exists():
+        raise FileNotFoundError(
+            f"File legacy non trovato: {legacy_config_path}. "
+            f"Configura correttamente {DB_PATH_ENV_VAR} prima di eseguire lo script."
+        )
+
+    legacy_config = read_json_file(legacy_config_path)
+
+    target_files = {
+        "app_settings.json": build_app_settings_payload(legacy_config),
+        "fiscal_rules.json": build_fiscal_rules_payload(legacy_config),
+        "catalogs.json": build_catalogs_payload(legacy_config),
+        "recurring_expenses.json": build_recurring_expenses_payload(legacy_config),
+        "historical_financial_data.json": build_historical_financial_data_payload(legacy_config),
+    }
+
+    print(f"Storage root: {storage_root}")
+    print(f"Legacy config sorgente: {legacy_config_path}")
+    print("Il file legacy verra lasciato inalterato.")
+
+    for file_name, payload in target_files.items():
+        target_path = storage_root / file_name
+        write_json_file(target_path, payload)
+        print(f"Creato/aggiornato: {target_path}")
+
+    print("Migrazione completata con successo.")
+
+
+if __name__ == "__main__":
+    migrate_legacy_app_config()

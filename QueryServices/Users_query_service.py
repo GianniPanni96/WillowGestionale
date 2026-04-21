@@ -1,4 +1,4 @@
-from Config import FiscalSettings
+from ConfigManagers import FiscalSettings
 from Gestionale_Enums import DBExpensesColumns, DBInvoicesColumns, DBSalariesColumns, DBUsersColumns, RegimeFiscale
 from Model import DatabaseModel
 from Utils.Controller_utils import ControllerUtils

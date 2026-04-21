@@ -2,7 +2,7 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 
-from Config import ConfigManager
+from ConfigManagers import ConfigManager
 from Views.View_utils import ViewUtils
 from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
 from AnalyzerServices.Monthly_report_analyzer_service import  PaymentsController, InvoiceController, ControllerUtils

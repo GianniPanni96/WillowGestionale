@@ -4,7 +4,7 @@ import pandas as pd
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
 from Gestionale_Enums import *
 from Model import DatabaseModel
-from Config import FiscalSettings, HistoricalFinancialData
+from ConfigManagers import FiscalSettings, HistoricalFinancialData
 
 from Controllerss.User_controller import UserController
 

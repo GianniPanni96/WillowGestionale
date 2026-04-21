@@ -20,7 +20,7 @@ from QueryServices.Expenses_query_service import ExpenseQueryService
 from AnalyzerServices.Expense_analyzer_service import ExpenseAnalyzerService
 
 
-from Config import ConfigManager
+from ConfigManagers import ConfigManager
 from App_context import AppContext
 from Event_bus import EventBus
 

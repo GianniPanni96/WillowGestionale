@@ -15,7 +15,7 @@ from QueryServices.Account_query_service import AccountQueryService
 
 import re
 
-from Config import ConfigManager
+from ConfigManagers import ConfigManager
 from App_context import AppContext
 from Event_bus import EventBus
 from Controllerss.Transfer_controller import TransferController

@@ -34,7 +34,7 @@ from Views.Taxes_view import TaxesView
 from Views.Report_view import ReportView
 from Views.Plot_view import PlotView
 
-from Config import ConfigManager
+from ConfigManagers import ConfigManager
 from Backup_manager import BackupImporter, BackupScheduler
 from Event_bus import EventBus
 

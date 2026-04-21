@@ -5,7 +5,7 @@ import customtkinter as ctk
 from tkcalendar import Calendar
 
 from App_context import AppContext
-from Config import ConfigManager, FiscalSettings
+from ConfigManagers import ConfigManager, FiscalSettings
 from Controllerss.Expense_controller import ExpenseController
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Expenses_query_service import ExpenseQueryService

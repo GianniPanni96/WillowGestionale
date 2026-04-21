@@ -45,7 +45,8 @@ class AnnualReportChartsView(ctk.CTkFrame):
         self.year_selector = ctk.CTkOptionMenu(
             self.year_selector_frame,
             values=self.year_list,
-            command=self._on_year_selection
+            command=self._on_year_selection,
+            height=20
         )
         self.year_selector.pack(padx=10, pady=10, side="left")
         self.year_selector.set(str(datetime.today().year))
@@ -97,7 +98,7 @@ class AnnualReportChartsView(ctk.CTkFrame):
         self._build_section(
             parent=self.scroll_frame,
             title="SEZIONE FATTURATO",
-            subtitle="Distribuzioni percentuali del fatturato annuo.",
+            subtitle=f"Distribuzioni percentuali del fatturato - {self.year_selector.get()}.",
             charts=[
                 (
                     "Per tipologia di produzione associata",
@@ -117,7 +118,7 @@ class AnnualReportChartsView(ctk.CTkFrame):
         self._build_section(
             parent=self.scroll_frame,
             title="SEZIONE SPESE",
-            subtitle="Distribuzioni percentuali del totale annuale speso.",
+            subtitle=f"Distribuzioni percentuali del totale speso - {self.year_selector.get()}",
             charts=[
                 ("Per categoria di spesa", breakdown_data["expenses"]["by_category"]),
                 ("Per fornitore", breakdown_data["expenses"]["by_supplier"]),

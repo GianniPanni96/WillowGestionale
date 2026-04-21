@@ -207,13 +207,13 @@ class AnnualReportChartsView(ctk.CTkFrame):
             wedges,
             [f"{ViewUtils.split_string_by_length(label, 24)}" for label in labels],
             loc="center left",
-            bbox_to_anchor=(0.8, 0.8),
+            bbox_to_anchor=(0.9, 0.8),
             frameon=False,
             labelcolor="#d7e3f0",
             fontsize=9,
         )
 
-        figure.subplots_adjust(left=0.02, right=0.73, top=0.95, bottom=0.06)
+        figure.subplots_adjust(left=-0.05, right=0.68, top=0.95, bottom=0.06)
 
         canvas = FigureCanvasTkAgg(figure, master=parent)
         canvas.draw()

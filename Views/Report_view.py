@@ -30,7 +30,7 @@ class ReportView(ctk.CTkFrame):
         self.main_container.pack(fill="both", expand=True)
 
         self.report_tabview = ctk.CTkTabview(self.main_container, fg_color="#2b2b2b")
-        self.report_tabview.pack(fill="both", expand=True, padx=5, pady=(14, 5))
+        self.report_tabview.pack(fill="both", expand=True, padx=5, pady=(5, 5))
         self.report_tabview.add("Dati Mensili")
         self.report_tabview.add("Analisi Annuale")
         self.report_tabview._segmented_button.configure(font=ctk.CTkFont("Arial", 14, "bold"))

@@ -11,10 +11,10 @@ from Views.View_utils import ViewUtils
 class AnnualReportChartsView(ctk.CTkFrame):
     PIE_COLORS = [
         "#45b7d1",
+        "#7d8cc4",
         "#4ecdc4",
         "#f7b267",
         "#f25f5c",
-        "#7d8cc4",
         "#a1c181",
         "#f79d65",
         "#c77dff",
@@ -215,7 +215,7 @@ class AnnualReportChartsView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             section_frame,
-            text="ANALISI FINANZIARIA",
+            text="ANALISI FLUSSI",
             font=("Arial", 18, "bold"),
             text_color="#e8f4f8",
         ).pack(anchor="w", padx=20, pady=(16, 4))

@@ -1,23 +1,22 @@
 import threading
 from Views.View import MainWindow
 import os
-from Config import BackupScheduler, ConfigManager, RecurringExpense, FiscalSettings, PartitaIVAOrdinaria, PartitaIVAForfettaria, AliquotaIva, ScaglioneIrpef, HistoricalFinancialData
-
+from ConfigManagers import ConfigManager, RecurringExpense, FiscalSettings, HistoricalFinancialData
+from Backup_manager import BackupScheduler, BackupImporter
+from App_context import AppContext
+from Utils.App_paths import DB_PATH_ENV_VAR, get_runtime_paths
 
 # Avvia l'applicazione
 if __name__ == "__main__":
 
-    # Nome della variabile d'ambiente
-    PATH_ENV_VAR = "GESTIONALE_DB_PATH"
+    runtime_paths = get_runtime_paths()
+    path = str(runtime_paths.storage_root)
+    os.environ[DB_PATH_ENV_VAR] = path
 
-    # Ottieni il percorso del database dalla variabile d'ambiente
-    path = os.environ.get(PATH_ENV_VAR)
-
-    if not path:
-        raise EnvironmentError(f"La variabile d'ambiente {PATH_ENV_VAR} non è stata configurata.")
-
-    db_path = os.path.join(path, "gestionale.db")
-    backup_path = os.path.join(path, "backups")
+    db_path = str(runtime_paths.db_file)
+    data_path = str(runtime_paths.data_dir)
+    images_path = str(runtime_paths.images_dir)
+    books_default_path = str(runtime_paths.books_dir)
 
 
     # Inizializza il gestore delle configurazioni
@@ -29,8 +28,12 @@ if __name__ == "__main__":
     backup_settings = config.get("backup_settings", {})
     interval_minutes = backup_settings.get("interval_minutes", {}).get("value", 15)
     max_backups = backup_settings.get("max_backups", {}).get("value", 35)
-    backup_base_path = backup_settings.get("backup_base_path", {}).get("value")
+    db_backup_base_path = backup_settings.get("backup_base_path", {}).get("value")
+    books_backup_path = backup_settings.get("backup_books_path", {}).get("value")
     delta_days = backup_settings.get("delta_days", {}).get("value", 7)
+
+    if not db_backup_base_path:
+        db_backup_base_path = str(runtime_paths.backups_dir)
 
     # Estrai le impostazioni fiscali dalla configurazione
     fiscal_config = config.get("fiscal_settings", {})
@@ -78,25 +81,52 @@ if __name__ == "__main__":
     scheduler = BackupScheduler(
         interval_minutes=interval_minutes,
         max_backups=max_backups,
-        backup_base_path=backup_base_path,
-        delta_days=delta_days
+        db_backup_base_path=db_backup_base_path,
+        delta_days=delta_days,
+        books_backup_path = books_backup_path,
+        books_default_path=books_default_path
     )
 
     print("Avvio dell'applicazione e scheduler dei backup...\n")
     backup_thread = threading.Thread(target=scheduler.start, daemon=True)
     backup_thread.start()
 
+    #inzializza il backup importer da passare alla main view
+    backup_importer = BackupImporter(
+        db_backup_base_path=db_backup_base_path,
+        db_path=db_path
+    )
+
+    app_context = AppContext(
+        fiscal_settings=fiscal_settings,
+        historical_financial_data_settings=historical_financial_data_settings,
+        recurring_expenses_settings=recurring_expenses_settings,
+        catalogo_elenchi=catalogo_elenchi,
+        config_manager=config_manager,
+        backup_importer=backup_importer,
+        backup_scheduler=scheduler,
+        environment_db_variable=path,
+        db_path=db_path,
+        data_path=data_path,
+        images_path=images_path,
+        db_backup_path=db_backup_base_path,
+        books_path=books_default_path
+        )
+
     # Avvia il frontend
-    app = MainWindow(config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings)
+    app = MainWindow(app_context)
 
 
-    # Definisci cosa fare alla chiusura della finestra principale
     def on_closing():
-        # Ferma il backup scheduler
         print("Finestra chiusa: arresto scheduler backup…")
+
+        # Aggiungi queste righe per pulire il lazy loading
+        if hasattr(app, '_cancel_all_after'):
+            app._cancel_all_after()
+
+        # Ferma il backup scheduler
         scheduler.stop()
-        app._cancel_all_after()
-        app.quit()  # esce subito dal loop degli eventi
+        app.quit()
         app.destroy()
 
 

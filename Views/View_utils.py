@@ -1,7 +1,20 @@
-from enum import Enum
+from AnalyzerServices.Production_analyzer_service import ProductionAnalyzerService
+from Gestionale_Enums import*
 import customtkinter as ctk
 import tkinter as tk
+from PIL import Image
+import os
+import traceback
 
+from AnalyzerServices.Client_analyzer_service import  ClientAnalyzerService
+from AnalyzerServices.Supplier_analyzer_service import  SupplierAnalyzerService
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Clients_query_service import ClientQueryService
+from QueryServices.Productions_query_service import ProductionQueryService
+from QueryServices.Invoices_query_service import InvoiceQueryService
+
+from QueryServices.Suppliers_query_service import SupplierQueryService
+from QueryServices.Users_query_service import UserQueryService
 
 class ViewUtils(ctk.CTk):
 
@@ -25,6 +38,7 @@ class ViewUtils(ctk.CTk):
         SHOW_REFUND_DETAIL = "SHOW_REFUND_DETAIL"
         SHOW_EXPENSE_DETAIL = "SHOW_EXPENSE_DETAIL"
         SHOW_PAYMENT_DETAIL = "SHOW_PAYMENT_DETAIL"
+        LOGIN_STATUS_CHANGED = "LOGIN_STATUS_CHANGED"
 
     date_pattern = "yyyy-mm-dd"
 
@@ -158,6 +172,7 @@ class ViewUtils(ctk.CTk):
         """
         confirm_popup = ctk.CTkToplevel(parent)
         confirm_popup.title(title)
+        confirm_popup.geometry("400x100")
 
         # Assicurati che il pop-up sia modale
         confirm_popup.grab_set()
@@ -383,6 +398,39 @@ class ViewUtils(ctk.CTk):
     @staticmethod
     def add_tooltip(widget, text):
         tooltip = None
+        horizontal_offset = 14
+        vertical_offset = 18
+        screen_margin = 8
+
+        def place_tooltip(event):
+            nonlocal tooltip
+            if tooltip is None:
+                return
+
+            tooltip.update_idletasks()
+
+            tooltip_width = tooltip.winfo_reqwidth()
+            tooltip_height = tooltip.winfo_reqheight()
+            screen_width = widget.winfo_screenwidth()
+            screen_height = widget.winfo_screenheight()
+
+            # Posizione preferita: subito a destra e sotto il puntatore.
+            x = event.x_root + horizontal_offset
+            y = event.y_root + vertical_offset
+
+            # Se il tooltip uscirebbe a destra, prova a posizionarlo a sinistra.
+            if x + tooltip_width + screen_margin > screen_width:
+                x = event.x_root - tooltip_width - horizontal_offset
+
+            # Se il tooltip uscirebbe in basso, prova a posizionarlo sopra.
+            if y + tooltip_height + screen_margin > screen_height:
+                y = event.y_root - tooltip_height - vertical_offset
+
+            # Clamp finale per evitare qualsiasi uscita dallo schermo.
+            x = max(screen_margin, min(x, screen_width - tooltip_width - screen_margin))
+            y = max(screen_margin, min(y, screen_height - tooltip_height - screen_margin))
+
+            tooltip.wm_geometry(f"+{int(x)}+{int(y)}")
 
         def show_tooltip(event):
             nonlocal tooltip
@@ -407,29 +455,7 @@ class ViewUtils(ctk.CTk):
                              pady=6)
             label.pack()
 
-            # Calcola dimensioni del tooltip
-            tooltip.update_idletasks()  # Forza il calcolo delle dimensioni
-
-            # Offset personalizzabile (regola questo valore in base alle tue esigenze)
-            vertical_offset = -170  # Sposta il tooltip 100px sopra il puntatore
-
-            # Calcola posizione finale
-            x = event.x_root + 15
-            y = event.y_root + vertical_offset
-
-            # Controllo per evitare che il tooltip esca dallo schermo in alto
-            screen_height = widget.winfo_screenheight()
-            if y < 0:
-                # Se il tooltip andrebbe sopra lo schermo, mostralo sotto il puntatore
-                y = event.y_root + 20
-
-            # Controllo per evitare che il tooltip esca dallo schermo a destra
-            tooltip_width = tooltip.winfo_width()
-            screen_width = widget.winfo_screenwidth()
-            if (x + tooltip_width) > screen_width:
-                x = screen_width - tooltip_width - 10  # 10px di margine
-
-            tooltip.wm_geometry(f"+{int(x)}+{int(y)}")
+            place_tooltip(event)
 
         def hide_tooltip(event):
             nonlocal tooltip
@@ -437,5 +463,426 @@ class ViewUtils(ctk.CTk):
                 tooltip.destroy()
                 tooltip = None
 
-        widget.bind("<Enter>", show_tooltip)
-        widget.bind("<Leave>", hide_tooltip)
+        widget.bind("<Enter>", show_tooltip, add="+")
+        widget.bind("<Motion>", place_tooltip, add="+")
+        widget.bind("<Leave>", hide_tooltip, add="+")
+
+    @staticmethod
+    def create_PIL_image_from_path(path):
+        """
+        Crea un'immagine PIL dal percorso specificato.
+
+        Args:
+            path (str): Percorso del file immagine
+
+        Returns:
+            tuple: (success (bool), image (PIL.Image or None))
+        """
+        # Estensioni supportate da PIL
+        supported_extensions = {'.ico', '.png', '.jpg', '.jpeg', '.webp'}
+
+        # Verifica che il file esista
+        if not os.path.isfile(path):
+            return False, None
+
+        # Verifica l'estensione del file
+        file_ext = os.path.splitext(path)[1].lower()
+        if file_ext not in supported_extensions:
+            return False, None
+
+        try:
+            # Apri l'immagine con PIL
+            image = Image.open(path)
+
+            # Conserva la trasparenza per formati che la supportano
+            if image.mode in ('RGBA', 'LA') or (image.mode == 'P' and 'transparency' in image.info):
+                # Mantieni la modalità originale per preservare il canale alfa
+                # Non convertire in RGB per immagini con trasparenza
+                pass
+            elif image.mode != 'RGB':
+                # Per immagini senza trasparenza, converti in RGB
+                image = image.convert('RGB')
+
+            return True, image
+
+        except Exception as e:
+            print(f"Errore nel caricamento dell'immagine {path}: {str(e)}")
+            return False, None
+
+    @staticmethod
+    def toggle_entry_visibility(entry_widget):
+        """
+        Alterna tra la visualizzazione del testo normale e asterischi per un entry widget.
+
+        Args:
+            entry_widget: Il widget CTkEntry di cui alternare la visibilità
+        """
+        current_show = entry_widget.cget("show")
+        if current_show == "":
+            entry_widget.configure(show="*")  # Nascondi il testo
+        else:
+            entry_widget.configure(show="")  # Mostra il testo in chiaro
+
+    @staticmethod
+    def process_items_in_chunks(widget, items_list, add_card_callback, extract_args_callback,
+                                chunk_size=25, delay=50, cleanup_callback=None, cards_frame=None):
+        """
+        Versione migliorata con cleanup e gestione memoria
+        """
+        # Rimuovi tutti i widget figli esistenti solo dal frame delle cards
+        for child in cards_frame.winfo_children():
+            child.destroy()
+
+        if not items_list or len(items_list) == 0:
+            if cards_frame is not None:
+                # Mostra messaggio per lista vuota
+                empty_label = ctk.CTkLabel(
+                    cards_frame,
+                    text="Nessun item presente nel periodo di tempo selezionato",
+                    font=("Arial", 16),
+                    text_color="gray",
+                    height=100
+                )
+                empty_label.pack(fill="both", expand=True, pady=50)
+            return
+
+        chunks = [
+            items_list[i:i + chunk_size]
+            for i in range(0, len(items_list), chunk_size)
+        ]
+
+        current_chunk_index = 0
+        processed_items = 0
+
+        callback_owner = getattr(add_card_callback, "__self__", None)
+        callback_owner_name = callback_owner.__class__.__name__ if callback_owner is not None else None
+        callback_name = getattr(add_card_callback, "__name__", str(add_card_callback))
+        extractor_name = getattr(extract_args_callback, "__name__", str(extract_args_callback))
+
+        def process_next_chunk():
+            nonlocal current_chunk_index, processed_items
+
+            if current_chunk_index >= len(chunks):
+                if cleanup_callback:
+                    cleanup_callback()
+                return
+
+            current_chunk = chunks[current_chunk_index]
+
+            for item_index_in_chunk, item in enumerate(current_chunk):
+                absolute_item_index = current_chunk_index * chunk_size + item_index_in_chunk
+                try:
+                    args = extract_args_callback(item)
+                    add_card_callback(*args)
+                    processed_items += 1
+                except Exception as e:
+                    print(
+                        "Errore durante process_items_in_chunks:\n"
+                        f"- widget: {widget.__class__.__name__}\n"
+                        f"- add_card_callback: {callback_owner_name + '.' if callback_owner_name else ''}{callback_name}\n"
+                        f"- extract_args_callback: {extractor_name}\n"
+                        f"- chunk_index: {current_chunk_index}\n"
+                        f"- item_index_in_chunk: {item_index_in_chunk}\n"
+                        f"- absolute_item_index: {absolute_item_index}\n"
+                        f"- item: {repr(item)}\n"
+                        f"- eccezione: {type(e).__name__}: {e}\n"
+                        f"{traceback.format_exc()}"
+                    )
+
+            # Force UI update
+            widget.update_idletasks()
+
+            # Cleanup periodico ogni 3 chunk
+            if current_chunk_index % 3 == 0 and cleanup_callback:
+                cleanup_callback()
+
+            current_chunk_index += 1
+            if current_chunk_index < len(chunks):
+                widget.after(delay, process_next_chunk)
+            else:
+                if cleanup_callback:
+                    cleanup_callback()
+                print(f"Processati {processed_items} elementi in {len(chunks)} chunk")
+
+        process_next_chunk()
+
+    @staticmethod
+    def create_extractor_for_expenses(suppliers_query_service:"SupplierQueryService", user_query_service:"UserQueryService", accounts_query_service:"AccountQueryService"):
+        """
+        Crea una funzione di estrazione parametri specifica per le spese
+        Restituisce una funzione che può essere usata come extract_args_callback
+        """
+
+        def extract_expense_args(expense):
+            expense_id = expense[DBExpensesColumns.ID.value]
+            name = expense[DBExpensesColumns.NAME.value]
+            net_amount = expense[DBExpensesColumns.NET_AMOUNT.value]
+            amount = expense[DBExpensesColumns.TOT_AMOUNT.value]
+            supplier_id = expense[DBExpensesColumns.SUPPLIER_ID.value]
+            supplier = suppliers_query_service.retrieve_supplier_map_by_id(supplier_id)
+            supplier_name = supplier[DBSuppliersColumns.NAME.value]
+            date = expense[DBExpensesColumns.DATE.value]
+            category = expense[DBExpensesColumns.CATEGORY.value]
+            deducibile = expense[DBExpensesColumns.DEDUCIBILE.value]
+            user_id = expense[DBExpensesColumns.USER_ID_DEDUZIONE.value]
+
+            if user_id:
+                user = user_query_service.retrieve_user_map_by_id(user_id)
+                user_first = user[DBUsersColumns.FIRST_NAME.value]
+                user_second = user[DBUsersColumns.LAST_NAME.value]
+                user_name = user_first + " " + user_second
+            else:
+                user_name = " ---- "
+
+            account = accounts_query_service.retrieve_account_map_by_id(
+                expense[DBExpensesColumns.ACCOUNT_ID.value]
+            )
+            account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
+
+            return (expense_id, name, supplier_name, net_amount, amount,
+                    category, date, deducibile, user_name, account_name)
+
+        return extract_expense_args
+
+    @staticmethod
+    def create_extractor_for_clients(client_analyzer_service:"ClientAnalyzerService"):
+        """
+        Crea una funzione di estrazione parametri specifica per i clienti
+        """
+
+        def extract_client_args(client):
+            client_id = client[DBClientsColumns.ID.value]
+            name = client[DBClientsColumns.NAME.value]
+
+            # Costruisci i dati aggregati per singolo cliente
+            aggregate_data = client_analyzer_service.construct_client_map_aggregate_data(client_id, year=-1)
+
+            return (
+                client_id,
+                name,
+                round(aggregate_data[ClientsAggregateData.TOT_ENTRATE.value], 2),
+                aggregate_data[ClientsAggregateData.NUM_FATTURE.value],
+                round(aggregate_data[ClientsAggregateData.MEDIA_FATTURE.value], 2),
+                round(aggregate_data[ClientsAggregateData.TOT_CREDITI.value], 2),
+                round(aggregate_data[ClientsAggregateData.TOT_RIMBORSI.value], 2),
+                round(aggregate_data[ClientsAggregateData.PAGAM_ORARIO_MEDIO.value], 2),
+                aggregate_data[ClientsAggregateData.TOT_GIORNI_RIT.value],
+                round(aggregate_data[ClientsAggregateData.MEDIA_RITARDO.value], 2)
+            )
+
+        return extract_client_args
+
+    @staticmethod
+    def create_extractor_for_invoices(clients_query_service:"ClientQueryService", user_query_service:"UserQueryService", productions_query_service:"ProductionQueryService"):
+        """
+        Crea una funzione di estrazione parametri specifica per le fatture
+        """
+
+        def extract_invoice_args(invoice):
+            invoice_id = invoice[DBInvoicesColumns.ID.value]
+            invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
+            invoice_client_ID = invoice[DBInvoicesColumns.ID_CLIENTE.value]
+            invoice_client_name = clients_query_service.retrieve_client_map_by_id(invoice_client_ID)[
+                DBClientsColumns.NAME.value]
+            invoice_user_id = invoice[DBInvoicesColumns.ID_UTENTE.value]
+            user_map = user_query_service.retrieve_user_map_by_id(invoice_user_id)
+            invoice_user_name = f"{user_map[DBUsersColumns.FIRST_NAME.value]} {user_map[DBUsersColumns.LAST_NAME.value]}"
+            invoice_creation_date = invoice[DBInvoicesColumns.DATA_CREAZIONE.value]
+            invoice_state = invoice[DBInvoicesColumns.STATUS.value]
+            invoice_rate = invoice[DBInvoicesColumns.NUMERO_RATE.value]
+            invoice_tot_documento = invoice[DBInvoicesColumns.NETTO_A_PAGARE.value]
+            invoice_tipologia = invoice[DBInvoicesColumns.TIPO.value]
+            invoice_production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+
+            production = productions_query_service.retrieve_production_map_by_id(invoice_production_id)
+            if production:
+                invoice_production_name = production[DBProductionsColumns.NAME.value]
+            else:
+                invoice_production_name = "Produzione non trovata"
+
+            return (
+                invoice_id,
+                invoice_name,
+                invoice_client_name,
+                invoice_user_name,
+                invoice_production_name,
+                invoice_creation_date,
+                invoice_state,
+                invoice_rate,
+                invoice_tot_documento,
+                invoice_tipologia
+            )
+
+        return extract_invoice_args
+
+    @staticmethod
+    def create_extractor_for_payments(invoices_query_service:"InvoiceQueryService", clients_query_service:"ClientQueryService", productions_query_service:"ProductionQueryService",
+                                      accounts_query_service:"AccountQueryService"):
+        """
+        Crea una funzione di estrazione parametri specifica per i pagamenti
+        """
+
+        def extract_payment_args(payment):
+            payment_id = payment[DBPaymentsColumns.ID.value]
+            name = payment[DBPaymentsColumns.PAYMENT_NAME.value]
+            amount = payment[DBPaymentsColumns.PAYMENT_AMOUNT.value]
+            payment_date = payment[DBPaymentsColumns.PAYMENT_DATE.value]
+            linked_rata = payment[DBPaymentsColumns.LINKED_RATA.value]
+            invoice_id = payment[DBPaymentsColumns.INVOICE_ID.value]
+            invoice = invoices_query_service.retrieve_invoice_map_by_id(invoice_id)
+            invoice_name = invoice[DBInvoicesColumns.NUMERO_FATTURA.value]
+            cliente_id = invoice[DBInvoicesColumns.ID_CLIENTE.value]
+            client = clients_query_service.retrieve_client_map_by_id(cliente_id)
+            client_name = client[DBClientsColumns.NAME.value]
+            production_id = invoice[DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value]
+            production = productions_query_service.retrieve_production_map_by_id(production_id)
+            production_name = production[DBProductionsColumns.NAME.value] if production else "Produzione non trovata"
+            conto = accounts_query_service.retrieve_account_map_by_id(payment[DBPaymentsColumns.CONTO_ID.value])
+            nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
+
+            return (
+                payment_id,
+                name,
+                amount,
+                payment_date,
+                linked_rata,
+                client_name,
+                production_name,
+                invoice_name,
+                nome_conto
+            )
+
+        return extract_payment_args
+
+    @staticmethod
+    def create_extractor_for_productions(production_analyzer_service:"ProductionAnalyzerService", clients_query_service:"ClientQueryService"):
+        """
+        Crea una funzione di estrazione parametri specifica per le produzioni
+        """
+
+        def extract_production_args(production):
+            production_id = production[DBProductionsColumns.ID.value]
+            production_name = production[DBProductionsColumns.NAME.value]
+            client_id = production[DBProductionsColumns.CLIENT_ID.value]
+            client_name = clients_query_service.retrieve_client_map_by_id(client_id)[DBClientsColumns.NAME.value]
+            tipologia_produzione = production[DBProductionsColumns.TIPOLOGIA_PRODUZIONE.value]
+            tipologia_output = production[DBProductionsColumns.TIPOLOGIA_OUTPUT.value]
+            produzione_stato = production[DBProductionsColumns.STATO.value]
+            data_di_consegna = production[DBProductionsColumns.END_DATE.value]
+            totale_preventivo = production[DBProductionsColumns.TOTALE_PREVENTIVO.value]
+            durata_produzione = production[DBProductionsColumns.HOURS.value]
+            prezzo_orario = production_analyzer_service.calculate_production_cost_per_hour(production_id)
+
+            return (
+                production_id,
+                production_name,
+                client_name,
+                tipologia_produzione,
+                tipologia_output,
+                produzione_stato,
+                data_di_consegna,
+                totale_preventivo,
+                durata_produzione,
+                prezzo_orario
+            )
+
+        return extract_production_args
+
+    @staticmethod
+    def create_extractor_for_refunds(clients_query_service:"ClientQueryService", accounts_query_service:"AccountQueryService"):
+        """
+        Crea una funzione di estrazione parametri specifica per i rimborsi
+        """
+
+        def extract_refund_args(refund):
+            refund_id = refund[DBRefundsColumns.ID.value]
+            refund_name = refund[DBRefundsColumns.REFUND_NAME.value]
+            amount = refund[DBRefundsColumns.REFUND_AMOUNT.value]
+            refund_date = refund[DBRefundsColumns.REFUND_DATE.value]
+            cliente_id = refund[DBRefundsColumns.CLIENT_ID.value]
+            client = clients_query_service.retrieve_client_map_by_id(cliente_id)
+            client_name = client[DBClientsColumns.NAME.value]
+            conto = accounts_query_service.retrieve_account_map_by_id(refund[DBRefundsColumns.CONTO_ID.value])
+            nome_conto = conto[DBAccountsColumns.NAME.value] if conto else "conto non trovato"
+
+            return (
+                refund_id,
+                refund_name,
+                amount,
+                refund_date,
+                client_name,
+                nome_conto
+            )
+
+        return extract_refund_args
+
+    @staticmethod
+    def create_extractor_for_salaries(user_query_service:"UserQueryService", accounts_query_service:"AccountQueryService"):
+        """
+        Crea una funzione di estrazione parametri specifica per gli stipendi
+        """
+
+        def extract_salary_args(salary):
+            salary_id = salary[DBSalariesColumns.ID.value]
+            salary_name = salary[DBSalariesColumns.NAME.value]
+            amount = salary[DBSalariesColumns.AMOUNT.value]
+            date = salary[DBSalariesColumns.DATE.value]
+            user_id = salary[DBSalariesColumns.USER_ID.value]
+
+            if user_id:
+                user = user_query_service.retrieve_user_map_by_id(user_id)
+                user_first = user[DBUsersColumns.FIRST_NAME.value]
+                user_second = user[DBUsersColumns.LAST_NAME.value]
+                user_name = user_first + " " + user_second
+            else:
+                user_name = " ---- "
+
+            account = accounts_query_service.retrieve_account_map_by_id(salary[DBSalariesColumns.ACCOUNT_ID.value])
+            account_name = account[DBAccountsColumns.NAME.value] if account else "conto non trovato"
+
+            return (
+                salary_id,
+                salary_name,
+                user_name,
+                amount,
+                date,
+                account_name
+            )
+
+        return extract_salary_args
+
+    @staticmethod
+    def create_extractor_for_suppliers(suppliers_analyzer_service: "SupplierAnalyzerService"):
+        """
+        Crea una funzione di estrazione parametri specifica per i fornitori
+        """
+
+        def extract_supplier_args(supplier):
+            supplier_id = supplier[DBSuppliersColumns.ID.value]
+            supplier_name = supplier[DBSuppliersColumns.NAME.value]
+            partita_iva = supplier[DBSuppliersColumns.PARTITA_IVA.value]
+            note = supplier[DBSuppliersColumns.NOTE.value]
+            contatto = supplier[DBSuppliersColumns.CONTATTO.value]
+
+            # Costruisci i dati aggregati per singolo fornitore
+            aggregate_data = suppliers_analyzer_service.construct_supplier_map_aggregate_data(supplier_id)
+
+            return (
+                supplier_id,
+                supplier_name,
+                partita_iva,
+                aggregate_data[SupplierAggregateData.NUM_SPESE.value],
+                round(aggregate_data[SupplierAggregateData.MEDIA_SPESE.value], 2),
+                round(aggregate_data[SupplierAggregateData.TOT_SPESE.value], 2),
+                note,
+                contatto
+            )
+
+        return extract_supplier_args
+
+
+
+
+
+
+

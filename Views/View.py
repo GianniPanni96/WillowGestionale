@@ -1,31 +1,53 @@
 import customtkinter as ctk
-import re
-from Views.View_utils import ViewUtils
+import re, os
+import tkinter as tk
+from pathlib import Path
 
+from OtherServices.User_auth_service import UserAuthService
+from QueryServices.Account_query_service import AccountQueryService
+from QueryServices.Users_query_service import UserQueryService
+from Utils.Controller_utils import ControllerUtils
+from Views.View_utils import (
+    ViewUtils,
+)
+from Views.CustomWidgets.Custom_tk_menu_button import CustomTkMenuButton
+from Views.CustomWidgets.Catalog_filterable_combo_box import CatalogFilterableComboBox
+from Views.CustomWidgets.Filterable_combo_box import FilterableComboBox
+from datetime import datetime
 
-
-from Controllers import UserController, AccountController, ClientController, InvoiceController, \
-    PaymentsController, ProductionController, ExpenseController, SupplierController, UpdatesController, ControllerUtils, \
-    Analyzer, TransfersController, SalaryController, RefundController
-from Model import DatabaseModel, db_path, DBSuppliersColumns, DBAccountsColumns, DBExpensesColumns, DBUsersColumns
+from QueryServices.Suppliers_query_service import SupplierQueryService
+from Gestionale_Enums import*
+from Model import DatabaseModel, DBSuppliersColumns, DBAccountsColumns, DBUsersColumns
 
 from Views.Users_view import UsersView
-from Views.Clients_view import ClientsView
-from Views.Invoices_view import InvoicesView
-from Views.Payments_view import PaymentsView
-from Views.Productions_view import ProductionsView
-from Views.Expenses_view import ExpensesView
-from Views.Suppliers_view import SuppliersView
+from Views.ListViews.Clients_view_H import ClientsViewH
+from Views.ListViews.Invoices_view_H import InvoicesViewH
+from Views.ListViews.Payments_view_H import PaymentsViewH
+from Views.ListViews.Productions_view_H import ProductionsViewH
+from Views.ListViews.Expenses_view_H import ExpensesViewH
+from Views.ListViews.Suppliers_view_H import SuppliersViewH
 from Views.Accounts_view import AccountsView
-from Views.Salaries_view import SalariesView
+from Views.ListViews.Salaries_view_H import SalariesViewH
 from Views.Iva_trimes_view import IvaTrimesView
-from Views.Refunds_view import RefundsView
+from Views.ListViews.Refunds_view_H import RefundsViewH
 from Views.Taxes_view import TaxesView
 from Views.Report_view import ReportView
+from Views.Plot_view import PlotView
+
+from ConfigManagers import ConfigManager
+from Backup_manager import BackupImporter, BackupScheduler
+from Event_bus import EventBus
+
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from App_context import AppContext
+
+from Utils.App_paths import is_windows
 
 
 class MainWindow(ctk.CTk):
-    def __init__(self, config_manager, fiscal_settings, catalogo_elenchi, recurring_expenses_settings, historical_financial_data_settings):
+    def __init__(self, app_context:"AppContext"):
         super().__init__()
 
         self._after_ids = set()
@@ -34,42 +56,34 @@ class MainWindow(ctk.CTk):
         self._orig_after = self.after
         self.after = self._track_after
 
+        self.app_context:AppContext = app_context
+        self.event_bus:EventBus = app_context.event_bus
+        self.tab_ui_state_store = app_context.tab_ui_state_store
+
         # ConfigManager per la gestione della configurazione
-        self.config_manager = config_manager
+        self.config_manager:ConfigManager = app_context.config_manager
+        self.backup_importer:BackupImporter = app_context.backup_importer
+        self.backup_scheduler:BackupScheduler = app_context.backup_scheduler
 
-        self.fiscal_settings = fiscal_settings
-        self.catalogo_elenchi = catalogo_elenchi
-        self.recurring_expenses_settings = recurring_expenses_settings
-        self.historical_financial_data_settings = historical_financial_data_settings
+        self.fiscal_settings = app_context.fiscal_settings
+        self.catalogo_elenchi = app_context.catalogo_elenchi
+        self.recurring_expenses_settings = app_context.recurring_expenses_settings
+        self.historical_financial_data_settings = app_context.historical_financial_data_settings
 
-        # inizializzatori oggetti controllers e model
-        self.db_model = DatabaseModel(db_path)  # Istanzia il modello
-        self.fiscal_settings = fiscal_settings
-        self.user_controller = UserController(self.db_model, self.fiscal_settings)  # Crea il controller per gli utenti
-        self.account_controller = AccountController(self.db_model, self.user_controller)
-        self.salary_controller = SalaryController(self.db_model, self.user_controller, self.account_controller)
-        self.transfer_controller = TransfersController(self.db_model, self.account_controller)
-        self.client_controller = ClientController(self.db_model)
-        self.supplier_controller = SupplierController(self.db_model)
-        self.payment_controller = PaymentsController(self.db_model, self.account_controller)
-        self.production_controller = ProductionController(self.db_model, self.client_controller)
-        self.invoice_controller = InvoiceController(self.db_model, self.user_controller, self.client_controller, self.production_controller, self.payment_controller, self.account_controller, fiscal_settings, self.historical_financial_data_settings)
-        self.expense_controller = ExpenseController(self.db_model, self.user_controller, self.account_controller, self.invoice_controller, self.supplier_controller, self.recurring_expenses_settings, self.catalogo_elenchi)
-        self.refund_controller = RefundController(self.db_model, self.client_controller, self.account_controller)
-        self.update_controller = UpdatesController(self.user_controller, self.client_controller, self.invoice_controller, self.payment_controller, self.account_controller, self.production_controller)
-        self.analyzer = Analyzer(self.user_controller,
-                 self.client_controller,
-                 self.account_controller,
-                 self.invoice_controller,
-                 self.transfer_controller,
-                 self.supplier_controller,
-                 self.production_controller,
-                 self.payment_controller,
-                 self.expense_controller,
-                 self.salary_controller,
-                 self.refund_controller,
-                 self.fiscal_settings,
-                 self.recurring_expenses_settings)
+        self.data_path = app_context.data_path
+        self.images_path = app_context.images_path
+
+        self._set_window_icon()
+
+        self.login_status = False
+        self.logged_user_id = -1
+
+
+        self.db_model:DatabaseModel = app_context.db_model  # Istanzia il modello
+        self.user_query_service:UserQueryService = app_context.user_query_service  # Crea il controller per gli utenti
+        self.account_query_service:AccountQueryService = app_context.account_query_service
+        self.suppliers_query_service:SupplierQueryService = app_context.suppliers_query_service
+        self.user_auth_service:UserAuthService = app_context.user_auth_service
 
         self.title("Gestionale Willow")
 
@@ -77,20 +91,62 @@ class MainWindow(ctk.CTk):
         self.toolbar_frame = ctk.CTkFrame(self)
         self.toolbar_frame.pack(side="top", fill="x")
 
-        # Menu "File" personalizzato
-        self.file_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Backups", command=self.open_backups_window)
-        self.file_menu_button.pack(side="left", padx=15, pady=15)
+        self.backup_menu = CustomTkMenuButton(
+            self.toolbar_frame,
+            text="Gestione Backup",
+            items=[
+                ("Impostazioni backup", self.open_backup_settings_window),
+                ("Esegui un backup manuale del Database", self.execute_db_backup),
+                ("Esegui un backup manuale dei libri contabili", self.execute_books_backup),
+                ("Carica un backup del Database", self.open_load_backup),
+            ],
+        )
+        self.backup_menu.pack(side="left", padx=15, pady=15)
 
-        # Menu "File" personalizzato
-        self.fiscal_settings_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Dati Fiscali", command=self.open_fiscal_settings_window)
-        self.fiscal_settings_menu_button.pack(side="left", padx=15, pady=15)
 
-        # Menu "File" personalizzato
-        self.recurring_expenses_menu_button = ctk.CTkButton(self.toolbar_frame, text="Gestione Spese Ricorrenti", command=self.open_recurring_expenses_window)
-        self.recurring_expenses_menu_button.pack(side="left", padx=15, pady=15)
+        self.fiscal_settings_menu_button = CustomTkMenuButton(
+            self.toolbar_frame,
+            text="Gestione Dati Fiscali",
+            items=[
+                ("Modifica dati fiscali", self.open_fiscal_settings_window)
+            ],
+        )
+        self.fiscal_settings_menu_button.pack(side="left", padx=(0, 15), pady=15)
+
+        self.recurring_expenses_menu_button = CustomTkMenuButton(
+            self.toolbar_frame,
+            text="Gestione Spese Ricorrenti",
+            items=[
+                ("Modifica Spese Ricorrenti", self.open_recurring_expenses_window)
+            ],
+        )
+        self.recurring_expenses_menu_button.pack(side="left", padx=(0, 15), pady=15)
+
+        self.recurring_expenses_menu_button = CustomTkMenuButton(
+            self.toolbar_frame,
+            text="Gestione Esercizio",
+            items=[
+                (f"Chiusura Esercizio {datetime.now().strftime('%Y')}", self.open_fiscal_year_closer_window)
+            ],
+        )
+        self.recurring_expenses_menu_button.pack(side="left", padx=(0, 15), pady=15)
+
 
         self.refresh_view_button = ctk.CTkButton(self.toolbar_frame, text="🔄", font=("Segoe UI Emoji", 20), command=self.refresh_tabviews, width=30)
         self.refresh_view_button.pack(side="right", padx=15, pady=15)
+
+        # Carica l'icona utente
+        convert_succ, self.generic_user_icon_image = ViewUtils.create_PIL_image_from_path(os.path.join(self.images_path, "user.png"))
+        if convert_succ:
+            self.user_icon = ctk.CTkImage(dark_image=self.generic_user_icon_image, size=(40, 40))
+
+            # Crea una label con l'icona invece di un button
+            self.user_icon_label = ctk.CTkLabel(self.toolbar_frame, image=self.user_icon, text="", bg_color="transparent")
+            self.user_icon_label.pack(side="right", padx=5, pady=15)  # padx più piccolo per avvicinare ai bottoni
+
+
+        self.login_button = ctk.CTkButton(self.toolbar_frame, text="Login", command=self.manage_login)
+        self.login_button.pack(side="right", padx=15, pady=15)
 
         # Creazione di un popup menu simulato
         self.file_menu_frame = None
@@ -111,18 +167,36 @@ class MainWindow(ctk.CTk):
         self.tabview.add("Iva")
         self.tabview.add("Salario")
         self.tabview.add("Tasse")
-        self.tabview.add("Report")
+        self.tabview.add(f"Report {datetime.now().strftime('%Y')}")
+        self.tabview.add("Plots")
+
 
 
         self.custom_font = ctk.CTkFont("Arial", 20)
         self.tabview._segmented_button.configure(font=self.custom_font)
 
-        self.event_bus = EventBus()
-
         self.construct_tabviews()
 
         self.update_idletasks()
         self.after(100, lambda: self.state("zoomed"))
+
+        self._setup_event_subscriptions()
+
+    def _set_window_icon(self):
+        try:
+            images_dir = Path(self.images_path)
+            if is_windows():
+                icon_path = images_dir / "WillowLogo.ico"
+                if icon_path.exists():
+                    self.iconbitmap(str(icon_path))
+                    return
+
+            png_icon_path = images_dir / "user.png"
+            if png_icon_path.exists():
+                self._window_icon_image = tk.PhotoImage(file=str(png_icon_path))
+                self.iconphoto(True, self._window_icon_image)
+        except Exception as e:
+            print(f"Errore nell'impostazione dell'icona della finestra: {e}")
 
     def _track_after(self, ms, callback=None, *args):
         after_id = self._orig_after(ms, callback, *args)
@@ -138,99 +212,468 @@ class MainWindow(ctk.CTk):
         self._after_ids.clear()
 
     def construct_tabviews(self):
-        """Crea tutte le tabview e le impacchetta"""
+        """Crea solo la struttura delle tab, non il contenuto - Lazy Loading"""
         self.tab_instances = {}
+        self.current_tab = "Utenti"  # Tab iniziale
 
-        self.tab_instances["Utenti"] = UsersView(self.db_model, self.user_controller, self.account_controller,
-                                  self.production_controller, self.fiscal_settings, self.tabview.tab("Utenti"),
-                                  self.analyzer, self.event_bus)
-        self.tab_instances["Clienti"] = ClientsView(self.db_model, self.client_controller, self.production_controller,
-                                                    self.invoice_controller, self.refund_controller, self.catalogo_elenchi,
-                                                    self.config_manager, self.tabview.tab("Clienti"), self.event_bus, self.analyzer)
-        self.tab_instances["Fatture"] = InvoicesView(self.db_model, self.invoice_controller, self.user_controller,
-                                        self.client_controller, self.production_controller, self.payment_controller,
-                                        self.account_controller, self.update_controller, self.tabview, self.fiscal_settings,
-                                        self.historical_financial_data_settings, self.event_bus, self.analyzer)
-        self.tab_instances["Pagamenti"] = PaymentsView(self.db_model, self.payment_controller, self.invoice_controller,
-                                        self.user_controller, self.client_controller, self.production_controller,
-                                        self.account_controller, self.update_controller, self.tabview,
-                                        self.event_bus)
-        self.tab_instances["Rimborsi"] = RefundsView(self.db_model, self.refund_controller, self.client_controller,
-                                      self.account_controller, self.update_controller, self.tabview, self.analyzer,
-                                      self.event_bus)
-        self.tab_instances["Produzioni"] = ProductionsView(self.db_model, self.production_controller, self.payment_controller,
-                                              self.invoice_controller, self.user_controller, self.client_controller,
-                                              self.catalogo_elenchi, self.config_manager,
-                                              self.tabview, self.event_bus, self.update_controller)
-        self.tab_instances["Spese"] = ExpensesView(self.db_model, self.expense_controller, self.user_controller,
-                                        self.account_controller, self.supplier_controller, self.invoice_controller,
-                                        self.update_controller, self.analyzer, self.fiscal_settings, self.catalogo_elenchi,
-                                        self.config_manager, self.tabview, self.event_bus)
-        self.tab_instances["Fornitori"] = SuppliersView(self.db_model, self.supplier_controller, self.expense_controller, self.update_controller,
-                                          self.config_manager, self.catalogo_elenchi, self.tabview,
-                                          self.event_bus, self.analyzer)
-        self.tab_instances["Conti"] = AccountsView(self.db_model, self.account_controller, self.update_controller,
-                                        self.transfer_controller, self.config_manager, self.catalogo_elenchi,
-                                        self.analyzer, self.tabview, self.event_bus)
-        self.tab_instances["Salario"] = SalariesView(self.db_model, self.salary_controller, self.user_controller,
-                                       self.account_controller, self.update_controller, self.analyzer, self.fiscal_settings,
-                                       self.catalogo_elenchi, self.config_manager, self.tabview, self.event_bus)
-        self.tab_instances["Iva"] = IvaTrimesView(self.db_model, self.invoice_controller, self.user_controller,
-                                            self.expense_controller, self.update_controller, self.analyzer,
-                                            self.tabview, self.event_bus)
-        self.tab_instances["Tasse"] = TaxesView(self.db_model, self.analyzer, self.update_controller,
-                                          self.config_manager, self.catalogo_elenchi, self.tabview,
-                                          self.event_bus)
-        self.tab_instances["Report"] = ReportView(self.db_model, self.fiscal_settings, self.tabview, self.analyzer,
-                                                  self.event_bus, self.update_controller)
+        # Definisci la factory per le view
+        self.view_factory = {
 
-        # Impacchettamento nelle rispettive tab
-        for tab_name, instance in self.tab_instances.items():
-            tab_frame = self.tabview.tab(tab_name)
-            instance.pack(in_=tab_frame, fill="both", expand=True)
+            "Utenti": lambda tab: UsersView(self.app_context, tab, self.logged_user_id, self.login_status),
+
+            "Clienti": lambda tab: ClientsViewH(self.app_context, tab),
+
+            "Fatture": lambda tab, invoice_id=None: InvoicesViewH(self.app_context, self.tabview, initial_invoice_id=invoice_id),
+
+            "Pagamenti": lambda tab, payment_id=None: PaymentsViewH(self.app_context, self.tabview, initial_payment_id=payment_id),
+
+            "Rimborsi": lambda tab, refund_id=None: RefundsViewH(self.app_context, self.tabview, initial_refund_id=refund_id),
+
+            "Produzioni": lambda tab, production_id=None: ProductionsViewH(self.app_context, self.tabview, initial_production_id=production_id),
+
+            "Spese": lambda tab, expense_id=None: ExpensesViewH(self.app_context, self.tabview, initial_expense_id=expense_id),
+
+            "Fornitori": lambda tab: SuppliersViewH(self.app_context, self.tabview),
+
+            "Conti": lambda tab: AccountsView(self.app_context, self.tabview),
+
+            "Salario": lambda tab, salary_id=None: SalariesViewH(self.app_context, self.tabview, initial_salary_id=salary_id),
+
+            "Iva": lambda tab: IvaTrimesView(self.app_context, self.tabview),
+
+            "Tasse": lambda tab: TaxesView(self.app_context, self.tabview),
+
+            f"Report {datetime.now().strftime('%Y')}": lambda tab: ReportView(self.app_context, self.tabview),
+
+            "Plots": lambda tab: PlotView(self.app_context, self.tabview)
+        }
+
+        # MONITORAGGIO DEL CAMBIO TAB - APPROCCIO ALTERNATIVO
+        self._setup_tab_monitoring()
+
+        # Carica solo la tab iniziale
+        self.load_tab(self.current_tab)
 
     def refresh_tabviews(self):
-        """Aggiorna tutte le tabview distruggendo e ricreando il contenuto"""
-        # 1. Distruggi tutte le tabview esistenti
-        for instance in self.tab_instances.values():
-            if instance.winfo_exists():
+        """Aggiorna solo la tab corrente invece di tutte le tab"""
+        if self.current_tab in self.tab_instances:
+            print(f"Ricarico tab: {self.current_tab}")
+            # Ricarica solo la tab corrente
+            current_tab_name = self.current_tab
+            self.destroy_tab(current_tab_name)
+            self.load_tab(current_tab_name)
+
+            # Forza l'aggiornamento della GUI
+            self.update_idletasks()
+
+    def _on_tab_click(self, event):
+        """Gestisce il click sulle tab per il lazy loading"""
+        # Ottieni l'indice del tab cliccato
+        tab_index = self.tabview._segmented_button.index(f"@{event.x},{event.y}")
+        if tab_index is not None:
+            tab_names = list(self.view_factory.keys())
+            if tab_index < len(tab_names):
+                new_tab = tab_names[tab_index]
+                self._switch_to_tab(new_tab)
+
+    def load_tab(self, tab_name, **kwargs):
+        """Carica una tab solo se non è già caricata, con parametri aggiuntivi"""
+        if tab_name not in self.tab_instances and tab_name in self.view_factory:
+            print(f"Caricamento tab: {tab_name} con parametri: {kwargs}")
+            tab_frame = self.tabview.tab(tab_name)
+
+            # Pulisci il frame della tab prima di aggiungere nuovi widget
+            for widget in tab_frame.winfo_children():
+                widget.destroy()
+
+            # Crea l'istanza della view passando i kwargs
+            instance = self.view_factory[tab_name](tab_frame, **kwargs)
+            instance.pack(in_=tab_frame, fill="both", expand=True)
+            self.tab_instances[tab_name] = instance
+
+            saved_state = self.tab_ui_state_store.get_state(tab_name)
+            if saved_state and hasattr(instance, "apply_ui_state"):
+                instance.apply_ui_state(saved_state)
+
+            # Forza il rendering
+            self.update_idletasks()
+
+    def destroy_tab(self, tab_name):
+        """Distrugge completamente una tab per liberare memoria"""
+        if tab_name in self.tab_instances:
+            print(f"Distruzione tab: {tab_name}")
+            try:
+                instance = self.tab_instances[tab_name]
+
+                if hasattr(instance, "get_ui_state"):
+                    self.tab_ui_state_store.save_state(tab_name, instance.get_ui_state())
+
+                # Chiama cleanup se esiste
+                if hasattr(instance, 'cleanup'):
+                    instance.cleanup()
+
+                # Distruggi l'istanza
                 instance.destroy()
 
-        # 2. Ricrea tutte le tabview
-        self.construct_tabviews()
+            except Exception as e:
+                print(f"Errore nel distruggere {tab_name}: {e}")
+            finally:
+                # Rimuovi dal dizionario
+                del self.tab_instances[tab_name]
 
-        # 3. Forza l'aggiornamento della GUI
-        self.update_idletasks()
+                # Forza garbage collection
+                import gc
+                gc.collect()
 
+    def _setup_tab_monitoring(self):
+        """Configura il monitoraggio del cambio tab usando un approccio alternativo"""
+        # Crea una variabile per tracciare il tab precedente
+        self._previous_tab = self.current_tab
+
+        # Avvia il monitoraggio periodico
+        self._monitor_tab_changes()
+
+    def _monitor_tab_changes(self):
+        """Monitora i cambi di tab periodicamente"""
+        current_tab = self.tabview.get()
+
+        # Se il tab è cambiato
+        if current_tab != self._previous_tab:
+            self._switch_to_tab(current_tab)
+            self._previous_tab = current_tab
+
+        # Continua il monitoraggio ogni 100ms
+        self.after(100, self._monitor_tab_changes)
+
+    def _switch_to_tab(self, new_tab):
+        """Cambia tab con lazy loading"""
+        if new_tab != self.current_tab:
+            print(f"Cambio tab: {self.current_tab} -> {new_tab}")
+
+            # Distruggi la tab precedente per liberare memoria
+            if self.current_tab in self.tab_instances:
+                self.destroy_tab(self.current_tab)
+
+            # Carica la nuova tab
+            self.load_tab(new_tab)
+            self.current_tab = new_tab
+
+            # Aggiorna la selezione del tabview
+            self.tabview.set(new_tab)
+
+            # Forza l'aggiornamento dell'interfaccia
+            self.update_idletasks()
+
+
+
+
+    def _setup_event_subscriptions(self):
+        """Configura tutte le sottoscrizioni agli eventi nella MainWindow"""
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_INVOICE_DETAIL, self._handle_show_invoice_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_SALARY_DETAIL, self._handle_show_salary_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PRODUCTION_DETAIL, self._handle_show_production_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self._handle_show_payment_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_REFUND_DETAIL, self._handle_show_refund_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self._handle_show_expense_detail)
+
+
+
+    def _handle_show_invoice_detail(self, invoice_id):
+        """Gestisce la navigazione verso una fattura - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio fattura: {invoice_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Fatture
+        self.tabview.set("Fatture")
+
+        # 2. Se la tab Fatture è già caricata, apri il dettaglio
+        if "Fatture" in self.tab_instances:
+            invoices_view = self.tab_instances["Fatture"]
+            if hasattr(invoices_view, 'open_invoice_detail_tab'):
+                invoices_view.open_invoice_detail_tab(invoice_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Fatture", invoice_id=invoice_id)
+
+    def _forward_to_invoice_detail(self, invoice_id):
+        """Inoltra la richiesta alla InvoicesView una volta caricata"""
+        if "Fatture" in self.tab_instances:
+            invoices_view = self.tab_instances["Fatture"]
+            if hasattr(invoices_view, 'open_invoice_detail_tab'):
+                invoices_view.open_invoice_detail_tab(invoice_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_invoice_detail(invoice_id))
+
+    def _handle_show_salary_detail(self, salary_id):
+        """Gestisce la navigazione verso uno stipendio - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Salario: {salary_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Stipendi
+        self.tabview.set("Salario")
+
+        # 2. Se la tab Salario è già caricata, apri il dettaglio
+        if "Salario" in self.tab_instances:
+            salaries_view = self.tab_instances["Salario"]
+            if hasattr(salaries_view, 'open_salary_detail_tab'):
+                salaries_view.open_salary_detail_tab(salary_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Salario", salary_id=salary_id)
+
+    def _forward_to_salary_detail(self, salary_id):
+        """Inoltra la richiesta alla SalariesView una volta caricata"""
+        if "Salario" in self.tab_instances:
+            salaries_view = self.tab_instances["Salario"]
+            if hasattr(salaries_view, 'open_salary_detail_tab'):
+                salaries_view.open_salary_detail_tab(salary_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_salary_detail(salary_id))
+
+    def _handle_show_production_detail(self, production_id):
+        """Gestisce la navigazione verso una produzione - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Produzione: {production_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Produzioni
+        self.tabview.set("Produzioni")
+
+        # 2. Se la tab Produzioni è già caricata, apri il dettaglio
+        if "Produzioni" in self.tab_instances:
+            productions_view = self.tab_instances["Produzioni"]
+            if hasattr(productions_view, 'open_production_detail_tab'):
+                productions_view.open_production_detail_tab(production_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Produzioni", production_id=production_id)
+
+    def _forward_to_production_detail(self, production_id):
+        """Inoltra la richiesta alla ProductionsView una volta caricata"""
+        if "Produzioni" in self.tab_instances:
+            productions_view = self.tab_instances["Produzioni"]
+            if hasattr(productions_view, 'open_production_detail_tab'):
+                productions_view.open_production_detail_tab(production_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_production_detail(production_id))
+
+    def _handle_show_payment_detail(self, payment_id):
+        """Gestisce la navigazione verso un pagamento - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Pagamento: {payment_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Pagamenti
+        self.tabview.set("Pagamenti")
+
+        # 2. Se la tab Pagamenti è già caricata, apri il dettaglio
+        if "Pagamenti" in self.tab_instances:
+            payments_view = self.tab_instances["Pagamenti"]
+            if hasattr(payments_view, 'open_payment_detail_tab'):
+                payments_view.open_payment_detail_tab(payment_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Pagamenti", payment_id=payment_id)
+
+    def _forward_to_payment_detail(self, payment_id):
+        """Inoltra la richiesta alla PaymentsView una volta caricata"""
+        if "Pagamenti" in self.tab_instances:
+            payments_view = self.tab_instances["Pagamenti"]
+            if hasattr(payments_view, 'open_payment_detail_tab'):
+                payments_view.open_payment_detail_tab(payment_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_payment_detail(payment_id))
+
+    def _handle_show_refund_detail(self, refund_id):
+        """Gestisce la navigazione verso un rimborso - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Rimborso: {refund_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Rimborsi
+        self.tabview.set("Rimborsi")
+
+        # 2. Se la tab Rimborsi è già caricata, apri il dettaglio
+        if "Rimborsi" in self.tab_instances:
+            refunds_view = self.tab_instances["Rimborsi"]
+            if hasattr(refunds_view, 'open_refund_detail_tab'):
+                refunds_view.open_refund_detail_tab(refund_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Rimborsi", refund_id=refund_id)
+
+    def _forward_to_refund_detail(self, refund_id):
+        """Inoltra la richiesta alla RefundsView una volta caricata"""
+        if "Rimborsi" in self.tab_instances:
+            refunds_view = self.tab_instances["Rimborsi"]
+            if hasattr(refunds_view, 'open_refund_detail_tab'):
+                refunds_view.open_refund_detail_tab(refund_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_refund_detail(refund_id))
+
+    def _handle_show_expense_detail(self, expense_id):
+        """Gestisce la navigazione verso una spesa - APRE DIRETTAMENTE IL DETTAGLIO"""
+        print(f"Navigazione diretta a dettaglio Spesa: {expense_id}")
+
+        # 1. Cambia VISIBILMENTE alla tab Spese
+        self.tabview.set("Spese")
+
+        # 2. Se la tab Spese è già caricata, apri il dettaglio
+        if "Spese" in self.tab_instances:
+            expenses_view = self.tab_instances["Spese"]
+            if hasattr(expenses_view, 'open_expense_detail_tab'):
+                expenses_view.open_expense_detail_tab(expense_id)
+        else:
+            # 3. Se non è caricata, caricala DIRETTAMENTE con il dettaglio
+            self.load_tab("Spese", expense_id=expense_id)
+
+    def _forward_to_expense_detail(self, expense_id):
+        """Inoltra la richiesta alla ExpensesView una volta caricata"""
+        if "Spese" in self.tab_instances:
+            expenses_view = self.tab_instances["Spese"]
+            if hasattr(expenses_view, 'open_expense_detail_tab'):
+                expenses_view.open_expense_detail_tab(expense_id)
+        else:
+            # Se ancora non caricata, riprova dopo un altro breve ritardo
+            self.after(100, lambda: self._forward_to_expense_detail(expense_id))
+
+
+
+
+
+
+    # funzioni per il login
+    def manage_login(self):
+        if self.login_status is not True:
+            self.open_login_window()
+        else:
+            confirmation = ViewUtils.ask_confirmation_popup(self, "Vuoi eseguire il logout?")
+            if confirmation:
+                self.login_status = False
+                self.logged_user_id = -1
+                self.toggle_login_widgets()
+                self.event_bus.publish(ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value, {
+                    "login_status": False,
+                    "logged_user_id": -1
+                })
+
+    def open_login_window(self):
+        """Apre una finestra per fare il login."""
+        # Finestra di dialogo
+        self.login_window = ctk.CTkToplevel(self)
+        self.login_window.title("Esegui il login")
+        self.login_window.geometry("350x500")
+        self.login_window.lift()
+        self.login_window.grab_set()
+
+        ctk.CTkLabel(self.login_window, text="SCEGLI L'UTENTE E INSERISCI LA PASSWORD").pack(pady=60, padx=20, fill="x", expand=True)
+
+        #retrieve users
+        users = self.user_query_service.retrieve_users_map_list()
+
+        self.login_username = ctk.CTkOptionMenu(self.login_window, values = [user[DBUsersColumns.FIRST_NAME.value] +
+                                                       " " + user[DBUsersColumns.LAST_NAME.value] for user in users])
+        self.login_username.pack(pady=(5,10), padx=20, fill="x", expand=True)
+
+        ctk.CTkLabel(self.login_window, text="Password:").pack(pady=(10, 0), padx=20, fill="x", expand=True)
+
+        self.login_password = ctk.CTkEntry(self.login_window)
+        self.login_password.pack(pady=(5, 20), padx=20, fill="x", expand=True)
+
+        ctk.CTkButton(self.login_window, text="Esegui il login",
+                      command=lambda: self.try_to_login(self.login_username.get(), self.login_password.get())
+                      ).pack(pady=(40, 20), padx=20)
+
+    def try_to_login(self, username, password):
+        success, message, user_id = self.user_auth_service.check_password_for_login(username, password)
+        if success:
+            ViewUtils.show_confirm_popup(self.login_window, message=message)
+            self.login_status = True
+            self.logged_user_id = user_id
+            self.toggle_login_widgets()
+            self.event_bus.publish(ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value, {
+                "login_status": True,
+                "logged_user_id": user_id
+            })
+
+        if success is not True:
+            ViewUtils.show_error_popup(self.login_window, message=message)
+
+    def toggle_login_widgets(self):
+        if self.login_status is True:
+            self.login_button.configure(text="Esegui Logout")
+
+            #creo un'immagine PIL da inserire nell'icona a partire dall'immagine dell'utente
+            #prendo il path dell'immagine dell'utente loggato
+            logged_user_image_path = self.user_query_service.retrieve_user_map_by_id(self.logged_user_id
+                                                                                  ).get(DBUsersColumns.PHOTO_PATH.value)
+
+            if logged_user_image_path is not None and logged_user_image_path != "":
+                convert_succ, user_icon_image = ViewUtils.create_PIL_image_from_path(logged_user_image_path)
+                if convert_succ:
+                    self.user_icon.configure(dark_image=user_icon_image)
+
+        else:
+            self.login_button.configure(text="Login")
+            self.user_icon.configure(dark_image=self.generic_user_icon_image)
+
+    def execute_db_backup(self):
+        try:
+            self.backup_scheduler.backup_gestionale_db()
+        except Exception as e:
+            print(f"Errore durante l'esecuzione manuale del backup: {str(e)}")
+            ViewUtils.show_error_popup(self, title="Errore", message=f"Errore durante l'esecuzione del backup manuale: {str(e)}")
+            return
+
+        print("Esecuzione manuale del backup riuscita")
+        ViewUtils.show_confirm_popup_simple(self)
+
+    def execute_books_backup(self):
+
+        success, message = self.backup_scheduler.backup_gestionale_books()
+        if success:
+            print("Esecuzione manuale del backup riuscita")
+            ViewUtils.show_confirm_popup_simple(self)
+        else:
+            print(f"Errore durante l'esecuzione manuale del backup: {message}")
+            ViewUtils.show_error_popup(self, title="Errore",
+                                       message=f"Errore durante l'esecuzione del backup manuale: {message}")
 
 
     # Funzioni per la gestione dei backups
-    def open_backups_window(self):
+    def open_backup_settings_window(self):
         """Apre una finestra per gestire i backup."""
         # Finestra di dialogo
         self.backup_window = ctk.CTkToplevel(self)
         self.backup_window.title("Impostazioni di backup")
-        self.backup_window.geometry("500x420")
+        #self.backup_window.geometry("500x420")
         self.backup_window.lift()
         self.backup_window.grab_set()
+
+        self.backup_database_frame = ctk.CTkFrame(self.backup_window)
+        self.backup_database_frame.pack(fill="both", expand=True, pady=(5, 10), padx=5)
+
+        self.backup_books_frame = ctk.CTkFrame(self.backup_window)
+        self.backup_books_frame.pack(fill="both", expand=True, pady=(15, 10), padx=5)
 
         # Leggi la configurazione attuale
         current_config = self.config_manager.load_config()
         backup_settings = current_config.get("backup_settings", {})
 
-        # Titolo
-        title = ctk.CTkLabel(self.backup_window, text="Modifica Impostazioni di Backup", font=("Arial", 18))
-        title.pack(pady=20)
+        # Titolo 1
+        title1 = ctk.CTkLabel(self.backup_database_frame, text="Impostazioni Database", font=("Arial", 14))
+        title1.pack(pady=20)
+
+        # Titolo 2
+        title2 = ctk.CTkLabel(self.backup_books_frame, text="Impostazioni Libri Contabili", font=("Arial", 14))
+        title2.pack(pady=20)
 
         # Campi per ogni impostazione
         self.entries = {}
 
         # Backup base path
         self.add_field(
-            label="Percorso base backup",
+            label="Percorso di backup del database",
             default_value=backup_settings.get("backup_base_path", {}).get("value", ""),
             key="backup_base_path",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Cartella principale dove verranno archiviati tutti i backup."
         )
 
@@ -239,7 +682,7 @@ class MainWindow(ctk.CTk):
             label="Frequenza esecuzione backup (minuti)",
             default_value=backup_settings.get("interval_minutes", {}).get("value", 15),
             key="interval_minutes",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Imposta l'intervallo di tempo (in minuti) tra ogni backup.",
             min_val=1,
             max_val=120
@@ -250,7 +693,7 @@ class MainWindow(ctk.CTk):
             label="Numero massimo di backup per cartella",
             default_value=backup_settings.get("max_backups", {}).get("value", 35),
             key="max_backups",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Specifica il numero massimo di backup da conservare.",
             min_val=1,
             max_val=100
@@ -261,10 +704,18 @@ class MainWindow(ctk.CTk):
             label="Frequenza generazione nuova cartella (giorni)",
             default_value=backup_settings.get("delta_days", {}).get("value", 7),
             key="delta_days",
-            parent=self.backup_window,
+            parent=self.backup_database_frame,
             tooltip="Indica quanti giorni di differenza tra i backup da mantenere.",
             min_val=1,
             max_val=30
+        )
+
+        self.add_field(
+            label="Percorso di backup dei libri contabili",
+            default_value=backup_settings.get("backup_books_path", {}).get("value", ""),
+            key="backup_books_path",
+            parent=self.backup_books_frame,
+            tooltip="Cartella principale dove verranno archiviati tutti i libri contabili."
         )
 
         # Pulsante Salva
@@ -273,7 +724,7 @@ class MainWindow(ctk.CTk):
 
     def add_field(self, label, default_value, key, parent, tooltip):
         """Crea un campo di input per una configurazione."""
-        frame = ctk.CTkFrame(parent)
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(fill="x", pady=5, padx=10)
 
         label_widget = ctk.CTkLabel(frame, text=label, anchor="w")
@@ -286,8 +737,8 @@ class MainWindow(ctk.CTk):
 
     def add_slider_field(self, label, default_value, key, parent, tooltip, min_val, max_val):
         """Crea un campo slider per una configurazione numerica con una scala visibile."""
-        frame = ctk.CTkFrame(parent)
-        frame.pack(fill="x", pady=5, padx=10)
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="x", pady=10, padx=10)
 
         # Label per il titolo
         label_widget = ctk.CTkLabel(frame, text=label, anchor="w")
@@ -347,6 +798,210 @@ class MainWindow(ctk.CTk):
                 "Errore salvataggio configurazione",
                 f"Impossibile salvare la configurazione: {str(e)}"
             )
+
+    def open_load_backup(self):
+        """Apre la finestra per selezionare e importare un backup dell'anno corrente."""
+
+        # Evita doppia apertura
+        if hasattr(self, "backup_window") and self.backup_window.winfo_exists():
+            self.backup_window.lift()
+            return
+
+        self.backup_window = ctk.CTkToplevel(self)
+        self.backup_window.title("Carica un vecchio database tra i backup")
+        self.backup_window.geometry("720x650")
+        self.backup_window.grab_set()
+        self.backup_window.lift()
+
+        # ---------- Frame principale ----------
+        main_frame = ctk.CTkFrame(self.backup_window, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=12, pady=12)
+
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="Seleziona un backup dell'anno corrente da importare",
+            anchor="w",
+            font=("Segoe UI", 14, "bold")
+        )
+        title_label.pack(fill="x", pady=(0, 10))
+
+        # ---------- Lista backup (scrollabile CTk) ----------
+        list_frame = ctk.CTkScrollableFrame(main_frame)
+        list_frame.pack(fill="both", expand=True)
+
+        # Stato selezione
+        selected_backup = {
+            "path": None,
+            "datetime": None
+        }
+
+        selected_bk_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        selected_bk_frame.pack(pady=10, fill="x")
+        selected_label_1 = ctk.CTkLabel(selected_bk_frame, text="Backup selezionato: ")
+        selected_label_1.pack(side="left", pady=10)
+        selected_label_2 = ctk.CTkLabel(selected_bk_frame, text="", font=("Arial", 16))
+        selected_label_2.pack(side="left", pady=10, padx=(15, 0))
+
+        # ---------- Bottoni ----------
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        buttons_frame.pack(fill="x", pady=(10, 0))
+
+        refresh_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Aggiorna lista"
+        )
+        refresh_btn.pack(side="left", padx=(6, 0))
+
+        import_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Importa backup selezionato",
+            state="disabled"
+        )
+        import_btn.pack(side="right", padx=(6, 0))
+
+        # ---------- Helpers UI ----------
+        def format_interval_name(interval_name):
+            """Formatta il nome dell'intervallo nel formato '10-20 Dec'"""
+            try:
+                # Estrai le date dal nome della cartella
+                # Formato: YYYYMMDD_to_YYYYMMDD
+                parts = interval_name.split("_to_")
+                if len(parts) != 2:
+                    return interval_name
+
+                start_date = datetime.strptime(parts[0], "%Y%m%d")
+                end_date = datetime.strptime(parts[1], "%Y%m%d")
+
+                # Formatta nel formato "10-20 Dec"
+                month_names_ita = {
+                    1: "Gen", 2: "Feb", 3: "Mar", 4: "Apr", 5: "Mag", 6: "Giu",
+                    7: "Lug", 8: "Ago", 9: "Set", 10: "Ott", 11: "Nov", 12: "Dic"
+                }
+
+                # Se è lo stesso mese: "10-20 Ott"
+                if start_date.month == end_date.month:
+                    return f"{start_date.day}-{end_date.day} {month_names_ita[start_date.month]}"
+                # Altrimenti: "20 Ott - 30 Nov"
+                else:
+                    return f"{start_date.day} {month_names_ita[start_date.month]} - {end_date.day} {month_names_ita[end_date.month]}"
+
+            except Exception as e:
+                return interval_name
+
+        def clear_list():
+            for widget in list_frame.winfo_children():
+                widget.destroy()
+            selected_backup["path"] = None
+            selected_backup["datetime"] = None
+            import_btn.configure(state="disabled")
+
+        def populate_list():
+            clear_list()
+            year = datetime.now().year
+            backups = self.backup_importer.list_backups_for_year(year)
+
+            if not backups:
+                ctk.CTkLabel(
+                    list_frame,
+                    text=f"Nessun backup trovato per l'anno {year}",
+                    anchor="w"
+                ).pack(fill="x", padx=6, pady=6)
+                return
+
+            # Raggruppa i backup per cartella di intervallo
+            backups_by_interval = {}
+
+            for entry in backups:
+                # Estrai il nome della cartella di intervallo dal path
+                # Il path è strutturato come: .../intervallo_folder/sub_folder/file
+                path_parts = entry["path"].split(os.sep)
+                if len(path_parts) >= 2:
+                    interval_folder = path_parts[-2]  # -2 perché: .../interval_folder/sub_folder/file.db
+                else:
+                    interval_folder = "Unknown"
+
+                if interval_folder not in backups_by_interval:
+                    backups_by_interval[interval_folder] = []
+                backups_by_interval[interval_folder].append(entry)
+
+            # Ordina gli intervalli per data (dal più recente)
+            sorted_intervals = sorted(
+                backups_by_interval.keys(),
+                key=lambda x: datetime.strptime(x.split("_to_")[0], "%Y%m%d") if "_to_" in x else datetime.min,
+                reverse=True
+            )
+
+            # Per ogni intervallo, crea un label separatore e poi i bottoni dei backup
+            for interval in sorted_intervals:
+                # Label separatore per l'intervallo
+                formatted_interval = format_interval_name(interval)
+                separator_label = ctk.CTkLabel(
+                    list_frame,
+                    text=f"--------------------------       {formatted_interval}       --------------------------",
+                    font=("Segoe UI", 15, "italic"),
+                    text_color="#808080"  # Grigio per differenziare
+                )
+                separator_label.pack(fill="x", padx=6, pady=(15, 5))
+
+                # Ordina i backup di questo intervallo per data (dal più recente)
+                interval_backups = sorted(
+                    backups_by_interval[interval],
+                    key=lambda x: x["datetime"],
+                    reverse=True
+                )
+
+                # Aggiungi i bottoni per ogni backup in questo intervallo
+                for entry in interval_backups:
+                    dt = entry["datetime"]
+                    label_text = dt.strftime("%Y-%m-%d %H:%M:%S")
+
+                    btn = ctk.CTkButton(
+                        list_frame,
+                        text=f"    {label_text}",  # Indentazione per differenziare
+                        anchor="w",
+                        fg_color="transparent",
+                        hover_color="#212121",
+                        command=lambda e=entry: on_select(e)
+                    )
+                    btn.pack(fill="x", padx=10, pady=2)
+
+        def on_select(entry):
+            selected_backup["path"] = entry["path"]
+            selected_backup["datetime"] = entry["datetime"]
+            import_btn.configure(state="normal")
+            selected_label_2.configure(text=f"{selected_backup['datetime']}")
+
+        def do_import():
+            if not selected_backup["path"]:
+                return
+
+            backup_date = selected_backup["datetime"].strftime("%d/%m/%Y %H:%M")
+
+            confirm = ViewUtils.ask_confirmation_popup(
+                parent=self.backup_window,
+                message=(
+                    f"Importare questo backup comporta la perdita dei dati inseriti "
+                    f"da {backup_date} ad oggi.\n\n"
+                    f"Desideri continuare?"
+                ),
+                title="CONFERMA IMPORT BACKUP"
+            )
+
+            if not confirm:
+                return
+
+            success, msg = self.backup_importer.import_backup(selected_backup["path"])
+
+            if success:
+                ViewUtils.show_confirm_popup(self.backup_window)
+            else:
+                ViewUtils.show_error_popup(self.backup_window, "", f"Si è verificato un errore: {msg}")
+
+        # ---------- Bind ----------
+        import_btn.configure(command=do_import)
+        refresh_btn.configure(command=populate_list)
+
+        populate_list()
 
 
 
@@ -487,10 +1142,18 @@ class MainWindow(ctk.CTk):
         self.forfettaria_labels["rateizzazione_title"] = ctk.CTkLabel(frame_forf_rateizzazione, text="Rateizzazione Tasse",
                                                                  font=("Arial", 16, "bold"))
         self.forfettaria_labels["rateizzazione_title"].pack(anchor="w", pady=(5, 15), padx=10)
+        forf_rateizzazione_defaults = {
+            "percentuale_acconto_imposta_primo": "0.40",
+            "percentuale_acconto_imposta_secondo": "0.60",
+            "percentuale_acconto_inps_forfettario": "1.00",
+            "percentuale_rata_acconto_inps_forfettario": "0.50",
+        }
         for key in ["percentuale_acconto_imposta_primo", "percentuale_acconto_imposta_secondo", "percentuale_acconto_inps_forfettario", "percentuale_rata_acconto_inps_forfettario"]:
             if key in piva_forf_data:
                 data = piva_forf_data.get(key, {})
                 value = data.get("value", "")
+                if value in ("", None):
+                    value = forf_rateizzazione_defaults.get(key, "")
                 description = data.get("description", key)
                 lbl = ctk.CTkLabel(frame_forf_rateizzazione, text=description, font=("Arial", 14))
                 lbl.pack(anchor="w", padx=10, pady=5)
@@ -804,6 +1467,8 @@ class MainWindow(ctk.CTk):
                     "percentuale_rata_acconto_inps_forfettario"]:
             if key in self.forfettaria_entries:
                 forf_data[key] = {"value": self.forfettaria_entries[key].get()}
+            elif key in self.forfettaria_rateizzazione_entries:
+                forf_data[key] = {"value": self.forfettaria_rateizzazione_entries[key].get()}
             else:
                 forf_data[key] = {"value": ""}
         fiscal_data["partita_iva_forfettaria"] = forf_data
@@ -841,6 +1506,31 @@ class MainWindow(ctk.CTk):
 
 
     #funzioni per la gestione delle spese ricorrenti
+    def _get_recurring_supplier_values(self):
+        suppliers_map_list = self.suppliers_query_service.retrieve_suppliers_map_list(year=-1)
+        return [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]
+
+    def _get_recurring_category_values(self):
+        return [
+            value for key, value in self.catalogo_elenchi["expenses_category"]
+            if key != "ADD_CATEGORY"
+        ]
+
+    def _get_recurring_iva_values(self):
+        aliquote_list = [
+            self.fiscal_settings.aliquota_iva.no_iva,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
+            self.fiscal_settings.aliquota_iva.aliquota_iva_minima
+        ]
+        return [str(aliquota) for aliquota in aliquote_list]
+
+    def _get_recurring_widget_value(self, widget):
+        if isinstance(widget, FilterableComboBox):
+            return widget.get_value()
+        return widget.get()
+
     def open_recurring_expenses_window(self):
         """Apre una finestra per gestire le spese ricorrenti."""
         # Crea la finestra di dialogo
@@ -885,29 +1575,19 @@ class MainWindow(ctk.CTk):
             # Memorizza i widget in un dizionario annidato
             self.expense_widgets[expense_key] = {}
 
-            suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
+            accounts = self.account_query_service.retrieve_accounts_map_list()
 
-            aliquote_list = [
-                self.fiscal_settings.aliquota_iva.no_iva,
-                self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
-                self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
-                self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
-                self.fiscal_settings.aliquota_iva.aliquota_iva_minima
-            ]
-
-            accounts = self.account_controller.retrieve_accounts_map_list()
-
-            users = self.user_controller.retrieve_users_map_list()
+            users = self.user_query_service.retrieve_users_map_list()
 
             # Campi modificabili
             fields = [
                 ('amount', 'Importo:', 'entry', float),
-                ('supplier', 'Fornitore:', 'dropdown', [supplier[DBSuppliersColumns.NAME.value] for supplier in suppliers_map_list]),
-                ('category', 'Categoria:', 'dropdown', [value for key, value in self.catalogo_elenchi["expenses_category"]]),
-                ('iva', 'IVA:', 'dropdown', [str(aliquota) for aliquota in aliquote_list]),
+                ('supplier', 'Fornitore:', 'dropdown', self._get_recurring_supplier_values()),
+                ('category', 'Categoria:', 'dropdown', self._get_recurring_category_values()),
+                ('iva', 'IVA:', 'dropdown', self._get_recurring_iva_values()),
                 ('deductor', 'Deduzione a\ncarico di:', 'dropdown', [user[DBUsersColumns.FIRST_NAME.value] + " " + user[DBUsersColumns.LAST_NAME.value] for user in users]),
                 ('account', 'Conto:', 'dropdown', [account[DBAccountsColumns.NAME.value] for account in accounts]),
-                ('frequency', 'Frequenza:', 'dropdown', [freq.value for freq in ExpenseController.RecurringExpensesFrequencies])
+                ('frequency', 'Frequenza:', 'dropdown', [freq.value for freq in RecurringExpensesFrequencies])
             ]
 
             for field, label_text, field_type, options in fields:
@@ -921,21 +1601,29 @@ class MainWindow(ctk.CTk):
                     widget = ctk.CTkEntry(frame, font=self.entry_font)
                     widget.insert(0, str(getattr(expense, field)))
                 elif field_type == 'dropdown':
-                    # per la categoria, aggiungo l'opzione ADD e il command
-                    if field == 'category':
-                        widget = ctk.CTkOptionMenu(
-                            master=frame,
-                            values=options,
-                            font=self.entry_font,
-                            dropdown_font=self.entry_font,
-                            command=lambda sel, ek=expense_key: self.open_add_expense_category(ek, sel)
+                    if field == 'supplier':
+                        widget = FilterableComboBox(
+                            parent=frame,
+                            placeholder="Cerca",
+                            autofill=True,
+                            values=options
                         )
-                        # imposto valore corrente
                         current = getattr(expense, field)
-                        widget.set(current if current in options else options[0])
+                        widget.set_value(current, safe_mode=False)
+                    elif field == 'category':
+                        widget = CatalogFilterableComboBox(
+                            parent=frame,
+                            placeholder="Cerca",
+                            autofill=True,
+                            values=options,
+                            add_button_text="Aggiungi categoria",
+                            add_button_command=lambda ek=expense_key: self.open_add_expense_category(ek)
+                        )
+                        current = getattr(expense, field)
+                        widget.set_value(current if current in options else (options[0] if options else ""), safe_mode=False)
                     elif field == "deductor":
                         current_id = getattr(expense, field)
-                        current_deductor = self.user_controller.retrieve_user_map_by_id(current_id)
+                        current_deductor = self.user_query_service.retrieve_user_map_by_id(current_id)
                         widget = ctk.CTkOptionMenu(
                             master=frame,
                             values=options,
@@ -996,9 +1684,9 @@ class MainWindow(ctk.CTk):
                 radio_frame = ctk.CTkFrame(frame)
                 radio_frame.pack(side="left", fill="x", expand=True)
 
-                var = ctk.StringVar(value=ExpenseController.RecurringExpensesStatus.ATTIVA.value if getattr(expense, field) else ExpenseController.RecurringExpensesStatus.SOSPESA.value)
+                var = ctk.StringVar(value=RecurringExpensesStatus.ATTIVA.value if getattr(expense, field) else RecurringExpensesStatus.SOSPESA.value)
 
-                for option in [stati.value for stati in ExpenseController.RecurringExpensesStatus]:
+                for option in [stati.value for stati in RecurringExpensesStatus]:
                     rb = ctk.CTkRadioButton(
                         radio_frame,
                         text=option,
@@ -1027,9 +1715,9 @@ class MainWindow(ctk.CTk):
 
             deductible = widgets["deductible"].get()
 
-            deductor_name = widgets["deductor"].get()
-            deductor = self.user_controller.retrieve_user_map_by_extended_name(deductor_name)
-            deductor_id = deductor[DBUsersColumns.ID.value]
+            deductor_name = self._get_recurring_widget_value(widgets["deductor"])
+            deductor = self.user_query_service.retrieve_user_map_by_extended_name(deductor_name) if deductible == "Sì" else None
+            deductor_id = deductor[DBUsersColumns.ID.value] if deductor is not None else None
 
             # Se è la tab “Nuova Spesa”, creo un nuovo key
             if expense_key == "Nuova Spesa":
@@ -1046,15 +1734,15 @@ class MainWindow(ctk.CTk):
                 # campi basati sui widget della nuova tab
                 fields = {
                     "description": description,
-                    "amount": widgets["amount"].get(),
-                    "supplier": widgets["supplier"].get(),
+                    "amount": self._get_recurring_widget_value(widgets["amount"]),
+                    "supplier": self._get_recurring_widget_value(widgets["supplier"]),
                     "deductible": widgets["deductible"].get(),
-                    "category": widgets["category"].get(),
+                    "category": self._get_recurring_widget_value(widgets["category"]),
                     "deductor": deductor_id if deductible == "Sì" else None,
-                    "iva": widgets["iva"].get(),
-                    "account": widgets["account"].get(),
-                    "frequency": widgets["frequency"].get(),
-                    "status": widgets["status"].get(),
+                    "iva": self._get_recurring_widget_value(widgets["iva"]),
+                    "account": self._get_recurring_widget_value(widgets["account"]),
+                    "frequency": self._get_recurring_widget_value(widgets["frequency"]),
+                    "status": self._get_recurring_widget_value(widgets["status"]),
                 }
                 new_data[new_key] = fields
 
@@ -1063,15 +1751,15 @@ class MainWindow(ctk.CTk):
                 desc = self.recurring_expenses_settings[expense_key].description
                 fields = {
                     "description": desc,
-                    "amount": widgets["amount"].get(),
-                    "supplier": widgets["supplier"].get(),
+                    "amount": self._get_recurring_widget_value(widgets["amount"]),
+                    "supplier": self._get_recurring_widget_value(widgets["supplier"]),
                     "deductible": widgets["deductible"].get(),
-                    "category": widgets["category"].get(),
+                    "category": self._get_recurring_widget_value(widgets["category"]),
                     "deductor": deductor_id if deductible == "Sì" else None,
-                    "iva": widgets["iva"].get(),
-                    "account": widgets["account"].get(),
-                    "frequency": widgets["frequency"].get(),
-                    "status": widgets["status"].get(),
+                    "iva": self._get_recurring_widget_value(widgets["iva"]),
+                    "account": self._get_recurring_widget_value(widgets["account"]),
+                    "frequency": self._get_recurring_widget_value(widgets["frequency"]),
+                    "status": self._get_recurring_widget_value(widgets["status"]),
                 }
                 new_data[expense_key] = fields
 
@@ -1090,30 +1778,26 @@ class MainWindow(ctk.CTk):
                 message=f"Salvataggio fallito: {str(e)}"
             )
 
-    def open_add_expense_category(self, expense_key, selected_value):
-        sector_dict = dict(self.catalogo_elenchi["expenses_category"])
-        if selected_value == sector_dict.get("ADD_CATEGORY"):
-            self.current_expense_for_category = expense_key
-            self.add_category_window = ctk.CTkToplevel(self)
-            self.add_category_window.title("Aggiungi una nuova categoria di spesa")
+    def open_add_expense_category(self, expense_key):
+        self.current_expense_for_category = expense_key
+        self.add_category_window = ctk.CTkToplevel(self)
+        self.add_category_window.title("Aggiungi una nuova categoria di spesa")
 
-            # Assicurati che la finestra rimanga sopra
-            self.add_category_window.lift()  # Porta la finestra sopra quella principale
-            self.add_category_window.grab_set()  # Rende la finestra modale (bloccando l'interazione con la finestra principale)
+        # Assicurati che la finestra rimanga sopra
+        self.add_category_window.lift()
+        self.add_category_window.grab_set()
 
-            self.add_category_window.geometry("400x300")
+        self.add_category_window.geometry("400x300")
 
-            self.expense_category_window_Frame = ctk.CTkFrame(self.add_category_window)
-            self.expense_category_window_Frame.pack(fill="both", expand=True)
+        self.expense_category_window_Frame = ctk.CTkFrame(self.add_category_window)
+        self.expense_category_window_Frame.pack(fill="both", expand=True)
 
-            ctk.CTkLabel(self.expense_category_window_Frame, text="Aggiungi una caategoria di spesa alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
+        ctk.CTkLabel(self.expense_category_window_Frame, text="Aggiungi una caategoria di spesa alla lista\nsepara parole diverse solo tramite spazio").pack(padx=10, pady=(25, 0))
 
-            self.add_category_entry = ctk.CTkEntry(self.expense_category_window_Frame)
-            self.add_category_entry.pack(padx=10, pady=5, fill="x", expand=True)
+        self.add_category_entry = ctk.CTkEntry(self.expense_category_window_Frame)
+        self.add_category_entry.pack(padx=10, pady=5, fill="x", expand=True)
 
-            ctk.CTkButton(self.expense_category_window_Frame, text="Aggiungi una categoria", command=self.save_expense_category).pack(padx=10, pady=(15, 10))
-
-        else: return
+        ctk.CTkButton(self.expense_category_window_Frame, text="Aggiungi una categoria", command=self.save_expense_category).pack(padx=10, pady=(15, 10))
 
     def save_expense_category(self):
         new_category = self.add_category_entry.get()
@@ -1125,8 +1809,11 @@ class MainWindow(ctk.CTk):
             return
 
         widget = self.expense_widgets[self.current_expense_for_category]["category"]
-        widget.configure(values=widget._values + [new_category])  # aggiorno la lista delle opzioni
-        widget.set(new_category)
+        updated_values = list(widget.all_values)
+        if new_category not in updated_values:
+            updated_values.append(new_category)
+        widget.set_values(updated_values, preserve_current=False)
+        widget.set_value(new_category, safe_mode=False)
         self.add_category_window.destroy()
 
     def add_recurring_expenses(self):
@@ -1142,25 +1829,15 @@ class MainWindow(ctk.CTk):
         expense_key = tab_name
         self.expense_widgets[expense_key] = {}
 
-        # Prepara i valori per dropdown
-        suppliers_map_list = self.supplier_controller.retrieve_suppliers_map_list()
-        suppliers_opts = [s[DBSuppliersColumns.NAME.value] for s in suppliers_map_list]
-
-        aliquote_list = [
-            self.fiscal_settings.aliquota_iva.aliquota_iva_ordinaria,
-            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_1,
-            self.fiscal_settings.aliquota_iva.aliquota_iva_ridotta_2,
-            self.fiscal_settings.aliquota_iva.aliquota_iva_minima
-        ]
-        iva_opts = [str(a) for a in aliquote_list]
-
-        accounts = self.account_controller.retrieve_accounts_map_list()
+        accounts = self.account_query_service.retrieve_accounts_map_list()
         account_opts = [a[DBAccountsColumns.NAME.value] for a in accounts]
 
-        category_opts = [v for _, v in self.catalogo_elenchi["expenses_category"]]
-        freq_opts = [f.value for f in ExpenseController.RecurringExpensesFrequencies]
+        suppliers_opts = self._get_recurring_supplier_values()
+        iva_opts = self._get_recurring_iva_values()
+        category_opts = self._get_recurring_category_values()
+        freq_opts = [f.value for f in RecurringExpensesFrequencies]
 
-        users = self.user_controller.retrieve_users_map_list()
+        users = self.user_query_service.retrieve_users_map_list()
 
         # Definizione dei campi, con type e options
         fields = [
@@ -1174,7 +1851,7 @@ class MainWindow(ctk.CTk):
             ('account', 'Conto:', 'dropdown', account_opts),
             ('frequency', 'Frequenza:', 'dropdown', freq_opts),
             ('deductible', 'Deducibile:', 'radio', ["Sì", "No"]),
-            ('status', 'Stato:', 'radio', [st.value for st in ExpenseController.RecurringExpensesStatus]),
+            ('status', 'Stato:', 'radio', [st.value for st in RecurringExpensesStatus]),
         ]
 
         for field, label_text, field_type, options in fields:
@@ -1190,13 +1867,30 @@ class MainWindow(ctk.CTk):
                 # vuoto di default
             # Dropdown
             elif field_type == 'dropdown':
-                widget = ctk.CTkOptionMenu(
-                    master=frame,
-                    values=options,
-                    font=self.entry_font,
-                    dropdown_font=self.entry_font
-                )
-                widget.set(options[0] if options else "")
+                if field == "supplier":
+                    widget = FilterableComboBox(
+                        parent=frame,
+                        placeholder="Cerca",
+                        autofill=True,
+                        values=options
+                    )
+                elif field == "category":
+                    widget = CatalogFilterableComboBox(
+                        parent=frame,
+                        placeholder="Cerca",
+                        autofill=True,
+                        values=options,
+                        add_button_text="Aggiungi categoria",
+                        add_button_command=lambda ek=expense_key: self.open_add_expense_category(ek)
+                    )
+                else:
+                    widget = ctk.CTkOptionMenu(
+                        master=frame,
+                        values=options,
+                        font=self.entry_font,
+                        dropdown_font=self.entry_font
+                    )
+                    widget.set(options[0] if options else "")
             # Radio
             else:  # 'radio'
                 var = ctk.StringVar(value=options[0] if options else "")
@@ -1218,17 +1912,162 @@ class MainWindow(ctk.CTk):
             self.expense_widgets[expense_key][field] = widget
 
 
+    #funzioni per la chiusura dell'esercizio contabile
+    def open_fiscal_year_closer_window(self):
+        """Apre una finestra per gestire la chiusura dell'anno contabile."""
 
-class EventBus:
-    def __init__(self):
-        self.subscribers = {}
+        #controllo sul mese in cui si tenta di fare chiusura contabile
+        today_month = datetime.today().month
+        if today_month <= 11 and today_month >= 3:
+            ViewUtils.show_error_popup(self, title="", message="Impossibile eseguire la chiusura del corrente esercizio tra marzo e novembre")
+            return
 
-    def subscribe(self, event_type, handler):
-        if event_type not in self.subscribers:
-            self.subscribers[event_type] = []
-        self.subscribers[event_type].append(handler)
+        # Crea la finestra di dialogo
+        self.fiscal_year_closer_window = ctk.CTkToplevel(self)
+        self.fiscal_year_closer_window.title("Chiusura anno contabile")
+        self.fiscal_year_closer_window.lift()
+        self.fiscal_year_closer_window.grab_set()
 
-    def publish(self, event_type, data):
-        if event_type in self.subscribers:
-            for handler in self.subscribers[event_type]:
-                handler(data)
+        # ---------- helper function -----------
+        def determine_current_exercise_year() -> int:
+            """
+            Determina l'anno dell'esercizio corrente in base alla data odierna.
+            Se siamo a dicembre: anno corrente
+            Se siamo a gennaio o febbraio: anno precedente
+            Altrimenti: anno corrente
+            """
+            now = datetime.now()
+            current_month = now.month
+
+            if current_month == 12:  # Dicembre
+                return now.year
+            elif current_month in [1, 2]:  # Gennaio o Febbraio
+                return now.year - 1
+            else:  # Marzo-Novembre
+                # Per sicurezza usiamo l'anno precedente se siamo nei primi mesi
+                # ma non gennaio/febbraio (questa logica può essere modificata)
+                return now.year
+
+        # ---------- Frame principale ----------
+        self.current_exercise_year = determine_current_exercise_year()
+        main_frame = ctk.CTkFrame(self.fiscal_year_closer_window, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=12, pady=12)
+
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text=f"Stai per eseguire la chiusura dell'anno fiscale {self.current_exercise_year}.",
+            anchor="w",
+            font=("Segoe UI", 18, "bold")
+        )
+        title_label.pack(fill="x", pady=(0, 10), padx=5)
+
+        description_label_1 = ctk.CTkLabel(
+            main_frame,
+            text="Quest'operazione comporta:\n\n"
+                 "- esportazione dei dati aggregati annuali su file .csv\n"
+                 "- esportazione dei dati aggregati mensili su file .csv\n"
+                 "- salvataggio e aggiornamento del saldo dei conti al 31/12\n"
+                 "- esportazione del'elenco dei movimenti bancari su file .csv\n",
+            justify="left",
+            anchor="w",
+            font=("Segoe UI", 15)
+        )
+        description_label_1.pack(fill="x", pady=(15, 15), padx=5)
+
+        description_label_2 = ctk.CTkLabel(
+            main_frame,
+            text="A PARTIRE DAL 01/12 ed indipendentemente dall'avvenuta chiusura contabile dell'anno:\n\n"
+                 "- non sarà più possibile modificare i campi di oggetti relativi all'anno contabile passato\n"
+                 "- l'interfaccia mostrerà solo i dati relativi al nuovo esercizio contabile\n"
+                 "- il database in backend rimarrà sempre lo stesso, contenente tutti i campi inseriti, \n di tutti gli anni contabili\n"
+                 "- sarà possibile visualizzare i vecchi esercizi contabili tramite un software \n di time machine per la sola lettura/consultazione\n"
+                 "- i dati aggregati esportati saranno utilizzati per il plotting dell'andamento nella tab apposita\n"
+                 "- NON SPOSTARE I FILE DEI DATI ESPORTATI DALLA LORO CARTELLA\n",
+            justify="left",
+            anchor="w",
+            font=("Segoe UI", 15)
+        )
+        description_label_2.pack(fill="x", pady=(15, 10), padx=5)
+
+        ctk.CTkLabel(main_frame, text="Desideri continuare?", font=("Segoe UI", 16, "bold")).pack(fill="x", pady=(15, 15), padx=5)
+        ctk.CTkButton(main_frame, text="Non ora", command=lambda: self.fiscal_year_closer_window.destroy(), fg_color="gray").pack(
+            fill="x", pady=(15, 20), padx=55, side="left")
+        ctk.CTkButton(main_frame, text="Avanti", command=self.close_fiscal_year).pack(fill="x", pady=(15, 20), padx=(0, 55), side="right")
+
+
+
+    def close_fiscal_year(self):
+        book_closer = self.app_context.book_closer
+        book_closer.set_current_exercise_year(self.current_exercise_year)
+
+        # Lista delle operazioni con descrizioni
+        operations = [
+            ("Esportazione movimenti bancari", book_closer.export_accounts_movements),
+            ("Aggiornamento dati finanziari storici", book_closer.update_historical_financial_data),
+            ("Esportazione dati annuali aggregati", book_closer.export_annual_data),
+            ("Esportazione dati mensili aggregati", book_closer.export_monthly_data),
+            ("Esportazione dati IVA aggregati", book_closer.export_trimestral_iva_data),
+            ("Esportazione dati TASSE aggregati", book_closer.export_tax_data),
+            ("Impoprtazione saldi bancari iniziali", book_closer.import_initial_balances)
+        ]
+
+        results = []
+
+        # Esegui ogni operazione e cattura il risultato
+        for description, operation in operations:
+            try:
+                # Esegui l'operazione
+                result = operation()
+
+                # Considera l'operazione riuscita se:
+                # 1. Non ci sono state eccezioni
+                # 2. Per export_accounts_movements: deve restituire un percorso (non None)
+                if description == "Esportazione movimenti bancari" and result is None:
+                    results.append((description, False, "Restituito None"))
+                else:
+                    results.append((description, True, "Successo"))
+
+            except Exception as e:
+                results.append((description, False, str(e)))
+
+        # Calcola statistiche
+        success_count = sum(1 for _, success, _ in results if success)
+        total_count = len(results)
+
+        # Mostra popup riepilogativo finale
+        if success_count == total_count:
+            # Crea messaggio dettagliato con risultati
+            details = "\n".join([
+                f"✓ {desc}" if success else f"✗ {desc}: {msg}"
+                for desc, success, msg in results
+            ])
+
+            ViewUtils.show_confirm_popup(
+                self.fiscal_year_closer_window,
+                f"Chiusura esercizio completata ({success_count}/{total_count})",
+                f"Operazioni completate:\n\n{details}"
+            )
+        else:
+            # Crea messaggio dettagliato con risultati
+            details = "\n".join([
+                f"✓ {desc}" if success else f"✗ {desc}: {msg}"
+                for desc, success, msg in results
+            ])
+
+            ViewUtils.show_error_popup(
+                self.fiscal_year_closer_window,
+                f"Chiusura esercizio parziale ({success_count}/{total_count})",
+                f"Operazioni completate:\n\n{details}"
+            )
+
+        # Stampa log dettagliato nella console
+        print("\n" + "=" * 60)
+        print("RIEPILOGO CHIUSURA ESERCIZIO")
+        print("=" * 60)
+        for desc, success, msg in results:
+            status = "✓ SUCCESSO" if success else "✗ FALLITO"
+            print(f"{status}: {desc}")
+            if not success and msg:
+                print(f"  Motivo: {msg}")
+        print("=" * 60)
+        print(f"Operazioni completate con successo: {success_count}/{total_count}")

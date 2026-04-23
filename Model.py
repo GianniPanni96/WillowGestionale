@@ -3,17 +3,13 @@ import os
 from enum import Enum
 import shutil
 from datetime import datetime, timedelta
+from Utils.App_paths import get_runtime_paths
 
 # Nome della variabile d'ambiente
 DB_PATH_ENV_VAR = "GESTIONALE_DB_PATH"
 
 # Ottieni il percorso del database dalla variabile d'ambiente
-db_path = os.environ.get(DB_PATH_ENV_VAR)
-
-if not db_path:
-    raise EnvironmentError(f"La variabile d'ambiente {DB_PATH_ENV_VAR} non è stata configurata.")
-
-db_path = os.path.join(db_path, "gestionale.db")
+db_path = str(get_runtime_paths().db_file)
 
 
 
@@ -34,6 +30,7 @@ class DBUsersColumns(Enum):
     PROVIDER_FATTURE = "provider_fatture"
     USERNAME_PROVIDER = "username_provider"
     PASSWORD_PROVIDER = "password_provider"
+    PASSWORD_LOGIN = "password_login"
     STATUS = "status"
     LAST_YEAR_IRPEF_ACCONTO = "acconto_irpef"
     LAST_YEAR_INPS_ACCONTO = "acconto_inps"
@@ -1001,28 +998,41 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchall()
 
-    def sum_payments_by_account(self, account_id: int) -> float:
+    def sum_payments_by_account(self, account_id: int, year: int) -> float:
         """
         Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
 
-        :param account_id: l'ID del conto (DBAccountsColumns.ID)
+        :param account_id: ID del conto (DBAccountsColumns.ID)
+        :param year:
+            - -1 → somma tutti i pagamenti
+            - altro int → somma solo i pagamenti con PAYMENT_DATE nell'anno indicato
         :return: somma (float), 0.0 se non ci sono pagamenti
         """
-        # Nome colonna importo e colonna conto
         amt_col = DBPaymentsColumns.PAYMENT_AMOUNT.value
         conto_col = DBPaymentsColumns.CONTO_ID.value
+        date_col = DBPaymentsColumns.PAYMENT_DATE.value
+
+        params = [account_id]
 
         query = f"""
-        SELECT SUM({amt_col})
-        FROM payments
-        WHERE {conto_col} = ?
+            SELECT SUM({amt_col})
+            FROM payments
+            WHERE {conto_col} = ?
         """
+
+        # Applica filtro per anno solo se richiesto
+        if year != -1:
+            query += f"""
+                AND strftime('%Y', {date_col}) = ?
+            """
+            params.append(str(year))
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute(query, (account_id,))
+            cur.execute(query, params)
             result = cur.fetchone()[0]
-            return result if result is not None else 0.0
+
+        return float(result) if result is not None else 0.0
 
     def delete_payment(self, payment_id):
         """
@@ -1219,24 +1229,40 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchall()
 
-    def sum_refunds_by_account(self, account_id: int) -> float:
+    def sum_refunds_by_account(self, account_id: int, year: int) -> float:
         """
         Restituisce la somma degli importi dei rimborsi effettuati su uno specifico conto.
+
+        :param account_id: ID del conto
+        :param year:
+            - -1 → somma tutti i rimborsi
+            - altro int → somma solo i rimborsi dell'anno indicato
+        :return: somma (float), 0.0 se non ci sono rimborsi
         """
         amt_col = DBRefundsColumns.REFUND_AMOUNT.value
         conto_col = DBRefundsColumns.CONTO_ID.value
+        date_col = DBRefundsColumns.REFUND_DATE.value
+
+        params = [account_id]
 
         query = f"""
-        SELECT SUM({amt_col})
-        FROM refunds
-        WHERE {conto_col} = ?
+            SELECT SUM({amt_col})
+            FROM refunds
+            WHERE {conto_col} = ?
         """
+
+        if year != -1:
+            query += f"""
+                AND strftime('%Y', {date_col}) = ?
+            """
+            params.append(str(year))
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute(query, (account_id,))
+            cur.execute(query, params)
             result = cur.fetchone()[0]
-            return result if result is not None else 0.0
+
+        return float(result) if result is not None else 0.0
 
     @staticmethod
     def _fetch_recent_refunds(db_model, months=12):
@@ -1395,33 +1421,41 @@ class DatabaseModel:
             cursor.execute(query)
             return cursor.fetchone()
 
-    def sum_expenses_by_account(self, account_id: int) -> float:
+    def sum_expenses_by_account(self, account_id: int, year: int) -> float:
         """
-        Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
+        Restituisce la somma degli importi delle spese associate a uno specifico conto.
 
-        :param account_id: l'ID del conto (DBAccountsColumns.ID)
-        :return: somma (float), 0.0 se non ci sono pagamenti
+        :param account_id: ID del conto (DBAccountsColumns.ID)
+        :param year:
+            - -1 → somma tutte le spese
+            - altro int → somma solo le spese con DATE nell'anno indicato
+        :return: somma (float), 0.0 se non ci sono spese
         """
-        # Nome colonna importo e colonna conto
         amt_col = DBExpensesColumns.TOT_AMOUNT.value
         conto_col = DBExpensesColumns.ACCOUNT_ID.value
+        date_col = DBExpensesColumns.DATE.value
+
+        params = [account_id]
 
         query = f"""
-        SELECT SUM({amt_col})
-        FROM expenses
-        WHERE {conto_col} = ?
+            SELECT SUM({amt_col})
+            FROM expenses
+            WHERE {conto_col} = ?
         """
+
+        # Filtro per anno solo se richiesto
+        if year != -1:
+            query += f"""
+                AND strftime('%Y', {date_col}) = ?
+            """
+            params.append(str(year))
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute(query, (account_id,))
+            cur.execute(query, params)
             result = cur.fetchone()[0]
-            return result if result is not None else 0.0
 
-
-
-
-
+        return float(result) if result is not None else 0.0
 
     def fetch_suppliers(self):
         """Recupera tutti i suppliers."""
@@ -2111,87 +2145,41 @@ class DatabaseModel:
             cur.execute(query, (user_id,))
             return cur.fetchall()
 
-    def sum_salaries_by_account(self, account_id: int) -> float:
+    def sum_salaries_by_account(self, account_id: int, year: int) -> float:
         """
-        Restituisce la somma degli importi dei pagamenti effettuati su uno specifico conto.
+        Restituisce la somma degli importi dei versamenti-salario associati a uno specifico conto.
 
-        :param account_id: l'ID del conto (DBAccountsColumns.ID)
-        :return: somma (float), 0.0 se non ci sono pagamenti
+        :param account_id: ID del conto (DBAccountsColumns.ID)
+        :param year:
+            - -1 → somma tutti i versamenti
+            - altro int → somma solo i versamenti dell'anno indicato
+        :return: somma (float), 0.0 se non ci sono versamenti
         """
-        # Nome colonna importo e colonna conto
         amt_col = DBSalariesColumns.AMOUNT.value
         conto_col = DBSalariesColumns.ACCOUNT_ID.value
+        date_col = DBSalariesColumns.DATE.value
+
+        params = [account_id]
 
         query = f"""
-        SELECT SUM({amt_col})
-        FROM salaries
-        WHERE {conto_col} = ?
+            SELECT SUM({amt_col})
+            FROM salaries
+            WHERE {conto_col} = ?
         """
+
+        if year != -1:
+            query += f"""
+                AND strftime('%Y', {date_col}) = ?
+            """
+            params.append(str(year))
 
         with self._connect() as conn:
             cur = conn.cursor()
-            cur.execute(query, (account_id,))
+            cur.execute(query, params)
             result = cur.fetchone()[0]
-            return result if result is not None else 0.0
+
+        return float(result) if result is not None else 0.0
 
 
 
-
-
-
-    @staticmethod
-    def backup_gestionale_db(n, backup_base_path, delta_days):
-        """
-        Esegue il backup del database gestionale con una logica FIFO per mantenere un numero massimo di n backup
-        in cartelle organizzate per intervallo di tempo.
-
-        :param n: Numero massimo di backup da conservare per intervallo.
-        :param backup_base_path: Path base dove salvare i backup.
-        :param delta_days: Intervallo di tempo in giorni per organizzare le cartelle dei backup.
-        """
-
-        # Recupera il percorso del DB tramite la variabile di ambiente
-        db_path = os.getenv("GESTIONALE_DB_PATH")
-        if not db_path:
-            print("Errore: variabile di ambiente GESTIONALE_DB_PATH non definita.")
-            return
-
-        # Verifica che il file gestionale.db esista
-        db_file = os.path.join(db_path, "gestionale.db")
-        if not os.path.exists(db_file):
-            print(f"Errore: Il file {db_file} non esiste.")
-            return
-
-        # Verifica o crea la cartella base dei backup
-        if not os.path.exists(backup_base_path):
-            os.makedirs(backup_base_path)
-
-        # Determina l'intervallo di tempo corrente e il nome della sottocartella
-        now = datetime.now()
-        start_interval = now - timedelta(days=now.day % delta_days)
-        folder_name = f"{start_interval.strftime('%Y%m%d')}_to_{(start_interval + timedelta(days=delta_days)).strftime('%Y%m%d')}"
-        interval_folder = os.path.join(backup_base_path, folder_name)
-
-        # Verifica o crea la cartella per l'intervallo corrente
-        if not os.path.exists(interval_folder):
-            os.makedirs(interval_folder)
-
-        # Crea il nome del file di backup basato sulla data e ora correnti
-        backup_filename = f"gestionale_data_{now.strftime('%Y%m%d_%H%M%S')}.db"
-        backup_filepath = os.path.join(interval_folder, backup_filename)
-
-        # Copia il database nella cartella dell'intervallo corrente
-        shutil.copy2(db_file, backup_filepath)
-
-        # Ottieni una lista dei file di backup nella cartella dell'intervallo corrente
-        backups = [f for f in os.listdir(interval_folder) if f.endswith(".db")]
-        backups.sort(
-            key=lambda x: os.path.getctime(os.path.join(interval_folder, x)))  # Ordina i file per data di creazione
-
-        # Se il numero di backup è maggiore o uguale a n, elimina i più vecchi
-        while len(backups) > n:
-            oldest_backup = backups.pop(0)
-            os.remove(os.path.join(interval_folder, oldest_backup))  # Rimuove il backup più vecchio
-
-        print(f"Backup creato: {backup_filepath}")
 

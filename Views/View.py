@@ -375,6 +375,7 @@ class MainWindow(ctk.CTk):
         self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL, self._handle_show_payment_detail)
         self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_REFUND_DETAIL, self._handle_show_refund_detail)
         self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL, self._handle_show_expense_detail)
+        self.event_bus.subscribe(ViewUtils.EventBusKeys.SHOW_ACCOUNT_TAB, self._handle_show_account_tab)
 
 
 
@@ -533,6 +534,10 @@ class MainWindow(ctk.CTk):
         else:
             # Se ancora non caricata, riprova dopo un altro breve ritardo
             self.after(100, lambda: self._forward_to_expense_detail(expense_id))
+
+    def _handle_show_account_tab(self, data):
+        """Gestisce la navigazione verso la tab Conti senza aprire dettagli"""
+        self._switch_to_tab("Conti")
 
 
 

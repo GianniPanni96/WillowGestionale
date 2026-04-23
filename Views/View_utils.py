@@ -39,6 +39,7 @@ class ViewUtils(ctk.CTk):
         SHOW_EXPENSE_DETAIL = "SHOW_EXPENSE_DETAIL"
         SHOW_PAYMENT_DETAIL = "SHOW_PAYMENT_DETAIL"
         LOGIN_STATUS_CHANGED = "LOGIN_STATUS_CHANGED"
+        SHOW_ACCOUNT_TAB = "SHOW_ACCOUNT_TAB"
 
     date_pattern = "yyyy-mm-dd"
 

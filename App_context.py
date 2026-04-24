@@ -10,6 +10,7 @@ from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from AnalyzerServices.Transfer_analyzer_service import TransferAnalyzerService
 from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
+from AnalyzerServices.Report_breakdown_analyzer_service import ReportBreakdownAnalyzerService
 
 from AnalyzerServices.Monthly_report_analyzer_service import MonthlyReportAnalyzerService
 from Updates_controller import UpdatesController
@@ -180,6 +181,16 @@ class AppContext:
                                  self.expenses_query_service,
                                  self.salary_query_service,
                                  self.refunds_query_service)
+        self.report_breakdown_analyzer_service: ReportBreakdownAnalyzerService = ReportBreakdownAnalyzerService(
+                                 self.invoices_query_service,
+                                 self.productions_query_service,
+                                 self.clients_query_service,
+                                 self.expenses_query_service,
+                                 self.suppliers_query_service,
+                                 self.salary_query_service,
+                                 self.refunds_query_service,
+                                 self.account_query_service,
+                                 self.account_analyzer_service)
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager:ConfigManager = config_manager
         self.event_bus:EventBus = EventBus()

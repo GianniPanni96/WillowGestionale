@@ -115,8 +115,33 @@ class UsersView(ctk.CTkFrame):
         self.user_detail_view.pack(fill='both', expand=True)
         self.user_detail_view.create_detail_tab(user_id)  # Ricrea i contenuti ogni volta
 
+    def _show_no_accounts_error(self):
+        popup = ctk.CTkToplevel(self)
+        popup.title("Errore")
+        popup.geometry("420x160")
+        popup.grab_set()
+        popup.lift()
+
+        def on_close():
+            popup.destroy()
+            self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_ACCOUNT_TAB, None)
+
+        popup.protocol("WM_DELETE_WINDOW", on_close)
+
+        ctk.CTkLabel(
+            popup,
+            text="Prima di creare un utente è necessario\ncrecare almeno un conto corrente.",
+            wraplength=370,
+            font=("Arial", 14)
+        ).pack(pady=(30, 10))
+        ctk.CTkButton(popup, text="Chiudi", command=on_close).pack(pady=(10, 20))
+
     def open_add_user_window(self):
         """Apre una finestra per aggiungere un nuovo utente"""
+
+        if len(self.accounts_query_service.retrieve_accounts_map_list()) == 0:
+            self._show_no_accounts_error()
+            return
 
         self.add_user_window = ctk.CTkToplevel(self)
         self.add_user_window.title("Aggiungi Nuovo Utente")

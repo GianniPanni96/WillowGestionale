@@ -9,6 +9,7 @@ from Gestionale_Enums import (
     DBSuppliersColumns,
     DBSalariesColumns,
     DBRefundsColumns,
+    DBPaymentsColumns,
 )
 from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from QueryServices.Account_query_service import AccountQueryService
@@ -173,10 +174,41 @@ class ReportBreakdownAnalyzerService:
         )
         invoices = ControllerUtils.clear_invoices_list_from_NDC_and_stornate(invoices)
 
+        # 1. Recupero pagamenti per calcolo Crediti VS Incassato
+        all_payments = self.invoices_query_service.db_model.fetch_payments()
+        payments_by_invoice = {}
+        for p in all_payments:
+            p_map = ControllerUtils.row_to_map(p, DBPaymentsColumns)
+            inv_id = p_map[DBPaymentsColumns.INVOICE_ID.value]
+            payments_by_invoice.setdefault(inv_id, []).append(p_map)
+
+        total_collected = 0.0
+        total_credits = 0.0
+
         for invoice in invoices:
             invoice_amount = self._calculate_invoice_revenue(invoice)
             if invoice_amount <= 0:
                 continue
+
+            # Calcolo Crediti VS Incassato per la singola fattura
+            invoice_id = invoice.get(DBInvoicesColumns.ID.value)
+            num_rate = int(invoice.get(DBInvoicesColumns.NUMERO_RATE.value) or 1)
+            payments = payments_by_invoice.get(invoice_id, [])
+            paid_rates = {p.get(DBPaymentsColumns.LINKED_RATA.value) for p in payments}
+
+            if num_rate == 1:
+                if 1 in paid_rates:
+                    total_collected += invoice_amount
+                else:
+                    total_credits += invoice_amount
+            else:
+                # Distribuzione proporzionale dell'imponibile sulle rate
+                amount_per_rata = invoice_amount / num_rate
+                for r in range(1, num_rate + 1):
+                    if r in paid_rates:
+                        total_collected += amount_per_rata
+                    else:
+                        total_credits += amount_per_rata
 
             production = productions_by_id.get(invoice.get(DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value))
 
@@ -206,6 +238,10 @@ class ReportBreakdownAnalyzerService:
             "by_production_type": self._sorted_items(revenue_by_production_type),
             "by_output_type": self._sorted_items(revenue_by_output_type),
             "by_client_sector": self._sorted_items(revenue_by_client_sector),
+            "credits_vs_cached": [
+                {"label": "Incassato", "value": round(total_collected, 2)},
+                {"label": "Crediti", "value": round(total_credits, 2)},
+            ]
         }
 
     def _aggregate_expense_breakdowns(self, year: int, suppliers_by_id: dict) -> dict:

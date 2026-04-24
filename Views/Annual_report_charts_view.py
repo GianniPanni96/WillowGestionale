@@ -117,7 +117,12 @@ class AnnualReportChartsView(ctk.CTkFrame):
                     "Per settore del cliente associato",
                     breakdown_data["revenue"]["by_client_sector"],
                 ),
+                (
+                    "Crediti VS incassato",
+                    breakdown_data["revenue"]["credits_vs_cached"],
+                ),
             ],
+            cols=4
         )
 
         # Recuperiamo la soglia fiscale per il goal (1 - imponibile)

@@ -4,14 +4,13 @@ import os
 from ConfigManagers import ConfigManager, RecurringExpense, FiscalSettings, HistoricalFinancialData
 from Backup_manager import BackupScheduler, BackupImporter
 from App_context import AppContext
-from Utils.App_paths import DB_PATH_ENV_VAR, get_runtime_paths
+from Utils.App_paths import get_runtime_paths
 
 # Avvia l'applicazione
 if __name__ == "__main__":
 
     runtime_paths = get_runtime_paths()
     path = str(runtime_paths.storage_root)
-    os.environ[DB_PATH_ENV_VAR] = path
 
     db_path = str(runtime_paths.db_file)
     data_path = str(runtime_paths.data_dir)

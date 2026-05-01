@@ -10,6 +10,7 @@ from ConfigManagers.defaults import (
     clone_default_config,
 )
 from ConfigManagers.historical_financial_data_manager import normalize_historical_file_data
+from ConfigManagers.type_utils import merge_with_defaults
 from Utils.App_paths import DB_PATH_ENV_VAR, get_runtime_paths
 
 
@@ -26,33 +27,33 @@ def write_json_file(file_path: Path, payload: dict):
 
 def build_app_settings_payload(legacy_config: dict) -> dict:
     payload = clone_default_config(APP_SETTINGS_DEFAULT)
-    payload["backup_settings"] = legacy_config.get(
-        "backup_settings",
-        payload["backup_settings"],
+    return merge_with_defaults(
+        {"backup_settings": legacy_config.get("backup_settings", {})},
+        payload,
     )
-    return payload
 
 
 def build_fiscal_rules_payload(legacy_config: dict) -> dict:
     payload = clone_default_config(FISCAL_RULES_DEFAULT)
-    payload["fiscal_settings"] = legacy_config.get(
-        "fiscal_settings",
-        payload["fiscal_settings"],
+    return merge_with_defaults(
+        {"fiscal_settings": legacy_config.get("fiscal_settings", {})},
+        payload,
     )
-    return payload
 
 
 def build_catalogs_payload(legacy_config: dict) -> dict:
     payload = clone_default_config(CATALOGS_DEFAULT)
-    for key in payload.keys():
-        payload[key] = legacy_config.get(key, payload[key])
-    return payload
+    return merge_with_defaults(
+        {key: legacy_config.get(key, payload[key]) for key in payload.keys()},
+        payload,
+    )
 
 
 def build_recurring_expenses_payload(legacy_config: dict) -> dict:
-    return legacy_config.get(
-        "recurring_expenses",
-        clone_default_config(RECURRING_EXPENSES_DEFAULT),
+    payload = clone_default_config(RECURRING_EXPENSES_DEFAULT)
+    return merge_with_defaults(
+        {"recurring_expenses": legacy_config.get("recurring_expenses", {})},
+        payload,
     )
 
 

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import threading
 import os, re, json
 from typing import List, Dict, Tuple, Optional
+from ConfigManagers.type_utils import coerce_to_int
 from Utils.App_paths import get_runtime_paths
 
 
@@ -16,12 +17,13 @@ class BackupScheduler:
         :param db_backup_base_path: Cartella base dove salvare i backup.
         :param delta_days: Intervallo di giorni per suddividere i backup in sub‐cartelle.
         """
-        self.interval_seconds = interval_minutes * 60
-        self.max_backups = max_backups
+        self.interval_minutes = max(1, coerce_to_int(interval_minutes, 15))
+        self.interval_seconds = self.interval_minutes * 60
+        self.max_backups = max(1, coerce_to_int(max_backups, 35))
         self.db_backup_base_path = db_backup_base_path
         self.books_backup_path = books_backup_path
         self.books_default_path=books_default_path
-        self.delta_days = delta_days
+        self.delta_days = max(1, coerce_to_int(delta_days, 7))
 
         self.stop_event = threading.Event()
         self.backup_timer = None
@@ -98,6 +100,8 @@ class BackupScheduler:
         max_backups = max_backups if max_backups is not None else self.max_backups
         db_backup_base_path = db_backup_base_path if db_backup_base_path is not None else self.db_backup_base_path
         delta_days = delta_days if delta_days is not None else self.delta_days
+        max_backups = max(1, coerce_to_int(max_backups, self.max_backups))
+        delta_days = max(1, coerce_to_int(delta_days, self.delta_days))
 
 
         runtime_paths = get_runtime_paths()

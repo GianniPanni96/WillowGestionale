@@ -21,7 +21,7 @@ class ConfigManager:
         config.update(self.app_settings_manager.load())
         config.update(self.fiscal_rules_manager.load())
         config.update(self.catalogs_manager.load())
-        config["recurring_expenses"] = self.recurring_expenses_manager.load()
+        config.update(self.recurring_expenses_manager.load())
         config["historical_financial_data"] = self.historical_financial_data_manager.load()
         return config
 
@@ -56,7 +56,7 @@ class ConfigManager:
                 "expenses_category": config.get("expenses_category", catalogs_defaults["expenses_category"]),
             }
         )
-        self.recurring_expenses_manager.save(config.get("recurring_expenses", {}))
+        self.recurring_expenses_manager.save({"recurring_expenses": config.get("recurring_expenses", {})})
         self.historical_financial_data_manager.save(
             normalize_historical_file_data(config.get("historical_financial_data", {}))
         )

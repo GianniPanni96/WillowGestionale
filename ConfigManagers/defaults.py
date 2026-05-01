@@ -8,15 +8,15 @@ APP_SETTINGS_DEFAULT = {
             "description": "Percorso dove verranno salvati i backup del database gestionale.",
         },
         "interval_minutes": {
-            "value": "25",
+            "value": 25,
             "description": "Intervallo in minuti tra l'esecuzione dei backup.",
         },
         "max_backups": {
-            "value": "15",
+            "value": 15,
             "description": "Numero massimo di backup da conservare per ogni intervallo.",
         },
         "delta_days": {
-            "value": "10",
+            "value": 10,
             "description": "Intervallo di tempo in giorni tra le cartelle di backup.",
         },
         "backup_books_path": {
@@ -144,7 +144,7 @@ CATALOGS_DEFAULT = {
 }
 
 
-RECURRING_EXPENSES_DEFAULT = {}
+RECURRING_EXPENSES_DEFAULT = {"recurring_expenses": {}}
 
 
 HISTORICAL_FINANCIAL_DATA_DEFAULT = {

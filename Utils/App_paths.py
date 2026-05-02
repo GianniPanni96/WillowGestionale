@@ -19,12 +19,22 @@ class RuntimePaths:
     storage_root: Path    # writable data root: db, config, books, backups
     install_root: Path    # read-only install root: exe, Data/
     db_file: Path
-    config_file: Path
+    app_settings_file: Path
+    catalogs_file: Path
+    fiscal_rules_file: Path
+    historical_financial_data_file: Path
+    recurring_expenses_file: Path
+    legacy_config_file: Path
     books_dir: Path
     backups_dir: Path
     resource_root: Path   # alias for install_root (backward compatibility)
     data_dir: Path
     images_dir: Path
+
+    @property
+    def config_file(self) -> Path:
+        """Backward-compatible alias for the current app settings file."""
+        return self.app_settings_file
 
 
 def is_macos() -> bool:
@@ -58,7 +68,17 @@ def _default_data_root() -> Path:
 def _is_usable_writable_root(path: Path) -> bool:
     if not path.exists() or not path.is_dir():
         return False
-    expected_entries = ("gestionale.db", "app_setting.json", "Books", "Backups")
+    expected_entries = (
+        "gestionale.db",
+        "app_settings.json",
+        "catalogs.json",
+        "fiscal_rules.json",
+        "historical_financial_data.json",
+        "recurring_expenses.json",
+        "app_config.json",
+        "Books",
+        "Backups",
+    )
     return any((path / entry).exists() for entry in expected_entries)
 
 
@@ -203,7 +223,12 @@ def initialize_runtime_paths() -> RuntimePaths:
             storage_root=storage_root,
             install_root=install_root,
             db_file=storage_root / "gestionale.db",
-            config_file=storage_root / "app_config.json",
+            app_settings_file=storage_root / "app_settings.json",
+            catalogs_file=storage_root / "catalogs.json",
+            fiscal_rules_file=storage_root / "fiscal_rules.json",
+            historical_financial_data_file=storage_root / "historical_financial_data.json",
+            recurring_expenses_file=storage_root / "recurring_expenses.json",
+            legacy_config_file=storage_root / "app_config.json",
             books_dir=books_dir,
             backups_dir=backups_dir,
             resource_root=install_root,

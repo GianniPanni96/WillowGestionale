@@ -112,10 +112,10 @@ class BackupScheduler:
             print(f"Errore: Il file {db_file} non esiste.")
             return
 
-        # Verifica che il file app_settings esista
-        config_file = str(runtime_paths.config_file)
-        if not os.path.exists(config_file):
-            print(f"Errore: Il file {config_file} non esiste.")
+        # Verifica che il file di app settings esista
+        app_settings_file = str(runtime_paths.app_settings_file)
+        if not os.path.exists(app_settings_file):
+            print(f"Errore: Il file {app_settings_file} non esiste.")
             return
 
         # Determina l'intervallo di tempo corrente e il nome della sottocartella
@@ -139,7 +139,7 @@ class BackupScheduler:
 
         # Copia il database nella cartella dell'intervallo corrente
         shutil.copy2(db_file, db_backup_filepath)
-        shutil.copy2(config_file, config_backup_filepath)
+        shutil.copy2(app_settings_file, config_backup_filepath)
 
         # Gestione della rotazione dei backup
         if os.path.exists(interval_folder):

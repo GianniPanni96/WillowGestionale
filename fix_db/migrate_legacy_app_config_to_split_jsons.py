@@ -68,7 +68,7 @@ def build_historical_financial_data_payload(legacy_config: dict) -> dict:
 def migrate_legacy_app_config():
     runtime_paths = get_runtime_paths()
     storage_root = runtime_paths.storage_root
-    legacy_config_path = runtime_paths.config_file
+    legacy_config_path = runtime_paths.legacy_config_file
 
     if not legacy_config_path.exists():
         raise FileNotFoundError(

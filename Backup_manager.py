@@ -112,7 +112,7 @@ class BackupScheduler:
             print(f"Errore: Il file {db_file} non esiste.")
             return
 
-        # Verifica che il file app_config esista
+        # Verifica che il file app_settings esista
         config_file = str(runtime_paths.config_file)
         if not os.path.exists(config_file):
             print(f"Errore: Il file {config_file} non esiste.")
@@ -133,7 +133,7 @@ class BackupScheduler:
 
         # Crea il nome del file di backup basato sulla data e ora correnti
         db_backup_filename = "gestionale.db"
-        config_backup_filename = "app_config.json"
+        config_backup_filename = "app_settings.json"
         db_backup_filepath = os.path.join(sub_folder, db_backup_filename)
         config_backup_filepath = os.path.join(sub_folder, config_backup_filename)
 
@@ -221,7 +221,7 @@ class BackupImporter:
 
     Each subfolder is expected to contain:
       - gestionale.db
-      - app_config.json
+      - app_setttings.json
 
     API principali:
       - list_backups_for_year(year) -> List[dict] (each dict contiene 'path', 'datetime', 'display')
@@ -321,7 +321,7 @@ class BackupImporter:
 
     def import_backup(self, subfolder_path: str) -> Tuple[bool, str]:
         """
-        Copia i file gestionale.db e app_config.json da subfolder_path -> destinazione.
+        Copia i file gestionale.db e app_settings.json da subfolder_path -> destinazione.
         L'operazione va a buon fine SOLO SE entrambi i file esistono nel subfolder.
         Ritorna (True, "messaggio") oppure (False, "messaggio di errore").
         """
@@ -330,14 +330,14 @@ class BackupImporter:
                 return False, "Backup selezionato non trovato o non è una cartella."
 
             db_file = os.path.join(subfolder_path, "gestionale.db")
-            config_file = os.path.join(subfolder_path, "app_config.json")
+            config_file = os.path.join(subfolder_path, "app_settings.json")
 
             if not os.path.exists(db_file) or not os.path.exists(config_file):
                 missing = []
                 if not os.path.exists(db_file):
                     missing.append("gestionale.db")
                 if not os.path.exists(config_file):
-                    missing.append("app_config.json")
+                    missing.append("app_settings.json")
                 return False, f"Backup incompleto: mancano i file: {', '.join(missing)}"
 
             dest_folder = self._destination_folder()
@@ -347,7 +347,7 @@ class BackupImporter:
             os.makedirs(dest_folder, exist_ok=True)
 
             dest_db = os.path.join(dest_folder, "gestionale.db")
-            dest_config = os.path.join(dest_folder, "app_config.json")
+            dest_config = os.path.join(dest_folder, "app_settings.json")
 
             # Copia atomica best-effort:
             # 1) copia su file temporanei nella stessa cartella di destinazione

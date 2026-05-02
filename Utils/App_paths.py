@@ -58,7 +58,7 @@ def _default_data_root() -> Path:
 def _is_usable_writable_root(path: Path) -> bool:
     if not path.exists() or not path.is_dir():
         return False
-    expected_entries = ("gestionale.db", "app_config.json", "Books", "Backups")
+    expected_entries = ("gestionale.db", "app_setting.json", "Books", "Backups")
     return any((path / entry).exists() for entry in expected_entries)
 
 

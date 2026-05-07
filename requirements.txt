@@ -13,3 +13,5 @@ tkcalendar==1.6.1
 
 # Build
 pyinstaller==6.16.0
+
+pyside6

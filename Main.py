@@ -1,10 +1,15 @@
+import sys
 import threading
-from Views.View import MainWindow
 import os
 from ConfigManagers import ConfigManager, RecurringExpense, FiscalSettings, HistoricalFinancialData
 from Backup_manager import BackupScheduler, BackupImporter
 from App_context import AppContext
 from Utils.App_paths import get_runtime_paths
+
+# Imposta a True per lanciare la UI sperimentale in QT (PySide6).
+# False = customtkinter (UI di default).
+USE_QT_UI = True
+QT_INITIAL_INVOICE_ID = 2
 
 # Avvia l'applicazione
 if __name__ == "__main__":
@@ -113,30 +118,52 @@ if __name__ == "__main__":
         )
 
     # Avvia il frontend
-    app = MainWindow(app_context)
+    if USE_QT_UI:
+        from PySide6.QtWidgets import QApplication
+        from QTViews.QT_main_view import QTMainWindow
 
+        qt_app = QApplication.instance() or QApplication(sys.argv)
+        window = QTMainWindow(
+            app_context=app_context,
+            initial_invoice_id=QT_INITIAL_INVOICE_ID,
+        )
+        window.show()
 
-    def on_closing():
-        print("Finestra chiusa: arresto scheduler backup…")
+        try:
+            exit_code = qt_app.exec()
+        except KeyboardInterrupt:
+            print("Interruzione manuale. Fermando il backup...")
+            scheduler.stop()
+            raise
 
-        # Aggiungi queste righe per pulire il lazy loading
-        if hasattr(app, '_cancel_all_after'):
-            app._cancel_all_after()
-
-        # Ferma il backup scheduler
         scheduler.stop()
-        app.quit()
-        app.destroy()
+        sys.exit(exit_code)
+    else:
+        from Views.View import MainWindow
+        app = MainWindow(app_context)
 
 
-    # Registra la callback
-    app.protocol("WM_DELETE_WINDOW", on_closing)
+        def on_closing():
+            print("Finestra chiusa: arresto scheduler backup…")
 
-    # Entra nel loop
-    try:
-        app.mainloop()
-    except KeyboardInterrupt:
-        # In caso di Ctrl+C da console
-        print("Interruzione manuale. Fermando il backup...")
-        scheduler.stop()
-        raise
+            # Aggiungi queste righe per pulire il lazy loading
+            if hasattr(app, '_cancel_all_after'):
+                app._cancel_all_after()
+
+            # Ferma il backup scheduler
+            scheduler.stop()
+            app.quit()
+            app.destroy()
+
+
+        # Registra la callback
+        app.protocol("WM_DELETE_WINDOW", on_closing)
+
+        # Entra nel loop
+        try:
+            app.mainloop()
+        except KeyboardInterrupt:
+            # In caso di Ctrl+C da console
+            print("Interruzione manuale. Fermando il backup...")
+            scheduler.stop()
+            raise

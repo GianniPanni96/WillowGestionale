@@ -5,11 +5,11 @@ from pathlib import Path
 
 project_root = Path(SPECPATH)
 datas = [(str(project_root / "Data"), "Data")]
-icon_path = project_root / "Data" / "images" / "WillowLogo.icns"
+icon_path = project_root / "Data" / "images" / "WillowLogo.ico"
 
 
 a = Analysis(
-    ['Main.py'],
+    ['MainTkinter.py'],
     pathex=[],
     binaries=[],
     datas=datas,
@@ -26,35 +26,21 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    name='WillowGestionale',
+    name='WillowGestionale-Tkinter',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,
-    exclude_binaries=True,
-    console=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
     icon=str(icon_path) if icon_path.exists() else None,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=False,
-    upx_exclude=[],
-    name='WillowGestionale',
-)
-
-app = BUNDLE(
-    coll,
-    name='WillowGestionale.app',
-    icon=str(icon_path) if icon_path.exists() else None,
-    bundle_identifier='com.willow.gestionale',
 )

@@ -121,9 +121,9 @@ class QTInvoicesViewH(QTBaseListView):
 
         return {
             "# FATTURE": str(count),
-            "FATTURATO": f"{fatturato} €",
-            "CREDITI": f"{crediti} €",
-            "MEDIA FATTURE": f"{media} €",
+            "FATTURATO": f"{fatturato:.2f} €",
+            "CREDITI": f"{crediti:.2f} €",
+            "MEDIA FATTURE": f"{media:.2f} €",
         }
 
     def id_for_index(self, source_index):

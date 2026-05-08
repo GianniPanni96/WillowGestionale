@@ -115,7 +115,6 @@ class QTMainWindow(QMainWindow):
                 color: #dddddd;
             }
         """)
-
         self.invoices_view = None
         self.invoice_detail_view = None
         self.login_status = False

@@ -141,7 +141,13 @@ class QTFiscalSettingsDialog(QDialog):
         f.setPointSize(11)
         lbl.setFont(f)
         layout.addWidget(lbl)
-        ent = QLineEdit(str(value if value is not None else ""))
+
+        try:
+            val_str = f"{float(value):.2f}" if value is not None else ""
+        except (TypeError, ValueError):
+            val_str = str(value if value is not None else "")
+
+        ent = QLineEdit(val_str)
         layout.addWidget(ent)
         return ent
 
@@ -326,19 +332,22 @@ class QTFiscalSettingsDialog(QDialog):
 
         value_col = QVBoxLayout()
         value_col.addWidget(QLabel("Valore:"))
-        value_ent = QLineEdit(str(value if value is not None else ""))
+        val_str = f"{float(value):.2f}" if value is not None else ""
+        value_ent = QLineEdit(val_str)
         value_col.addWidget(value_ent)
         entries_row.addLayout(value_col)
 
         min_col = QVBoxLayout()
         min_col.addWidget(QLabel("Reddito Minimo:"))
-        min_ent = QLineEdit(str(reddito_min if reddito_min is not None else ""))
+        min_val = f"{float(reddito_min):.2f}" if reddito_min is not None else ""
+        min_ent = QLineEdit(min_val)
         min_col.addWidget(min_ent)
         entries_row.addLayout(min_col)
 
         max_col = QVBoxLayout()
         max_col.addWidget(QLabel("Reddito Massimo:"))
-        max_ent = QLineEdit(str(reddito_max if reddito_max is not None else ""))
+        max_val = f"{float(reddito_max):.2f}" if reddito_max is not None else ""
+        max_ent = QLineEdit(max_val)
         max_col.addWidget(max_ent)
         entries_row.addLayout(max_col)
 

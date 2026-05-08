@@ -116,8 +116,8 @@ class QTBaseListView(QWidget):
 
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(8)
+        root.setContentsMargins(10, 30, 10, 10)
+        root.setSpacing(30)
 
         self._build_aggregates_bar(root)
         self._build_controls_bar(root)

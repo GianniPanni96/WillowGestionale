@@ -70,8 +70,9 @@ class _RecurringExpenseTab(QWidget):
             form.addRow("Nome Spesa:", name_edit)
             self.widgets["name"] = name_edit
 
-        amount_value = "" if self.is_new else str(getattr(self.expense, "amount", ""))
-        amount_edit = QLineEdit(amount_value)
+        amount_val = getattr(self.expense, "amount", 0)
+        amount_str = "" if self.is_new else f"{float(amount_val):.2f}"
+        amount_edit = QLineEdit(amount_str)
         form.addRow("Importo:", amount_edit)
         self.widgets["amount"] = amount_edit
 

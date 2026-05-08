@@ -248,7 +248,7 @@ class InvoicesTableModel(QAbstractTableModel):
             if col == self.COL_RATE:
                 return ""
             if col == self.COL_NETTO:
-                return f"{round(row['netto'], 2)} €"
+                return f"{row['netto']:.2f} €"
             if col == self.COL_TIPO:
                 return row["tipo"]
 

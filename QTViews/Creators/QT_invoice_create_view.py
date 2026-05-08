@@ -459,14 +459,14 @@ class QTInvoiceCreateViewH(QDialog):
                 f"{nome_array[0]} - {nome_array[1]} - NDC"
             )
         self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].setText(
-            str(invoice[DBInvoicesColumns.SERVIZI.value])
+            f"{invoice[DBInvoicesColumns.SERVIZI.value]:.2f}"
         )
         self.invoice_widgets[DBInvoicesColumns.RIMBORSI.value].setText(
-            str(invoice[DBInvoicesColumns.RIMBORSI.value])
+            f"{invoice[DBInvoicesColumns.RIMBORSI.value]:.2f}"
         )
         rivalsa = invoice.get(DBInvoicesColumns.RIVALSA_INPS.value)
         if rivalsa is not None:
-            self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].setText(str(rivalsa))
+            self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].setText(f"{rivalsa:.2f}")
 
         client = self.clients_query_service.retrieve_client_map_by_id(
             invoice[DBInvoicesColumns.ID_CLIENTE.value]
@@ -631,7 +631,7 @@ class QTInvoiceCreateViewH(QDialog):
             best_user = next(iter(users_rank.keys()), None)
             if best_user is not None:
                 self._set_combo_text(self.invoice_widgets[self.NOME_UTENTE], best_user)
-                self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].setText(str(new_import))
+                self.invoice_widgets[DBInvoicesColumns.SERVIZI.value].setText(f"{new_import:.2f}")
                 self._populate_rivalsa_inps()
                 self._update_entries_on_regime_fiscale(best_user)
                 dialog.accept()

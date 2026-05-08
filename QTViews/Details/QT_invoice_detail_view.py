@@ -583,7 +583,7 @@ class QTInvoiceDetailViewH(QWidget):
                 ("TOTALE RATA 3", totali[3]),
             ]
         for title, value in labels:
-            cards.addWidget(self._make_info_card(title, f"{value} €"))
+            cards.addWidget(self._make_info_card(title, f"{self._fmt(value)} €"))
         cards.addStretch(1)
         section.layout().addLayout(cards)
 
@@ -604,7 +604,7 @@ class QTInvoiceDetailViewH(QWidget):
 
         totale = self.invoices_analyzer_service.calcola_totale_spese_produzione_fattura(self.current_invoice_id)
         cards = QHBoxLayout()
-        cards.addWidget(self._make_info_card("TOTALE SPESE", f"{totale} €"))
+        cards.addWidget(self._make_info_card("TOTALE SPESE", f"{self._fmt(totale)} €"))
         cards.addStretch(1)
         section.layout().addLayout(cards)
 

@@ -194,7 +194,25 @@ CATALOGS_DEFAULT = {
         "INTEGRAZIONE_VFX": "Integrazione VFX",
         "ADD_PROD_OUT_TYPE": "AGGIUNGI UNA TIPOLOGIA DI OUTPUT ALLA LISTA",
     },
-    "expenses_category": {},
+    "expenses_category": {
+        "MANUTENZIONE": "manutenzione",
+        "SPONSORIZZAZIONE": "sponsorizzazione",
+        "TASSE": "tasse",
+        "STUDIO_RENTAL": "Affitto Ufficio",
+        "TECHNICAL_INSTRUMENTATION_PROD": "Strumentazione tecnica produzione",
+        "TECHNICAL_INSTRUMENTATION_POSTPROD": "Strumentazione tecnica postproduzione",
+        "SUBSCRIPTION": "Abbonamento",
+        "ELECTRICITY_BILL": "Bolletta Luce",
+        "GAS_BILL": "Bolletta Gas",
+        "INTERNET_BILL": "Abbonamento Internet",
+        "WASTE_BILL": "TARI",
+        "CONSUMABLE_FOR_STUDIO": "Consumabili per lo studio",
+        "INSURANCE": "Assicurazionee",
+        "PRODUCTION_EXPENSE": "Spesa di produzione",
+        "USER_SALARY": "Salario",
+        "TRIMESTRAL_IVA": "Iva trimestrale",
+        "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
+    },
 }
 
 

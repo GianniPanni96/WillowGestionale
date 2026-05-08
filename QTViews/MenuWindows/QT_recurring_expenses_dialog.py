@@ -20,6 +20,10 @@ from PySide6.QtWidgets import (
 
 from Gestionale_Enums import RecurringExpensesFrequencies, RecurringExpensesStatus
 from Model import DBAccountsColumns, DBSuppliersColumns, DBUsersColumns
+from QTViews.CustomWidgets.QT_catalog_filterable_combo_box import (
+    QTCatalogFilterableComboBox,
+)
+from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -76,19 +80,24 @@ class _RecurringExpenseTab(QWidget):
         form.addRow("Importo:", amount_edit)
         self.widgets["amount"] = amount_edit
 
-        supplier_combo = QComboBox()
-        supplier_combo.setEditable(True)
-        supplier_combo.addItems(suppliers)
+        supplier_combo = QTFilterableComboBox(
+            values=suppliers, placeholder="Cerca fornitore…", autofill=True,
+        )
         if not self.is_new:
-            self._set_combo_text(supplier_combo, getattr(self.expense, "supplier", ""))
+            supplier_combo.set_value(getattr(self.expense, "supplier", ""))
         form.addRow("Fornitore:", supplier_combo)
         self.widgets["supplier"] = supplier_combo
 
-        category_combo = QComboBox()
-        category_combo.addItems(categories)
+        category_combo = QTCatalogFilterableComboBox.bound_to_section(
+            app_context=self.parent_dialog.app_context,
+            section_name="expenses_category",
+            parent=self,
+        )
         if not self.is_new:
             current = getattr(self.expense, "category", "")
-            self._set_combo_text(category_combo, current if current in categories else (categories[0] if categories else ""))
+            category_combo.set_value(
+                current if current in categories else (categories[0] if categories else "")
+            )
         form.addRow("Categoria:", category_combo)
         self.widgets["category"] = category_combo
 
@@ -179,6 +188,10 @@ class _RecurringExpenseTab(QWidget):
             return ""
         if isinstance(widget, QLineEdit):
             return widget.text().strip()
+        # Le filterable (catalog inclusa) hanno un value() che esclude
+        # testo libero / sentinella e va preferito al currentText() raw.
+        if isinstance(widget, QTFilterableComboBox):
+            return widget.value()
         if isinstance(widget, QComboBox):
             return widget.currentText().strip()
         if isinstance(widget, list):  # gruppi di radio button

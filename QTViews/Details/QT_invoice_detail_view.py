@@ -32,6 +32,7 @@ from Model import (
     DBProductionsColumns,
     DBUsersColumns,
 )
+from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -184,10 +185,12 @@ class QTInvoiceDetailViewH(QWidget):
         self._add_field("Dati Generali", DBInvoicesColumns.DATA_CREAZIONE.value, "Data Creazione",
                         self._make_date_edit(invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value)))
 
-        clients_combo = QComboBox()
-        clients_combo.setEditable(True)
-        clients_combo.addItems(
-            [c[DBClientsColumns.NAME.value] for c in self.clients_query_service.retrieve_clients_map_list()]
+        clients_combo = QTFilterableComboBox(
+            values=[
+                c[DBClientsColumns.NAME.value]
+                for c in self.clients_query_service.retrieve_clients_map_list()
+            ],
+            placeholder="Cerca cliente…",
         )
         self._set_combo_text(clients_combo, invoice.get(self.NOME_CLIENTE))
         clients_combo.currentTextChanged.connect(self._on_client_changed)
@@ -667,6 +670,10 @@ class QTInvoiceDetailViewH(QWidget):
 
     def _combo_text(self, key):
         widget = self.invoice_widgets.get(key)
+        if isinstance(widget, QTFilterableComboBox):
+            # value() restituisce stringa vuota se la selezione corrente
+            # non e' una voce valida — evita di esfiltrare testo libero.
+            return widget.value()
         if isinstance(widget, QComboBox):
             return widget.currentText().strip()
         if hasattr(widget, "text"):
@@ -675,6 +682,9 @@ class QTInvoiceDetailViewH(QWidget):
 
     def _set_combo_text(self, combo: QComboBox, value):
         if value is None:
+            return
+        if isinstance(combo, QTFilterableComboBox):
+            combo.set_value(value)
             return
         text = str(value)
         idx = combo.findText(text)

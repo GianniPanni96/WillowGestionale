@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from Views.View_utils import ViewUtils
 
 from QTViews.Details.QT_invoice_detail_view import QTInvoiceDetailViewH
+from QTViews.ListViews.QT_clients_view import QTClientsViewH
 from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
 from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
 from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
@@ -41,9 +42,9 @@ class QTMainWindow(QMainWindow):
     - un corner widget sul tabbar con il bottone di Login, l'icona utente
       e il refresh della tab corrente.
 
-    Ad oggi solo la tab "Fatture" è funzionante; le altre sono presenti per
-    rispecchiare la struttura della view legacy ma non sono interagibili
-    finché le rispettive view non saranno portate su Qt.
+    Ad oggi le tab "Fatture" e "Clienti" sono funzionanti; le altre sono
+    presenti per rispecchiare la struttura della view legacy ma non sono
+    interagibili finché le rispettive view non saranno portate su Qt.
 
     Le voci dei menu in alto sono invece pienamente operative: ognuna apre
     la propria finestra dedicata (in QTViews/MenuWindows/), che eredita
@@ -55,13 +56,14 @@ class QTMainWindow(QMainWindow):
     """
 
     TAB_INVOICES = "Fatture"
+    TAB_CLIENTS = "Clienti"
 
     @classmethod
     def _tab_names(cls):
         # L'ordine rispecchia quello della MainWindow legacy.
         return [
             "Utenti",
-            "Clienti",
+            cls.TAB_CLIENTS,
             "Fornitori",
             "Produzioni",
             "Conti",
@@ -116,6 +118,7 @@ class QTMainWindow(QMainWindow):
             }
         """)
         self.invoices_view = None
+        self.clients_view = None
         self.invoice_detail_view = None
         self.login_status = False
         self.logged_user_id = -1
@@ -185,6 +188,17 @@ class QTMainWindow(QMainWindow):
                     parent=self,
                 )
                 self.tabview.addTab(self.invoices_view, name)
+            elif name == self.TAB_CLIENTS:
+                # La detail view dei clienti non e' ancora portata su Qt:
+                # passiamo on_open_detail=None cosi' il doppio click sulla
+                # riga e' un no-op finche' la detail non sara' pronta.
+                self.clients_view = QTClientsViewH(
+                    app_context=self.app_context,
+                    initial_client_id=None,
+                    on_open_detail=None,
+                    parent=self,
+                )
+                self.tabview.addTab(self.clients_view, name)
             else:
                 placeholder = QLabel(f"{name}\nNon ancora portata su Qt.")
                 placeholder.setAlignment(Qt.AlignCenter)
@@ -231,6 +245,8 @@ class QTMainWindow(QMainWindow):
         if widget is self.invoices_view and self.invoices_view is not None:
             # Ricarica la lista fatture rispettando la time window selezionata.
             self.invoices_view._on_window_changed()
+        elif widget is self.clients_view and self.clients_view is not None:
+            self.clients_view._on_window_changed()
 
     def _open_invoice_detail(self, invoice_id):
         if self.invoice_detail_view is not None:

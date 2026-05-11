@@ -17,9 +17,12 @@ from PySide6.QtWidgets import (
 
 from Views.View_utils import ViewUtils
 
+from QTViews.Details.QT_client_detail_view import QTClientDetailViewH
 from QTViews.Details.QT_invoice_detail_view import QTInvoiceDetailViewH
+from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
 from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
+from QTViews.ListViews.QT_suppliers_view import QTSuppliersViewH
 from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
 from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
 from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
@@ -57,6 +60,7 @@ class QTMainWindow(QMainWindow):
 
     TAB_INVOICES = "Fatture"
     TAB_CLIENTS = "Clienti"
+    TAB_SUPPLIERS = "Fornitori"
 
     @classmethod
     def _tab_names(cls):
@@ -64,7 +68,7 @@ class QTMainWindow(QMainWindow):
         return [
             "Utenti",
             cls.TAB_CLIENTS,
-            "Fornitori",
+            cls.TAB_SUPPLIERS,
             "Produzioni",
             "Conti",
             cls.TAB_INVOICES,
@@ -119,7 +123,10 @@ class QTMainWindow(QMainWindow):
         """)
         self.invoices_view = None
         self.clients_view = None
+        self.suppliers_view = None
         self.invoice_detail_view = None
+        self.client_detail_view = None
+        self.supplier_detail_view = None
         self.login_status = False
         self.logged_user_id = -1
         self.backup_runner = QTBackupRunner(app_context=app_context, parent=self)
@@ -189,16 +196,21 @@ class QTMainWindow(QMainWindow):
                 )
                 self.tabview.addTab(self.invoices_view, name)
             elif name == self.TAB_CLIENTS:
-                # La detail view dei clienti non e' ancora portata su Qt:
-                # passiamo on_open_detail=None cosi' il doppio click sulla
-                # riga e' un no-op finche' la detail non sara' pronta.
                 self.clients_view = QTClientsViewH(
                     app_context=self.app_context,
                     initial_client_id=None,
-                    on_open_detail=None,
+                    on_open_detail=self._open_client_detail,
                     parent=self,
                 )
                 self.tabview.addTab(self.clients_view, name)
+            elif name == self.TAB_SUPPLIERS:
+                self.suppliers_view = QTSuppliersViewH(
+                    app_context=self.app_context,
+                    initial_supplier_id=None,
+                    on_open_detail=self._open_supplier_detail,
+                    parent=self,
+                )
+                self.tabview.addTab(self.suppliers_view, name)
             else:
                 placeholder = QLabel(f"{name}\nNon ancora portata su Qt.")
                 placeholder.setAlignment(Qt.AlignCenter)
@@ -247,6 +259,8 @@ class QTMainWindow(QMainWindow):
             self.invoices_view._on_window_changed()
         elif widget is self.clients_view and self.clients_view is not None:
             self.clients_view._on_window_changed()
+        elif widget is self.suppliers_view and self.suppliers_view is not None:
+            self.suppliers_view._on_window_changed()
 
     def _open_invoice_detail(self, invoice_id):
         if self.invoice_detail_view is not None:
@@ -257,13 +271,43 @@ class QTMainWindow(QMainWindow):
         self.invoice_detail_view = QTInvoiceDetailViewH(
             app_context=self.app_context,
             invoice_id=invoice_id,
-            on_back=self._back_to_list,
+            on_back=self._back_to_invoices_list,
             parent=self,
         )
         self.stack.addWidget(self.invoice_detail_view)
         self.stack.setCurrentWidget(self.invoice_detail_view)
 
-    def _back_to_list(self):
+    def _open_client_detail(self, client_id):
+        if self.client_detail_view is not None:
+            self.stack.removeWidget(self.client_detail_view)
+            self.client_detail_view.deleteLater()
+            self.client_detail_view = None
+
+        self.client_detail_view = QTClientDetailViewH(
+            app_context=self.app_context,
+            client_id=client_id,
+            on_back=self._back_to_clients_list,
+            parent=self,
+        )
+        self.stack.addWidget(self.client_detail_view)
+        self.stack.setCurrentWidget(self.client_detail_view)
+
+    def _open_supplier_detail(self, supplier_id):
+        if self.supplier_detail_view is not None:
+            self.stack.removeWidget(self.supplier_detail_view)
+            self.supplier_detail_view.deleteLater()
+            self.supplier_detail_view = None
+
+        self.supplier_detail_view = QTSupplierDetailViewH(
+            app_context=self.app_context,
+            supplier_id=supplier_id,
+            on_back=self._back_to_suppliers_list,
+            parent=self,
+        )
+        self.stack.addWidget(self.supplier_detail_view)
+        self.stack.setCurrentWidget(self.supplier_detail_view)
+
+    def _back_to_invoices_list(self):
         self.stack.setCurrentWidget(self.tabview)
         if self.invoices_view is not None:
             self.tabview.setCurrentWidget(self.invoices_view)
@@ -271,6 +315,24 @@ class QTMainWindow(QMainWindow):
             self.stack.removeWidget(self.invoice_detail_view)
             self.invoice_detail_view.deleteLater()
             self.invoice_detail_view = None
+
+    def _back_to_clients_list(self):
+        self.stack.setCurrentWidget(self.tabview)
+        if self.clients_view is not None:
+            self.tabview.setCurrentWidget(self.clients_view)
+        if self.client_detail_view is not None:
+            self.stack.removeWidget(self.client_detail_view)
+            self.client_detail_view.deleteLater()
+            self.client_detail_view = None
+
+    def _back_to_suppliers_list(self):
+        self.stack.setCurrentWidget(self.tabview)
+        if self.suppliers_view is not None:
+            self.tabview.setCurrentWidget(self.suppliers_view)
+        if self.supplier_detail_view is not None:
+            self.stack.removeWidget(self.supplier_detail_view)
+            self.supplier_detail_view.deleteLater()
+            self.supplier_detail_view = None
 
     # ------------------------------------------------------------------
     # Menu handlers — istanziano la finestra dedicata

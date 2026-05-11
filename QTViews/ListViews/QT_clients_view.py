@@ -14,8 +14,9 @@ riga del source model.
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtWidgets import QMessageBox, QTableView
+from PySide6.QtWidgets import QTableView
 
+from QTViews.Creators.QT_client_create_view import QTClientCreateViewH
 from QTViews.ListViews.QT_base_list_view import QTBaseListView
 from QTViews.ListViews.QT_clients_table_model import ClientsTableModel
 
@@ -40,7 +41,7 @@ class QTClientsViewH(QTBaseListView):
     DEFAULT_WINDOW_INDEX = 1  # 60 GG, come la legacy
     ADD_BUTTON_TEXT = "Aggiungi un cliente"
     ITEM_LABEL_PLURAL = "clienti"
-    SEARCH_PLACEHOLDER = "Cerca cliente…"
+    SEARCH_PLACEHOLDER = "Cerca in tutte le colonne…"
 
     def __init__(
         self,
@@ -126,12 +127,18 @@ class QTClientsViewH(QTBaseListView):
         return self._source_model.find_row_by_client_id(item_id)
 
     def open_creator_dialog(self):
-        # Il creator clienti non e' ancora stato portato su Qt: per ora
-        # mostriamo un placeholder coerente con le altre tab in attesa
-        # di porting, e non si crea nulla.
-        QMessageBox.information(
-            self,
-            "Aggiunta cliente",
-            "L'aggiunta di un cliente non è ancora stata portata su Qt.",
+        # Stesso pattern di QTInvoicesViewH.open_creator_dialog: passiamo
+        # al dialog una callback che riempie un contenitore mutabile con
+        # l'id del nuovo cliente, leggibile dopo che dialog.exec() ritorna.
+        result = {"id": None}
+
+        def _on_created(client_id):
+            result["id"] = client_id
+
+        dialog = QTClientCreateViewH(
+            app_context=self.app_context,
+            parent=self,
+            on_client_created=_on_created,
         )
-        return None
+        dialog.exec()
+        return result["id"]

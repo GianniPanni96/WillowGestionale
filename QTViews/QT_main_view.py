@@ -19,9 +19,11 @@ from Views.View_utils import ViewUtils
 
 from QTViews.Details.QT_client_detail_view import QTClientDetailViewH
 from QTViews.Details.QT_invoice_detail_view import QTInvoiceDetailViewH
+from QTViews.Details.QT_production_detail_view import QTProductionDetailViewH
 from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
 from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
+from QTViews.ListViews.QT_productions_view import QTProductionsViewH
 from QTViews.ListViews.QT_suppliers_view import QTSuppliersViewH
 from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
 from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
@@ -61,6 +63,7 @@ class QTMainWindow(QMainWindow):
     TAB_INVOICES = "Fatture"
     TAB_CLIENTS = "Clienti"
     TAB_SUPPLIERS = "Fornitori"
+    TAB_PRODUCTIONS = "Produzioni"
 
     @classmethod
     def _tab_names(cls):
@@ -69,7 +72,7 @@ class QTMainWindow(QMainWindow):
             "Utenti",
             cls.TAB_CLIENTS,
             cls.TAB_SUPPLIERS,
-            "Produzioni",
+            cls.TAB_PRODUCTIONS,
             "Conti",
             cls.TAB_INVOICES,
             "Pagamenti",
@@ -101,7 +104,7 @@ class QTMainWindow(QMainWindow):
         self.tabview.setObjectName("MainTabView")
         self.tabview.setStyleSheet("""
             #MainTabView::pane {
-                border-top: 1px solid #3a3a3a;
+                border-top: 1px solid palette(mid);
             }
 
             #MainTabView QTabBar::tab {
@@ -112,21 +115,23 @@ class QTMainWindow(QMainWindow):
             }
 
             #MainTabView QTabBar::tab:selected {
-                background-color: #1F6AA5;
-                color: white;
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
             }
 
             #MainTabView QTabBar::tab:!selected {
-                background-color: #333333;
-                color: #dddddd;
+                background-color: palette(button);
+                color: palette(button-text);
             }
         """)
         self.invoices_view = None
         self.clients_view = None
         self.suppliers_view = None
+        self.productions_view = None
         self.invoice_detail_view = None
         self.client_detail_view = None
         self.supplier_detail_view = None
+        self.production_detail_view = None
         self.login_status = False
         self.logged_user_id = -1
         self.backup_runner = QTBackupRunner(app_context=app_context, parent=self)
@@ -211,10 +216,18 @@ class QTMainWindow(QMainWindow):
                     parent=self,
                 )
                 self.tabview.addTab(self.suppliers_view, name)
+            elif name == self.TAB_PRODUCTIONS:
+                self.productions_view = QTProductionsViewH(
+                    app_context=self.app_context,
+                    initial_production_id=None,
+                    on_open_detail=self._open_production_detail,
+                    parent=self,
+                )
+                self.tabview.addTab(self.productions_view, name)
             else:
                 placeholder = QLabel(f"{name}\nNon ancora portata su Qt.")
                 placeholder.setAlignment(Qt.AlignCenter)
-                placeholder.setStyleSheet("color: #888888; font-size: 14pt;")
+                placeholder.setStyleSheet("color: palette(mid); font-size: 14pt;")
                 idx = self.tabview.addTab(placeholder, name)
                 self.tabview.setTabEnabled(idx, False)
 
@@ -261,6 +274,8 @@ class QTMainWindow(QMainWindow):
             self.clients_view._on_window_changed()
         elif widget is self.suppliers_view and self.suppliers_view is not None:
             self.suppliers_view._on_window_changed()
+        elif widget is self.productions_view and self.productions_view is not None:
+            self.productions_view._on_window_changed()
 
     def _open_invoice_detail(self, invoice_id):
         if self.invoice_detail_view is not None:
@@ -307,6 +322,21 @@ class QTMainWindow(QMainWindow):
         self.stack.addWidget(self.supplier_detail_view)
         self.stack.setCurrentWidget(self.supplier_detail_view)
 
+    def _open_production_detail(self, production_id):
+        if self.production_detail_view is not None:
+            self.stack.removeWidget(self.production_detail_view)
+            self.production_detail_view.deleteLater()
+            self.production_detail_view = None
+
+        self.production_detail_view = QTProductionDetailViewH(
+            app_context=self.app_context,
+            production_id=production_id,
+            on_back=self._back_to_productions_list,
+            parent=self,
+        )
+        self.stack.addWidget(self.production_detail_view)
+        self.stack.setCurrentWidget(self.production_detail_view)
+
     def _back_to_invoices_list(self):
         self.stack.setCurrentWidget(self.tabview)
         if self.invoices_view is not None:
@@ -333,6 +363,15 @@ class QTMainWindow(QMainWindow):
             self.stack.removeWidget(self.supplier_detail_view)
             self.supplier_detail_view.deleteLater()
             self.supplier_detail_view = None
+
+    def _back_to_productions_list(self):
+        self.stack.setCurrentWidget(self.tabview)
+        if self.productions_view is not None:
+            self.tabview.setCurrentWidget(self.productions_view)
+        if self.production_detail_view is not None:
+            self.stack.removeWidget(self.production_detail_view)
+            self.production_detail_view.deleteLater()
+            self.production_detail_view = None
 
     # ------------------------------------------------------------------
     # Menu handlers — istanziano la finestra dedicata

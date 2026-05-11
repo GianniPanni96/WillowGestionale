@@ -108,7 +108,7 @@ class QTInvoiceDetailViewH(QWidget):
         head = QFrame()
         head.setObjectName("InvoiceDetailHead")
         head.setStyleSheet(
-            "#InvoiceDetailHead { background-color: #2b2b2b; border-radius: 6px; }"
+            "#InvoiceDetailHead { background-color: palette(window); border-radius: 6px; }"
         )
         head_layout = QHBoxLayout(head)
         head_layout.setContentsMargins(10, 6, 10, 6)
@@ -146,7 +146,7 @@ class QTInvoiceDetailViewH(QWidget):
         self.info_frame = QFrame()
         self.info_frame.setObjectName("InvoiceInfoFrame")
         self.info_frame.setStyleSheet(
-            "#InvoiceInfoFrame { border: 2px solid #2659ab; border-radius: 6px; }"
+            "#InvoiceInfoFrame { border: 2px solid palette(highlight); border-radius: 6px; }"
         )
         info_layout = QGridLayout(self.info_frame)
         info_layout.setContentsMargins(15, 15, 15, 15)
@@ -160,7 +160,7 @@ class QTInvoiceDetailViewH(QWidget):
             section_frame = QFrame()
             section_frame.setObjectName(f"InfoSectionFrame")
             section_frame.setStyleSheet(
-                "#InfoSectionFrame { border: 2px solid #2659ab; border-radius: 6px; }"
+                "#InfoSectionFrame { border: 2px solid palette(highlight); border-radius: 6px; }"
             )
             section_layout = QGridLayout(section_frame)
             section_layout.setContentsMargins(10, 10, 10, 10)
@@ -627,7 +627,7 @@ class QTInvoiceDetailViewH(QWidget):
         frame = QFrame()
         frame.setObjectName("InvoiceRelatedSectionFrame")
         frame.setStyleSheet(
-            "#InvoiceRelatedSectionFrame { border: 2px solid #2659ab; border-radius: 6px; }"
+            "#InvoiceRelatedSectionFrame { border: 2px solid palette(highlight); border-radius: 6px; }"
         )
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(15, 10, 15, 15)
@@ -643,14 +643,18 @@ class QTInvoiceDetailViewH(QWidget):
         card = QFrame()
         card.setObjectName("InvoiceInfoCard")
         card.setStyleSheet(
-            "#InvoiceInfoCard { background-color: #333333; border-radius: 6px; }"
-            "#InvoiceInfoCard QLabel { color: #f0f0f0; }"
+            "#InvoiceInfoCard { background-color: palette(alternate-base); border-radius: 6px; }"
+            "#InvoiceInfoCard QLabel { color: palette(text); }"
         )
         box = QVBoxLayout(card)
         box.setContentsMargins(10, 6, 10, 6)
         title_lbl = QLabel(title)
         title_lbl.setAlignment(Qt.AlignCenter)
-        title_lbl.setStyleSheet("background-color: #1F6AA5; padding: 3px; border-radius: 3px;")
+        title_lbl.setStyleSheet(
+            "background-color: palette(highlight); "
+            "color: palette(highlighted-text); "
+            "padding: 3px; border-radius: 3px;"
+        )
         value_lbl = QLabel(str(value))
         value_lbl.setAlignment(Qt.AlignCenter)
         f = value_lbl.font()

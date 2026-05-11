@@ -58,8 +58,8 @@ class QTBaseListView(QWidget):
     """Etichette delle card aggregate da mostrare in alto (in ordine)."""
 
     AGGREGATE_TOGGLE_OPTIONS = None
-    """Se valorizzato (es. ('LORDI', 'NETTI')), mostra un combo a destra
-    delle card aggregate; il valore corrente viene passato a
+    """Se valorizzato (es. ('LORDI', 'NETTI')), mostra un combo sopra
+    le card aggregate; il valore corrente viene passato a
     compute_aggregates()."""
 
     TIME_WINDOWS = (
@@ -128,23 +128,39 @@ class QTBaseListView(QWidget):
         if not self.AGGREGATE_KEYS:
             return
 
+        aggregate_section = QVBoxLayout()
+        aggregate_section.setSpacing(8)
+        root.addLayout(aggregate_section)
+
+        if self.AGGREGATE_TOGGLE_OPTIONS:
+            toggle_row = QHBoxLayout()
+            toggle_row.setSpacing(8)
+            self.aggregate_toggle = QComboBox()
+            self.aggregate_toggle.addItems(list(self.AGGREGATE_TOGGLE_OPTIONS))
+            self.aggregate_toggle.currentIndexChanged.connect(self._refresh_aggregates)
+            toggle_row.addWidget(self.aggregate_toggle)
+            toggle_row.addStretch(1)
+            aggregate_section.addLayout(toggle_row)
+
         self.aggregates_bar = QHBoxLayout()
         self.aggregates_bar.setSpacing(10)
-        root.addLayout(self.aggregates_bar)
+        aggregate_section.addLayout(self.aggregates_bar)
 
         for key in self.AGGREGATE_KEYS:
             card = QFrame()
             card.setFrameShape(QFrame.StyledPanel)
             card.setStyleSheet(
-                "QFrame { background-color: #333333; border-radius: 6px; }"
-                "QLabel { color: #f0f0f0; }"
+                "QFrame { background-color: palette(alternate-base); border-radius: 6px; }"
+                "QLabel { color: palette(text); }"
             )
             box = QVBoxLayout(card)
             box.setContentsMargins(12, 8, 12, 8)
             title = QLabel(key)
             title.setAlignment(Qt.AlignCenter)
             title.setStyleSheet(
-                "background-color: #1F6AA5; padding: 4px; border-radius: 4px;"
+                "background-color: palette(highlight); "
+                "color: palette(highlighted-text); "
+                "padding: 4px; border-radius: 4px;"
             )
             value = QLabel("0")
             value.setAlignment(Qt.AlignCenter)
@@ -156,12 +172,6 @@ class QTBaseListView(QWidget):
             self.aggregates_bar.addWidget(card)
             self._aggregate_labels[key] = value
         self.aggregates_bar.addStretch(1)
-
-        if self.AGGREGATE_TOGGLE_OPTIONS:
-            self.aggregate_toggle = QComboBox()
-            self.aggregate_toggle.addItems(list(self.AGGREGATE_TOGGLE_OPTIONS))
-            self.aggregate_toggle.currentIndexChanged.connect(self._refresh_aggregates)
-            self.aggregates_bar.addWidget(self.aggregate_toggle)
 
     def _build_controls_bar(self, root: QVBoxLayout):
         controls = QHBoxLayout()
@@ -207,7 +217,7 @@ class QTBaseListView(QWidget):
         root.addLayout(bottom)
 
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #888888;")
+        self.status_label.setStyleSheet("color: palette(mid);")
         root.addWidget(self.status_label)
 
     # ------------------------------------------------------------------

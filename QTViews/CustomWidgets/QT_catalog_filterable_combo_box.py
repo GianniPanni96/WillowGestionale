@@ -22,8 +22,9 @@ quindi non puo' mai essere "selezionata" come reale.
 from typing import TYPE_CHECKING, Optional
 
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QLabel,
     QLineEdit,
@@ -149,7 +150,6 @@ class QTCatalogFilterableComboBox(QTFilterableComboBox):
     """
 
     SENTINEL_PREFIX = "➕ "
-    SENTINEL_COLOR = "#1F6AA5"
 
     def __init__(
         self,
@@ -246,7 +246,7 @@ class QTCatalogFilterableComboBox(QTFilterableComboBox):
                 font = item.font()
                 font.setItalic(True)
                 item.setFont(font)
-                item.setForeground(QColor(self.SENTINEL_COLOR))
+                item.setForeground(QApplication.palette().color(QPalette.ColorRole.Highlight))
             self.blockSignals(False)
 
     def _selectable_values(self) -> list:

@@ -23,8 +23,11 @@ def main():
     from PySide6.QtWidgets import QApplication
 
     from QTViews.QT_main_view import QTMainWindow
+    from QTViews.QT_palette_Manager import QTPaletteManager
 
     qt_app = QApplication.instance() or QApplication(sys.argv)
+    qt_app.palette_manager = QTPaletteManager.install(qt_app)
+
     window = QTMainWindow(
         app_context=app_context,
         initial_invoice_id=QT_INITIAL_INVOICE_ID,

@@ -156,7 +156,7 @@ class QTFiscalSettingsDialog(QDialog):
         if not text:
             return
         lbl = QLabel(text)
-        lbl.setStyleSheet("color: gray; font-style: italic;")
+        lbl.setStyleSheet("color: palette(mid); font-style: italic;")
         layout.addWidget(lbl)
 
     # ----- IVA -----

@@ -100,7 +100,7 @@ class QTSupplierDetailViewH(QWidget):
         head = QFrame()
         head.setObjectName("SupplierDetailHead")
         head.setStyleSheet(
-            "#SupplierDetailHead { background-color: #2b2b2b; border-radius: 6px; }"
+            "#SupplierDetailHead { background-color: palette(window); border-radius: 6px; }"
         )
         head_layout = QHBoxLayout(head)
         head_layout.setContentsMargins(10, 6, 10, 6)
@@ -137,7 +137,7 @@ class QTSupplierDetailViewH(QWidget):
         self.info_frame = QFrame()
         self.info_frame.setObjectName("SupplierInfoFrame")
         self.info_frame.setStyleSheet(
-            "#SupplierInfoFrame { border: 2px solid #2659ab; border-radius: 6px; }"
+            "#SupplierInfoFrame { border: 2px solid palette(highlight); border-radius: 6px; }"
         )
         info_layout = QGridLayout(self.info_frame)
         info_layout.setContentsMargins(15, 15, 15, 15)
@@ -149,7 +149,7 @@ class QTSupplierDetailViewH(QWidget):
             section_frame = QFrame()
             section_frame.setObjectName("SupplierInfoSectionFrame")
             section_frame.setStyleSheet(
-                "#SupplierInfoSectionFrame { border: 2px solid #2659ab; border-radius: 6px; }"
+                "#SupplierInfoSectionFrame { border: 2px solid palette(highlight); border-radius: 6px; }"
             )
             section_layout = QGridLayout(section_frame)
             section_layout.setContentsMargins(10, 10, 10, 10)
@@ -189,9 +189,9 @@ class QTSupplierDetailViewH(QWidget):
 
         self.delete_btn = QPushButton("Elimina Fornitore")
         self.delete_btn.setStyleSheet(
-            "QPushButton { background-color: #8B0000; color: white; }"
+            "QPushButton { background-color: #8B0000; color: palette(highlighted-text); }"
             "QPushButton:hover { background-color: #A52A2A; }"
-            "QPushButton:disabled { background-color: #4a2727; color: #888888; }"
+            "QPushButton:disabled { background-color: #4a2727; color: palette(mid); }"
         )
         self.delete_btn.clicked.connect(self._delete_supplier)
         buttons_layout.addWidget(self.delete_btn)
@@ -361,7 +361,7 @@ class QTSupplierDetailViewH(QWidget):
         wrapper = QFrame()
         wrapper.setObjectName("SupplierHistoryWrapper")
         wrapper.setStyleSheet(
-            "#SupplierHistoryWrapper { border: 2px solid #2659ab; border-radius: 6px; }"
+            "#SupplierHistoryWrapper { border: 2px solid palette(highlight); border-radius: 6px; }"
         )
         wrapper_layout = QHBoxLayout(wrapper)
         wrapper_layout.setContentsMargins(15, 15, 15, 15)
@@ -422,7 +422,7 @@ class QTSupplierDetailViewH(QWidget):
         frame = QFrame()
         frame.setObjectName("SupplierRelatedSectionFrame")
         frame.setStyleSheet(
-            "#SupplierRelatedSectionFrame { border: 2px solid #2659ab; border-radius: 6px; }"
+            "#SupplierRelatedSectionFrame { border: 2px solid palette(highlight); border-radius: 6px; }"
         )
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(15, 10, 15, 15)
@@ -438,14 +438,18 @@ class QTSupplierDetailViewH(QWidget):
         card = QFrame()
         card.setObjectName("SupplierInfoCard")
         card.setStyleSheet(
-            "#SupplierInfoCard { background-color: #333333; border-radius: 6px; }"
-            "#SupplierInfoCard QLabel { color: #f0f0f0; }"
+            "#SupplierInfoCard { background-color: palette(alternate-base); border-radius: 6px; }"
+            "#SupplierInfoCard QLabel { color: palette(text); }"
         )
         box = QVBoxLayout(card)
         box.setContentsMargins(10, 6, 10, 6)
         title_lbl = QLabel(title)
         title_lbl.setAlignment(Qt.AlignCenter)
-        title_lbl.setStyleSheet("background-color: #1F6AA5; padding: 3px; border-radius: 3px;")
+        title_lbl.setStyleSheet(
+            "background-color: palette(highlight); "
+            "color: palette(highlighted-text); "
+            "padding: 3px; border-radius: 3px;"
+        )
         value_lbl = QLabel(str(value))
         value_lbl.setAlignment(Qt.AlignCenter)
         f = value_lbl.font()
@@ -458,7 +462,7 @@ class QTSupplierDetailViewH(QWidget):
     @staticmethod
     def _make_subtitle(text):
         lbl = QLabel(text)
-        lbl.setStyleSheet("color: gray; font-style: italic;")
+        lbl.setStyleSheet("color: palette(mid); font-style: italic;")
         return lbl
 
     def _cleanup_and_go_back(self):

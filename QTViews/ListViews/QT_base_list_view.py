@@ -20,7 +20,8 @@ collegare i controlli UI al proxy.
 import time
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, QSortFilterProxyModel
+from PySide6.QtCore import QEvent, QObject, Qt, QSortFilterProxyModel
+from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -30,13 +31,148 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QTableView,
+    QToolTip,
     QVBoxLayout,
     QWidget,
 )
 
 if TYPE_CHECKING:
     from App_context import AppContext
+
+
+# ----------------------------------------------------------------------
+# Interaction helpers condivisi da tutte le QTListView
+# ----------------------------------------------------------------------
+
+
+class FirstColumnHoverDelegate(QStyledItemDelegate):
+    """
+    Delegate per la colonna "nome" (di default la 0) delle list view.
+
+    L'idea è dare a quella sola colonna una affordance visiva di click
+    (background evidenziato quando il mouse passa sopra alla cella),
+    lasciando inerti tutte le altre celle della riga. La logica di
+    tracking della riga hoverata vive in
+    ``_ListViewInteractionHandler``: il delegate si limita a leggerla e
+    a tinteggiare lo sfondo prima del rendering standard.
+
+    È pubblico per consentire alle sottoclassi che già installano un
+    proprio delegate sulla colonna nome di estenderlo invece di
+    duplicarne la logica.
+    """
+
+    def __init__(self, table: "QTableView", parent=None):
+        super().__init__(parent)
+        self._table = table
+        self._hovered_row = -1
+
+    def set_hovered_row(self, row: int) -> None:
+        if row != self._hovered_row:
+            self._hovered_row = row
+            self._table.viewport().update()
+
+    def paint(self, painter, option, index):
+        if index.isValid() and index.row() == self._hovered_row:
+            color = QColor(option.palette.color(QPalette.Highlight))
+            color.setAlpha(70)  # tinta leggera, non invadente
+            painter.save()
+            painter.fillRect(option.rect, color)
+            painter.restore()
+        super().paint(painter, option, index)
+
+
+class _ListViewInteractionHandler(QObject):
+    """
+    Centralizza i comportamenti comuni di hover/tooltip delle QTListView.
+
+    Responsabilità:
+    - feedback visivo del cursore (pointer) e del background solo sulla
+      colonna nome, attraverso ``FirstColumnHoverDelegate``;
+    - reset dello stato al ``Leave`` del viewport;
+    - tooltip "intelligente" su ``QEvent.ToolTip``: se il modello fornisce
+      esplicitamente ``Qt.ToolTipRole`` lo si rispetta, altrimenti si
+      mostra il valore ``Qt.DisplayRole`` per intero solo se la cella
+      lo sta troncando (font metrics vs larghezza visiva).
+
+    L'installazione passa per ``QTBaseListView._install_interaction_handler``,
+    che può essere disabilitata o sovrascritta nelle sottoclassi.
+    """
+
+    def __init__(self, table: "QTableView", hover_column: int = 0, parent=None):
+        super().__init__(parent)
+        self._table = table
+        self._hover_column = hover_column
+        self._delegate = FirstColumnHoverDelegate(table, parent=table)
+
+        table.setItemDelegateForColumn(hover_column, self._delegate)
+        table.setMouseTracking(True)
+        # entered() viene emesso quando il cursore entra in una cella
+        # (richiede mouseTracking=True): è il punto giusto per aggiornare
+        # riga hoverata e cursor shape.
+        table.entered.connect(self._on_entered)
+        table.viewport().installEventFilter(self)
+
+    # Property utili a chi vuole estendere il comportamento.
+    @property
+    def delegate(self) -> FirstColumnHoverDelegate:
+        return self._delegate
+
+    @property
+    def hover_column(self) -> int:
+        return self._hover_column
+
+    def _on_entered(self, index):
+        if index.isValid() and index.column() == self._hover_column:
+            self._delegate.set_hovered_row(index.row())
+            self._table.viewport().setCursor(Qt.PointingHandCursor)
+        else:
+            self._delegate.set_hovered_row(-1)
+            self._table.viewport().setCursor(Qt.ArrowCursor)
+
+    def eventFilter(self, obj, event):
+        if obj is self._table.viewport():
+            etype = event.type()
+            if etype == QEvent.Leave:
+                self._delegate.set_hovered_row(-1)
+                self._table.viewport().setCursor(Qt.ArrowCursor)
+            elif etype == QEvent.ToolTip:
+                if self._show_tooltip_for_event(event):
+                    return True
+        return super().eventFilter(obj, event)
+
+    def _show_tooltip_for_event(self, event) -> bool:
+        index = self._table.indexAt(event.pos())
+        if not index.isValid():
+            QToolTip.hideText()
+            return True
+
+        # Se il modello ha un suo tooltip esplicito, vince sempre.
+        explicit = index.data(Qt.ToolTipRole)
+        if explicit:
+            QToolTip.showText(
+                event.globalPos(), str(explicit), self._table.viewport(), self._table.visualRect(index)
+            )
+            return True
+
+        text = index.data(Qt.DisplayRole)
+        if text is None or text == "":
+            QToolTip.hideText()
+            return True
+        text = str(text)
+
+        rect = self._table.visualRect(index)
+        fm = self._table.fontMetrics()
+        # Margine empirico (padding cella ~6/8px per lato): se il testo
+        # non ci sta, lo mostriamo per intero nel tooltip.
+        available = rect.width() - 12
+        if fm.horizontalAdvance(text) > available:
+            QToolTip.showText(event.globalPos(), text, self._table.viewport(), rect)
+        else:
+            QToolTip.hideText()
+        return True
 
 
 class QTBaseListView(QWidget):
@@ -75,6 +211,40 @@ class QTBaseListView(QWidget):
     SEARCH_PLACEHOLDER = "Cerca in tutte le colonne…"
     ADD_BUTTON_TEXT = "Aggiungi un elemento"
     ITEM_LABEL_PLURAL = "elementi"
+
+    # ------------------------------------------------------------------
+    # Comportamento interattivo comune a tutte le list view.
+    # Override-friendly: ogni sottoclasse può spegnere o cambiare un
+    # singolo aspetto senza riscrivere l'intera pipeline.
+    # ------------------------------------------------------------------
+
+    HOVER_COLUMN = 0
+    """Colonna su cui si concentra l'affordance di apertura del dettaglio
+    (hover background + cursor pointer + double-click attivo).
+    Imposta a un intero negativo per disabilitare completamente il
+    meccanismo (in quel caso il double-click torna a essere globale)."""
+
+    RESTRICT_DOUBLE_CLICK_TO_HOVER_COLUMN = True
+    """Se True, il double-click sulle colonne diverse da ``HOVER_COLUMN``
+    non apre il dettaglio (le altre celle diventano "non cliccabili")."""
+
+    DISABLE_DEFAULT_ITEM_HOVER = True
+    """Se True, sopprime via stylesheet il background di hover di default
+    su tutte le celle, lasciando l'evidenza solo sulla colonna nome."""
+
+    ELIDED_TOOLTIPS_ENABLED = True
+    """Se True, l'event filter mostra un tooltip con il testo completo
+    della cella quando il rendering lo sta troncando."""
+
+    ROW_SELECTION_ENABLED = False
+    """Se False, il click singolo non seleziona la riga (la tabella usa
+    ``QAbstractItemView.NoSelection``). Tieni presente che senza
+    selezione l'unico feedback "questa è la riga" è quello dell'hover
+    sulla colonna nome.
+
+    Lo si imposta a True nelle sottoclassi che hanno bisogno del concetto
+    di "riga corrente" — ad esempio quelle che reagiscono alla
+    selezione con un'azione contestuale."""
 
     # ------------------------------------------------------------------
     # Costruzione
@@ -197,15 +367,63 @@ class QTBaseListView(QWidget):
     def _build_table(self, root: QVBoxLayout):
         self.table = QTableView()
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
+        # Selezione disabilitabile a livello di sottoclasse: senza di
+        # essa il click singolo non colora più la riga, mentre l'hover
+        # sulla colonna nome continua a dare il feedback visivo.
+        self.table.setSelectionMode(
+            QAbstractItemView.SingleSelection
+            if self.ROW_SELECTION_ENABLED
+            else QAbstractItemView.NoSelection
+        )
         self.table.setAlternatingRowColors(True)
         self.table.setSortingEnabled(True)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setStretchLastSection(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.doubleClicked.connect(self._on_row_double_clicked)
+
+        # Lascio prima alle sottoclassi la libertà di applicare stylesheet,
+        # delegate custom, dimensioni cell... Poi sovrappongo i wiring
+        # comuni (hover/tooltip/disable hover default). In questo modo,
+        # se una sottoclasse vuole tenersi un proprio delegate sulla
+        # colonna nome, basta che imposti ``HOVER_COLUMN = -1`` o che
+        # faccia override di ``_install_interaction_handler``.
         self.configure_table(self.table)
+        self._install_interaction_handler()
+        self._apply_common_table_stylesheet()
+
         root.addWidget(self.table, stretch=1)
+
+    def _install_interaction_handler(self):
+        """
+        Installa l'handler comune di hover/tooltip/cursor sulla tabella.
+
+        Override-point: se una sottoclasse vuole personalizzare la logica
+        può restituire un'istanza alternativa (ad es. una sottoclasse di
+        ``_ListViewInteractionHandler``) oppure non chiamare il super
+        per disattivarlo del tutto.
+        """
+        self._interaction_handler = None
+        if self.HOVER_COLUMN is None or self.HOVER_COLUMN < 0:
+            return
+        self._interaction_handler = _ListViewInteractionHandler(
+            self.table, hover_column=self.HOVER_COLUMN, parent=self
+        )
+
+    def _apply_common_table_stylesheet(self):
+        """
+        Appende allo stylesheet della tabella le regole comuni (hover
+        spento) senza calpestare quello impostato dalla sottoclasse in
+        ``configure_table``. Override-friendly.
+        """
+        if not self.DISABLE_DEFAULT_ITEM_HOVER:
+            return
+        existing = self.table.styleSheet()
+        # Tutte le celle non hoverable; la cella della HOVER_COLUMN viene
+        # comunque ridipinta dal FirstColumnHoverDelegate, quindi resta
+        # l'unica con feedback visivo.
+        suppression = "\nQTableView::item:hover { background-color: transparent; }"
+        self.table.setStyleSheet(existing + suppression)
 
     def _build_bottom_bar(self, root: QVBoxLayout):
         bottom = QHBoxLayout()
@@ -283,6 +501,17 @@ class QTBaseListView(QWidget):
             return
         if self._proxy is None:
             return
+        # Le celle fuori dalla colonna "nome" non sono cliccabili: solo
+        # la colonna con l'affordance visiva apre il dettaglio. Le
+        # sottoclassi possono spegnere questa restrizione impostando
+        # RESTRICT_DOUBLE_CLICK_TO_HOVER_COLUMN = False.
+        if (
+            self.RESTRICT_DOUBLE_CLICK_TO_HOVER_COLUMN
+            and self.HOVER_COLUMN is not None
+            and self.HOVER_COLUMN >= 0
+            and proxy_index.column() != self.HOVER_COLUMN
+        ):
+            return
         source_index = self._proxy.mapToSource(proxy_index)
         item_id = self.id_for_index(source_index)
         if item_id is not None:
@@ -314,7 +543,10 @@ class QTBaseListView(QWidget):
         proxy_index = self._proxy.mapFromSource(self._source_model.index(source_row, 0))
         if not proxy_index.isValid():
             return
-        self.table.selectRow(proxy_index.row())
+        # selectRow è no-op con NoSelection, ma lo evitiamo esplicitamente
+        # per chiarezza — scrollTo resta utile in entrambe le modalità.
+        if self.ROW_SELECTION_ENABLED:
+            self.table.selectRow(proxy_index.row())
         self.table.scrollTo(proxy_index, QAbstractItemView.PositionAtCenter)
 
     # ------------------------------------------------------------------

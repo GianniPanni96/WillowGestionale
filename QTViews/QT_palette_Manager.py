@@ -120,6 +120,13 @@ class QTPaletteManager:
             color: palette(highlighted-text);
             border-left: 3px solid palette(highlight);
         }
+
+        QToolTip {
+            background-color: palette(midlight);
+            color: palette(text);
+            border: 1px solid palette(mid);
+            padding: 4px 6px;
+        }
     """
 
     def __init__(self, app: QApplication | None = None):

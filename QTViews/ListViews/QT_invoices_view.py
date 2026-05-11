@@ -28,7 +28,7 @@ class QTInvoicesViewH(QTBaseListView):
         ("60 GG", 60),
         ("90 GG", 90),
         ("365 GG", 365),
-        ("TUTTE", None),
+        #("TUTTE", None),
     )
     DEFAULT_WINDOW_INDEX = 0
     ADD_BUTTON_TEXT = "Aggiungi una fattura"

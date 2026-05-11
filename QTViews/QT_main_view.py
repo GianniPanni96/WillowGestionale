@@ -19,10 +19,12 @@ from Views.View_utils import ViewUtils
 
 from QTViews.Details.QT_client_detail_view import QTClientDetailViewH
 from QTViews.Details.QT_invoice_detail_view import QTInvoiceDetailViewH
+from QTViews.Details.QT_payment_detail_view import QTPaymentDetailViewH
 from QTViews.Details.QT_production_detail_view import QTProductionDetailViewH
 from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
 from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
+from QTViews.ListViews.QT_payments_view import QTPaymentsViewH
 from QTViews.ListViews.QT_productions_view import QTProductionsViewH
 from QTViews.ListViews.QT_suppliers_view import QTSuppliersViewH
 from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
@@ -64,6 +66,7 @@ class QTMainWindow(QMainWindow):
     TAB_CLIENTS = "Clienti"
     TAB_SUPPLIERS = "Fornitori"
     TAB_PRODUCTIONS = "Produzioni"
+    TAB_PAYMENTS = "Pagamenti"
 
     @classmethod
     def _tab_names(cls):
@@ -75,7 +78,7 @@ class QTMainWindow(QMainWindow):
             cls.TAB_PRODUCTIONS,
             "Conti",
             cls.TAB_INVOICES,
-            "Pagamenti",
+            cls.TAB_PAYMENTS,
             "Rimborsi",
             "Spese",
             "Iva",
@@ -128,10 +131,12 @@ class QTMainWindow(QMainWindow):
         self.clients_view = None
         self.suppliers_view = None
         self.productions_view = None
+        self.payments_view = None
         self.invoice_detail_view = None
         self.client_detail_view = None
         self.supplier_detail_view = None
         self.production_detail_view = None
+        self.payment_detail_view = None
         self.login_status = False
         self.logged_user_id = -1
         self.backup_runner = QTBackupRunner(app_context=app_context, parent=self)
@@ -224,6 +229,14 @@ class QTMainWindow(QMainWindow):
                     parent=self,
                 )
                 self.tabview.addTab(self.productions_view, name)
+            elif name == self.TAB_PAYMENTS:
+                self.payments_view = QTPaymentsViewH(
+                    app_context=self.app_context,
+                    initial_payment_id=None,
+                    on_open_detail=self._open_payment_detail,
+                    parent=self,
+                )
+                self.tabview.addTab(self.payments_view, name)
             else:
                 placeholder = QLabel(f"{name}\nNon ancora portata su Qt.")
                 placeholder.setAlignment(Qt.AlignCenter)
@@ -276,6 +289,8 @@ class QTMainWindow(QMainWindow):
             self.suppliers_view._on_window_changed()
         elif widget is self.productions_view and self.productions_view is not None:
             self.productions_view._on_window_changed()
+        elif widget is self.payments_view and self.payments_view is not None:
+            self.payments_view._on_window_changed()
 
     def _open_invoice_detail(self, invoice_id):
         if self.invoice_detail_view is not None:
@@ -337,6 +352,21 @@ class QTMainWindow(QMainWindow):
         self.stack.addWidget(self.production_detail_view)
         self.stack.setCurrentWidget(self.production_detail_view)
 
+    def _open_payment_detail(self, payment_id):
+        if self.payment_detail_view is not None:
+            self.stack.removeWidget(self.payment_detail_view)
+            self.payment_detail_view.deleteLater()
+            self.payment_detail_view = None
+
+        self.payment_detail_view = QTPaymentDetailViewH(
+            app_context=self.app_context,
+            payment_id=payment_id,
+            on_back=self._back_to_payments_list,
+            parent=self,
+        )
+        self.stack.addWidget(self.payment_detail_view)
+        self.stack.setCurrentWidget(self.payment_detail_view)
+
     def _back_to_invoices_list(self):
         self.stack.setCurrentWidget(self.tabview)
         if self.invoices_view is not None:
@@ -372,6 +402,15 @@ class QTMainWindow(QMainWindow):
             self.stack.removeWidget(self.production_detail_view)
             self.production_detail_view.deleteLater()
             self.production_detail_view = None
+
+    def _back_to_payments_list(self):
+        self.stack.setCurrentWidget(self.tabview)
+        if self.payments_view is not None:
+            self.tabview.setCurrentWidget(self.payments_view)
+        if self.payment_detail_view is not None:
+            self.stack.removeWidget(self.payment_detail_view)
+            self.payment_detail_view.deleteLater()
+            self.payment_detail_view = None
 
     # ------------------------------------------------------------------
     # Menu handlers — istanziano la finestra dedicata

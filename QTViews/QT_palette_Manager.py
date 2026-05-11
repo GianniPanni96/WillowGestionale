@@ -96,6 +96,30 @@ class QTPaletteManager:
         QTextEdit:focus {
             border-bottom: 2px solid palette(highlight);
         }
+        
+        QTFilterableComboBox {
+            background-color: palette(base);
+            color: palette(text);
+            border: none;
+            border-bottom: 1px solid palette(midlight);
+            padding: 4px 2px;
+        }
+        
+        QTFilterableComboBox:focus {
+            border-bottom: 2px solid palette(highlight);
+        }
+
+        QComboBox QAbstractItemView {
+            selection-background-color: palette(highlight);
+            selection-color: palette(highlighted-text);
+            outline: 0;
+        }
+
+        QComboBox QAbstractItemView::item:selected {
+            background-color: palette(highlight);
+            color: palette(highlighted-text);
+            border-left: 3px solid palette(highlight);
+        }
     """
 
     def __init__(self, app: QApplication | None = None):

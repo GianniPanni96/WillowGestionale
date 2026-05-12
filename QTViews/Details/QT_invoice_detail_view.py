@@ -139,7 +139,7 @@ class QTInvoiceDetailViewH(QWidget):
         self.scroll.setWidget(self.content)
         self.content_layout = QVBoxLayout(self.content)
         self.content_layout.setContentsMargins(20, 20, 20, 20)
-        self.content_layout.setSpacing(15)
+        self.content_layout.setSpacing(55)
 
     def _build_info_section(self, invoice):
         # Container con grid 3 colonne, una sezione per cella.
@@ -578,6 +578,7 @@ class QTInvoiceDetailViewH(QWidget):
         totali = self.invoices_analyzer_service.calcola_totale_pagamenti_fattura(self.current_invoice_id)
 
         cards = QHBoxLayout()
+        cards.setSpacing(15)
         labels = [("TOTALE PAGAMENTI", totali[0])]
         if int(invoice[DBInvoicesColumns.NUMERO_RATE.value]) == int(Rateizzazione.TRE.value):
             labels += [
@@ -607,6 +608,7 @@ class QTInvoiceDetailViewH(QWidget):
 
         totale = self.invoices_analyzer_service.calcola_totale_spese_produzione_fattura(self.current_invoice_id)
         cards = QHBoxLayout()
+        cards.setSpacing(15)
         cards.addWidget(self._make_info_card("TOTALE SPESE", f"{self._fmt(totale)} €"))
         cards.addStretch(1)
         section.layout().addLayout(cards)

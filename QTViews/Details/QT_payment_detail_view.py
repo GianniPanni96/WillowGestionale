@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -134,7 +135,7 @@ class QTPaymentDetailViewH(QWidget):
         self.scroll.setWidget(self.content)
         self.content_layout = QVBoxLayout(self.content)
         self.content_layout.setContentsMargins(20, 20, 20, 20)
-        self.content_layout.setSpacing(15)
+        self.content_layout.setSpacing(45)
 
     def _build_info_section(self, payment_data):
         self.info_frame = QFrame()
@@ -468,13 +469,13 @@ class QTPaymentDetailViewH(QWidget):
         wrapper_layout = QHBoxLayout(wrapper)
         wrapper_layout.setContentsMargins(15, 15, 15, 15)
         wrapper_layout.setSpacing(20)
-
-        wrapper_layout.addWidget(self._create_invoice_history(), stretch=1)
+        wrapper_layout.setAlignment(Qt.AlignTop)
+        wrapper_layout.addWidget(self._create_invoice_history(), stretch=1, alignment=Qt.AlignTop)
 
         self.content_layout.addWidget(wrapper)
 
     def _create_invoice_history(self):
-        section = self._make_section_frame("FATTURA COLLEGATA")
+        section = self._make_section_frame("DETTAGLIO FATTURA COLLEGATA")
 
         invoice_id = self.payment[DBPaymentsColumns.INVOICE_ID.value] if self.payment else None
         invoice = self.invoices_query_service.retrieve_invoice_map_by_id(invoice_id) if invoice_id else None

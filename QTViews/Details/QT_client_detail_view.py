@@ -142,7 +142,7 @@ class QTClientDetailViewH(QWidget):
         self.scroll.setWidget(self.content)
         self.content_layout = QVBoxLayout(self.content)
         self.content_layout.setContentsMargins(20, 20, 20, 20)
-        self.content_layout.setSpacing(15)
+        self.content_layout.setSpacing(45)
 
     def _build_info_section(self, client):
         self.info_frame = QFrame()

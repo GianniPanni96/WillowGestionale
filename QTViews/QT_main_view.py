@@ -21,11 +21,13 @@ from QTViews.Details.QT_client_detail_view import QTClientDetailViewH
 from QTViews.Details.QT_invoice_detail_view import QTInvoiceDetailViewH
 from QTViews.Details.QT_payment_detail_view import QTPaymentDetailViewH
 from QTViews.Details.QT_production_detail_view import QTProductionDetailViewH
+from QTViews.Details.QT_refund_detail_view import QTRefundDetailViewH
 from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
 from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
 from QTViews.ListViews.QT_payments_view import QTPaymentsViewH
 from QTViews.ListViews.QT_productions_view import QTProductionsViewH
+from QTViews.ListViews.QT_refunds_view import QTRefundsViewH
 from QTViews.ListViews.QT_suppliers_view import QTSuppliersViewH
 from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
 from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
@@ -67,6 +69,7 @@ class QTMainWindow(QMainWindow):
     TAB_SUPPLIERS = "Fornitori"
     TAB_PRODUCTIONS = "Produzioni"
     TAB_PAYMENTS = "Pagamenti"
+    TAB_REFUNDS = "Rimborsi"
 
     @classmethod
     def _tab_names(cls):
@@ -79,7 +82,7 @@ class QTMainWindow(QMainWindow):
             "Conti",
             cls.TAB_INVOICES,
             cls.TAB_PAYMENTS,
-            "Rimborsi",
+            cls.TAB_REFUNDS,
             "Spese",
             "Iva",
             "Salario",
@@ -132,11 +135,13 @@ class QTMainWindow(QMainWindow):
         self.suppliers_view = None
         self.productions_view = None
         self.payments_view = None
+        self.refunds_view = None
         self.invoice_detail_view = None
         self.client_detail_view = None
         self.supplier_detail_view = None
         self.production_detail_view = None
         self.payment_detail_view = None
+        self.refund_detail_view = None
         self.login_status = False
         self.logged_user_id = -1
         self.backup_runner = QTBackupRunner(app_context=app_context, parent=self)
@@ -237,6 +242,14 @@ class QTMainWindow(QMainWindow):
                     parent=self,
                 )
                 self.tabview.addTab(self.payments_view, name)
+            elif name == self.TAB_REFUNDS:
+                self.refunds_view = QTRefundsViewH(
+                    app_context=self.app_context,
+                    initial_refund_id=None,
+                    on_open_detail=self._open_refund_detail,
+                    parent=self,
+                )
+                self.tabview.addTab(self.refunds_view, name)
             else:
                 placeholder = QLabel(f"{name}\nNon ancora portata su Qt.")
                 placeholder.setAlignment(Qt.AlignCenter)
@@ -291,6 +304,8 @@ class QTMainWindow(QMainWindow):
             self.productions_view._on_window_changed()
         elif widget is self.payments_view and self.payments_view is not None:
             self.payments_view._on_window_changed()
+        elif widget is self.refunds_view and self.refunds_view is not None:
+            self.refunds_view._on_window_changed()
 
     def _open_invoice_detail(self, invoice_id):
         if self.invoice_detail_view is not None:
@@ -367,6 +382,21 @@ class QTMainWindow(QMainWindow):
         self.stack.addWidget(self.payment_detail_view)
         self.stack.setCurrentWidget(self.payment_detail_view)
 
+    def _open_refund_detail(self, refund_id):
+        if self.refund_detail_view is not None:
+            self.stack.removeWidget(self.refund_detail_view)
+            self.refund_detail_view.deleteLater()
+            self.refund_detail_view = None
+
+        self.refund_detail_view = QTRefundDetailViewH(
+            app_context=self.app_context,
+            refund_id=refund_id,
+            on_back=self._back_to_refunds_list,
+            parent=self,
+        )
+        self.stack.addWidget(self.refund_detail_view)
+        self.stack.setCurrentWidget(self.refund_detail_view)
+
     def _back_to_invoices_list(self):
         self.stack.setCurrentWidget(self.tabview)
         if self.invoices_view is not None:
@@ -411,6 +441,15 @@ class QTMainWindow(QMainWindow):
             self.stack.removeWidget(self.payment_detail_view)
             self.payment_detail_view.deleteLater()
             self.payment_detail_view = None
+
+    def _back_to_refunds_list(self):
+        self.stack.setCurrentWidget(self.tabview)
+        if self.refunds_view is not None:
+            self.tabview.setCurrentWidget(self.refunds_view)
+        if self.refund_detail_view is not None:
+            self.stack.removeWidget(self.refund_detail_view)
+            self.refund_detail_view.deleteLater()
+            self.refund_detail_view = None
 
     # ------------------------------------------------------------------
     # Menu handlers — istanziano la finestra dedicata

@@ -117,7 +117,10 @@ def _rate_colors(invoice_with_payments):
     return colors
 
 
-class InvoicesTableModel(QAbstractTableModel):
+from QTViews.ListViews.QT_base_list_view import WarningSupportMixin
+
+
+class InvoicesTableModel(WarningSupportMixin, QAbstractTableModel):
     """
     Modello dati delle fatture per QTableView.
 
@@ -151,9 +154,13 @@ class InvoicesTableModel(QAbstractTableModel):
     ROLE_RATE_COLORS = Qt.UserRole + 1
     ROLE_INVOICE_ID = Qt.UserRole + 2
 
+    # Chiave usata dal warning service (mappa NUMERO_FATTURA -> testo).
+    WARNING_KEY_FIELD = "name"
+
     def __init__(self, rows, parent=None):
         super().__init__(parent)
         self._rows = rows
+        self._init_warning_state()
 
     @classmethod
     def build_rows(
@@ -274,6 +281,10 @@ class InvoicesTableModel(QAbstractTableModel):
             if col in (self.COL_DATA, self.COL_NETTO, self.COL_RATE, self.COL_STATO):
                 return int(Qt.AlignCenter)
             return int(Qt.AlignVCenter | Qt.AlignLeft)
+
+        warning_data = self._warning_data_for_role(index, role)
+        if warning_data is not None:
+            return warning_data
 
         return None
 

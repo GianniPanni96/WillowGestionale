@@ -32,9 +32,10 @@ class _NoScrollComboBox(QComboBox):
 
 from Gestionale_Enums import ProductionStatus
 from Model import DBClientsColumns, DBProductionsColumns
+from QTViews.ListViews.QT_base_list_view import WarningSupportMixin
 
 
-class ProductionsTableModel(QAbstractTableModel):
+class ProductionsTableModel(WarningSupportMixin, QAbstractTableModel):
     """
     Modello dati produzioni per QTableView.
 
@@ -72,10 +73,14 @@ class ProductionsTableModel(QAbstractTableModel):
     # view per aggiornare aggregati e ridipingere la riga.
     status_committed = Signal(int, str)
 
+    # Chiave usata dal ProductionWarningService (mappa NAME -> testo).
+    WARNING_KEY_FIELD = "name"
+
     def __init__(self, rows, production_controller=None, parent=None):
         super().__init__(parent)
         self._rows = rows
         self._production_controller = production_controller
+        self._init_warning_state()
 
     @classmethod
     def build_rows(cls, productions, clients_query_service, productions_analyzer_service):
@@ -188,6 +193,10 @@ class ProductionsTableModel(QAbstractTableModel):
             if col == self.COL_NOME:
                 return int(Qt.AlignVCenter | Qt.AlignLeft)
             return int(Qt.AlignCenter)
+
+        warning_data = self._warning_data_for_role(index, role)
+        if warning_data is not None:
+            return warning_data
 
         return None
 

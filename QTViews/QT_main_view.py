@@ -37,6 +37,7 @@ from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
 from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
 from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
 from QTViews.MenuWindows.QT_fiscal_year_closer_dialog import QTFiscalYearCloserDialog
+from QTViews.MenuWindows.QT_warnings_settings_dialog import QTWarningsSettingsDialog
 from QTViews.MenuWindows.QT_load_backup_dialog import QTLoadBackupDialog
 from QTViews.MenuWindows.QT_login_dialog import QTLoginDialog
 from QTViews.MenuWindows.QT_recurring_expenses_dialog import QTRecurringExpensesDialog
@@ -187,7 +188,7 @@ class QTMainWindow(QMainWindow):
             }
             """
         )
-        backup = menubar.addMenu("Gestione Backup")
+        backup = menubar.addMenu("Backup")
         backup.addAction("Impostazioni backup").triggered.connect(self._open_backup_settings)
         backup.addAction("Esegui un backup manuale del Database").triggered.connect(
             self._execute_db_backup
@@ -197,18 +198,23 @@ class QTMainWindow(QMainWindow):
         )
         backup.addAction("Carica un backup del Database").triggered.connect(self._open_load_backup)
 
-        fiscal = menubar.addMenu("Gestione Dati Fiscali")
+        fiscal = menubar.addMenu("Dati Fiscali")
         fiscal.addAction("Modifica dati fiscali").triggered.connect(self._open_fiscal_settings)
 
-        recurring = menubar.addMenu("Gestione Spese Ricorrenti")
+        recurring = menubar.addMenu("Spese Ricorrenti")
         recurring.addAction("Modifica Spese Ricorrenti").triggered.connect(
             self._open_recurring_expenses
         )
 
-        fiscal_year = menubar.addMenu("Gestione Esercizio")
+        fiscal_year = menubar.addMenu("Esercizio")
         fiscal_year.addAction(
             f"Chiusura Esercizio {datetime.now().year}"
         ).triggered.connect(self._open_fiscal_year_closer)
+
+        warnings_menu = menubar.addMenu("GUI")
+        warnings_menu.addAction("Visibilità warnings").triggered.connect(
+            self._open_warnings_settings
+        )
 
     def _build_tabs(self, initial_invoice_id):
         for name in self._tab_names():
@@ -560,6 +566,14 @@ class QTMainWindow(QMainWindow):
             )
             return
         QTFiscalYearCloserDialog(app_context=self.app_context, parent=self).exec()
+
+    def _open_warnings_settings(self):
+        dialog = QTWarningsSettingsDialog(app_context=self.app_context, parent=self)
+        if dialog.exec() == QTWarningsSettingsDialog.Accepted:
+            # Ricarica la tab corrente per riflettere le nuove regole di
+            # visibilita' (in genere il refresh manuale non e' necessario,
+            # ma evitiamo all'utente di doverlo fare a mano).
+            self._refresh_current_tab()
 
     def _manage_login(self):
         if self.login_status:

@@ -61,6 +61,10 @@ class QTPaymentsViewH(QTBaseListView):
     # Hook
     # ------------------------------------------------------------------
 
+    # Warnings di dominio (cfr PaymentWarningService).
+    WARNING_SERVICE_ATTR = "payment_warning_service"
+    WARNING_DOMAIN_KEY = "pagamenti"
+
     def _setup_services(self, app_context: "AppContext"):
         self.payments_query_service = app_context.payments_query_service
         self.payments_analyzer_service = app_context.payments_analyzer_service
@@ -68,6 +72,7 @@ class QTPaymentsViewH(QTBaseListView):
         self.clients_query_service = app_context.clients_query_service
         self.productions_query_service = app_context.productions_query_service
         self.accounts_query_service = app_context.account_query_service
+        self.payment_warning_service = app_context.payment_warning_service
 
     def fetch_items(self, window_days):
         # La legacy include i pagamenti delle fatture non saldate quando

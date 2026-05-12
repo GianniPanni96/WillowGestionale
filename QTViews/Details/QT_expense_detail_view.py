@@ -50,6 +50,8 @@ from Gestionale_Enums import (
 )
 from QTViews.CustomWidgets.QT_catalog_filterable_combo_box import QTCatalogFilterableComboBox
 from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
+from QTViews.CustomWidgets.QT_warning_banner import WarningBanner
+from WarningServices.Warning_types import WarningInfo, WarningSeverity
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -141,6 +143,15 @@ class QTExpenseDetailViewH(QWidget):
         self.content_layout.setSpacing(15)
 
     def _build_info_section(self, expense_data):
+        # Warning banner: visibile solo per i sev 1 (FK rotte).
+        self.warning_banner = WarningBanner()
+        self.content_layout.addWidget(self.warning_banner)
+        self._current_warning_info = self._compute_current_warning(expense_data)
+        if self._is_consistency_warning(self._current_warning_info):
+            self.warning_banner.set_warning(self._current_warning_info)
+        else:
+            self.warning_banner.hide_warning()
+
         self.info_frame = QFrame()
         self.info_frame.setObjectName("ExpenseInfoFrame")
         self.info_frame.setStyleSheet(
@@ -414,6 +425,45 @@ class QTExpenseDetailViewH(QWidget):
 
         self._build_info_section(expense)
         self._toggle_edit(self.modify_switch.isChecked())
+        self._apply_broken_field_highlight()
+
+    # ------------------------------------------------------------------
+    # Warning di consistenza (sev 1)
+    # ------------------------------------------------------------------
+
+    def _compute_current_warning(self, expense):
+        try:
+            service = self.app_context.expense_warning_service
+            warnings = service.collect_warnings_for_list([expense]) or {}
+            return warnings.get(expense.get(DBExpensesColumns.NAME.value))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _is_consistency_warning(info) -> bool:
+        return isinstance(info, WarningInfo) and info.severity == WarningSeverity.CONSISTENCY
+
+    _BROKEN_FIELD_WIDGET_MAP_EXPENSE = {
+        DBExpensesColumns.SUPPLIER_ID.value: "FORNITORE",
+        DBExpensesColumns.ACCOUNT_ID.value: "CONTO",
+        DBExpensesColumns.USER_ID_DEDUZIONE.value: "UTENTE DEDUZIONE",
+        DBExpensesColumns.USER_ID_ANTICIPO.value: "UTENTE ANTICIPO",
+        DBExpensesColumns.LINKED_INVOICE_ID.value: "FATTURA ASSOCIATA",
+    }
+
+    def _apply_broken_field_highlight(self):
+        info = getattr(self, "_current_warning_info", None)
+        if not self._is_consistency_warning(info) or not info.broken_field_key:
+            return
+        widget_key = self._BROKEN_FIELD_WIDGET_MAP_EXPENSE.get(
+            info.broken_field_key, info.broken_field_key
+        )
+        widget = getattr(self, "expense_widgets", {}).get(widget_key)
+        if widget is None:
+            return
+        widget.setStyleSheet(
+            widget.styleSheet() + " border: 2px solid #d62929; border-radius: 4px;"
+        )
 
     def _clear_content(self):
         while self.content_layout.count():

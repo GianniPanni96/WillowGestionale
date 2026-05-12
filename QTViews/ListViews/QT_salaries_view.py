@@ -61,11 +61,16 @@ class QTSalariesViewH(QTBaseListView):
     # Hook
     # ------------------------------------------------------------------
 
+    # Warnings di dominio (cfr SalaryWarningService).
+    WARNING_SERVICE_ATTR = "salary_warning_service"
+    WARNING_DOMAIN_KEY = "salari"
+
     def _setup_services(self, app_context: "AppContext"):
         self.salary_query_service = app_context.salary_query_service
         self.salary_analyzer_service = app_context.salary_analyzer_service
         self.user_query_service = app_context.user_query_service
         self.accounts_query_service = app_context.account_query_service
+        self.salary_warning_service = app_context.salary_warning_service
 
     def fetch_items(self, window_days):
         all_salaries = self.salary_query_service.retrieve_salaries_map_list()

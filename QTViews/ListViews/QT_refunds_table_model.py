@@ -15,9 +15,10 @@ from Gestionale_Enums import (
     DBClientsColumns,
     DBRefundsColumns,
 )
+from QTViews.ListViews.QT_base_list_view import WarningSupportMixin
 
 
-class RefundsTableModel(QAbstractTableModel):
+class RefundsTableModel(WarningSupportMixin, QAbstractTableModel):
     """
     Modello dati rimborsi per QTableView.
 
@@ -41,9 +42,13 @@ class RefundsTableModel(QAbstractTableModel):
 
     ROLE_REFUND_ID = Qt.UserRole + 2
 
+    # Chiave usata dal RefundWarningService (mappa REFUND_NAME -> testo).
+    WARNING_KEY_FIELD = "name"
+
     def __init__(self, rows, parent=None):
         super().__init__(parent)
         self._rows = rows
+        self._init_warning_state()
 
     # ------------------------------------------------------------------
     # Build rows
@@ -138,6 +143,10 @@ class RefundsTableModel(QAbstractTableModel):
             if col == self.COL_NOME:
                 return int(Qt.AlignVCenter | Qt.AlignLeft)
             return int(Qt.AlignCenter)
+
+        warning_data = self._warning_data_for_role(index, role)
+        if warning_data is not None:
+            return warning_data
 
         return None
 

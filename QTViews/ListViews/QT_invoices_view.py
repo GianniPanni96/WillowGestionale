@@ -52,12 +52,18 @@ class QTInvoicesViewH(QTBaseListView):
     # Hook
     # ------------------------------------------------------------------
 
+    # Wiring del warning service di dominio: vedi
+    # ``QTBaseListView.collect_warnings`` per la pipeline.
+    WARNING_SERVICE_ATTR = "invoice_warning_service"
+    WARNING_DOMAIN_KEY = "fatture"
+
     def _setup_services(self, app_context: "AppContext"):
         self.invoices_query_service = app_context.invoices_query_service
         self.invoices_analyzer_service = app_context.invoices_analyzer_service
         self.clients_query_service = app_context.clients_query_service
         self.user_query_service = app_context.user_query_service
         self.productions_query_service = app_context.productions_query_service
+        self.invoice_warning_service = app_context.invoice_warning_service
 
     def fetch_items(self, window_days):
         if window_days is None:

@@ -50,6 +50,8 @@ from Gestionale_Enums import (
     Rateizzazione,
 )
 from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
+from QTViews.CustomWidgets.QT_warning_banner import WarningBanner
+from WarningServices.Warning_types import WarningInfo, WarningSeverity
 from Views.View_utils import ViewUtils
 
 if TYPE_CHECKING:
@@ -138,6 +140,16 @@ class QTPaymentDetailViewH(QWidget):
         self.content_layout.setSpacing(45)
 
     def _build_info_section(self, payment_data):
+        # Warning banner: visibile solo per i sev 1 (FK rotte). I sev 2/3
+        # restano confinati alla list view.
+        self.warning_banner = WarningBanner()
+        self.content_layout.addWidget(self.warning_banner)
+        self._current_warning_info = self._compute_current_warning(payment_data)
+        if self._is_consistency_warning(self._current_warning_info):
+            self.warning_banner.set_warning(self._current_warning_info)
+        else:
+            self.warning_banner.hide_warning()
+
         self.info_frame = QFrame()
         self.info_frame.setObjectName("PaymentInfoFrame")
         self.info_frame.setStyleSheet(
@@ -320,6 +332,7 @@ class QTPaymentDetailViewH(QWidget):
         self._toggle_edit(self.modify_switch.isChecked())
 
         self._build_history_section()
+        self._apply_broken_field_highlight()
 
     def _clear_content(self):
         while self.content_layout.count():
@@ -386,6 +399,43 @@ class QTPaymentDetailViewH(QWidget):
         production_label: QLabel = self.payment_widgets[self.PRODUCTION_FIELD]
         production_label.setText(
             production[DBProductionsColumns.NAME.value] if production else "Produzione non trovata"
+        )
+
+    # ------------------------------------------------------------------
+    # Warning di consistenza (sev 1): banner senza dismiss + highlight FK
+    # ------------------------------------------------------------------
+
+    def _compute_current_warning(self, payment_data):
+        try:
+            service = self.app_context.payment_warning_service
+            warnings = service.collect_warnings_for_list([payment_data]) or {}
+            return warnings.get(payment_data.get(DBPaymentsColumns.PAYMENT_NAME.value))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _is_consistency_warning(info) -> bool:
+        return isinstance(info, WarningInfo) and info.severity == WarningSeverity.CONSISTENCY
+
+    # Mappatura tra ``broken_field_key`` (nome colonna DB della FK)
+    # e chiave dei widget nel detail.
+    _BROKEN_FIELD_WIDGET_MAP = {
+        DBPaymentsColumns.INVOICE_ID.value: "FATTURA ASSOCIATA",
+        DBPaymentsColumns.CONTO_ID.value: "CONTO",
+    }
+
+    def _apply_broken_field_highlight(self):
+        info = getattr(self, "_current_warning_info", None)
+        if not self._is_consistency_warning(info) or not info.broken_field_key:
+            return
+        widget_key = self._BROKEN_FIELD_WIDGET_MAP.get(
+            info.broken_field_key, info.broken_field_key
+        )
+        widget = getattr(self, "payment_widgets", {}).get(widget_key)
+        if widget is None:
+            return
+        widget.setStyleSheet(
+            widget.styleSheet() + " border: 2px solid #d62929; border-radius: 4px;"
         )
 
     # ------------------------------------------------------------------

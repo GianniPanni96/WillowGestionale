@@ -71,11 +71,16 @@ class QTProductionsViewH(QTBaseListView):
     # Hook
     # ------------------------------------------------------------------
 
+    # Warnings di dominio (cfr ProductionWarningService).
+    WARNING_SERVICE_ATTR = "production_warning_service"
+    WARNING_DOMAIN_KEY = "produzioni"
+
     def _setup_services(self, app_context: "AppContext"):
         self.productions_query_service = app_context.productions_query_service
         self.productions_analyzer_service = app_context.productions_analyzer_service
         self.clients_query_service = app_context.clients_query_service
         self.production_controller = app_context.production_controller
+        self.production_warning_service = app_context.production_warning_service
 
     def fetch_items(self, window_days):
         all_productions = self.productions_query_service.retrieve_productions_map_list(

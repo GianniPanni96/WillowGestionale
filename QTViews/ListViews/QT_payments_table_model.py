@@ -20,9 +20,10 @@ from Gestionale_Enums import (
     DBPaymentsColumns,
     DBProductionsColumns,
 )
+from QTViews.ListViews.QT_base_list_view import WarningSupportMixin
 
 
-class PaymentsTableModel(QAbstractTableModel):
+class PaymentsTableModel(WarningSupportMixin, QAbstractTableModel):
     """
     Modello dati pagamenti per QTableView.
 
@@ -53,9 +54,13 @@ class PaymentsTableModel(QAbstractTableModel):
 
     ROLE_PAYMENT_ID = Qt.UserRole + 2
 
+    # Chiave usata dal PaymentWarningService (mappa PAYMENT_NAME -> testo).
+    WARNING_KEY_FIELD = "name"
+
     def __init__(self, rows, parent=None):
         super().__init__(parent)
         self._rows = rows
+        self._init_warning_state()
 
     # ------------------------------------------------------------------
     # Build rows
@@ -191,6 +196,10 @@ class PaymentsTableModel(QAbstractTableModel):
             if col == self.COL_NOME:
                 return int(Qt.AlignVCenter | Qt.AlignLeft)
             return int(Qt.AlignCenter)
+
+        warning_data = self._warning_data_for_role(index, role)
+        if warning_data is not None:
+            return warning_data
 
         return None
 

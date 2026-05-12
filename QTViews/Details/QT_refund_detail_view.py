@@ -41,6 +41,8 @@ from Gestionale_Enums import (
     DBRefundsColumns,
 )
 from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
+from QTViews.CustomWidgets.QT_warning_banner import WarningBanner
+from WarningServices.Warning_types import WarningInfo, WarningSeverity
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -123,6 +125,15 @@ class QTRefundDetailViewH(QWidget):
         self.content_layout.setSpacing(15)
 
     def _build_info_section(self, refund_data):
+        # Warning banner: visibile solo per i sev 1 (FK rotte).
+        self.warning_banner = WarningBanner()
+        self.content_layout.addWidget(self.warning_banner)
+        self._current_warning_info = self._compute_current_warning(refund_data)
+        if self._is_consistency_warning(self._current_warning_info):
+            self.warning_banner.set_warning(self._current_warning_info)
+        else:
+            self.warning_banner.hide_warning()
+
         self.info_frame = QFrame()
         self.info_frame.setObjectName("RefundInfoFrame")
         self.info_frame.setStyleSheet(
@@ -271,6 +282,45 @@ class QTRefundDetailViewH(QWidget):
     # Caricamento dati di un rimborso specifico
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Warning di consistenza (sev 1)
+    # ------------------------------------------------------------------
+
+    def _compute_current_warning(self, refund):
+        try:
+            service = self.app_context.refund_warning_service
+            warnings = service.collect_warnings_for_list([refund]) or {}
+            return warnings.get(refund.get(DBRefundsColumns.REFUND_NAME.value))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _is_consistency_warning(info) -> bool:
+        return isinstance(info, WarningInfo) and info.severity == WarningSeverity.CONSISTENCY
+
+    _BROKEN_FIELD_WIDGET_MAP_REFUND = {
+        DBRefundsColumns.CLIENT_ID.value: "CLIENTE ASSOCIATO",
+        DBRefundsColumns.CONTO_ID.value: "CONTO",
+    }
+
+    def _apply_broken_field_highlight(self):
+        info = getattr(self, "_current_warning_info", None)
+        if not self._is_consistency_warning(info) or not info.broken_field_key:
+            return
+        widget_key = self._BROKEN_FIELD_WIDGET_MAP_REFUND.get(
+            info.broken_field_key, info.broken_field_key
+        )
+        widget = getattr(self, "refund_widgets", {}).get(widget_key)
+        if widget is None:
+            return
+        widget.setStyleSheet(
+            widget.styleSheet() + " border: 2px solid #d62929; border-radius: 4px;"
+        )
+
+    # ------------------------------------------------------------------
+    # Caricamento
+    # ------------------------------------------------------------------
+
     def load_refund(self, refund_id):
         self.current_refund_id = refund_id
         self._clear_content()
@@ -285,6 +335,7 @@ class QTRefundDetailViewH(QWidget):
 
         self._build_info_section(refund)
         self._toggle_edit(self.modify_switch.isChecked())
+        self._apply_broken_field_highlight()
 
     def _clear_content(self):
         while self.content_layout.count():

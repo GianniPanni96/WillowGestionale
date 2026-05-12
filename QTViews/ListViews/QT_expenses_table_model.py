@@ -17,9 +17,10 @@ from Gestionale_Enums import (
     DBSuppliersColumns,
     DBUsersColumns,
 )
+from QTViews.ListViews.QT_base_list_view import WarningSupportMixin
 
 
-class ExpensesTableModel(QAbstractTableModel):
+class ExpensesTableModel(WarningSupportMixin, QAbstractTableModel):
     """
     Modello dati spese per QTableView.
 
@@ -52,9 +53,13 @@ class ExpensesTableModel(QAbstractTableModel):
 
     ROLE_EXPENSE_ID = Qt.UserRole + 2
 
+    # Chiave usata dall'ExpenseWarningService (mappa NOME -> testo).
+    WARNING_KEY_FIELD = "name"
+
     def __init__(self, rows, parent=None):
         super().__init__(parent)
         self._rows = rows
+        self._init_warning_state()
 
     # ------------------------------------------------------------------
     # Build rows
@@ -199,6 +204,10 @@ class ExpensesTableModel(QAbstractTableModel):
             if col == self.COL_NOME:
                 return int(Qt.AlignVCenter | Qt.AlignLeft)
             return int(Qt.AlignCenter)
+
+        warning_data = self._warning_data_for_role(index, role)
+        if warning_data is not None:
+            return warning_data
 
         return None
 

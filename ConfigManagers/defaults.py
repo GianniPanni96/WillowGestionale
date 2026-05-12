@@ -225,5 +225,29 @@ HISTORICAL_FINANCIAL_DATA_DEFAULT = {
 }
 
 
+def build_warnings_visibility_default():
+    """Costruisce la struttura di default per ``warnings_visibility.json``.
+
+    Itera sul catalogo dei warning (``WARNING_CATALOG``) e produce per
+    ogni dominio una mappa ``type_key -> True`` solo per i warning di
+    severity 2/3. I sev 1 NON compaiono nel file (sono sempre attivi e
+    non disabilitabili)."""
+    # Import locale per evitare cicli: WarningServices/Warning_types non
+    # dipende da ConfigManagers, ma ConfigManagers/defaults conosce il
+    # nome del modulo.
+    from WarningServices.Warning_types import WARNING_CATALOG, WarningSeverity
+
+    data: dict = {}
+    for domain_key, items in WARNING_CATALOG.items():
+        domain_data: dict = {}
+        for type_key, severity, _label, _desc in items:
+            if severity == WarningSeverity.CONSISTENCY:
+                # Sev 1: sempre attivo, non scrivibile.
+                continue
+            domain_data[type_key] = True
+        data[domain_key] = domain_data
+    return data
+
+
 def clone_default_config(default_config):
     return deepcopy(default_config)

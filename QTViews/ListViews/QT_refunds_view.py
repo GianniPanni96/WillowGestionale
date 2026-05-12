@@ -63,11 +63,16 @@ class QTRefundsViewH(QTBaseListView):
     # Hook
     # ------------------------------------------------------------------
 
+    # Warnings di dominio (cfr RefundWarningService).
+    WARNING_SERVICE_ATTR = "refund_warning_service"
+    WARNING_DOMAIN_KEY = "rimborsi"
+
     def _setup_services(self, app_context: "AppContext"):
         self.refunds_query_service = app_context.refunds_query_service
         self.refunds_analyzer_service = app_context.refunds_analyzer_service
         self.clients_query_service = app_context.clients_query_service
         self.accounts_query_service = app_context.account_query_service
+        self.refund_warning_service = app_context.refund_warning_service
 
     def fetch_items(self, window_days):
         all_refunds = self.refunds_query_service.retrieve_refunds_map_list()

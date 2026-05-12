@@ -61,12 +61,17 @@ class QTExpensesViewH(QTBaseListView):
     # Hook
     # ------------------------------------------------------------------
 
+    # Warnings di dominio (cfr ExpenseWarningService).
+    WARNING_SERVICE_ATTR = "expense_warning_service"
+    WARNING_DOMAIN_KEY = "spese"
+
     def _setup_services(self, app_context: "AppContext"):
         self.expenses_query_service = app_context.expenses_query_service
         self.expenses_analyzer_service = app_context.expenses_analyzer_service
         self.suppliers_query_service = app_context.suppliers_query_service
         self.user_query_service = app_context.user_query_service
         self.accounts_query_service = app_context.account_query_service
+        self.expense_warning_service = app_context.expense_warning_service
 
     def fetch_items(self, window_days):
         all_expenses = self.expenses_query_service.retrieve_expenses_map_list()

@@ -33,6 +33,8 @@ from Model import (
     DBUsersColumns,
 )
 from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
+from QTViews.CustomWidgets.QT_warning_banner import WarningBanner
+from WarningServices.Warning_types import WarningInfo, WarningSeverity
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -142,6 +144,16 @@ class QTInvoiceDetailViewH(QWidget):
         self.content_layout.setSpacing(55)
 
     def _build_info_section(self, invoice):
+        # Warning banner: visibile solo per i sev 1 (FK rotte). I sev 2/3
+        # restano confinati alla list view (bordo sinistro colorato).
+        self.warning_banner = WarningBanner()
+        self.content_layout.addWidget(self.warning_banner)
+        self._current_warning_info = self._compute_current_warning(invoice)
+        if self._is_consistency_warning(self._current_warning_info):
+            self.warning_banner.set_warning(self._current_warning_info)
+        else:
+            self.warning_banner.hide_warning()
+
         # Container con grid 3 colonne, una sezione per cella.
         self.info_frame = QFrame()
         self.info_frame.setObjectName("InvoiceInfoFrame")
@@ -371,6 +383,10 @@ class QTInvoiceDetailViewH(QWidget):
         self._create_payments_section()
         self._create_expenses_section()
 
+        # Highlight rosso del widget FK rotta (eseguito dopo che
+        # invoice_widgets e' popolato).
+        self._apply_broken_field_highlight()
+
     def _clear_content(self):
         while self.content_layout.count():
             item = self.content_layout.takeAt(0)
@@ -481,6 +497,58 @@ class QTInvoiceDetailViewH(QWidget):
                 widget.setVisible(is_rateizzata)
             if label is not None:
                 label.setVisible(is_rateizzata)
+
+    # ------------------------------------------------------------------
+    # Warning di consistenza (sev 1): banner senza dismiss + highlight FK
+    # ------------------------------------------------------------------
+
+    def _compute_current_warning(self, invoice):
+        """Restituisce il WarningInfo per la fattura corrente, oppure
+        None. La config di visibilita' NON viene applicata: i sev 1
+        sono sempre visibili e i sev 2/3 non vanno mostrati nel detail
+        (banner riservato ai sev 1)."""
+        try:
+            service = self.app_context.invoice_warning_service
+            warnings = service.collect_warnings_for_list([invoice]) or {}
+            return warnings.get(invoice.get(DBInvoicesColumns.NUMERO_FATTURA.value))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _is_consistency_warning(info) -> bool:
+        return isinstance(info, WarningInfo) and info.severity == WarningSeverity.CONSISTENCY
+
+    # Mappatura tra ``broken_field_key`` (nome colonna DB della FK
+    # restituito dal warning service) e chiave dei widget nel detail.
+    @property
+    def _broken_field_widget_map(self):
+        return {
+            DBInvoicesColumns.ID_CLIENTE.value: self.NOME_CLIENTE,
+            DBInvoicesColumns.ID_UTENTE.value: self.NOME_UTENTE,
+            DBInvoicesColumns.ID_CONTO.value: self.NOME_CONTO,
+            DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value: self.NOME_PRODUZIONE,
+            DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value: self.NOME_FATTURA_ASSOCIATA,
+        }
+
+    def _apply_broken_field_highlight(self):
+        """Evidenzia in rosso il widget che corrisponde alla FK rotta.
+
+        Il widget viene cercato in ``self.invoice_widgets`` usando la
+        mappatura ``_broken_field_widget_map`` (DB col -> chiave
+        widget). Lo stylesheet rosso resta in vigore finche' il widget
+        non viene ricreato dal prossimo ``load_invoice``."""
+        info = getattr(self, "_current_warning_info", None)
+        if not self._is_consistency_warning(info) or not info.broken_field_key:
+            return
+        widget_key = self._broken_field_widget_map.get(
+            info.broken_field_key, info.broken_field_key
+        )
+        widget = getattr(self, "invoice_widgets", {}).get(widget_key)
+        if widget is None:
+            return
+        widget.setStyleSheet(
+            widget.styleSheet() + " border: 2px solid #d62929; border-radius: 4px;"
+        )
 
     # ------------------------------------------------------------------
     # Salvataggio

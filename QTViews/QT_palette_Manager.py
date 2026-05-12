@@ -47,6 +47,7 @@ class QTPaletteManager:
         "highlight": "#2659ab",
         "highlighted-text": "#ffffff",
         "button-text": "#ffffff",
+        "mid": "#c2c2c2"
     }
 
     APP_STYLESHEET = """

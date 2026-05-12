@@ -20,6 +20,7 @@ from Event_bus import EventBus
 from Books_retriever import BooksRetriever
 from Book_closer import BookCloser
 from ConfigManagers import ConfigManager, FiscalSettings
+from ConfigManagers.warnings_visibility_manager import WarningsVisibilityManager
 
 from Controllerss.Client_controller import ClientController
 from Controllerss.Supplier_controller import SupplierController
@@ -49,6 +50,9 @@ from OtherServices.User_crypto_service import UserCryptoService
 from WarningServices.Production_warning_service import ProductionWarningService
 from WarningServices.Invoice_warning_service import InvoiceWarningService
 from WarningServices.Payment_warning_service import PaymentWarningService
+from WarningServices.Expense_warning_service import ExpenseWarningService
+from WarningServices.Refund_warning_service import RefundWarningService
+from WarningServices.Salary_warning_service import SalaryWarningService
 from Backup_manager import BackupImporter, BackupScheduler
 from Tab_ui_state_store import TabUIStateStore
 
@@ -118,9 +122,40 @@ class AppContext:
                                                                                       )
         self.user_crypto_service:UserCryptoService = UserCryptoService()
         self.user_auth_service:UserAuthService = UserAuthService(self.user_query_service)
-        self.production_warning_service:ProductionWarningService = ProductionWarningService()
-        self.invoice_warning_service:InvoiceWarningService = InvoiceWarningService(self.productions_query_service)
-        self.payment_warning_service:PaymentWarningService = PaymentWarningService(self.invoices_query_service)
+        self.production_warning_service:ProductionWarningService = ProductionWarningService(
+            productions_query_service=self.productions_query_service,
+            productions_analyzer_service=self.productions_analyzer_service,
+            clients_query_service=self.clients_query_service,
+        )
+        self.invoice_warning_service:InvoiceWarningService = InvoiceWarningService(
+            productions_query_service=self.productions_query_service,
+            payments_query_service=self.payments_query_service,
+            clients_query_service=self.clients_query_service,
+            user_query_service=self.user_query_service,
+            accounts_query_service=self.account_query_service,
+            invoices_query_service=self.invoices_query_service,
+        )
+        self.payment_warning_service:PaymentWarningService = PaymentWarningService(
+            invoices_query_service=self.invoices_query_service,
+            payments_query_service=self.payments_query_service,
+            accounts_query_service=self.account_query_service,
+        )
+        self.expense_warning_service:ExpenseWarningService = ExpenseWarningService(
+            catalogo_elenchi=catalogo_elenchi,
+            suppliers_query_service=self.suppliers_query_service,
+            accounts_query_service=self.account_query_service,
+            user_query_service=self.user_query_service,
+            invoices_query_service=self.invoices_query_service,
+        )
+        self.refund_warning_service:RefundWarningService = RefundWarningService(
+            clients_query_service=self.clients_query_service,
+            accounts_query_service=self.account_query_service,
+        )
+        self.salary_warning_service:SalaryWarningService = SalaryWarningService(
+            salary_query_service=self.salary_query_service,
+            user_query_service=self.user_query_service,
+            accounts_query_service=self.account_query_service,
+        )
 
         self.user_controller:UserController = UserController(
             self.db_model,
@@ -193,6 +228,8 @@ class AppContext:
                                  self.account_analyzer_service)
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager:ConfigManager = config_manager
+        self.warnings_visibility_manager: WarningsVisibilityManager = WarningsVisibilityManager()
+        self.warnings_visibility_manager.ensure_exists()
         self.event_bus:EventBus = EventBus()
         self.tab_ui_state_store:TabUIStateStore = TabUIStateStore()
         self.backup_importer:BackupImporter = backup_importer

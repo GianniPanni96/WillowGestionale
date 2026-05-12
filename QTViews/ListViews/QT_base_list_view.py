@@ -48,21 +48,42 @@ if TYPE_CHECKING:
 # ----------------------------------------------------------------------
 
 
+from WarningServices.Warning_types import (
+    SEVERITY_COLORS,
+    WarningInfo,
+    WarningSeverity,
+    color_for_severity,
+)
+
+
+# Mantenuto come fallback (giallo INFO) per chi importa la costante
+# dall'esterno; il delegate usa il colore per-riga letto dal modello.
+WARNING_COLOR_HEX = SEVERITY_COLORS[WarningSeverity.INFO]
+
+
+# Ruoli custom letti dal delegate per riconoscere le righe in warning e
+# dipingerle col colore della severity.
+ROLE_WARNING_TEXT = Qt.UserRole + 50
+ROLE_WARNING_COLOR = Qt.UserRole + 51
+ROLE_WARNING_INFO = Qt.UserRole + 52
+
+
 class FirstColumnHoverDelegate(QStyledItemDelegate):
     """
     Delegate per la colonna "nome" (di default la 0) delle list view.
 
-    L'idea è dare a quella sola colonna una affordance visiva di click
-    (background evidenziato quando il mouse passa sopra alla cella),
-    lasciando inerti tutte le altre celle della riga. La logica di
-    tracking della riga hoverata vive in
-    ``_ListViewInteractionHandler``: il delegate si limita a leggerla e
-    a tinteggiare lo sfondo prima del rendering standard.
+    Tre responsabilita' visive:
+    - tinge il background al passaggio del mouse (hover);
+    - dipinge un bordo sinistro colorato in base alla severity del
+      warning (letto via ``ROLE_WARNING_TEXT`` + ``ROLE_WARNING_COLOR``);
+    - lascia che il rendering standard del testo + decoration
+      (icona warning) avvenga via ``super().paint()``.
 
-    È pubblico per consentire alle sottoclassi che già installano un
-    proprio delegate sulla colonna nome di estenderlo invece di
-    duplicarne la logica.
+    La logica di tracking della riga hoverata vive in
+    ``_ListViewInteractionHandler``: qui ci si limita a leggerla.
     """
+
+    WARNING_BORDER_PX = 4
 
     def __init__(self, table: "QTableView", parent=None):
         super().__init__(parent)
@@ -75,13 +96,32 @@ class FirstColumnHoverDelegate(QStyledItemDelegate):
             self._table.viewport().update()
 
     def paint(self, painter, option, index):
+        # Hover background.
         if index.isValid() and index.row() == self._hovered_row:
             color = QColor(option.palette.color(QPalette.Highlight))
             color.setAlpha(70)  # tinta leggera, non invadente
             painter.save()
             painter.fillRect(option.rect, color)
             painter.restore()
+
+        # Rendering standard (testo + icona warning via Qt.DecorationRole).
         super().paint(painter, option, index)
+
+        # Bordo sinistro colorato sulle righe con warning. Il colore
+        # viene letto dal modello (ROLE_WARNING_COLOR) per riflettere la
+        # severity; il giallo fallback resta sul WARNING_COLOR_HEX.
+        if index.isValid() and index.data(ROLE_WARNING_TEXT):
+            border_color_hex = index.data(ROLE_WARNING_COLOR) or WARNING_COLOR_HEX
+            painter.save()
+            rect = option.rect
+            painter.fillRect(
+                rect.left(),
+                rect.top(),
+                self.WARNING_BORDER_PX,
+                rect.height(),
+                QColor(border_color_hex),
+            )
+            painter.restore()
 
 
 class _ListViewInteractionHandler(QObject):
@@ -175,6 +215,109 @@ class _ListViewInteractionHandler(QObject):
         return True
 
 
+class WarningSupportMixin:
+    """
+    Mixin riutilizzabile per i ``QAbstractTableModel`` delle list view.
+
+    La mappa warnings ora trasporta oggetti ``WarningInfo`` (non piu'
+    stringhe), che includono ``severity``, ``text``, ``type_key``,
+    ``broken_field_key``. Il mixin espone:
+    - ``Qt.ToolTipRole`` sulla colonna nome con il testo del warning;
+    - ``Qt.DecorationRole`` sulla colonna nome con un'icona warning;
+    - ``ROLE_WARNING_TEXT`` (testo);
+    - ``ROLE_WARNING_COLOR`` (hex color associato alla severity);
+    - ``ROLE_WARNING_INFO`` (l'intero ``WarningInfo``).
+
+    Le sottoclassi devono:
+    - definire ``WARNING_KEY_FIELD`` con il nome del campo del row dict
+      usato come chiave dal warning service;
+    - definire ``COL_NOME``;
+    - chiamare ``self._init_warning_state()`` da ``__init__``;
+    - includere ``self._warning_data_for_role(...)`` dentro ``data()``.
+
+    La pipeline di ``QTBaseListView._reload_data`` chiama
+    ``apply_warnings`` automaticamente dopo il fetch.
+    """
+
+    WARNING_KEY_FIELD: str = "name"
+
+    def _init_warning_state(self):
+        self._warnings_by_row_index: dict = {}
+        self._warning_icon = None
+
+    def _ensure_warning_icon(self):
+        if self._warning_icon is None:
+            try:
+                from PySide6.QtWidgets import QApplication, QStyle
+                style = QApplication.style()
+                self._warning_icon = style.standardIcon(QStyle.SP_MessageBoxWarning)
+            except Exception:
+                self._warning_icon = None
+        return self._warning_icon
+
+    def apply_warnings(self, warnings: dict) -> None:
+        """Aggancia la mappa ``warning_key -> WarningInfo`` alle righe
+        del modello. Accetta anche stringhe (back-compat morbida): in
+        tal caso le wrappa in ``WarningInfo`` con severity INFO."""
+        self._warnings_by_row_index = {}
+        if not warnings:
+            self.layoutChanged.emit()
+            return
+        for i, row in enumerate(self._rows):
+            key = row.get(self.WARNING_KEY_FIELD)
+            if key not in warnings:
+                continue
+            value = warnings[key]
+            if isinstance(value, WarningInfo):
+                info = value
+            else:
+                info = WarningInfo(
+                    type_key="_legacy",
+                    severity=WarningSeverity.INFO,
+                    text=str(value),
+                )
+            self._warnings_by_row_index[i] = info
+        self.layoutChanged.emit()
+
+    def warning_for_row(self, row_index: int):
+        return self._warnings_by_row_index.get(row_index)
+
+    def has_warning(self, row_index: int) -> bool:
+        return row_index in self._warnings_by_row_index
+
+    def _warning_data_for_role(self, index, role):
+        """Restituisce il dato warning per il ruolo richiesto, o
+        ``None`` se non pertinente. Da invocare dentro ``data()`` PRIMA
+        del fallback ``return None``.
+
+        Convenzione: warning visibile solo sulla colonna ``COL_NOME``
+        (icona + bordo + tooltip)."""
+        if not index.isValid():
+            return None
+
+        info = self.warning_for_row(index.row())
+        if info is None:
+            return None
+
+        # ROLE_WARNING_TEXT/COLOR esposti su tutte le colonne (delegate
+        # legge il colore della severity per ridipingere il bordo).
+        if role == ROLE_WARNING_TEXT:
+            return info.text
+        if role == ROLE_WARNING_COLOR:
+            return info.color
+        if role == ROLE_WARNING_INFO:
+            return info
+
+        # Tooltip e icona solo sulla colonna nome.
+        if index.column() != getattr(self, "COL_NOME", 0):
+            return None
+        if role == Qt.ToolTipRole:
+            return info.text
+        if role == Qt.DecorationRole:
+            return self._ensure_warning_icon()
+        return None
+
+
 class QTBaseListView(QWidget):
     """
     Sottoclasse questa view per ogni dominio (Fatture, Clienti, …) e
@@ -235,6 +378,19 @@ class QTBaseListView(QWidget):
     ELIDED_TOOLTIPS_ENABLED = True
     """Se True, l'event filter mostra un tooltip con il testo completo
     della cella quando il rendering lo sta troncando."""
+
+    WARNING_SERVICE_ATTR: str = None
+    """Nome dell'attributo (su ``self``) del warning service di dominio.
+    Se valorizzato, ``collect_warnings`` chiama
+    ``getattr(self, attr).collect_warnings_for_list(items)`` per produrre
+    la mappa ``warning_key -> WarningInfo``. Lasciato a None se la list
+    view non ha un dominio con warning."""
+
+    WARNING_DOMAIN_KEY: str = None
+    """Chiave del dominio nel file ``warnings_visibility.json`` (es.
+    ``"fatture"``, ``"pagamenti"``). Se valorizzata, i warning di
+    severity 2/3 disabilitati nella config vengono filtrati prima di
+    essere applicati al modello. I sev 1 NON sono filtrabili."""
 
     ROW_SELECTION_ENABLED = False
     """Se False, il click singolo non seleziona la riga (la tabella usa
@@ -449,7 +605,15 @@ class QTBaseListView(QWidget):
         rows = self.build_rows(items)
         t_build = time.perf_counter()
 
+        # Warnings: dict ``warning_key -> warning_text`` calcolato da un
+        # warning service di dominio (override in collect_warnings). Il
+        # dict viene applicato alle righe via apply_warnings sul model
+        # cosi' la sottoclasse non deve duplicare la logica.
+        self._warnings = self.collect_warnings(items) or {}
+
         self._source_model = self.create_table_model(rows)
+        if hasattr(self._source_model, "apply_warnings"):
+            self._source_model.apply_warnings(self._warnings)
         self._proxy = QSortFilterProxyModel(self)
         self._proxy.setSourceModel(self._source_model)
         self._proxy.setSortRole(Qt.UserRole)
@@ -584,6 +748,49 @@ class QTBaseListView(QWidget):
         oppure None se la list view non ha un toggle.
         """
         return {}
+
+    def collect_warnings(self, items) -> dict:
+        """
+        Restituisce ``dict[warning_key] -> WarningInfo`` per gli item
+        correnti, applicando il filtro di visibilita' configurato in
+        ``warnings_visibility.json`` (i sev 1 non sono filtrabili).
+
+        Default: delega al warning service indicato in
+        ``WARNING_SERVICE_ATTR``. Le sottoclassi possono fare override
+        per logiche custom o per aggregare piu' service.
+        """
+        if not self.WARNING_SERVICE_ATTR:
+            return {}
+        service = getattr(self, self.WARNING_SERVICE_ATTR, None)
+        if service is None or not hasattr(service, "collect_warnings_for_list"):
+            return {}
+        try:
+            raw = service.collect_warnings_for_list(items) or {}
+        except Exception:
+            return {}
+        return self._filter_warnings_by_visibility(raw)
+
+    def _filter_warnings_by_visibility(self, warnings: dict) -> dict:
+        """Rimuove i warning di severity 2/3 disabilitati dall'utente
+        nella config. I sev 1 restano sempre."""
+        if not warnings or not self.WARNING_DOMAIN_KEY:
+            return warnings
+        manager = getattr(self.app_context, "warnings_visibility_manager", None)
+        if manager is None:
+            return warnings
+
+        filtered = {}
+        for key, info in warnings.items():
+            if not isinstance(info, WarningInfo):
+                # Sicurezza: warning legacy come stringa -> tienilo.
+                filtered[key] = info
+                continue
+            if info.severity == WarningSeverity.CONSISTENCY:
+                filtered[key] = info
+                continue
+            if manager.is_warning_enabled(self.WARNING_DOMAIN_KEY, info.type_key):
+                filtered[key] = info
+        return filtered
 
     def open_creator_dialog(self):
         """

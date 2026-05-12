@@ -40,6 +40,8 @@ from Gestionale_Enums import (
     DBSalariesColumns,
     DBUsersColumns,
 )
+from QTViews.CustomWidgets.QT_warning_banner import WarningBanner
+from WarningServices.Warning_types import WarningInfo, WarningSeverity
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -122,6 +124,15 @@ class QTSalaryDetailViewH(QWidget):
         self.content_layout.setSpacing(15)
 
     def _build_info_section(self, salary_data):
+        # Warning banner: visibile solo per i sev 1 (FK rotte).
+        self.warning_banner = WarningBanner()
+        self.content_layout.addWidget(self.warning_banner)
+        self._current_warning_info = self._compute_current_warning(salary_data)
+        if self._is_consistency_warning(self._current_warning_info):
+            self.warning_banner.set_warning(self._current_warning_info)
+        else:
+            self.warning_banner.hide_warning()
+
         self.info_frame = QFrame()
         self.info_frame.setObjectName("SalaryInfoFrame")
         self.info_frame.setStyleSheet(
@@ -289,6 +300,42 @@ class QTSalaryDetailViewH(QWidget):
 
         self._build_info_section(salary)
         self._toggle_edit(self.modify_switch.isChecked())
+        self._apply_broken_field_highlight()
+
+    # ------------------------------------------------------------------
+    # Warning di consistenza (sev 1)
+    # ------------------------------------------------------------------
+
+    def _compute_current_warning(self, salary):
+        try:
+            service = self.app_context.salary_warning_service
+            warnings = service.collect_warnings_for_list([salary]) or {}
+            return warnings.get(salary.get(DBSalariesColumns.NAME.value))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _is_consistency_warning(info) -> bool:
+        return isinstance(info, WarningInfo) and info.severity == WarningSeverity.CONSISTENCY
+
+    _BROKEN_FIELD_WIDGET_MAP_SALARY = {
+        DBSalariesColumns.USER_ID.value: "UTENTE",
+        DBSalariesColumns.ACCOUNT_ID.value: "CONTO",
+    }
+
+    def _apply_broken_field_highlight(self):
+        info = getattr(self, "_current_warning_info", None)
+        if not self._is_consistency_warning(info) or not info.broken_field_key:
+            return
+        widget_key = self._BROKEN_FIELD_WIDGET_MAP_SALARY.get(
+            info.broken_field_key, info.broken_field_key
+        )
+        widget = getattr(self, "salary_widgets", {}).get(widget_key)
+        if widget is None:
+            return
+        widget.setStyleSheet(
+            widget.styleSheet() + " border: 2px solid #d62929; border-radius: 4px;"
+        )
 
     def _clear_content(self):
         while self.content_layout.count():

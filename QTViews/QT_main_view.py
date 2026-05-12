@@ -23,6 +23,7 @@ from QTViews.Details.QT_expense_detail_view import QTExpenseDetailViewH
 from QTViews.Details.QT_payment_detail_view import QTPaymentDetailViewH
 from QTViews.Details.QT_production_detail_view import QTProductionDetailViewH
 from QTViews.Details.QT_refund_detail_view import QTRefundDetailViewH
+from QTViews.Details.QT_salary_detail_view import QTSalaryDetailViewH
 from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
 from QTViews.ListViews.QT_expenses_view import QTExpensesViewH
@@ -30,6 +31,7 @@ from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
 from QTViews.ListViews.QT_payments_view import QTPaymentsViewH
 from QTViews.ListViews.QT_productions_view import QTProductionsViewH
 from QTViews.ListViews.QT_refunds_view import QTRefundsViewH
+from QTViews.ListViews.QT_salaries_view import QTSalariesViewH
 from QTViews.ListViews.QT_suppliers_view import QTSuppliersViewH
 from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
 from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
@@ -73,6 +75,7 @@ class QTMainWindow(QMainWindow):
     TAB_PAYMENTS = "Pagamenti"
     TAB_REFUNDS = "Rimborsi"
     TAB_EXPENSES = "Spese"
+    TAB_SALARIES = "Salario"
 
     @classmethod
     def _tab_names(cls):
@@ -88,7 +91,7 @@ class QTMainWindow(QMainWindow):
             cls.TAB_REFUNDS,
             cls.TAB_EXPENSES,
             "Iva",
-            "Salario",
+            cls.TAB_SALARIES,
             "Tasse",
             f"Report {datetime.now().year}",
             "Plots",
@@ -140,6 +143,7 @@ class QTMainWindow(QMainWindow):
         self.payments_view = None
         self.refunds_view = None
         self.expenses_view = None
+        self.salaries_view = None
         self.invoice_detail_view = None
         self.client_detail_view = None
         self.supplier_detail_view = None
@@ -147,6 +151,7 @@ class QTMainWindow(QMainWindow):
         self.payment_detail_view = None
         self.refund_detail_view = None
         self.expense_detail_view = None
+        self.salary_detail_view = None
         self.login_status = False
         self.logged_user_id = -1
         self.backup_runner = QTBackupRunner(app_context=app_context, parent=self)
@@ -263,6 +268,14 @@ class QTMainWindow(QMainWindow):
                     parent=self,
                 )
                 self.tabview.addTab(self.expenses_view, name)
+            elif name == self.TAB_SALARIES:
+                self.salaries_view = QTSalariesViewH(
+                    app_context=self.app_context,
+                    initial_salary_id=None,
+                    on_open_detail=self._open_salary_detail,
+                    parent=self,
+                )
+                self.tabview.addTab(self.salaries_view, name)
             else:
                 placeholder = QLabel(f"{name}\nNon ancora portata su Qt.")
                 placeholder.setAlignment(Qt.AlignCenter)
@@ -321,6 +334,8 @@ class QTMainWindow(QMainWindow):
             self.refunds_view._on_window_changed()
         elif widget is self.expenses_view and self.expenses_view is not None:
             self.expenses_view._on_window_changed()
+        elif widget is self.salaries_view and self.salaries_view is not None:
+            self.salaries_view._on_window_changed()
 
     def _open_invoice_detail(self, invoice_id):
         if self.invoice_detail_view is not None:
@@ -427,6 +442,21 @@ class QTMainWindow(QMainWindow):
         self.stack.addWidget(self.expense_detail_view)
         self.stack.setCurrentWidget(self.expense_detail_view)
 
+    def _open_salary_detail(self, salary_id):
+        if self.salary_detail_view is not None:
+            self.stack.removeWidget(self.salary_detail_view)
+            self.salary_detail_view.deleteLater()
+            self.salary_detail_view = None
+
+        self.salary_detail_view = QTSalaryDetailViewH(
+            app_context=self.app_context,
+            salary_id=salary_id,
+            on_back=self._back_to_salaries_list,
+            parent=self,
+        )
+        self.stack.addWidget(self.salary_detail_view)
+        self.stack.setCurrentWidget(self.salary_detail_view)
+
     def _back_to_invoices_list(self):
         self.stack.setCurrentWidget(self.tabview)
         if self.invoices_view is not None:
@@ -489,6 +519,15 @@ class QTMainWindow(QMainWindow):
             self.stack.removeWidget(self.expense_detail_view)
             self.expense_detail_view.deleteLater()
             self.expense_detail_view = None
+
+    def _back_to_salaries_list(self):
+        self.stack.setCurrentWidget(self.tabview)
+        if self.salaries_view is not None:
+            self.tabview.setCurrentWidget(self.salaries_view)
+        if self.salary_detail_view is not None:
+            self.stack.removeWidget(self.salary_detail_view)
+            self.salary_detail_view.deleteLater()
+            self.salary_detail_view = None
 
     # ------------------------------------------------------------------
     # Menu handlers — istanziano la finestra dedicata

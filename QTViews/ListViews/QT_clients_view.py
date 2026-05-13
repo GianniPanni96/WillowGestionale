@@ -74,7 +74,17 @@ class QTClientsViewH(QTBaseListView):
         return ClientsTableModel.build_rows(items, self.clients_analyzer_service)
 
     def create_table_model(self, rows):
-        return ClientsTableModel(rows, self)
+        model = ClientsTableModel(rows, self)
+        # Tooltip descrittivi sugli header (statici, indipendenti dai
+        # valori). Vengono letti dal builder per mantenere la
+        # separazione MVC.
+        builder = getattr(self.app_context, self.AGGREGATE_TOOLTIP_BUILDER_ATTR, None)
+        if builder is not None and hasattr(builder, "build_header_tooltips"):
+            try:
+                model.set_header_tooltips(builder.build_header_tooltips() or {})
+            except Exception:
+                pass
+        return model
 
     def configure_table(self, table: QTableView):
         table.setObjectName("ClientsTable")
@@ -101,6 +111,12 @@ class QTClientsViewH(QTBaseListView):
             """
         )
 
+    # Tooltip builder degli aggregati: il dominio Clienti calcola i
+    # valori sui rows del modello (non sull'analyzer), quindi facciamo
+    # override di ``_refresh_aggregate_tooltips`` per passare al builder
+    # la lista di righe correntemente esposta.
+    AGGREGATE_TOOLTIP_BUILDER_ATTR = "clients_aggregate_tooltip_builder"
+
     def compute_aggregates(self, toggle_value):
         # I valori aggregati vengono calcolati dalle righe gia' caricate
         # per evitare un secondo passaggio sull'analyzer service: e'
@@ -119,6 +135,21 @@ class QTClientsViewH(QTBaseListView):
             "TOT. CREDITI": f"{round(tot_crediti, 2)} €",
             "FATTURA MEDIA": f"{round(media_fattura, 2)} €",
         }
+
+    def _refresh_aggregate_tooltips(self, toggle_value):
+        # Override: passiamo i rows correnti al builder, perche' qui gli
+        # aggregati sono calcolati per riga (vedi compute_aggregates).
+        if not self._aggregate_cards:
+            return
+        builder = getattr(self.app_context, self.AGGREGATE_TOOLTIP_BUILDER_ATTR, None)
+        if builder is None:
+            return
+        rows = self._source_model.rows() if self._source_model is not None else []
+        try:
+            tooltips = builder.build_tooltips(toggle_value=toggle_value, rows=rows) or {}
+        except Exception:
+            tooltips = {}
+        self._apply_aggregate_tooltips(tooltips)
 
     def id_for_index(self, source_index):
         return self._source_model.data(source_index, ClientsTableModel.ROLE_CLIENT_ID)

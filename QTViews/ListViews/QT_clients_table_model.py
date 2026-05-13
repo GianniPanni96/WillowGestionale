@@ -54,6 +54,31 @@ class ClientsTableModel(QAbstractTableModel):
     def __init__(self, rows, parent=None):
         super().__init__(parent)
         self._rows = rows
+        # Tooltip degli header di tabella, popolati dalla view via
+        # ``set_header_tooltips`` con i testi del tooltip builder. Vive
+        # qui (nel model) perche' Qt richiede che ``headerData`` ritorni
+        # il valore per Qt.ToolTipRole.
+        self._header_tooltips: dict = {}
+
+    def set_header_tooltips(self, tooltips: dict) -> None:
+        """Accetta sia ``dict[header_label, testo]`` sia
+        ``dict[col_index, testo]``. La normalizzazione interna mappa
+        tutto a ``col_index`` per il lookup in ``headerData``."""
+        normalized = {}
+        for k, v in (tooltips or {}).items():
+            if isinstance(k, int):
+                normalized[k] = v
+            else:
+                # key e' l'header label: lo cerchiamo in HEADERS.
+                try:
+                    idx = self.HEADERS.index(k)
+                    normalized[idx] = v
+                except ValueError:
+                    continue
+        self._header_tooltips = normalized
+        # Notifica la view che gli header sono cambiati, cosi' che il
+        # rendering aggiorni i tooltip.
+        self.headerDataChanged.emit(Qt.Horizontal, 0, max(0, len(self.HEADERS) - 1))
 
     @classmethod
     def build_rows(cls, clients, clients_analyzer_service):
@@ -155,8 +180,11 @@ class ClientsTableModel(QAbstractTableModel):
         return None
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            return self.HEADERS[section]
+        if orientation == Qt.Horizontal:
+            if role == Qt.DisplayRole:
+                return self.HEADERS[section]
+            if role == Qt.ToolTipRole:
+                return self._header_tooltips.get(section)
         return None
 
     # ------------------------------------------------------------------

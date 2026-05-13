@@ -22,6 +22,15 @@ from Book_closer import BookCloser
 from ConfigManagers import ConfigManager, FiscalSettings
 from ConfigManagers.warnings_visibility_manager import WarningsVisibilityManager
 
+from AggregateTooltipServices.Invoices_aggregate_tooltip_builder import InvoicesAggregateTooltipBuilder
+from AggregateTooltipServices.Payments_aggregate_tooltip_builder import PaymentsAggregateTooltipBuilder
+from AggregateTooltipServices.Productions_aggregate_tooltip_builder import ProductionsAggregateTooltipBuilder
+from AggregateTooltipServices.Refunds_aggregate_tooltip_builder import RefundsAggregateTooltipBuilder
+from AggregateTooltipServices.Expenses_aggregate_tooltip_builder import ExpensesAggregateTooltipBuilder
+from AggregateTooltipServices.Salaries_aggregate_tooltip_builder import SalariesAggregateTooltipBuilder
+from AggregateTooltipServices.Clients_aggregate_tooltip_builder import ClientsAggregateTooltipBuilder
+from AggregateTooltipServices.Suppliers_aggregate_tooltip_builder import SuppliersAggregateTooltipBuilder
+
 from Controllerss.Client_controller import ClientController
 from Controllerss.Supplier_controller import SupplierController
 from Controllerss.Production_controller import ProductionController
@@ -230,6 +239,18 @@ class AppContext:
         self.config_manager:ConfigManager = config_manager
         self.warnings_visibility_manager: WarningsVisibilityManager = WarningsVisibilityManager()
         self.warnings_visibility_manager.ensure_exists()
+
+        # Tooltip builder per le card aggregate delle list view. Vivono
+        # fuori dalle view (MVC: la view legge dict[key, testo] e
+        # applica setToolTip).
+        self.invoices_aggregate_tooltip_builder = InvoicesAggregateTooltipBuilder(self.invoices_analyzer_service)
+        self.payments_aggregate_tooltip_builder = PaymentsAggregateTooltipBuilder(self.payments_analyzer_service)
+        self.productions_aggregate_tooltip_builder = ProductionsAggregateTooltipBuilder(self.productions_analyzer_service)
+        self.refunds_aggregate_tooltip_builder = RefundsAggregateTooltipBuilder(self.refunds_analyzer_service)
+        self.expenses_aggregate_tooltip_builder = ExpensesAggregateTooltipBuilder(self.expenses_analyzer_service)
+        self.salaries_aggregate_tooltip_builder = SalariesAggregateTooltipBuilder(self.salary_analyzer_service)
+        self.clients_aggregate_tooltip_builder = ClientsAggregateTooltipBuilder(self.clients_analyzer_service)
+        self.suppliers_aggregate_tooltip_builder = SuppliersAggregateTooltipBuilder(self.suppliers_analyzer_service)
         self.event_bus:EventBus = EventBus()
         self.tab_ui_state_store:TabUIStateStore = TabUIStateStore()
         self.backup_importer:BackupImporter = backup_importer

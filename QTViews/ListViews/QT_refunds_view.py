@@ -66,6 +66,7 @@ class QTRefundsViewH(QTBaseListView):
     # Warnings di dominio (cfr RefundWarningService).
     WARNING_SERVICE_ATTR = "refund_warning_service"
     WARNING_DOMAIN_KEY = "rimborsi"
+    AGGREGATE_TOOLTIP_BUILDER_ATTR = "refunds_aggregate_tooltip_builder"
 
     def _setup_services(self, app_context: "AppContext"):
         self.refunds_query_service = app_context.refunds_query_service

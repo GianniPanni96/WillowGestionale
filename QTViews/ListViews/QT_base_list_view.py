@@ -392,6 +392,13 @@ class QTBaseListView(QWidget):
     severity 2/3 disabilitati nella config vengono filtrati prima di
     essere applicati al modello. I sev 1 NON sono filtrabili."""
 
+    AGGREGATE_TOOLTIP_BUILDER_ATTR: str = None
+    """Nome dell'attributo (su ``app_context``) del tooltip builder
+    degli aggregati. Se valorizzato, la pipeline di refresh aggregati
+    invoca ``build_tooltips(toggle_value=…)`` (o lo passa con ``rows=``
+    per i domini che lavorano sui rows) e applica il testo come tooltip
+    alle card aggregate."""
+
     ROW_SELECTION_ENABLED = False
     """Se False, il click singolo non seleziona la riga (la tabella usa
     ``QAbstractItemView.NoSelection``). Tieni presente che senza
@@ -422,6 +429,7 @@ class QTBaseListView(QWidget):
         self._source_model = None
         self._proxy = None
         self._aggregate_labels: dict = {}
+        self._aggregate_cards: dict = {}  # key -> QFrame (per setToolTip)
         self.aggregate_toggle = None
 
         # I servizi di dominio devono essere disponibili prima di _build_ui
@@ -497,6 +505,9 @@ class QTBaseListView(QWidget):
             box.addWidget(value)
             self.aggregates_bar.addWidget(card)
             self._aggregate_labels[key] = value
+            # Memorizziamo anche la card per poter applicare il tooltip
+            # esplicativo (vedi ``_refresh_aggregate_tooltips``).
+            self._aggregate_cards[key] = card
         self.aggregates_bar.addStretch(1)
 
     def _build_controls_bar(self, root: QVBoxLayout):
@@ -659,6 +670,34 @@ class QTBaseListView(QWidget):
         for key, lbl in self._aggregate_labels.items():
             if key in values:
                 lbl.setText(str(values[key]))
+        # Aggiorniamo anche i tooltip esplicativi (testo descrittivo del
+        # calcolo) sulla stessa pipeline di refresh: cosi' quando i
+        # valori cambiano, anche il dettaglio nel tooltip resta coerente.
+        self._refresh_aggregate_tooltips(toggle_value)
+
+    def _refresh_aggregate_tooltips(self, toggle_value):
+        """Applica i tooltip descrittivi alle card aggregate, leggendo
+        i testi dal builder di dominio indicato in
+        ``AGGREGATE_TOOLTIP_BUILDER_ATTR``. Override-friendly: una
+        sottoclasse puo' sovrascrivere questo metodo per logiche custom
+        (es. domini che vogliono passare ``rows=`` al builder).
+        """
+        if not self._aggregate_cards or not self.AGGREGATE_TOOLTIP_BUILDER_ATTR:
+            return
+        builder = getattr(self.app_context, self.AGGREGATE_TOOLTIP_BUILDER_ATTR, None)
+        if builder is None:
+            return
+        try:
+            tooltips = builder.build_tooltips(toggle_value=toggle_value) or {}
+        except Exception:
+            tooltips = {}
+        self._apply_aggregate_tooltips(tooltips)
+
+    def _apply_aggregate_tooltips(self, tooltips: dict):
+        for key, card in self._aggregate_cards.items():
+            tip = tooltips.get(key)
+            if tip:
+                card.setToolTip(str(tip))
 
     def _on_row_double_clicked(self, proxy_index):
         if not proxy_index.isValid() or self._on_open_detail is None:

@@ -64,6 +64,7 @@ class QTExpensesViewH(QTBaseListView):
     # Warnings di dominio (cfr ExpenseWarningService).
     WARNING_SERVICE_ATTR = "expense_warning_service"
     WARNING_DOMAIN_KEY = "spese"
+    AGGREGATE_TOOLTIP_BUILDER_ATTR = "expenses_aggregate_tooltip_builder"
 
     def _setup_services(self, app_context: "AppContext"):
         self.expenses_query_service = app_context.expenses_query_service

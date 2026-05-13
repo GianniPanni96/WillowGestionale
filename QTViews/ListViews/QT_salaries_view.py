@@ -64,6 +64,7 @@ class QTSalariesViewH(QTBaseListView):
     # Warnings di dominio (cfr SalaryWarningService).
     WARNING_SERVICE_ATTR = "salary_warning_service"
     WARNING_DOMAIN_KEY = "salari"
+    AGGREGATE_TOOLTIP_BUILDER_ATTR = "salaries_aggregate_tooltip_builder"
 
     def _setup_services(self, app_context: "AppContext"):
         self.salary_query_service = app_context.salary_query_service

@@ -64,6 +64,7 @@ class QTPaymentsViewH(QTBaseListView):
     # Warnings di dominio (cfr PaymentWarningService).
     WARNING_SERVICE_ATTR = "payment_warning_service"
     WARNING_DOMAIN_KEY = "pagamenti"
+    AGGREGATE_TOOLTIP_BUILDER_ATTR = "payments_aggregate_tooltip_builder"
 
     def _setup_services(self, app_context: "AppContext"):
         self.payments_query_service = app_context.payments_query_service

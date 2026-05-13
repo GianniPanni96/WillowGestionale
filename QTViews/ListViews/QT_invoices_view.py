@@ -56,6 +56,7 @@ class QTInvoicesViewH(QTBaseListView):
     # ``QTBaseListView.collect_warnings`` per la pipeline.
     WARNING_SERVICE_ATTR = "invoice_warning_service"
     WARNING_DOMAIN_KEY = "fatture"
+    AGGREGATE_TOOLTIP_BUILDER_ATTR = "invoices_aggregate_tooltip_builder"
 
     def _setup_services(self, app_context: "AppContext"):
         self.invoices_query_service = app_context.invoices_query_service

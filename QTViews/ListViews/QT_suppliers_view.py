@@ -74,7 +74,17 @@ class QTSuppliersViewH(QTBaseListView):
         return SuppliersTableModel.build_rows(items, self.suppliers_analyzer_service)
 
     def create_table_model(self, rows):
-        return SuppliersTableModel(rows, self)
+        model = SuppliersTableModel(rows, self)
+        # Tooltip descrittivi sugli header (statici, indipendenti dai
+        # valori). Vengono letti dal builder per mantenere la
+        # separazione MVC.
+        builder = getattr(self.app_context, self.AGGREGATE_TOOLTIP_BUILDER_ATTR, None)
+        if builder is not None and hasattr(builder, "build_header_tooltips"):
+            try:
+                model.set_header_tooltips(builder.build_header_tooltips() or {})
+            except Exception:
+                pass
+        return model
 
     def configure_table(self, table: QTableView):
         table.setObjectName("SuppliersTable")
@@ -101,6 +111,10 @@ class QTSuppliersViewH(QTBaseListView):
             """
         )
 
+    # Tooltip builder degli aggregati: come per i Clienti, qui i valori
+    # sono calcolati dai rows del modello -> override per passare ``rows=``.
+    AGGREGATE_TOOLTIP_BUILDER_ATTR = "suppliers_aggregate_tooltip_builder"
+
     def compute_aggregates(self, toggle_value):
         # Calcolo dagli stessi rows gia' caricati dal source model: e'
         # l'insieme di fornitori che la time-window espone, evita un
@@ -117,6 +131,19 @@ class QTSuppliersViewH(QTBaseListView):
             "TOT. SPESE": f"{round(tot_spese, 2)} €",
             "SPESA MEDIA": f"{round(spesa_media, 2)} €",
         }
+
+    def _refresh_aggregate_tooltips(self, toggle_value):
+        if not self._aggregate_cards:
+            return
+        builder = getattr(self.app_context, self.AGGREGATE_TOOLTIP_BUILDER_ATTR, None)
+        if builder is None:
+            return
+        rows = self._source_model.rows() if self._source_model is not None else []
+        try:
+            tooltips = builder.build_tooltips(toggle_value=toggle_value, rows=rows) or {}
+        except Exception:
+            tooltips = {}
+        self._apply_aggregate_tooltips(tooltips)
 
     def id_for_index(self, source_index):
         return self._source_model.data(source_index, SuppliersTableModel.ROLE_SUPPLIER_ID)

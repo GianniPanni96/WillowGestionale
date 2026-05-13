@@ -74,6 +74,7 @@ class QTProductionsViewH(QTBaseListView):
     # Warnings di dominio (cfr ProductionWarningService).
     WARNING_SERVICE_ATTR = "production_warning_service"
     WARNING_DOMAIN_KEY = "produzioni"
+    AGGREGATE_TOOLTIP_BUILDER_ATTR = "productions_aggregate_tooltip_builder"
 
     def _setup_services(self, app_context: "AppContext"):
         self.productions_query_service = app_context.productions_query_service

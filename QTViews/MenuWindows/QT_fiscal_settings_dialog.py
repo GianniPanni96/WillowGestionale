@@ -164,7 +164,7 @@ class QTFiscalSettingsDialog(QDialog):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(20, 10, 20, 10)
-        layout.setSpacing(10)
+        layout.setSpacing(35)
 
         group = QGroupBox("Aliquote IVA")
         group_layout = QVBoxLayout(group)
@@ -187,11 +187,12 @@ class QTFiscalSettingsDialog(QDialog):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(20, 10, 20, 10)
-        layout.setSpacing(15)
+        layout.setSpacing(35)
 
         # Aliquote & Parametri.
         aliquote_group = QGroupBox("Aliquote & Parametri")
         aliquote_layout = QVBoxLayout(aliquote_group)
+        aliquote_layout.setSpacing(10)
         for key in self.FORF_ALIQUOTE_KEYS:
             data = forf_data.get(key, {}) if isinstance(forf_data.get(key), dict) else {}
             value = data.get("value", "")
@@ -231,7 +232,7 @@ class QTFiscalSettingsDialog(QDialog):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setContentsMargins(20, 10, 20, 10)
-        layout.setSpacing(15)
+        layout.setSpacing(35)
 
         # Aliquote (con scaglioni IRPEF dinamici).
         aliquote_group = QGroupBox("Aliquote")

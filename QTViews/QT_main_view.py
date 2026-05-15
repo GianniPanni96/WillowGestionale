@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from Views.View_utils import ViewUtils
 from Model import DBUsersColumns
 
+from QTViews.Details.QT_account_detail_view import QTAccountDetailViewH
 from QTViews.Details.QT_client_detail_view import QTClientDetailViewH
 from QTViews.Details.QT_invoice_detail_view import QTInvoiceDetailViewH
 from QTViews.Details.QT_expense_detail_view import QTExpenseDetailViewH
@@ -28,6 +29,7 @@ from QTViews.Details.QT_refund_detail_view import QTRefundDetailViewH
 from QTViews.Details.QT_salary_detail_view import QTSalaryDetailViewH
 from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
 from QTViews.Details.QT_user_detail_view import QTUserDetailViewH
+from QTViews.ListViews.QT_accounts_view import QTAccountsViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
 from QTViews.ListViews.QT_expenses_view import QTExpensesViewH
 from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
@@ -82,6 +84,7 @@ class QTMainWindow(QMainWindow):
     TAB_EXPENSES = "Spese"
     TAB_SALARIES = "Salario"
     TAB_USERS = "Utenti"
+    TAB_ACCOUNTS = "Conti"
 
     @classmethod
     def _tab_names(cls):
@@ -91,7 +94,7 @@ class QTMainWindow(QMainWindow):
             cls.TAB_CLIENTS,
             cls.TAB_SUPPLIERS,
             cls.TAB_PRODUCTIONS,
-            "Conti",
+            cls.TAB_ACCOUNTS,
             cls.TAB_INVOICES,
             cls.TAB_PAYMENTS,
             cls.TAB_REFUNDS,
@@ -148,6 +151,7 @@ class QTMainWindow(QMainWindow):
         self.expenses_view = None
         self.salaries_view = None
         self.users_view = None
+        self.accounts_view = None
         self.invoices_page = None
         self.clients_page = None
         self.suppliers_page = None
@@ -157,6 +161,7 @@ class QTMainWindow(QMainWindow):
         self.expenses_page = None
         self.salaries_page = None
         self.users_page = None
+        self.accounts_page = None
         self.invoice_detail_view = None
         self.client_detail_view = None
         self.supplier_detail_view = None
@@ -166,6 +171,7 @@ class QTMainWindow(QMainWindow):
         self.expense_detail_view = None
         self.salary_detail_view = None
         self.user_detail_view = None
+        self.account_detail_view = None
         self.login_status = False
         self.logged_user_id = -1
         self.user_icon_label = None
@@ -334,6 +340,14 @@ class QTMainWindow(QMainWindow):
                 )
                 self.users_page = self._build_tab_page(self.users_view)
                 self.tabview.addTab(self.users_page, name)
+            elif name == self.TAB_ACCOUNTS:
+                self.accounts_view = QTAccountsViewH(
+                    app_context=self.app_context,
+                    on_open_detail=self._open_account_detail,
+                    parent=self,
+                )
+                self.accounts_page = self._build_tab_page(self.accounts_view)
+                self.tabview.addTab(self.accounts_page, name)
             else:
                 placeholder = QLabel(f"{name}\nNon ancora portata su Qt.")
                 placeholder.setAlignment(Qt.AlignCenter)
@@ -384,6 +398,8 @@ class QTMainWindow(QMainWindow):
             self.salaries_view._on_window_changed()
         elif widget is self.users_page and self.users_view is not None:
             self.users_view.refresh()
+        elif widget is self.accounts_page and self.accounts_view is not None:
+            self.accounts_view.refresh()
         self._refresh_logged_user_icon()
 
     def _default_user_icon_path(self):
@@ -525,6 +541,15 @@ class QTMainWindow(QMainWindow):
         )
         self._show_detail_view(self.users_page, "user_detail_view", detail_view)
 
+    def _open_account_detail(self, account_id):
+        detail_view = QTAccountDetailViewH(
+            app_context=self.app_context,
+            account_id=account_id,
+            on_back=self._back_to_accounts_list,
+            parent=self,
+        )
+        self._show_detail_view(self.accounts_page, "account_detail_view", detail_view)
+
     def _back_to_invoices_list(self):
         self._back_to_list_view(
             self.invoices_page, self.invoices_view, "invoice_detail_view"
@@ -574,6 +599,15 @@ class QTMainWindow(QMainWindow):
             # le card per riflettere lo stato corrente.
             self.users_view.refresh()
         self._refresh_logged_user_icon()
+
+    def _back_to_accounts_list(self):
+        self._back_to_list_view(
+            self.accounts_page, self.accounts_view, "account_detail_view"
+        )
+        if self.accounts_view is not None:
+            # Il detail può aver modificato/eliminato il conto: ricarica
+            # le card per riflettere lo stato corrente.
+            self.accounts_view.refresh()
 
     # ------------------------------------------------------------------
     # Menu handlers — istanziano la finestra dedicata

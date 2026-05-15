@@ -31,6 +31,10 @@ from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
 from QTViews.Details.QT_user_detail_view import QTUserDetailViewH
 from QTViews.ListViews.QT_accounts_view import QTAccountsViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
+from QTViews.ListViews.QT_iva_view import QTIvaViewH
+from QTViews.ListViews.QT_plot_view import QTPlotViewH
+from QTViews.ListViews.QT_report_view import QTReportViewH
+from QTViews.ListViews.QT_taxes_view import QTTaxesViewH
 from QTViews.ListViews.QT_expenses_view import QTExpensesViewH
 from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
 from QTViews.ListViews.QT_payments_view import QTPaymentsViewH
@@ -85,6 +89,10 @@ class QTMainWindow(QMainWindow):
     TAB_SALARIES = "Salario"
     TAB_USERS = "Utenti"
     TAB_ACCOUNTS = "Conti"
+    TAB_IVA = "Iva"
+    TAB_TAXES = "Tasse"
+    TAB_REPORT_PREFIX = "Report"
+    TAB_PLOTS = "Plots"
 
     @classmethod
     def _tab_names(cls):
@@ -99,9 +107,9 @@ class QTMainWindow(QMainWindow):
             cls.TAB_PAYMENTS,
             cls.TAB_REFUNDS,
             cls.TAB_EXPENSES,
-            "Iva",
+            cls.TAB_IVA,
             cls.TAB_SALARIES,
-            "Tasse",
+            cls.TAB_TAXES,
             f"Report {datetime.now().year}",
             "Plots",
         ]
@@ -152,6 +160,10 @@ class QTMainWindow(QMainWindow):
         self.salaries_view = None
         self.users_view = None
         self.accounts_view = None
+        self.iva_view = None
+        self.taxes_view = None
+        self.report_view = None
+        self.plots_view = None
         self.invoices_page = None
         self.clients_page = None
         self.suppliers_page = None
@@ -162,6 +174,10 @@ class QTMainWindow(QMainWindow):
         self.salaries_page = None
         self.users_page = None
         self.accounts_page = None
+        self.iva_page = None
+        self.taxes_page = None
+        self.report_page = None
+        self.plots_page = None
         self.invoice_detail_view = None
         self.client_detail_view = None
         self.supplier_detail_view = None
@@ -348,6 +364,34 @@ class QTMainWindow(QMainWindow):
                 )
                 self.accounts_page = self._build_tab_page(self.accounts_view)
                 self.tabview.addTab(self.accounts_page, name)
+            elif name == self.TAB_IVA:
+                self.iva_view = QTIvaViewH(
+                    app_context=self.app_context,
+                    parent=self,
+                )
+                self.iva_page = self._build_tab_page(self.iva_view)
+                self.tabview.addTab(self.iva_page, name)
+            elif name == self.TAB_TAXES:
+                self.taxes_view = QTTaxesViewH(
+                    app_context=self.app_context,
+                    parent=self,
+                )
+                self.taxes_page = self._build_tab_page(self.taxes_view)
+                self.tabview.addTab(self.taxes_page, name)
+            elif name.startswith(self.TAB_REPORT_PREFIX):
+                self.report_view = QTReportViewH(
+                    app_context=self.app_context,
+                    parent=self,
+                )
+                self.report_page = self._build_tab_page(self.report_view)
+                self.tabview.addTab(self.report_page, name)
+            elif name == self.TAB_PLOTS:
+                self.plots_view = QTPlotViewH(
+                    app_context=self.app_context,
+                    parent=self,
+                )
+                self.plots_page = self._build_tab_page(self.plots_view)
+                self.tabview.addTab(self.plots_page, name)
             else:
                 placeholder = QLabel(f"{name}\nNon ancora portata su Qt.")
                 placeholder.setAlignment(Qt.AlignCenter)
@@ -400,6 +444,14 @@ class QTMainWindow(QMainWindow):
             self.users_view.refresh()
         elif widget is self.accounts_page and self.accounts_view is not None:
             self.accounts_view.refresh()
+        elif widget is self.iva_page and self.iva_view is not None:
+            self.iva_view.refresh()
+        elif widget is self.taxes_page and self.taxes_view is not None:
+            self.taxes_view.refresh()
+        elif widget is self.report_page and self.report_view is not None:
+            self.report_view.refresh()
+        elif widget is self.plots_page and self.plots_view is not None:
+            self.plots_view.refresh()
         self._refresh_logged_user_icon()
 
     def _default_user_icon_path(self):

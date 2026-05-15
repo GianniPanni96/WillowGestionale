@@ -97,8 +97,8 @@ class QTIvaViewH(QWidget):
         content = QWidget()
         self.scroll.setWidget(content)
         self.content_layout = QVBoxLayout(content)
-        self.content_layout.setContentsMargins(15, 20, 15, 20)
-        self.content_layout.setSpacing(12)
+        self.content_layout.setContentsMargins(15, 80, 15, 70)
+        self.content_layout.setSpacing(14)
 
         self._populate()
 
@@ -137,13 +137,14 @@ class QTIvaViewH(QWidget):
 
         # --- Sezione ultimo trimestre anno precedente ---
         previous_year = datetime.now().year - 1
+        self.content_layout.addSpacing(20)
         past_title = QLabel(f"-  Ultimo trimestre {previous_year}  -")
         f = past_title.font()
         f.setItalic(True)
         f.setPointSize(11)
         past_title.setFont(f)
         past_title.setAlignment(Qt.AlignCenter)
-        past_title.setContentsMargins(0, 12, 0, 4)
+        past_title.setContentsMargins(0, 40, 0, 8)
         self.content_layout.addWidget(past_title)
 
         past_block, past_data = self._compute_past_quarter_data(previous_year)

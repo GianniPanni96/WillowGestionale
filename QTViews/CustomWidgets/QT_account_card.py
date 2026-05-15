@@ -26,8 +26,8 @@ from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout
 class QTAccountCard(QFrame):
     """Card conto con nome, saldo e bottone bonifico."""
 
-    CARD_W = 280
-    CARD_H = 180
+    CARD_W = 420
+    CARD_H = 270
 
     clicked = Signal(int)
     bonifico_requested = Signal(int)
@@ -61,13 +61,13 @@ class QTAccountCard(QFrame):
 
     def _build_layout(self, name: str, balance: float):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(6)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(9)
 
         name_lbl = QLabel(name)
         name_font = QFont()
         name_font.setBold(True)
-        name_font.setPointSize(14)
+        name_font.setPointSize(18)
         name_lbl.setFont(name_font)
         name_lbl.setWordWrap(True)
         name_lbl.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
@@ -78,7 +78,7 @@ class QTAccountCard(QFrame):
 
         balance_lbl = QLabel(f"{balance:.2f} €")
         balance_font = QFont()
-        balance_font.setPointSize(16)
+        balance_font.setPointSize(21)
         balance_lbl.setFont(balance_font)
         balance_lbl.setAlignment(Qt.AlignCenter)
         balance_lbl.setStyleSheet(
@@ -89,7 +89,11 @@ class QTAccountCard(QFrame):
         layout.addStretch(1)
 
         hint = QLabel("Clicca per il dettaglio")
-        hint.setStyleSheet("color: palette(mid); font-style: italic;")
+        hint_font = QFont()
+        hint_font.setPointSize(11)
+        hint_font.setItalic(True)
+        hint.setFont(hint_font)
+        hint.setStyleSheet("color: palette(mid);")
         hint.setAlignment(Qt.AlignCenter)
         layout.addWidget(hint)
 
@@ -97,6 +101,10 @@ class QTAccountCard(QFrame):
         # consumato dal bottone e NON propaga alla card, quindi non
         # innesca anche l'apertura del dettaglio.
         self._bonifico_btn = QPushButton("Esegui Bonifico")
+        btn_font = QFont()
+        btn_font.setPointSize(12)
+        self._bonifico_btn.setFont(btn_font)
+        self._bonifico_btn.setMinimumHeight(36)
         self._bonifico_btn.setCursor(Qt.PointingHandCursor)
         self._bonifico_btn.clicked.connect(
             lambda: self.bonifico_requested.emit(self._account_id)

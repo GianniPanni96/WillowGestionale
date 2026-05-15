@@ -33,7 +33,6 @@ from PySide6.QtWidgets import (
 
 from Gestionale_Enums import DBAccountsColumns
 from QTViews.CustomWidgets.QT_account_card import QTAccountCard
-from QTViews.CustomWidgets.QT_flow_layout import QFlowLayout
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -96,7 +95,7 @@ class QTAccountsViewH(QWidget):
 
         root.addLayout(controls)
 
-        # Scroll area + flow layout per le card.
+        # Scroll area + layout centrato per le card (max 3 per riga).
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -104,7 +103,9 @@ class QTAccountsViewH(QWidget):
 
         self.cards_container = QWidget()
         self.scroll.setWidget(self.cards_container)
-        self.flow_layout = QFlowLayout(self.cards_container, margin=8, spacing=12)
+        self.cards_layout = QVBoxLayout(self.cards_container)
+        self.cards_layout.setContentsMargins(24, 24, 24, 24)
+        self.cards_layout.setSpacing(20)
 
         # Bottom bar: bottone "Aggiungi".
         bottom = QHBoxLayout()
@@ -125,16 +126,33 @@ class QTAccountsViewH(QWidget):
         self._rebuild_cards()
 
     def _rebuild_cards(self):
-        while self.flow_layout.count():
-            item = self.flow_layout.takeAt(0)
+        while self.cards_layout.count():
+            item = self.cards_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.setParent(None)
                 widget.deleteLater()
         self._cards.clear()
 
+        cards: list[QTAccountCard] = []
         for account in self._iter_filtered_accounts():
-            self._add_card_for_account(account)
+            card = self._make_card_for_account(account)
+            self._cards[card.account_id] = card
+            cards.append(card)
+
+        # Righe di max 3 card, centrate orizzontalmente.
+        for i in range(0, len(cards), 3):
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(24)
+            row_layout.addStretch(1)
+            for card in cards[i:i + 3]:
+                row_layout.addWidget(card)
+            row_layout.addStretch(1)
+            self.cards_layout.addWidget(row_widget)
+
+        self.cards_layout.addStretch(1)
 
         n = len(self._cards)
         total = len(self._accounts)
@@ -152,7 +170,7 @@ class QTAccountsViewH(QWidget):
             if needle in name:
                 yield account
 
-    def _add_card_for_account(self, account: dict):
+    def _make_card_for_account(self, account: dict) -> QTAccountCard:
         account_id = account[DBAccountsColumns.ID.value]
         balance = self.account_analyzer_service.calculate_account_balance_by_account_id(account_id)
         card = QTAccountCard(
@@ -162,8 +180,7 @@ class QTAccountsViewH(QWidget):
         )
         card.clicked.connect(self._on_card_clicked)
         card.bonifico_requested.connect(self._on_bonifico_requested)
-        self.flow_layout.addWidget(card)
-        self._cards[account_id] = card
+        return card
 
     # ------------------------------------------------------------------
     # Eventi UI

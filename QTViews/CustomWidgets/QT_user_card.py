@@ -33,16 +33,15 @@ class QTUserCard(QFrame):
     """Card utente con layout interno adattivo all'aspect ratio della foto."""
 
     # Dimensione "esterna" della card, uniforme per tutte le card.
-    CARD_W = 360
-    CARD_H = 200
+    CARD_W = 540
+    CARD_H = 300
 
     # Soglia per scegliere il layout: foto con aspect ratio > 1.05 -> landscape.
     LANDSCAPE_THRESHOLD = 1.05
 
     # Quote di superficie destinate alla foto rispetto al totale della card.
-    # Lasciamo ~50% per la foto e il resto per il blocco testi.
-    PHOTO_W_HORIZONTAL = 150   # zona foto in layout orizzontale (porzione sinistra)
-    PHOTO_H_VERTICAL = 100     # zona foto in layout verticale (porzione superiore)
+    PHOTO_W_HORIZONTAL = 225   # zona foto in layout orizzontale (porzione sinistra)
+    PHOTO_H_VERTICAL = 150     # zona foto in layout verticale (porzione superiore)
 
     clicked = Signal(int)
 
@@ -136,8 +135,8 @@ class QTUserCard(QFrame):
 
     def _build_vertical_layout(self, pixmap, first_name, last_name, partita_iva, email):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
 
         photo_area = self._make_photo_label(
             pixmap,
@@ -152,8 +151,8 @@ class QTUserCard(QFrame):
 
     def _build_horizontal_layout(self, pixmap, first_name, last_name, partita_iva, email):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(18)
 
         photo_area = self._make_photo_label(
             pixmap,
@@ -203,18 +202,24 @@ class QTUserCard(QFrame):
         name_lbl = QLabel(f"{first_name} {last_name}".strip() or "(senza nome)")
         f = QFont()
         f.setBold(True)
-        f.setPointSize(12)
+        f.setPointSize(16)
         name_lbl.setFont(f)
         name_lbl.setStyleSheet("color: palette(text);")
         name_lbl.setWordWrap(True)
         vbox.addWidget(name_lbl)
 
         piva_lbl = QLabel(f"P. IVA: {partita_iva}" if partita_iva else "P. IVA: —")
+        pf = QFont()
+        pf.setPointSize(13)
+        piva_lbl.setFont(pf)
         piva_lbl.setStyleSheet("color: palette(text);")
         piva_lbl.setWordWrap(True)
         vbox.addWidget(piva_lbl)
 
         email_lbl = QLabel(f"Email: {email}" if email else "Email: —")
+        ef = QFont()
+        ef.setPointSize(13)
+        email_lbl.setFont(ef)
         email_lbl.setStyleSheet("color: palette(text);")
         email_lbl.setWordWrap(True)
         email_lbl.setToolTip(email or "")
@@ -223,7 +228,11 @@ class QTUserCard(QFrame):
         vbox.addStretch(1)
 
         hint = QLabel("Clicca per il dettaglio")
-        hint.setStyleSheet("color: palette(mid); font-style: italic;")
+        hf = QFont()
+        hf.setPointSize(11)
+        hf.setItalic(True)
+        hint.setFont(hf)
+        hint.setStyleSheet("color: palette(mid);")
         hint.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         vbox.addWidget(hint)
 

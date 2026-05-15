@@ -66,8 +66,8 @@ ERROR_FG = "#f25f5c"
 class QTAnnualReportChartsViewH(QWidget):
     """Grafici a torta annuali (matplotlib + Qt backend)."""
 
-    CHART_MIN_WIDTH = 480
-    CHART_FIG_SIZE = (4.3, 3.6)
+    CHART_MIN_WIDTH = 600
+    CHART_FIG_SIZE = (3.8, 3.0)
 
     def __init__(self, app_context: "AppContext", parent=None):
         super().__init__(parent)
@@ -197,29 +197,16 @@ class QTAnnualReportChartsViewH(QWidget):
     # ------------------------------------------------------------------
 
     def _build_financial_charts_section(self, data: dict) -> QWidget:
-        wrapper = self._make_section_frame("ANALISI FLUSSI",
-            f"Distribuzioni di Patrimonio, Entrate e Uscite - {self.year_selector.currentText()}",
+        return self._build_section(
+            title="ANALISI FLUSSI",
+            subtitle=f"Distribuzioni di Patrimonio, Entrate e Uscite - {self.year_selector.currentText()}.",
+            charts=[
+                ("SEZIONE PATRIMONIO", data.get("patrimonio", [])),
+                ("SEZIONE ENTRATE", data.get("entrate", [])),
+                ("SEZIONE USCITE", data.get("uscite", [])),
+            ],
+            horizontal_scroll=True,
         )
-        v = wrapper.layout()
-
-        grid_host = QFrame()
-        grid_host.setStyleSheet("background-color: transparent;")
-        grid = QGridLayout(grid_host)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(12)
-
-        financial_sections = [
-            ("SEZIONE PATRIMONIO", data.get("patrimonio", [])),
-            ("SEZIONE ENTRATE", data.get("entrate", [])),
-            ("SEZIONE USCITE", data.get("uscite", [])),
-        ]
-
-        for index, (chart_title, items) in enumerate(financial_sections):
-            grid.setColumnStretch(index, 1)
-            grid.addWidget(self._make_chart_card(chart_title, items), 0, index)
-
-        v.addWidget(grid_host)
-        return wrapper
 
     def _build_section(
         self,
@@ -250,7 +237,7 @@ class QTAnnualReportChartsViewH(QWidget):
             scroll.setStyleSheet("QScrollArea { background-color: transparent; }")
             scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            scroll.setMinimumHeight(560)
+            scroll.setMinimumHeight(440)
             scroll.setWidget(host)
             v.addWidget(scroll)
         else:
@@ -393,7 +380,7 @@ class QTAnnualReportChartsViewH(QWidget):
 
         canvas = FigureCanvasQTAgg(figure)
         canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        canvas.setMinimumHeight(360)
+        canvas.setMinimumHeight(280)
         canvas.draw()
 
         self._figures.append(figure)

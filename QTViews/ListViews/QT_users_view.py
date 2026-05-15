@@ -31,7 +31,6 @@ from PySide6.QtWidgets import (
 )
 
 from Gestionale_Enums import DBUsersColumns
-from QTViews.CustomWidgets.QT_flow_layout import QFlowLayout
 from QTViews.CustomWidgets.QT_user_card import QTUserCard
 
 if TYPE_CHECKING:
@@ -99,7 +98,7 @@ class QTUsersViewH(QWidget):
 
         root.addLayout(controls)
 
-        # Scroll area + flow layout per le card.
+        # Scroll area + layout centrato per le card (max 3 per riga).
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -107,7 +106,9 @@ class QTUsersViewH(QWidget):
 
         self.cards_container = QWidget()
         self.scroll.setWidget(self.cards_container)
-        self.flow_layout = QFlowLayout(self.cards_container, margin=8, spacing=12)
+        self.cards_layout = QVBoxLayout(self.cards_container)
+        self.cards_layout.setContentsMargins(24, 24, 24, 24)
+        self.cards_layout.setSpacing(20)
 
         # Bottom bar: bottone "Aggiungi".
         bottom = QHBoxLayout()
@@ -128,19 +129,34 @@ class QTUsersViewH(QWidget):
         self._rebuild_cards()
 
     def _rebuild_cards(self):
-        # Rimuoviamo le card correnti dal layout.
-        while self.flow_layout.count():
-            item = self.flow_layout.takeAt(0)
+        while self.cards_layout.count():
+            item = self.cards_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.setParent(None)
                 widget.deleteLater()
         self._cards.clear()
 
+        cards: list[QTUserCard] = []
         for user in self._iter_filtered_users():
-            self._add_card_for_user(user)
+            card = self._make_card_for_user(user)
+            self._cards[card.user_id] = card
+            cards.append(card)
 
-        # Aggiorna count.
+        # Righe di max 3 card, centrate orizzontalmente.
+        for i in range(0, len(cards), 3):
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(24)
+            row_layout.addStretch(1)
+            for card in cards[i:i + 3]:
+                row_layout.addWidget(card)
+            row_layout.addStretch(1)
+            self.cards_layout.addWidget(row_widget)
+
+        self.cards_layout.addStretch(1)
+
         n = len(self._cards)
         total = len(self._users)
         self.count_label.setText(
@@ -167,7 +183,7 @@ class QTUsersViewH(QWidget):
             if needle in hay:
                 yield user
 
-    def _add_card_for_user(self, user: dict):
+    def _make_card_for_user(self, user: dict) -> QTUserCard:
         photo_path = user.get(DBUsersColumns.PHOTO_PATH.value) or ""
         if photo_path and not os.path.exists(photo_path):
             photo_path = ""
@@ -180,8 +196,7 @@ class QTUsersViewH(QWidget):
             photo_path=photo_path,
         )
         card.clicked.connect(self._on_card_clicked)
-        self.flow_layout.addWidget(card)
-        self._cards[card.user_id] = card
+        return card
 
     # ------------------------------------------------------------------
     # Eventi UI

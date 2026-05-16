@@ -194,7 +194,25 @@ CATALOGS_DEFAULT = {
         "INTEGRAZIONE_VFX": "Integrazione VFX",
         "ADD_PROD_OUT_TYPE": "AGGIUNGI UNA TIPOLOGIA DI OUTPUT ALLA LISTA",
     },
-    "expenses_category": {},
+    "expenses_category": {
+        "MANUTENZIONE": "manutenzione",
+        "SPONSORIZZAZIONE": "sponsorizzazione",
+        "TASSE": "tasse",
+        "STUDIO_RENTAL": "Affitto Ufficio",
+        "TECHNICAL_INSTRUMENTATION_PROD": "Strumentazione tecnica produzione",
+        "TECHNICAL_INSTRUMENTATION_POSTPROD": "Strumentazione tecnica postproduzione",
+        "SUBSCRIPTION": "Abbonamento",
+        "ELECTRICITY_BILL": "Bolletta Luce",
+        "GAS_BILL": "Bolletta Gas",
+        "INTERNET_BILL": "Abbonamento Internet",
+        "WASTE_BILL": "TARI",
+        "CONSUMABLE_FOR_STUDIO": "Consumabili per lo studio",
+        "INSURANCE": "Assicurazionee",
+        "PRODUCTION_EXPENSE": "Spesa di produzione",
+        "USER_SALARY": "Salario",
+        "TRIMESTRAL_IVA": "Iva trimestrale",
+        "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
+    },
 }
 
 
@@ -205,6 +223,30 @@ HISTORICAL_FINANCIAL_DATA_DEFAULT = {
     "revenues": {},
     "deducted_expenses": {},
 }
+
+
+def build_warnings_visibility_default():
+    """Costruisce la struttura di default per ``warnings_visibility.json``.
+
+    Itera sul catalogo dei warning (``WARNING_CATALOG``) e produce per
+    ogni dominio una mappa ``type_key -> True`` solo per i warning di
+    severity 2/3. I sev 1 NON compaiono nel file (sono sempre attivi e
+    non disabilitabili)."""
+    # Import locale per evitare cicli: WarningServices/Warning_types non
+    # dipende da ConfigManagers, ma ConfigManagers/defaults conosce il
+    # nome del modulo.
+    from WarningServices.Warning_types import WARNING_CATALOG, WarningSeverity
+
+    data: dict = {}
+    for domain_key, items in WARNING_CATALOG.items():
+        domain_data: dict = {}
+        for type_key, severity, _label, _desc in items:
+            if severity == WarningSeverity.CONSISTENCY:
+                # Sev 1: sempre attivo, non scrivibile.
+                continue
+            domain_data[type_key] = True
+        data[domain_key] = domain_data
+    return data
 
 
 def clone_default_config(default_config):

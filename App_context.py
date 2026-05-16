@@ -10,6 +10,7 @@ from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from AnalyzerServices.Transfer_analyzer_service import TransferAnalyzerService
 from AnalyzerServices.Salary_analyzer_service import SalaryAnalyzerService
 from AnalyzerServices.User_analyzer_service import UserAnalyzerService
+from AnalyzerServices.Report_breakdown_analyzer_service import ReportBreakdownAnalyzerService
 
 from AnalyzerServices.Monthly_report_analyzer_service import MonthlyReportAnalyzerService
 from Updates_controller import UpdatesController
@@ -19,6 +20,16 @@ from Event_bus import EventBus
 from Books_retriever import BooksRetriever
 from Book_closer import BookCloser
 from ConfigManagers import ConfigManager, FiscalSettings
+from ConfigManagers.warnings_visibility_manager import WarningsVisibilityManager
+
+from AggregateTooltipServices.Invoices_aggregate_tooltip_builder import InvoicesAggregateTooltipBuilder
+from AggregateTooltipServices.Payments_aggregate_tooltip_builder import PaymentsAggregateTooltipBuilder
+from AggregateTooltipServices.Productions_aggregate_tooltip_builder import ProductionsAggregateTooltipBuilder
+from AggregateTooltipServices.Refunds_aggregate_tooltip_builder import RefundsAggregateTooltipBuilder
+from AggregateTooltipServices.Expenses_aggregate_tooltip_builder import ExpensesAggregateTooltipBuilder
+from AggregateTooltipServices.Salaries_aggregate_tooltip_builder import SalariesAggregateTooltipBuilder
+from AggregateTooltipServices.Clients_aggregate_tooltip_builder import ClientsAggregateTooltipBuilder
+from AggregateTooltipServices.Suppliers_aggregate_tooltip_builder import SuppliersAggregateTooltipBuilder
 
 from Controllerss.Client_controller import ClientController
 from Controllerss.Supplier_controller import SupplierController
@@ -48,6 +59,9 @@ from OtherServices.User_crypto_service import UserCryptoService
 from WarningServices.Production_warning_service import ProductionWarningService
 from WarningServices.Invoice_warning_service import InvoiceWarningService
 from WarningServices.Payment_warning_service import PaymentWarningService
+from WarningServices.Expense_warning_service import ExpenseWarningService
+from WarningServices.Refund_warning_service import RefundWarningService
+from WarningServices.Salary_warning_service import SalaryWarningService
 from Backup_manager import BackupImporter, BackupScheduler
 from Tab_ui_state_store import TabUIStateStore
 
@@ -117,9 +131,40 @@ class AppContext:
                                                                                       )
         self.user_crypto_service:UserCryptoService = UserCryptoService()
         self.user_auth_service:UserAuthService = UserAuthService(self.user_query_service)
-        self.production_warning_service:ProductionWarningService = ProductionWarningService()
-        self.invoice_warning_service:InvoiceWarningService = InvoiceWarningService(self.productions_query_service)
-        self.payment_warning_service:PaymentWarningService = PaymentWarningService(self.invoices_query_service)
+        self.production_warning_service:ProductionWarningService = ProductionWarningService(
+            productions_query_service=self.productions_query_service,
+            productions_analyzer_service=self.productions_analyzer_service,
+            clients_query_service=self.clients_query_service,
+        )
+        self.invoice_warning_service:InvoiceWarningService = InvoiceWarningService(
+            productions_query_service=self.productions_query_service,
+            payments_query_service=self.payments_query_service,
+            clients_query_service=self.clients_query_service,
+            user_query_service=self.user_query_service,
+            accounts_query_service=self.account_query_service,
+            invoices_query_service=self.invoices_query_service,
+        )
+        self.payment_warning_service:PaymentWarningService = PaymentWarningService(
+            invoices_query_service=self.invoices_query_service,
+            payments_query_service=self.payments_query_service,
+            accounts_query_service=self.account_query_service,
+        )
+        self.expense_warning_service:ExpenseWarningService = ExpenseWarningService(
+            catalogo_elenchi=catalogo_elenchi,
+            suppliers_query_service=self.suppliers_query_service,
+            accounts_query_service=self.account_query_service,
+            user_query_service=self.user_query_service,
+            invoices_query_service=self.invoices_query_service,
+        )
+        self.refund_warning_service:RefundWarningService = RefundWarningService(
+            clients_query_service=self.clients_query_service,
+            accounts_query_service=self.account_query_service,
+        )
+        self.salary_warning_service:SalaryWarningService = SalaryWarningService(
+            salary_query_service=self.salary_query_service,
+            user_query_service=self.user_query_service,
+            accounts_query_service=self.account_query_service,
+        )
 
         self.user_controller:UserController = UserController(
             self.db_model,
@@ -180,8 +225,32 @@ class AppContext:
                                  self.expenses_query_service,
                                  self.salary_query_service,
                                  self.refunds_query_service)
+        self.report_breakdown_analyzer_service: ReportBreakdownAnalyzerService = ReportBreakdownAnalyzerService(
+                                 self.invoices_query_service,
+                                 self.productions_query_service,
+                                 self.clients_query_service,
+                                 self.expenses_query_service,
+                                 self.suppliers_query_service,
+                                 self.salary_query_service,
+                                 self.refunds_query_service,
+                                 self.account_query_service,
+                                 self.account_analyzer_service)
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager:ConfigManager = config_manager
+        self.warnings_visibility_manager: WarningsVisibilityManager = WarningsVisibilityManager()
+        self.warnings_visibility_manager.ensure_exists()
+
+        # Tooltip builder per le card aggregate delle list view. Vivono
+        # fuori dalle view (MVC: la view legge dict[key, testo] e
+        # applica setToolTip).
+        self.invoices_aggregate_tooltip_builder = InvoicesAggregateTooltipBuilder(self.invoices_analyzer_service)
+        self.payments_aggregate_tooltip_builder = PaymentsAggregateTooltipBuilder(self.payments_analyzer_service)
+        self.productions_aggregate_tooltip_builder = ProductionsAggregateTooltipBuilder(self.productions_analyzer_service)
+        self.refunds_aggregate_tooltip_builder = RefundsAggregateTooltipBuilder(self.refunds_analyzer_service)
+        self.expenses_aggregate_tooltip_builder = ExpensesAggregateTooltipBuilder(self.expenses_analyzer_service)
+        self.salaries_aggregate_tooltip_builder = SalariesAggregateTooltipBuilder(self.salary_analyzer_service)
+        self.clients_aggregate_tooltip_builder = ClientsAggregateTooltipBuilder(self.clients_analyzer_service)
+        self.suppliers_aggregate_tooltip_builder = SuppliersAggregateTooltipBuilder(self.suppliers_analyzer_service)
         self.event_bus:EventBus = EventBus()
         self.tab_ui_state_store:TabUIStateStore = TabUIStateStore()
         self.backup_importer:BackupImporter = backup_importer

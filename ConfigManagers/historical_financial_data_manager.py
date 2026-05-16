@@ -12,10 +12,10 @@ def normalize_historical_file_data(data: dict) -> dict:
             "deducted_expenses": {},
         }
         for year, year_revenues in (data.get("revenues", {}) or {}).items():
-            normalized["revenues"][str(year)] = year_revenues or {}
+            normalized["revenues"][str(year)] = dict((year_revenues or {}).items())
 
         for year, amount in (data.get("deducted_expenses", {}) or {}).items():
-            normalized["deducted_expenses"][str(year)] = float(amount or 0.0)
+            normalized["deducted_expenses"][str(year)] = amount
 
         return normalized
 
@@ -26,10 +26,8 @@ def normalize_historical_file_data(data: dict) -> dict:
     for year, payload in data.items():
         year_key = str(year)
         year_payload = payload or {}
-        normalized["revenues"][year_key] = year_payload.get("revenues", {}) or {}
-        normalized["deducted_expenses"][year_key] = float(
-            year_payload.get("deducted_expenses", 0.0) or 0.0
-        )
+        normalized["revenues"][year_key] = dict((year_payload.get("revenues", {}) or {}).items())
+        normalized["deducted_expenses"][year_key] = year_payload.get("deducted_expenses", 0.0)
     return normalized
 
 
@@ -49,7 +47,7 @@ class HistoricalFinancialDataManager(BaseJsonConfigManager):
                 current_config["revenues"][str(year)] = year_revenues or {}
 
             for year, amount in normalized_input.get("deducted_expenses", {}).items():
-                current_config["deducted_expenses"][str(year)] = float(amount or 0.0)
+                current_config["deducted_expenses"][str(year)] = amount
 
             self.save(current_config)
         except Exception as exc:

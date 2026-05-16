@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import threading
 import os, re, json
 from typing import List, Dict, Tuple, Optional
+from ConfigManagers.type_utils import coerce_to_int
 from Utils.App_paths import get_runtime_paths
 
 
@@ -16,12 +17,13 @@ class BackupScheduler:
         :param db_backup_base_path: Cartella base dove salvare i backup.
         :param delta_days: Intervallo di giorni per suddividere i backup in sub‐cartelle.
         """
-        self.interval_seconds = interval_minutes * 60
-        self.max_backups = max_backups
+        self.interval_minutes = max(1, coerce_to_int(interval_minutes, 15))
+        self.interval_seconds = self.interval_minutes * 60
+        self.max_backups = max(1, coerce_to_int(max_backups, 35))
         self.db_backup_base_path = db_backup_base_path
         self.books_backup_path = books_backup_path
         self.books_default_path=books_default_path
-        self.delta_days = delta_days
+        self.delta_days = max(1, coerce_to_int(delta_days, 7))
 
         self.stop_event = threading.Event()
         self.backup_timer = None
@@ -98,6 +100,8 @@ class BackupScheduler:
         max_backups = max_backups if max_backups is not None else self.max_backups
         db_backup_base_path = db_backup_base_path if db_backup_base_path is not None else self.db_backup_base_path
         delta_days = delta_days if delta_days is not None else self.delta_days
+        max_backups = max(1, coerce_to_int(max_backups, self.max_backups))
+        delta_days = max(1, coerce_to_int(delta_days, self.delta_days))
 
 
         runtime_paths = get_runtime_paths()
@@ -108,10 +112,10 @@ class BackupScheduler:
             print(f"Errore: Il file {db_file} non esiste.")
             return
 
-        # Verifica che il file app_config esista
-        config_file = str(runtime_paths.config_file)
-        if not os.path.exists(config_file):
-            print(f"Errore: Il file {config_file} non esiste.")
+        # Verifica che il file di app settings esista
+        app_settings_file = str(runtime_paths.app_settings_file)
+        if not os.path.exists(app_settings_file):
+            print(f"Errore: Il file {app_settings_file} non esiste.")
             return
 
         # Determina l'intervallo di tempo corrente e il nome della sottocartella
@@ -129,13 +133,13 @@ class BackupScheduler:
 
         # Crea il nome del file di backup basato sulla data e ora correnti
         db_backup_filename = "gestionale.db"
-        config_backup_filename = "app_config.json"
+        config_backup_filename = "app_settings.json"
         db_backup_filepath = os.path.join(sub_folder, db_backup_filename)
         config_backup_filepath = os.path.join(sub_folder, config_backup_filename)
 
         # Copia il database nella cartella dell'intervallo corrente
         shutil.copy2(db_file, db_backup_filepath)
-        shutil.copy2(config_file, config_backup_filepath)
+        shutil.copy2(app_settings_file, config_backup_filepath)
 
         # Gestione della rotazione dei backup
         if os.path.exists(interval_folder):
@@ -217,7 +221,7 @@ class BackupImporter:
 
     Each subfolder is expected to contain:
       - gestionale.db
-      - app_config.json
+      - app_setttings.json
 
     API principali:
       - list_backups_for_year(year) -> List[dict] (each dict contiene 'path', 'datetime', 'display')
@@ -317,7 +321,7 @@ class BackupImporter:
 
     def import_backup(self, subfolder_path: str) -> Tuple[bool, str]:
         """
-        Copia i file gestionale.db e app_config.json da subfolder_path -> destinazione.
+        Copia i file gestionale.db e app_settings.json da subfolder_path -> destinazione.
         L'operazione va a buon fine SOLO SE entrambi i file esistono nel subfolder.
         Ritorna (True, "messaggio") oppure (False, "messaggio di errore").
         """
@@ -326,14 +330,14 @@ class BackupImporter:
                 return False, "Backup selezionato non trovato o non è una cartella."
 
             db_file = os.path.join(subfolder_path, "gestionale.db")
-            config_file = os.path.join(subfolder_path, "app_config.json")
+            config_file = os.path.join(subfolder_path, "app_settings.json")
 
             if not os.path.exists(db_file) or not os.path.exists(config_file):
                 missing = []
                 if not os.path.exists(db_file):
                     missing.append("gestionale.db")
                 if not os.path.exists(config_file):
-                    missing.append("app_config.json")
+                    missing.append("app_settings.json")
                 return False, f"Backup incompleto: mancano i file: {', '.join(missing)}"
 
             dest_folder = self._destination_folder()
@@ -343,7 +347,7 @@ class BackupImporter:
             os.makedirs(dest_folder, exist_ok=True)
 
             dest_db = os.path.join(dest_folder, "gestionale.db")
-            dest_config = os.path.join(dest_folder, "app_config.json")
+            dest_config = os.path.join(dest_folder, "app_settings.json")
 
             # Copia atomica best-effort:
             # 1) copia su file temporanei nella stessa cartella di destinazione

@@ -4,6 +4,7 @@ from pathlib import Path
 from Utils.App_paths import get_runtime_paths
 
 from ConfigManagers.defaults import clone_default_config
+from ConfigManagers.type_utils import merge_with_defaults
 
 
 class BaseJsonConfigManager:
@@ -28,12 +29,14 @@ class BaseJsonConfigManager:
     def load(self):
         self.ensure_exists()
         with open(self.file_path, "r", encoding="utf-8") as file:
-            return json.load(file)
+            data = json.load(file)
+        return merge_with_defaults(data, self.build_default_data())
 
     def save(self, data):
         self._ensure_parent_exists()
+        normalized_data = merge_with_defaults(data, self.build_default_data())
         with open(self.file_path, "w", encoding="utf-8") as file:
-            json.dump(data, file, indent=4)
+            json.dump(normalized_data, file, indent=4)
 
     def exists(self):
         return self.file_path.exists()

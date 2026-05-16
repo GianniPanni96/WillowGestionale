@@ -4,27 +4,15 @@ from typing import Dict, List, Optional
 
 from Gestionale_Enums import RecurringExpensesStatus
 from ConfigManagers.historical_financial_data_manager import normalize_historical_file_data
+from ConfigManagers.type_utils import coerce_to_float, coerce_to_int
 
 
 def _coerce_config_float(value, default: float = 0.0) -> float:
-    if value in (None, ""):
-        return default
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+    return coerce_to_float(value, default)
 
 
 def _coerce_config_int(value, default: int = 0) -> int:
-    if value in (None, ""):
-        return default
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        try:
-            return int(float(value))
-        except (TypeError, ValueError):
-            return default
+    return coerce_to_int(value, default)
 
 
 @dataclass
@@ -164,14 +152,22 @@ class AliquotaIva:
     @staticmethod
     def from_dict(data: dict) -> "AliquotaIva":
         return AliquotaIva(
-            no_iva=float(data.get("no_iva", {}).get("value", 0.0)),
-            aliquota_iva_ordinaria=float(data.get("aliquota_iva_ordinaria", {}).get("value", 0.0)),
+            no_iva=_coerce_config_float(data.get("no_iva", {}).get("value"), 0.0),
+            aliquota_iva_ordinaria=_coerce_config_float(
+                data.get("aliquota_iva_ordinaria", {}).get("value"), 0.0
+            ),
             desc_iva_ordinaria=data.get("aliquota_iva_ordinaria", {}).get("description", ""),
-            aliquota_iva_ridotta_1=float(data.get("aliquota_iva_ridotta_1", {}).get("value", 0.0)),
+            aliquota_iva_ridotta_1=_coerce_config_float(
+                data.get("aliquota_iva_ridotta_1", {}).get("value"), 0.0
+            ),
             desc_iva_ridotta_1=data.get("aliquota_iva_ridotta_1", {}).get("description", ""),
-            aliquota_iva_ridotta_2=float(data.get("aliquota_iva_ridotta_2", {}).get("value", 0.0)),
+            aliquota_iva_ridotta_2=_coerce_config_float(
+                data.get("aliquota_iva_ridotta_2", {}).get("value"), 0.0
+            ),
             desc_iva_ridotta_2=data.get("aliquota_iva_ridotta_2", {}).get("description", ""),
-            aliquota_iva_minima=float(data.get("aliquota_iva_minima", {}).get("value", 0.0)),
+            aliquota_iva_minima=_coerce_config_float(
+                data.get("aliquota_iva_minima", {}).get("value"), 0.0
+            ),
             desc_iva_minima=data.get("aliquota_iva_minima", {}).get("description", ""),
         )
 
@@ -231,7 +227,7 @@ class RecurringExpense:
 
         return RecurringExpense(
             description=data.get("description", ""),
-            amount=float(data.get("amount", {}).get("value", 0)),
+            amount=_coerce_config_float(data.get("amount", {}).get("value"), 0.0),
             descr_amount=data.get("amount", {}).get("description", ""),
             supplier=data.get("supplier", {}).get("value", ""),
             descr_supplier=data.get("supplier", {}).get("description", ""),
@@ -241,7 +237,7 @@ class RecurringExpense:
             descr_deductor=data.get("deductor", {}).get("description", ""),
             category=data.get("category", {}).get("value", ""),
             descr_category=data.get("category", {}).get("description", ""),
-            iva=float(data.get("iva", {}).get("value", 0)),
+            iva=_coerce_config_float(data.get("iva", {}).get("value"), 0.0),
             descr_iva=data.get("iva", {}).get("description", ""),
             account=data.get("account", {}).get("value", ""),
             descr_account=data.get("account", {}).get("description", ""),
@@ -262,11 +258,11 @@ class HistoricalFinancialData:
         normalized = normalize_historical_file_data(data or {})
         return HistoricalFinancialData(
             revenues={
-                year: {name: float(amount) for name, amount in names.items()}
+                year: {name: _coerce_config_float(amount, 0.0) for name, amount in names.items()}
                 for year, names in normalized.get("revenues", {}).items()
             },
             deducted_expenses={
-                year: float(amount)
+                year: _coerce_config_float(amount, 0.0)
                 for year, amount in normalized.get("deducted_expenses", {}).items()
             },
         )

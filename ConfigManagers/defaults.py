@@ -8,15 +8,15 @@ APP_SETTINGS_DEFAULT = {
             "description": "Percorso dove verranno salvati i backup del database gestionale.",
         },
         "interval_minutes": {
-            "value": "25",
+            "value": 25,
             "description": "Intervallo in minuti tra l'esecuzione dei backup.",
         },
         "max_backups": {
-            "value": "15",
+            "value": 15,
             "description": "Numero massimo di backup da conservare per ogni intervallo.",
         },
         "delta_days": {
-            "value": "10",
+            "value": 10,
             "description": "Intervallo di tempo in giorni tra le cartelle di backup.",
         },
         "backup_books_path": {
@@ -46,48 +46,102 @@ FISCAL_RULES_DEFAULT = {
             },
         },
         "partita_iva_forfettaria": {
-            "aliquota_irpef_min": {"value": "0.05", "description": ""},
-            "aliquota_irpef_max": {"value": "0.15", "description": ""},
-            "anni_agevolazione": {"value": "5", "description": ""},
-            "aliquota_inps": {"value": "0.2607", "description": ""},
-            "aliquota_rivalsa_inps": {"value": "0.04", "description": ""},
-            "imponibile": {"value": "0.78", "description": ""},
-            "percentuale_acconto_imposta_primo": {"value": "0.40", "description": ""},
-            "percentuale_acconto_imposta_secondo": {"value": "0.60", "description": ""},
-            "percentuale_acconto_inps_forfettario": {"value": "1.00", "description": ""},
-            "percentuale_rata_acconto_inps_forfettario": {"value": "0.50", "description": ""},
+            "aliquota_irpef_min": {
+                "value": "0.05",
+                "description": "Aliquota IRPEF minima per partite IVA forfettarie, applicata nei primi anni.",
+            },
+            "aliquota_irpef_max": {
+                "value": "0.15",
+                "description": "Aliquota IRPEF massima per partite IVA forfettarie, applicata dopo il periodo agevolato.",
+            },
+            "anni_agevolazione": {
+                "value": "5",
+                "description": "Numero di anni durante i quali si applica la tariffa agevolata per il regime forfettario.",
+            },
+            "aliquota_inps": {
+                "value": "0.2607",
+                "description": "Contributo INPS per partite IVA forfettarie.",
+            },
+            "aliquota_rivalsa_inps": {
+                "value": "0.04",
+                "description": "Aliquota per rivalsa INPS in regime forfettario.",
+            },
+            "imponibile": {
+                "value": "0.78",
+                "description": "Percentuale dell'imponibile considerata per il calcolo fiscale nel regime forfettario.",
+            },
+            "percentuale_acconto_imposta_primo": {
+                "value": "0.40",
+                "description": "Quota (%) del primo acconto dell'imposta sostitutiva da versare al 30 giugno (saldo+acconto)",
+            },
+            "percentuale_acconto_imposta_secondo": {
+                "value": "0.60",
+                "description": "Quota (%) del secondo acconto dell'imposta sostitutiva da versare al 30 novembre",
+            },
+            "percentuale_acconto_inps_forfettario": {
+                "value": "1.00",
+                "description": "Percentuale dei contributi INPS forfettari su cui calcolare gli acconti (sempre 100% del contributo dovuto)",
+            },
+            "percentuale_rata_acconto_inps_forfettario": {
+                "value": "0.50",
+                "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre) in regime forfettario",
+            },
         },
         "partita_iva_ordinaria": {
             "aliquota_irpef_1": {
                 "value": "0.23",
                 "reddito_min": "0.0",
                 "reddito_max": "28000",
-                "description": "",
+                "description": "Aliquota IRPEF per il primo scaglione di reddito.",
             },
             "aliquota_irpef_2": {
                 "value": "0.35",
                 "reddito_min": "28000",
                 "reddito_max": "50000",
-                "description": "",
+                "description": "Aliquota IRPEF per il secondo scaglione di reddito",
             },
             "aliquota_irpef_3": {
                 "value": "0.43",
                 "reddito_min": "50000",
                 "reddito_max": "+Infinity",
-                "description": "",
+                "description": "Aliquota IRPEF per il terzo scaglione di reddito",
             },
-            "aliquota_inps": {"value": "0.2607", "description": ""},
-            "aliquota_cassa_inps": {"value": "0.04", "description": ""},
-            "aliquota_ritenuta": {"value": "0.2", "description": ""},
-            "imponibile_iva": {"value": "1", "description": ""},
-            "imponibile_ritenuta_acconto": {"value": "1", "description": ""},
-            "imponibile_cassa_inps": {"value": "1", "description": ""},
-            "imponibile_inps": {"value": "1", "description": ""},
-            "imponibile_irpef": {"value": "1", "description": ""},
-            "percentuale_acconto_irpef_primo": {"value": "0.40", "description": ""},
-            "percentuale_acconto_irpef_secondo": {"value": "0.60", "description": ""},
-            "percentuale_acconto_inps": {"value": "0.80", "description": ""},
-            "percentuale_rata_acconto_inps": {"value": "0.50", "description": ""},
+            "aliquota_inps": {
+                "value": "0.2607",
+                "description": "Contributo INPS per partite IVA ordinarie",
+            },
+            "aliquota_cassa_inps": {"value": "0.04", "description": "Aliquota per la cassa INPS"},
+            "aliquota_ritenuta": {"value": "0.2", "description": "Aliquota per la ritenuta d'acconto"},
+            "imponibile_iva": {"value": "1", "description": "Coefficiente per il calcolo dell'imponibile IVA"},
+            "imponibile_ritenuta_acconto": {
+                "value": "1",
+                "description": "Coefficiente per il calcolo dell'imponibile per la ritenuta d'acconto",
+            },
+            "imponibile_cassa_inps": {
+                "value": "1",
+                "description": "Coefficiente per il calcolo dell'imponibile per la cassa INPS",
+            },
+            "imponibile_inps": {"value": "1", "description": "Coefficiente per il calcolo dell'imponibile per l'INPS"},
+            "imponibile_irpef": {
+                "value": "1",
+                "description": "Coefficiente per il calcolo dell'imponibile per l'IRPEF",
+            },
+            "percentuale_acconto_irpef_primo": {
+                "value": "0.40",
+                "description": "Quota (%) del primo acconto IRPEF da versare a saldo+acconto al 30 giugno",
+            },
+            "percentuale_acconto_irpef_secondo": {
+                "value": "0.60",
+                "description": "Quota (%) del secondo acconto IRPEF da versare al 30 novembre",
+            },
+            "percentuale_acconto_inps": {
+                "value": "0.80",
+                "description": "Percentuale degli ultimi contributi INPS su cui calcolare gli acconti per l'anno in corso",
+            },
+            "percentuale_rata_acconto_inps": {
+                "value": "0.50",
+                "description": "Quota (%) di ciascuna delle due rate di acconto INPS (30 giugno e 30 novembre)",
+            },
         },
     }
 }
@@ -140,17 +194,59 @@ CATALOGS_DEFAULT = {
         "INTEGRAZIONE_VFX": "Integrazione VFX",
         "ADD_PROD_OUT_TYPE": "AGGIUNGI UNA TIPOLOGIA DI OUTPUT ALLA LISTA",
     },
-    "expenses_category": {},
+    "expenses_category": {
+        "MANUTENZIONE": "manutenzione",
+        "SPONSORIZZAZIONE": "sponsorizzazione",
+        "TASSE": "tasse",
+        "STUDIO_RENTAL": "Affitto Ufficio",
+        "TECHNICAL_INSTRUMENTATION_PROD": "Strumentazione tecnica produzione",
+        "TECHNICAL_INSTRUMENTATION_POSTPROD": "Strumentazione tecnica postproduzione",
+        "SUBSCRIPTION": "Abbonamento",
+        "ELECTRICITY_BILL": "Bolletta Luce",
+        "GAS_BILL": "Bolletta Gas",
+        "INTERNET_BILL": "Abbonamento Internet",
+        "WASTE_BILL": "TARI",
+        "CONSUMABLE_FOR_STUDIO": "Consumabili per lo studio",
+        "INSURANCE": "Assicurazionee",
+        "PRODUCTION_EXPENSE": "Spesa di produzione",
+        "USER_SALARY": "Salario",
+        "TRIMESTRAL_IVA": "Iva trimestrale",
+        "ADD_CATEGORY": "AGGIUNGI UNA CATEGORIA ALLA LISTA"
+    },
 }
 
 
-RECURRING_EXPENSES_DEFAULT = {}
+RECURRING_EXPENSES_DEFAULT = {"recurring_expenses": {}}
 
 
 HISTORICAL_FINANCIAL_DATA_DEFAULT = {
     "revenues": {},
     "deducted_expenses": {},
 }
+
+
+def build_warnings_visibility_default():
+    """Costruisce la struttura di default per ``warnings_visibility.json``.
+
+    Itera sul catalogo dei warning (``WARNING_CATALOG``) e produce per
+    ogni dominio una mappa ``type_key -> True`` solo per i warning di
+    severity 2/3. I sev 1 NON compaiono nel file (sono sempre attivi e
+    non disabilitabili)."""
+    # Import locale per evitare cicli: WarningServices/Warning_types non
+    # dipende da ConfigManagers, ma ConfigManagers/defaults conosce il
+    # nome del modulo.
+    from WarningServices.Warning_types import WARNING_CATALOG, WarningSeverity
+
+    data: dict = {}
+    for domain_key, items in WARNING_CATALOG.items():
+        domain_data: dict = {}
+        for type_key, severity, _label, _desc in items:
+            if severity == WarningSeverity.CONSISTENCY:
+                # Sev 1: sempre attivo, non scrivibile.
+                continue
+            domain_data[type_key] = True
+        data[domain_key] = domain_data
+    return data
 
 
 def clone_default_config(default_config):

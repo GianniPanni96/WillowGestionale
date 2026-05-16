@@ -1,0 +1,742 @@
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMenuBar,
+    QMessageBox,
+    QPushButton,
+    QStackedWidget,
+    QTabWidget,
+    QWidget,
+)
+
+from Utils.View_utils import ViewUtils
+from Model import DBUsersColumns
+
+from QTViews.Details.QT_account_detail_view import QTAccountDetailViewH
+from QTViews.Details.QT_client_detail_view import QTClientDetailViewH
+from QTViews.Details.QT_invoice_detail_view import QTInvoiceDetailViewH
+from QTViews.Details.QT_expense_detail_view import QTExpenseDetailViewH
+from QTViews.Details.QT_payment_detail_view import QTPaymentDetailViewH
+from QTViews.Details.QT_production_detail_view import QTProductionDetailViewH
+from QTViews.Details.QT_refund_detail_view import QTRefundDetailViewH
+from QTViews.Details.QT_salary_detail_view import QTSalaryDetailViewH
+from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
+from QTViews.Details.QT_user_detail_view import QTUserDetailViewH
+from QTViews.ListViews.QT_accounts_view import QTAccountsViewH
+from QTViews.ListViews.QT_clients_view import QTClientsViewH
+from QTViews.ListViews.QT_iva_view import QTIvaViewH
+from QTViews.ListViews.QT_plot_view import QTPlotViewH
+from QTViews.ListViews.QT_report_view import QTReportViewH
+from QTViews.ListViews.QT_taxes_view import QTTaxesViewH
+from QTViews.ListViews.QT_expenses_view import QTExpensesViewH
+from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
+from QTViews.ListViews.QT_payments_view import QTPaymentsViewH
+from QTViews.ListViews.QT_productions_view import QTProductionsViewH
+from QTViews.ListViews.QT_refunds_view import QTRefundsViewH
+from QTViews.ListViews.QT_salaries_view import QTSalariesViewH
+from QTViews.ListViews.QT_suppliers_view import QTSuppliersViewH
+from QTViews.ListViews.QT_users_view import QTUsersViewH
+from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
+from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
+from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
+from QTViews.MenuWindows.QT_fiscal_year_closer_dialog import QTFiscalYearCloserDialog
+from QTViews.MenuWindows.QT_warnings_settings_dialog import QTWarningsSettingsDialog
+from QTViews.MenuWindows.QT_load_backup_dialog import QTLoadBackupDialog
+from QTViews.MenuWindows.QT_login_dialog import QTLoginDialog
+from QTViews.MenuWindows.QT_recurring_expenses_dialog import QTRecurringExpensesDialog
+
+if TYPE_CHECKING:
+    from App_context import AppContext
+
+
+class QTMainWindow(QMainWindow):
+    """
+    Main window QT.
+
+    Replica l'architettura della MainWindow customtkinter:
+    - una QMenuBar in alto con i menu "Gestione …";
+    - un QTabWidget centrale con tutte le tab dell'applicazione;
+    - una barra superiore con menu a sinistra e Login / icona utente /
+      refresh a destra.
+
+    Ad oggi le tab "Fatture" e "Clienti" sono funzionanti; le altre sono
+    presenti per rispecchiare la struttura della view legacy ma non sono
+    interagibili finché le rispettive view non saranno portate su Qt.
+
+    Le voci dei menu in alto sono invece pienamente operative: ognuna apre
+    la propria finestra dedicata (in QTViews/MenuWindows/), che eredita
+    la logica della MainWindow legacy ma è ora estratta in classi separate.
+
+    Ogni tab gestisce internamente il flusso "elenco / dettaglio" con uno
+    stack dedicato, cosi' la barra delle tab resta sempre visibile anche
+    quando l'utente apre una vista di dettaglio.
+    """
+
+    TAB_INVOICES = "Fatture"
+    TAB_CLIENTS = "Clienti"
+    TAB_SUPPLIERS = "Fornitori"
+    TAB_PRODUCTIONS = "Produzioni"
+    TAB_PAYMENTS = "Pagamenti"
+    TAB_REFUNDS = "Rimborsi"
+    TAB_EXPENSES = "Spese"
+    TAB_SALARIES = "Salario"
+    TAB_USERS = "Utenti"
+    TAB_ACCOUNTS = "Conti"
+    TAB_IVA = "Iva"
+    TAB_TAXES = "Tasse"
+    TAB_REPORT_PREFIX = "Report"
+    TAB_PLOTS = "Plots"
+
+    @classmethod
+    def _tab_names(cls):
+        # L'ordine rispecchia quello della MainWindow legacy.
+        return [
+            cls.TAB_USERS,
+            cls.TAB_CLIENTS,
+            cls.TAB_SUPPLIERS,
+            cls.TAB_PRODUCTIONS,
+            cls.TAB_ACCOUNTS,
+            cls.TAB_INVOICES,
+            cls.TAB_PAYMENTS,
+            cls.TAB_REFUNDS,
+            cls.TAB_EXPENSES,
+            cls.TAB_IVA,
+            cls.TAB_SALARIES,
+            cls.TAB_TAXES,
+            f"Report {datetime.now().year}",
+            "Plots",
+        ]
+
+    def __init__(self, app_context: "AppContext", initial_invoice_id=None):
+        super().__init__()
+
+        self.app_context = app_context
+
+        self.setWindowTitle("Gestionale Willow")
+        self.resize(1400, 800)
+        self._set_window_icon()
+
+        self._build_menu_bar()
+
+        self.tabview = QTabWidget()
+        self.tabview.setObjectName("MainTabView")
+        self.tabview.setContentsMargins(0, 12, 0, 0)
+        self.tabview.setStyleSheet("""
+            #MainTabView::pane {
+                border-top: 1px solid palette(mid);
+            }
+
+            #MainTabView QTabBar::tab {
+                min-width: 60px;
+                min-height: 24px;
+                padding: 8px 14px;
+                font-size: 11pt;
+            }
+
+            #MainTabView QTabBar::tab:selected {
+                background-color: palette(highlight);
+                color: palette(highlighted-text);
+            }
+
+            #MainTabView QTabBar::tab:!selected {
+                background-color: palette(button);
+                color: palette(button-text);
+            }
+        """)
+        self.invoices_view = None
+        self.clients_view = None
+        self.suppliers_view = None
+        self.productions_view = None
+        self.payments_view = None
+        self.refunds_view = None
+        self.expenses_view = None
+        self.salaries_view = None
+        self.users_view = None
+        self.accounts_view = None
+        self.iva_view = None
+        self.taxes_view = None
+        self.report_view = None
+        self.plots_view = None
+        self.invoices_page = None
+        self.clients_page = None
+        self.suppliers_page = None
+        self.productions_page = None
+        self.payments_page = None
+        self.refunds_page = None
+        self.expenses_page = None
+        self.salaries_page = None
+        self.users_page = None
+        self.accounts_page = None
+        self.iva_page = None
+        self.taxes_page = None
+        self.report_page = None
+        self.plots_page = None
+        self.invoice_detail_view = None
+        self.client_detail_view = None
+        self.supplier_detail_view = None
+        self.production_detail_view = None
+        self.payment_detail_view = None
+        self.refund_detail_view = None
+        self.expense_detail_view = None
+        self.salary_detail_view = None
+        self.user_detail_view = None
+        self.account_detail_view = None
+        self.login_status = False
+        self.logged_user_id = -1
+        self.user_icon_label = None
+        self.backup_runner = QTBackupRunner(app_context=app_context, parent=self)
+
+        self._build_tabs(initial_invoice_id)
+        self._build_menu_corner()
+        self.setCentralWidget(self.tabview)
+
+        if self.invoices_page is not None:
+            self.tabview.setCurrentWidget(self.invoices_page)
+
+    # ------------------------------------------------------------------
+    # Setup
+    # ------------------------------------------------------------------
+
+    def _set_window_icon(self):
+        try:
+            images_path = Path(self.app_context.images_path)
+            for candidate in ("WillowLogo.ico", "user.png"):
+                path = images_path / candidate
+                if path.exists():
+                    self.setWindowIcon(QIcon(str(path)))
+                    return
+        except Exception as exc:
+            print(f"Errore nel caricamento dell'icona: {exc}")
+
+    def _build_menu_bar(self):
+        top_bar = QWidget(self)
+        top_layout = QHBoxLayout(top_bar)
+        top_layout.setContentsMargins(0, 0, 8, 0)
+        top_layout.setSpacing(8)
+
+        menubar = QMenuBar(top_bar)
+        menubar.setStyleSheet(
+            """
+            QMenuBar {
+                padding-top: 10px;
+            }
+            """
+        )
+        top_layout.addWidget(menubar, stretch=1)
+
+        self.menu_actions_widget = QWidget(top_bar)
+        self.menu_actions_layout = QHBoxLayout(self.menu_actions_widget)
+        self.menu_actions_layout.setContentsMargins(4, 2, 4, 2)
+        self.menu_actions_layout.setSpacing(8)
+        top_layout.addWidget(
+            self.menu_actions_widget, alignment=Qt.AlignRight | Qt.AlignVCenter
+        )
+        self.setMenuWidget(top_bar)
+
+        backup = menubar.addMenu("Backup")
+        backup.addAction("Impostazioni backup").triggered.connect(self._open_backup_settings)
+        backup.addAction("Esegui un backup manuale del Database").triggered.connect(
+            self._execute_db_backup
+        )
+        backup.addAction("Esegui un backup manuale dei libri contabili").triggered.connect(
+            self._execute_books_backup
+        )
+        backup.addAction("Carica un backup del Database").triggered.connect(self._open_load_backup)
+
+        fiscal = menubar.addMenu("Dati Fiscali")
+        fiscal.addAction("Modifica dati fiscali").triggered.connect(self._open_fiscal_settings)
+
+        recurring = menubar.addMenu("Spese Ricorrenti")
+        recurring.addAction("Modifica Spese Ricorrenti").triggered.connect(
+            self._open_recurring_expenses
+        )
+
+        fiscal_year = menubar.addMenu("Esercizio")
+        fiscal_year.addAction(
+            f"Chiusura Esercizio {datetime.now().year}"
+        ).triggered.connect(self._open_fiscal_year_closer)
+
+        warnings_menu = menubar.addMenu("GUI")
+        warnings_menu.addAction("Visibilità warnings").triggered.connect(
+            self._open_warnings_settings
+        )
+
+    def _build_tab_page(self, list_view):
+        page = QStackedWidget()
+        page.setContentsMargins(0, 0, 0, 0)
+        page.addWidget(list_view)
+        return page
+
+    def _build_tabs(self, initial_invoice_id):
+        for name in self._tab_names():
+            if name == self.TAB_INVOICES:
+                self.invoices_view = QTInvoicesViewH(
+                    app_context=self.app_context,
+                    initial_invoice_id=initial_invoice_id,
+                    on_open_detail=self._open_invoice_detail,
+                    parent=self,
+                )
+                self.invoices_page = self._build_tab_page(self.invoices_view)
+                self.tabview.addTab(self.invoices_page, name)
+            elif name == self.TAB_CLIENTS:
+                self.clients_view = QTClientsViewH(
+                    app_context=self.app_context,
+                    initial_client_id=None,
+                    on_open_detail=self._open_client_detail,
+                    parent=self,
+                )
+                self.clients_page = self._build_tab_page(self.clients_view)
+                self.tabview.addTab(self.clients_page, name)
+            elif name == self.TAB_SUPPLIERS:
+                self.suppliers_view = QTSuppliersViewH(
+                    app_context=self.app_context,
+                    initial_supplier_id=None,
+                    on_open_detail=self._open_supplier_detail,
+                    parent=self,
+                )
+                self.suppliers_page = self._build_tab_page(self.suppliers_view)
+                self.tabview.addTab(self.suppliers_page, name)
+            elif name == self.TAB_PRODUCTIONS:
+                self.productions_view = QTProductionsViewH(
+                    app_context=self.app_context,
+                    initial_production_id=None,
+                    on_open_detail=self._open_production_detail,
+                    parent=self,
+                )
+                self.productions_page = self._build_tab_page(self.productions_view)
+                self.tabview.addTab(self.productions_page, name)
+            elif name == self.TAB_PAYMENTS:
+                self.payments_view = QTPaymentsViewH(
+                    app_context=self.app_context,
+                    initial_payment_id=None,
+                    on_open_detail=self._open_payment_detail,
+                    parent=self,
+                )
+                self.payments_page = self._build_tab_page(self.payments_view)
+                self.tabview.addTab(self.payments_page, name)
+            elif name == self.TAB_REFUNDS:
+                self.refunds_view = QTRefundsViewH(
+                    app_context=self.app_context,
+                    initial_refund_id=None,
+                    on_open_detail=self._open_refund_detail,
+                    parent=self,
+                )
+                self.refunds_page = self._build_tab_page(self.refunds_view)
+                self.tabview.addTab(self.refunds_page, name)
+            elif name == self.TAB_EXPENSES:
+                self.expenses_view = QTExpensesViewH(
+                    app_context=self.app_context,
+                    initial_expense_id=None,
+                    on_open_detail=self._open_expense_detail,
+                    parent=self,
+                )
+                self.expenses_page = self._build_tab_page(self.expenses_view)
+                self.tabview.addTab(self.expenses_page, name)
+            elif name == self.TAB_SALARIES:
+                self.salaries_view = QTSalariesViewH(
+                    app_context=self.app_context,
+                    initial_salary_id=None,
+                    on_open_detail=self._open_salary_detail,
+                    parent=self,
+                )
+                self.salaries_page = self._build_tab_page(self.salaries_view)
+                self.tabview.addTab(self.salaries_page, name)
+            elif name == self.TAB_USERS:
+                self.users_view = QTUsersViewH(
+                    app_context=self.app_context,
+                    on_open_detail=self._open_user_detail,
+                    parent=self,
+                )
+                self.users_page = self._build_tab_page(self.users_view)
+                self.tabview.addTab(self.users_page, name)
+            elif name == self.TAB_ACCOUNTS:
+                self.accounts_view = QTAccountsViewH(
+                    app_context=self.app_context,
+                    on_open_detail=self._open_account_detail,
+                    parent=self,
+                )
+                self.accounts_page = self._build_tab_page(self.accounts_view)
+                self.tabview.addTab(self.accounts_page, name)
+            elif name == self.TAB_IVA:
+                self.iva_view = QTIvaViewH(
+                    app_context=self.app_context,
+                    parent=self,
+                )
+                self.iva_page = self._build_tab_page(self.iva_view)
+                self.tabview.addTab(self.iva_page, name)
+            elif name == self.TAB_TAXES:
+                self.taxes_view = QTTaxesViewH(
+                    app_context=self.app_context,
+                    parent=self,
+                )
+                self.taxes_page = self._build_tab_page(self.taxes_view)
+                self.tabview.addTab(self.taxes_page, name)
+            elif name.startswith(self.TAB_REPORT_PREFIX):
+                self.report_view = QTReportViewH(
+                    app_context=self.app_context,
+                    parent=self,
+                )
+                self.report_page = self._build_tab_page(self.report_view)
+                self.tabview.addTab(self.report_page, name)
+            elif name == self.TAB_PLOTS:
+                self.plots_view = QTPlotViewH(
+                    app_context=self.app_context,
+                    parent=self,
+                )
+                self.plots_page = self._build_tab_page(self.plots_view)
+                self.tabview.addTab(self.plots_page, name)
+            else:
+                placeholder = QLabel(f"{name}\nNon ancora portata su Qt.")
+                placeholder.setAlignment(Qt.AlignCenter)
+                placeholder.setStyleSheet("color: palette(mid); font-size: 14pt;")
+                idx = self.tabview.addTab(placeholder, name)
+                self.tabview.setTabEnabled(idx, False)
+
+    def _build_menu_corner(self):
+        layout = self.menu_actions_layout
+
+        self.login_button = QPushButton("Login")
+        self.login_button.clicked.connect(self._manage_login)
+        layout.addWidget(self.login_button)
+
+        self.user_icon_label = QLabel()
+        self.user_icon_label.setFixedSize(28, 28)
+        self.user_icon_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.user_icon_label)
+        self._set_user_icon_from_path(self._default_user_icon_path())
+
+        self.refresh_button = QPushButton("Aggiorna")
+        self.refresh_button.setToolTip("Aggiorna la tab corrente")
+        self.refresh_button.clicked.connect(self._refresh_current_tab)
+        layout.addWidget(self.refresh_button)
+
+    # ------------------------------------------------------------------
+    # Azioni
+    # ------------------------------------------------------------------
+
+    def _refresh_current_tab(self):
+        widget = self.tabview.currentWidget()
+        if widget is self.invoices_page and self.invoices_view is not None:
+            # Ricarica la lista fatture rispettando la time window selezionata.
+            self.invoices_view._on_window_changed()
+        elif widget is self.clients_page and self.clients_view is not None:
+            self.clients_view._on_window_changed()
+        elif widget is self.suppliers_page and self.suppliers_view is not None:
+            self.suppliers_view._on_window_changed()
+        elif widget is self.productions_page and self.productions_view is not None:
+            self.productions_view._on_window_changed()
+        elif widget is self.payments_page and self.payments_view is not None:
+            self.payments_view._on_window_changed()
+        elif widget is self.refunds_page and self.refunds_view is not None:
+            self.refunds_view._on_window_changed()
+        elif widget is self.expenses_page and self.expenses_view is not None:
+            self.expenses_view._on_window_changed()
+        elif widget is self.salaries_page and self.salaries_view is not None:
+            self.salaries_view._on_window_changed()
+        elif widget is self.users_page and self.users_view is not None:
+            self.users_view.refresh()
+        elif widget is self.accounts_page and self.accounts_view is not None:
+            self.accounts_view.refresh()
+        elif widget is self.iva_page and self.iva_view is not None:
+            self.iva_view.refresh()
+        elif widget is self.taxes_page and self.taxes_view is not None:
+            self.taxes_view.refresh()
+        elif widget is self.report_page and self.report_view is not None:
+            self.report_view.refresh()
+        elif widget is self.plots_page and self.plots_view is not None:
+            self.plots_view.refresh()
+        self._refresh_logged_user_icon()
+
+    def _default_user_icon_path(self):
+        try:
+            path = Path(self.app_context.images_path) / "user.png"
+            if path.exists():
+                return str(path)
+        except Exception:
+            pass
+        return ""
+
+    def _set_user_icon_from_path(self, image_path):
+        if self.user_icon_label is None:
+            return
+
+        pix = QPixmap(str(image_path)) if image_path else QPixmap()
+        if pix.isNull():
+            self.user_icon_label.clear()
+            return
+
+        self.user_icon_label.setPixmap(
+            pix.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )
+
+    def _refresh_logged_user_icon(self):
+        image_path = self._default_user_icon_path()
+        if self.login_status and self.logged_user_id != -1:
+            try:
+                user = self.app_context.user_query_service.retrieve_user_map_by_id(
+                    self.logged_user_id
+                )
+                photo_path = user.get(DBUsersColumns.PHOTO_PATH.value, "") if user else ""
+                if photo_path and Path(photo_path).exists():
+                    image_path = photo_path
+            except Exception:
+                pass
+        self._set_user_icon_from_path(image_path)
+
+    def _show_detail_view(self, page_stack, detail_attr, detail_view):
+        old_detail = getattr(self, detail_attr)
+        if old_detail is not None:
+            page_stack.removeWidget(old_detail)
+            old_detail.deleteLater()
+
+        setattr(self, detail_attr, detail_view)
+        page_stack.addWidget(detail_view)
+        page_stack.setCurrentWidget(detail_view)
+        self.tabview.setCurrentWidget(page_stack)
+
+    def _back_to_list_view(self, page_stack, list_view, detail_attr):
+        if page_stack is not None and list_view is not None:
+            page_stack.setCurrentWidget(list_view)
+            self.tabview.setCurrentWidget(page_stack)
+
+        detail_view = getattr(self, detail_attr)
+        if detail_view is not None:
+            page_stack.removeWidget(detail_view)
+            detail_view.deleteLater()
+            setattr(self, detail_attr, None)
+
+    def _open_invoice_detail(self, invoice_id):
+        detail_view = QTInvoiceDetailViewH(
+            app_context=self.app_context,
+            invoice_id=invoice_id,
+            on_back=self._back_to_invoices_list,
+            parent=self,
+        )
+        self._show_detail_view(self.invoices_page, "invoice_detail_view", detail_view)
+
+    def _open_client_detail(self, client_id):
+        detail_view = QTClientDetailViewH(
+            app_context=self.app_context,
+            client_id=client_id,
+            on_back=self._back_to_clients_list,
+            parent=self,
+        )
+        self._show_detail_view(self.clients_page, "client_detail_view", detail_view)
+
+    def _open_supplier_detail(self, supplier_id):
+        detail_view = QTSupplierDetailViewH(
+            app_context=self.app_context,
+            supplier_id=supplier_id,
+            on_back=self._back_to_suppliers_list,
+            parent=self,
+        )
+        self._show_detail_view(self.suppliers_page, "supplier_detail_view", detail_view)
+
+    def _open_production_detail(self, production_id):
+        detail_view = QTProductionDetailViewH(
+            app_context=self.app_context,
+            production_id=production_id,
+            on_back=self._back_to_productions_list,
+            parent=self,
+        )
+        self._show_detail_view(self.productions_page, "production_detail_view", detail_view)
+
+    def _open_payment_detail(self, payment_id):
+        detail_view = QTPaymentDetailViewH(
+            app_context=self.app_context,
+            payment_id=payment_id,
+            on_back=self._back_to_payments_list,
+            parent=self,
+        )
+        self._show_detail_view(self.payments_page, "payment_detail_view", detail_view)
+
+    def _open_refund_detail(self, refund_id):
+        detail_view = QTRefundDetailViewH(
+            app_context=self.app_context,
+            refund_id=refund_id,
+            on_back=self._back_to_refunds_list,
+            parent=self,
+        )
+        self._show_detail_view(self.refunds_page, "refund_detail_view", detail_view)
+
+    def _open_expense_detail(self, expense_id):
+        detail_view = QTExpenseDetailViewH(
+            app_context=self.app_context,
+            expense_id=expense_id,
+            on_back=self._back_to_expenses_list,
+            parent=self,
+        )
+        self._show_detail_view(self.expenses_page, "expense_detail_view", detail_view)
+
+    def _open_salary_detail(self, salary_id):
+        detail_view = QTSalaryDetailViewH(
+            app_context=self.app_context,
+            salary_id=salary_id,
+            on_back=self._back_to_salaries_list,
+            parent=self,
+        )
+        self._show_detail_view(self.salaries_page, "salary_detail_view", detail_view)
+
+    def _open_user_detail(self, user_id):
+        detail_view = QTUserDetailViewH(
+            app_context=self.app_context,
+            user_id=user_id,
+            on_back=self._back_to_users_list,
+            parent=self,
+        )
+        self._show_detail_view(self.users_page, "user_detail_view", detail_view)
+
+    def _open_account_detail(self, account_id):
+        detail_view = QTAccountDetailViewH(
+            app_context=self.app_context,
+            account_id=account_id,
+            on_back=self._back_to_accounts_list,
+            parent=self,
+        )
+        self._show_detail_view(self.accounts_page, "account_detail_view", detail_view)
+
+    def _back_to_invoices_list(self):
+        self._back_to_list_view(
+            self.invoices_page, self.invoices_view, "invoice_detail_view"
+        )
+
+    def _back_to_clients_list(self):
+        self._back_to_list_view(
+            self.clients_page, self.clients_view, "client_detail_view"
+        )
+
+    def _back_to_suppliers_list(self):
+        self._back_to_list_view(
+            self.suppliers_page, self.suppliers_view, "supplier_detail_view"
+        )
+
+    def _back_to_productions_list(self):
+        self._back_to_list_view(
+            self.productions_page, self.productions_view, "production_detail_view"
+        )
+
+    def _back_to_payments_list(self):
+        self._back_to_list_view(
+            self.payments_page, self.payments_view, "payment_detail_view"
+        )
+
+    def _back_to_refunds_list(self):
+        self._back_to_list_view(
+            self.refunds_page, self.refunds_view, "refund_detail_view"
+        )
+
+    def _back_to_expenses_list(self):
+        self._back_to_list_view(
+            self.expenses_page, self.expenses_view, "expense_detail_view"
+        )
+
+    def _back_to_salaries_list(self):
+        self._back_to_list_view(
+            self.salaries_page, self.salaries_view, "salary_detail_view"
+        )
+
+    def _back_to_users_list(self):
+        self._back_to_list_view(
+            self.users_page, self.users_view, "user_detail_view"
+        )
+        if self.users_view is not None:
+            # Il detail può aver modificato/eliminato l'utente: ricarica
+            # le card per riflettere lo stato corrente.
+            self.users_view.refresh()
+        self._refresh_logged_user_icon()
+
+    def _back_to_accounts_list(self):
+        self._back_to_list_view(
+            self.accounts_page, self.accounts_view, "account_detail_view"
+        )
+        if self.accounts_view is not None:
+            # Il detail può aver modificato/eliminato il conto: ricarica
+            # le card per riflettere lo stato corrente.
+            self.accounts_view.refresh()
+
+    # ------------------------------------------------------------------
+    # Menu handlers — istanziano la finestra dedicata
+    # ------------------------------------------------------------------
+
+    def _open_backup_settings(self):
+        QTBackupSettingsDialog(app_context=self.app_context, parent=self).exec()
+
+    def _execute_db_backup(self):
+        self.backup_runner.run_db_backup()
+
+    def _execute_books_backup(self):
+        self.backup_runner.run_books_backup()
+
+    def _open_load_backup(self):
+        QTLoadBackupDialog(app_context=self.app_context, parent=self).exec()
+
+    def _open_fiscal_settings(self):
+        QTFiscalSettingsDialog(app_context=self.app_context, parent=self).exec()
+
+    def _open_recurring_expenses(self):
+        QTRecurringExpensesDialog(app_context=self.app_context, parent=self).exec()
+
+    def _open_fiscal_year_closer(self):
+        if not QTFiscalYearCloserDialog.is_closer_available_now():
+            QMessageBox.warning(
+                self,
+                "",
+                "Impossibile eseguire la chiusura del corrente esercizio tra marzo e novembre",
+            )
+            return
+        QTFiscalYearCloserDialog(app_context=self.app_context, parent=self).exec()
+
+    def _open_warnings_settings(self):
+        dialog = QTWarningsSettingsDialog(app_context=self.app_context, parent=self)
+        if dialog.exec() == QTWarningsSettingsDialog.Accepted:
+            # Ricarica la tab corrente per riflettere le nuove regole di
+            # visibilita' (in genere il refresh manuale non e' necessario,
+            # ma evitiamo all'utente di doverlo fare a mano).
+            self._refresh_current_tab()
+
+    def _manage_login(self):
+        if self.login_status:
+            confirm = QMessageBox.question(
+                self,
+                "Logout",
+                "Vuoi eseguire il logout?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if confirm == QMessageBox.Yes:
+                self.login_status = False
+                self.logged_user_id = -1
+                self._toggle_login_widgets()
+                self.app_context.event_bus.publish(
+                    ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
+                    {"login_status": False, "logged_user_id": -1},
+                )
+            return
+
+        dialog = QTLoginDialog(app_context=self.app_context, parent=self)
+        dialog.exec()
+        if dialog.success:
+            self.login_status = True
+            self.logged_user_id = dialog.user_id
+            self._toggle_login_widgets()
+
+    def _toggle_login_widgets(self):
+        self.login_button.setText("Esegui Logout" if self.login_status else "Login")
+        self._refresh_logged_user_icon()
+
+    # ------------------------------------------------------------------
+
+    def closeEvent(self, event):
+        scheduler = getattr(self.app_context, "backup_scheduler", None)
+        if scheduler is not None:
+            try:
+                scheduler.stop()
+            except Exception as exc:
+                print(f"Errore nello stop del backup scheduler: {exc}")
+        super().closeEvent(event)

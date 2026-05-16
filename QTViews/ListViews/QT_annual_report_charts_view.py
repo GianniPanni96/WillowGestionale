@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from Views.View_utils import ViewUtils
+from Utils.View_utils import ViewUtils
 
 if TYPE_CHECKING:
     from App_context import AppContext

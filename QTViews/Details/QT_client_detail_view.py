@@ -27,7 +27,7 @@ from Model import (
 )
 from QTViews.CustomWidgets.QT_catalog_filterable_combo_box import QTCatalogFilterableComboBox
 from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
-from Views.View_utils import ViewUtils
+from Utils.View_utils import ViewUtils
 
 if TYPE_CHECKING:
     from App_context import AppContext

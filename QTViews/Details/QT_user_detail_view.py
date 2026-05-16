@@ -64,7 +64,7 @@ from Gestionale_Enums import (
     UserStatus,
 )
 from Utils.Validation_utils import ValidationUtils
-from Views.View_utils import ViewUtils
+from Utils.View_utils import ViewUtils
 
 if TYPE_CHECKING:
     from App_context import AppContext

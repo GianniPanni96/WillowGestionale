@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from Views.View_utils import ViewUtils
+from Utils.View_utils import ViewUtils
 from Model import DBUsersColumns
 
 from QTViews.Details.QT_account_detail_view import QTAccountDetailViewH

@@ -52,7 +52,7 @@ from Gestionale_Enums import (
 from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
 from QTViews.CustomWidgets.QT_warning_banner import WarningBanner
 from WarningServices.Warning_types import WarningInfo, WarningSeverity
-from Views.View_utils import ViewUtils
+from Utils.View_utils import ViewUtils
 
 if TYPE_CHECKING:
     from App_context import AppContext

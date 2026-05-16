@@ -9,6 +9,12 @@ operino sullo stesso stato.
 
 import sys
 
+# matplotlib.pyplot va importato qui (prima di PySide6) perche' trascina
+# dateutil -> six in sys.modules. Senza questo, l'hook di shibokensupport
+# di PySide6 intercetta il primo import di six durante il caricamento di
+# matplotlib.dates e crasha su `_SixMetaPathImporter._path` mancante.
+import matplotlib.pyplot  # noqa: F401
+
 from Main_bootstrap import build_app_context
 
 # ID della fattura su cui posizionarsi all'avvio (utile per i test

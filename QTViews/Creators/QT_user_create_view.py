@@ -103,6 +103,21 @@ class QTUserCreateViewH(QDialog):
         self._build_entry(form, DBUsersColumns.TELEFONO.value, "Telefono")
         self._build_entry(form, DBUsersColumns.EMAIL.value, "Email", with_error=True)
 
+        # Password di login (opzionale ma necessaria per poter loggare
+        # l'utente; abilita anche la cifratura per-utente dei dati
+        # sensibili). Se lasciata vuota l'utente esiste ma non puo'
+        # autenticarsi finche' un admin non gliela imposta dal dettaglio.
+        self._password_edit = QLineEdit()
+        self._password_edit.setEchoMode(QLineEdit.Password)
+        self._password_edit.setPlaceholderText("almeno 8 caratteri (opzionale)")
+        form.addRow(QLabel("Password login"), self._password_edit)
+        self._password_confirm_edit = QLineEdit()
+        self._password_confirm_edit.setEchoMode(QLineEdit.Password)
+        form.addRow(QLabel("Conferma password"), self._password_confirm_edit)
+        self._password_error = QLabel("")
+        self._password_error.setStyleSheet("color: #d62929;")
+        form.addRow("", self._password_error)
+
         # Conto corrente (obbligatorio: c'e' un check di esistenza prima
         # di aprire il dialog, qui mostriamo i conti disponibili).
         accounts = self.accounts_query_service.retrieve_accounts_map_list() or []
@@ -266,6 +281,18 @@ class QTUserCreateViewH(QDialog):
             QMessageBox.critical(self, "ERRORE", "Conto corrente non valido.")
             return
 
+        pwd = self._password_edit.text()
+        pwd_confirm = self._password_confirm_edit.text()
+        if pwd or pwd_confirm:
+            if pwd != pwd_confirm:
+                self._password_error.setText("Le password non coincidono.")
+                return
+            is_valid, _ = ValidationUtils.validate_password_strength(pwd)
+            if not is_valid:
+                self._password_error.setText("Password troppo debole (minimo 8 caratteri).")
+                return
+        self._password_error.setText("")
+
         user_data = {
             DBUsersColumns.FIRST_NAME.value: self._widgets[DBUsersColumns.FIRST_NAME.value].text().strip(),
             DBUsersColumns.LAST_NAME.value: self._widgets[DBUsersColumns.LAST_NAME.value].text().strip(),
@@ -283,11 +310,20 @@ class QTUserCreateViewH(QDialog):
             DBUsersColumns.USERNAME_PROVIDER.value: "",
             DBUsersColumns.PASSWORD_PROVIDER.value: "",
         }
+        if pwd:
+            # Chiave fuori-enum letta da UserController.save_user per
+            # generare hash + salt + crypto_check del nuovo utente.
+            user_data["_plain_password"] = pwd
 
-        success, message = self.user_controller.save_user(user_data)
+        success, message, info = self.user_controller.save_user(user_data)
         if not success:
             QMessageBox.critical(self, "ERRORE", message)
             return
+
+        recovery_code = (info or {}).get("recovery_code")
+        if recovery_code:
+            from QTViews.MenuWindows.QT_recovery_code_show_dialog import QTRecoveryCodeShowDialog
+            QTRecoveryCodeShowDialog(recovery_code, parent=self).exec()
 
         # Recuperiamo l'id assegnato dal DB usando fullname (come la legacy).
         try:

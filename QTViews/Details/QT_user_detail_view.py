@@ -1271,12 +1271,21 @@ class QTUserDetailViewH(QWidget):
                 )
                 return
 
-        success, message = self.user_controller.update_user(self.current_user_id, user_data)
+        success, message, info = self.user_controller.update_user(self.current_user_id, user_data)
         if not success:
             QMessageBox.critical(self, "ERRORE", message)
             return
 
         QMessageBox.information(self, "SALVATAGGIO COMPLETATO", message)
+
+        # Se in questa save e' stata impostata o cambiata la password,
+        # il controller ha generato un nuovo recovery code: mostralo ora
+        # (l'utente lo trascrive offline).
+        recovery_code = (info or {}).get("recovery_code")
+        if recovery_code:
+            from QTViews.MenuWindows.QT_recovery_code_show_dialog import QTRecoveryCodeShowDialog
+            QTRecoveryCodeShowDialog(recovery_code, parent=self).exec()
+
         self.modify_switch.setChecked(False)
         self.load_user(self.current_user_id)
 

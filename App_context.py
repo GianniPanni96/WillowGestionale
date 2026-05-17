@@ -130,7 +130,11 @@ class AppContext:
                                                                                       self.refunds_query_service,
                                                                                       )
         self.user_crypto_service:UserCryptoService = UserCryptoService()
-        self.user_auth_service:UserAuthService = UserAuthService(self.user_query_service)
+        self.user_auth_service:UserAuthService = UserAuthService(
+            self.user_query_service,
+            self.db_model,
+            self.user_crypto_service,
+        )
         self.production_warning_service:ProductionWarningService = ProductionWarningService(
             productions_query_service=self.productions_query_service,
             productions_analyzer_service=self.productions_analyzer_service,

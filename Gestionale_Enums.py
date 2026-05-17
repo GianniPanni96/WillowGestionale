@@ -212,6 +212,9 @@ class DBUsersColumns(Enum):
     PHOTO_PATH = "photo_path"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
+    CRYPTO_SALT = "crypto_salt"      # salt random (hex) per la derivazione PBKDF2 della chiave per-utente
+    CRYPTO_CHECK = "crypto_check"    # valore noto cifrato con la chiave per-utente: serve a validare lo sblocco
+    RECOVERY_HASH = "recovery_hash"  # hash PBKDF2 del recovery code (mai in chiaro nel DB)
 
 class DBClientsColumns(Enum):
     """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE CLIENTE DELLA VIEW"""

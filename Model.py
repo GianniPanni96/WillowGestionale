@@ -1,180 +1,27 @@
 import sqlite3
 import os
-from enum import Enum
 import shutil
 from datetime import datetime, timedelta
 from Utils.App_paths import get_runtime_paths
+from Gestionale_Enums import (
+    DBUsersColumns,
+    DBClientsColumns,
+    DBInvoicesColumns,
+    DBPaymentsColumns,
+    DBProductionsColumns,
+    DBAccountsColumns,
+    DBTransfersColumns,
+    DBExpensesColumns,
+    DBSuppliersColumns,
+    DBSalariesColumns,
+    DBRefundsColumns,
+)
 
 # Nome della variabile d'ambiente
 DB_PATH_ENV_VAR = "GESTIONALE_DB_PATH"
 
 # Ottieni il percorso del database dalla variabile d'ambiente
 db_path = str(get_runtime_paths().db_file)
-
-
-
-class DBUsersColumns(Enum):
-    """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE UTENTE DELLA VIEW"""
-    ID = "id"
-    FIRST_NAME = "first_name"
-    LAST_NAME = "last_name"
-    PARTITA_IVA = "partita_iva"
-    CODICE_FISCALE = "codice_fiscale"
-    TELEFONO = "telefono"
-    EMAIL = "email"
-    REGIME_FISCALE = "regime_fiscale"
-    ANNO_APERTURA_PIVA = "anno_apertura_piva"
-    REDDITO_ESTERNO = "reddito_esterno"
-    SPESE_DEDOTTE_ESTERNE = "spese_dedotte_esterne" #totale iva inclusa delle spese non attribuibili a willow
-    CONTO_CORRENTE_ID = "conto_corrente_id"
-    PROVIDER_FATTURE = "provider_fatture"
-    USERNAME_PROVIDER = "username_provider"
-    PASSWORD_PROVIDER = "password_provider"
-    PASSWORD_LOGIN = "password_login"
-    STATUS = "status"
-    LAST_YEAR_IRPEF_ACCONTO = "acconto_irpef"
-    LAST_YEAR_INPS_ACCONTO = "acconto_inps"
-    PHOTO_PATH = "photo_path"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
-class DBClientsColumns(Enum):
-    """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE CLIENTE DELLA VIEW"""
-    ID = "id"
-    NAME = "name"
-    PARTITA_IVA = "partita_iva"
-    EMAIL = "email"
-    SEDE_LEGALE = "sede_legale"
-    SETTORE = "settore"
-    TIPOLOGIA = "tipologia"
-    REFERENTE = "referente"
-    CONTATTO_REFERENTE = "contatto_referente"
-    NOTE = "note"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
-class DBInvoicesColumns(Enum):
-    """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE INVOICE DELLA VIEW"""
-
-    ID = "id" #db
-    NUMERO_FATTURA = "numero_fattura"
-    DATA_CREAZIONE = "creation_date"
-    DATA_SCADENZA_1 = "expiration_date_1"
-    DATA_SCADENZA_2 = "expiration_date_2"
-    DATA_SCADENZA_3 = "expiration_date_3"
-    ID_UTENTE = "invoicer_id"
-    ID_CLIENTE = "client_id"
-    ID_CONTO = "ID_CONTO"
-    NOTE = "note"
-    SERVIZI = "importo_servizi"
-    CASSA_INPS = "cassa_inps"
-    IMPONIBILE = "imponibile"
-    IVA = "iva"
-    RIMBORSI = "rimborsi"
-    RIVALSA_INPS = "rivalsa_inps"
-    TOT_DOCUMENTO = "tot_documento"
-    RITENUTA = "ritenuta"
-    NETTO_A_PAGARE = "netto_a_pagare"
-    STATUS = "status"
-    METODO_PAGAMENTO = "metodo_pagamento"
-    NUMERO_RATE = "rate_totali"
-    TIPO = "tipo"
-    ID_FATTURA_ASSOCIATA = "id_fattura_associata"
-    ID_PRODUZIONE_ASSOCIATA = "id_produzione_associata"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
-class DBPaymentsColumns(Enum):
-    """ SE MODIFICHI QUESTO ENUM DEVI MODIFICARE ANCHE LO SCRIPT DI CREAZIONE DELLA TABELLA E LA FUNZIONE SAVE PAYMENT DELLA VIEW"""
-
-    ID = "ID"
-    PAYMENT_NAME = "PAYMENT_NAME" #NomeCliente_NomeProduzione_NomeFattura_1/2/3
-    PAYMENT_AMOUNT = "PAYMENT_AMOUNT"
-    PAYMENT_DATE = "PAYMENT_DATE"
-    LINKED_RATA = "LINKED_RATA" # 1, 2, 3
-    INVOICE_ID = "INVOICE_ID"
-    CONTO_ID = "CONTO_ID"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
-class DBProductionsColumns(Enum):
-    ID = "ID"
-    NAME = "NAME"
-    CLIENT_ID = "CLIENT_ID"
-    HOURS = "HOURS"
-    TIPOLOGIA_PRODUZIONE = "TIPOLOGIA_PRODUZIONE"
-    TIPOLOGIA_OUTPUT = "TIPOLOGIA_OUTPUT"
-    STATO = "STATO"
-    END_DATE = "END_DATE"
-    TOTALE_PREVENTIVO = "TOTALE_PREVENTIVO"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
-class DBAccountsColumns(Enum):
-    ID = "ID"
-    NAME = "NAME"
-    INIT_BALANCE = "INIT_BALANCE"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
-class DBTransfersColumns(Enum):
-    ID = "ID"
-    DESCRIPTION = "CAUSALE"
-    AMOUNT = "IMPORTO"
-    SENDER_ACCOUNT_ID = "ID_CONTO_MITTENTE"
-    RECEIVER_ACCOUNT_ID = "ID_CONTO_RICEVENTE"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
-class DBExpensesColumns(Enum):
-    ID = "ID"
-    NAME = "NOME"
-    USER_ID_DEDUZIONE = "ID_UTENTE_DEDUZIONE"
-    USER_ID_ANTICIPO = "ID_UTENTE_ANTICIPO"
-    SUPPLIER_ID = "ID_FORNITORE"
-    CATEGORY = "CATEGORIA"
-    NET_AMOUNT = "IMPORTO_NETTO"
-    IVA_AMOUNT = "IMPORTO_IVA"
-    TOT_AMOUNT = "IMPORTO_LORDO"
-    DATE = "DATA_PAGAMENTO"
-    DEDUCIBILE = "DEDUCIBILE"
-    ACCOUNT_ID = "ID_CONTO"
-    LINKED_INVOICE_ID = "ID_FATTURA_COLLEGATA"
-    RICORRENTE = "RICORRENTE"
-    created_at = "created_at"
-    updated_at = "updated_at"
-
-class DBSuppliersColumns(Enum):
-    ID = "ID"
-    NAME = "NOME"
-    PARTITA_IVA = "PARTITA_IVA"
-    SEDE = "SEDE"
-    CONTATTO = "CONTATTO_REFERENTE"
-    CATEGORIA = "CATEGORIA"
-    NOTE = "NOTE"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
-class DBSalariesColumns(Enum):
-    ID = "ID"
-    NAME = "NAME"
-    AMOUNT = "TOTALE"
-    DATE = "DATE"
-    ACCOUNT_ID = "ID_CONTO"
-    USER_ID = "ID_UTENTE"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
-class DBRefundsColumns(Enum):
-    ID = "ID"
-    REFUND_NAME = "REFUND_NAME"
-    REFUND_AMOUNT = "REFUND_AMOUNT"
-    REFUND_DATE = "REFUND_DATE"
-    CLIENT_ID = "CLIENT_ID"
-    CONTO_ID = "CONTO_ID"
-    CREATED_AT = "created_at"
-    UPDATED_AT = "updated_at"
-
 
 
 

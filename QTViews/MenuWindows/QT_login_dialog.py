@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -21,12 +23,18 @@ class QTLoginDialog(QDialog):
     """
     Finestra di login utente.
 
-    Equivalente di MainWindow.open_login_window della view legacy. Pubblica
-    su event_bus l'evento LOGIN_STATUS_CHANGED quando il login va a buon
-    fine, in modo coerente con il flusso customtkinter.
+    Quando ``mandatory=True`` (caso "forced login" all'avvio dell'app)
+    la dialog non puo' essere chiusa via X o ESC: l'utente deve
+    autenticarsi per proseguire. La chiusura programmatica via accept()
+    e' sempre permessa.
+
+    Pubblica su event_bus l'evento LOGIN_STATUS_CHANGED quando il login
+    va a buon fine. La crypto session per-utente viene sbloccata da
+    ``UserAuthService.check_password_for_login`` come parte della
+    verifica password (vedi quel modulo).
     """
 
-    def __init__(self, app_context: "AppContext", parent=None):
+    def __init__(self, app_context: "AppContext", parent=None, mandatory: bool = False):
         super().__init__(parent)
         self.app_context = app_context
         self.user_query_service = app_context.user_query_service
@@ -35,10 +43,15 @@ class QTLoginDialog(QDialog):
 
         self.success = False
         self.user_id = -1
+        self._mandatory = mandatory
 
         self.setWindowTitle("Esegui il login")
         self.resize(380, 320)
         self.setModal(True)
+
+        if mandatory:
+            self.setWindowFlag(Qt.WindowCloseButtonHint, False)
+            self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
 
         self._build_ui()
 
@@ -69,6 +82,43 @@ class QTLoginDialog(QDialog):
         login_btn = QPushButton("Esegui il login")
         login_btn.clicked.connect(self._try_login)
         layout.addWidget(login_btn)
+
+        forgot_btn = QPushButton("Password dimenticata?")
+        forgot_btn.setFlat(True)
+        forgot_btn.setStyleSheet("text-align: center; color: palette(highlight);")
+        forgot_btn.clicked.connect(self._open_recovery_reset)
+        layout.addWidget(forgot_btn)
+
+    def keyPressEvent(self, event: QKeyEvent):
+        # Blocca ESC quando la dialog e' obbligatoria.
+        if self._mandatory and event.key() == Qt.Key_Escape:
+            event.ignore()
+            return
+        super().keyPressEvent(event)
+
+    def reject(self):
+        # Disabilita il reject implicito (X / ESC) in modalita' mandatory.
+        if self._mandatory:
+            return
+        super().reject()
+
+    def _open_recovery_reset(self):
+        # Import locale: il modulo importa QTLoginDialog indirettamente
+        # via gli show-dialog, niente cicli ma teniamo l'import vicino
+        # all'uso per non rallentare la finestra di login.
+        from QTViews.MenuWindows.QT_recovery_reset_dialog import QTRecoveryResetDialog
+
+        dialog = QTRecoveryResetDialog(app_context=self.app_context, parent=self)
+        if dialog.exec() != QTRecoveryResetDialog.Accepted or not dialog.success:
+            return
+        # Pre-popola i campi del login con i dati appena reimpostati,
+        # cosi' l'utente puo' completare il login con un click.
+        if dialog.reset_username:
+            idx = self.username_combo.findText(dialog.reset_username)
+            if idx >= 0:
+                self.username_combo.setCurrentIndex(idx)
+        self.password_edit.setText(dialog.reset_password or "")
+        self.password_edit.setFocus()
 
     def _try_login(self):
         username = self.username_combo.currentText()

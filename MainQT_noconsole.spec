@@ -1,17 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
+# Build without console window:  pyinstaller MainQT_noconsole.spec
 
 import sys
 from pathlib import Path
 
 project_root = Path(SPECPATH)
 sys.path.insert(0, str(project_root))
-from build_version import resolve_version
+from build_version import resolve_version, write_version_file
 
 _version = resolve_version()
-print(f"[spec] Building WillowGestionale (macOS) {_version.semver}")
+_version_file = write_version_file(_version)
+print(f"[spec] Building WillowGestionale (noconsole) {_version.semver}")
 
 datas = [(str(project_root / "Data"), "Data")]
-icon_path = project_root / "Data" / "images" / "WillowLogo.icns"
+icon_path = project_root / "Data" / "images" / "WillowLogo.ico"
 
 
 a = Analysis(
@@ -19,10 +21,10 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=[],
+    hiddenimports=['six', 'six.moves', 'six.moves._thread'],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=[str(project_root / 'pyinstaller_hooks' / 'pyi_rth_six_shiboken_fix.py')],
     excludes=[],
     noarchive=False,
     optimize=0,
@@ -32,13 +34,16 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
     name=f'WillowGestionale_{_version.file_name_tag}',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,
-    exclude_binaries=True,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -46,22 +51,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=str(icon_path) if icon_path.exists() else None,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=False,
-    upx_exclude=[],
-    name=f'WillowGestionale_{_version.file_name_tag}',
-)
-
-app = BUNDLE(
-    coll,
-    name=f'WillowGestionale_{_version.file_name_tag}.app',
-    icon=str(icon_path) if icon_path.exists() else None,
-    bundle_identifier='com.willow.gestionale.qt',
-    version=_version.semver,
+    version=str(_version_file),
 )

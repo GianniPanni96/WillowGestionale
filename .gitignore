@@ -70,6 +70,10 @@ backups/
 /dist/
 /NotebookLM_context/
 
+# Artefatti del versionamento automatico (generati da build_version.py)
+/version_info.txt
+/build/
+
 
 # Python bytecode
 __pycache__/

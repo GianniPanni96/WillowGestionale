@@ -1,9 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
 from pathlib import Path
 
-
 project_root = Path(SPECPATH)
+sys.path.insert(0, str(project_root))
+from build_version import resolve_version
+
+_version = resolve_version()
+print(f"[spec] Building WillowGestionale (macOS) {_version.semver}")
+
 datas = [(str(project_root / "Data"), "Data")]
 icon_path = project_root / "Data" / "images" / "WillowLogo.icns"
 
@@ -27,7 +33,7 @@ exe = EXE(
     pyz,
     a.scripts,
     [],
-    name='WillowGestionale-QT',
+    name=f'WillowGestionale_{_version.file_name_tag}',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -49,12 +55,13 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name='WillowGestionale-QT',
+    name=f'WillowGestionale_{_version.file_name_tag}',
 )
 
 app = BUNDLE(
     coll,
-    name='WillowGestionale-QT.app',
+    name=f'WillowGestionale_{_version.file_name_tag}.app',
     icon=str(icon_path) if icon_path.exists() else None,
     bundle_identifier='com.willow.gestionale.qt',
+    version=_version.semver,
 )

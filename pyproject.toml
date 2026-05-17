@@ -1,0 +1,57 @@
+[project]
+name = "willow-gestionale"
+description = "Gestionale Willow - applicazione desktop PySide6"
+authors = [{ name = "GianniPanni96" }]
+requires-python = ">=3.10"
+dynamic = ["version"]
+
+[tool.semantic_release]
+# La versione vive nei tag git: nessun file Python da aggiornare.
+# Il tag annotato vX.Y.Z e' l'unica fonte di verita'.
+tag_format = "v{version}"
+version_variables = []
+version_toml = []
+commit_parser = "angular"
+major_on_zero = false
+allow_zero_version = false
+build_command = ""
+commit_message = "chore(release): v{version} [skip ci]"
+
+[tool.semantic_release.branches.main]
+match = "master"
+prerelease = false
+
+[tool.semantic_release.changelog]
+changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = [
+    '''^Merge''',
+    '''^chore\(release\):''',
+]
+
+[tool.semantic_release.commit_parser_options]
+# Conventional Commits / Angular preset
+# - feat:        -> minor bump
+# - fix:         -> patch bump
+# - perf:        -> patch bump
+# - BREAKING CHANGE in footer OR "!" dopo il tipo  -> major bump
+allowed_tags = [
+    "build",
+    "chore",
+    "ci",
+    "docs",
+    "feat",
+    "fix",
+    "perf",
+    "refactor",
+    "style",
+    "test",
+]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
+default_bump_level = 0
+
+[tool.semantic_release.remote]
+type = "github"
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = true

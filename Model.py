@@ -15,6 +15,7 @@ from Gestionale_Enums import (
     DBSuppliersColumns,
     DBSalariesColumns,
     DBRefundsColumns,
+    DBAdminColumns,
 )
 
 # Nome della variabile d'ambiente
@@ -2026,6 +2027,52 @@ class DatabaseModel:
             result = cur.fetchone()[0]
 
         return float(result) if result is not None else 0.0
+
+    # ------------------------------------------------------------------
+    # ADMIN (singolo amministratore di sistema)
+    # ------------------------------------------------------------------
+
+    def fetch_admin(self):
+        """Ritorna la singola riga admin (o None se non esiste)."""
+        query = "SELECT * FROM admin LIMIT 1"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            return cursor.fetchone()
+
+    def count_admin(self) -> int:
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM admin")
+            return int(cursor.fetchone()[0])
+
+    def add_admin(self, **kwargs):
+        valid_columns = {column.value for column in DBAdminColumns}
+        insert_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+        if not insert_fields:
+            raise ValueError("Nessun campo valido specificato per l'inserimento admin.")
+        columns = ", ".join(insert_fields.keys())
+        placeholders = ", ".join(["?"] * len(insert_fields))
+        query = f"INSERT INTO admin ({columns}) VALUES ({placeholders})"
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, tuple(insert_fields.values()))
+            conn.commit()
+
+    def update_admin(self, admin_id, **kwargs):
+        valid_columns = {column.value for column in DBAdminColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento admin.")
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE admin SET {set_clause} WHERE {DBAdminColumns.ID.value} = ?"
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (*update_fields.values(), admin_id))
+                conn.commit()
+        except Exception as e:
+            raise RuntimeError(f"Errore durante l'aggiornamento dell'admin: {str(e)}")
 
 
 

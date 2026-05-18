@@ -122,6 +122,9 @@ class UserController:
     # ------------------------------------------------------------------
 
     def delete_user_by_ID(self, user_id):
+        # Gating: l'eliminazione di un utente e' un'azione amministrativa.
+        if not self.user_auth_service.is_admin:
+            return False, "Solo l'amministratore puo' eliminare un utente."
         try:
             self.db_model.delete_row('users', DBUsersColumns.ID.value, user_id)
             print(f'Utente {user_id} rimmosso con successo')
@@ -163,6 +166,15 @@ class UserController:
         new_plain_password = update_fields.get(DBUsersColumns.PASSWORD_LOGIN.value)
         recovery_code = None
         if new_plain_password and new_plain_password.strip():
+            # Gating: se la password e' impostata per un utente diverso
+            # da quello attualmente loggato come crypto session owner,
+            # e' un force-reset di un'altrui password -> solo admin.
+            active_user_id = self.user_crypto_service.active_user_id
+            is_self_password = active_user_id == user_id
+            if not is_self_password and not self.user_auth_service.is_admin:
+                return False, (
+                    "Solo l'amministratore puo' resettare la password di un altro utente."
+                ), None
             is_valid, _ = ValidationUtils.validate_password_strength(new_plain_password)
             if not is_valid:
                 return False, 'Password non valida, digitare almeno 8 caratteri.', None

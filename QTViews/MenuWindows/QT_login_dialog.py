@@ -132,7 +132,7 @@ class QTLoginDialog(QDialog):
             self.user_id = user_id
             self.event_bus.publish(
                 ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
-                {"login_status": True, "logged_user_id": user_id},
+                {"login_status": True, "logged_user_id": user_id, "is_admin": False},
             )
             self.accept()
         else:

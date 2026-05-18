@@ -3,17 +3,17 @@ Entry-point della UI Qt (PySide6).
 
 Esegue il bootstrap condiviso (config + AppContext + backup scheduler),
 poi gestisce l'autenticazione obbligatoria prima di mostrare la
-QTMainWindow:
+QTMainWindow. Sequenza al boot:
 
-- se nel DB non esistono utenti, lancia il wizard di onboarding che
-  crea il primo conto + il primo utente con password (anche la chiave
-  crypto per-utente nasce qui);
-- altrimenti mostra una QTLoginDialog "mandatory" (X/ESC disabilitati)
-  che sblocca la crypto session dell'utente selezionato.
-
-La main window e' istanziata e mostrata solo dopo che l'utente e'
-loggato; questo garantisce che la crypto session sia attiva e che la
-UI rifletta lo stato di login fin dal primo frame.
+1. Se non esiste l'amministratore di sistema (tabella ``admin`` vuota),
+   forza la creazione dell'admin tramite ``QTAdminCreateDialog``.
+2. Se nel DB non esistono utenti, lancia l'onboarding che crea il primo
+   conto + il primo utente con password.
+3. Se esistono utenti ma nessuno ha password (installazione esistente
+   appena migrata), apre il bootstrap dialog per impostare la prima
+   password a un utente — oppure permette di proseguire come admin.
+4. Altrimenti mostra la login dialog mandatory, da cui si puo' anche
+   accedere come admin.
 """
 
 import sys
@@ -33,42 +33,91 @@ from Main_bootstrap import build_app_context
 QT_INITIAL_INVOICE_ID = 2
 
 
-def _force_authentication(app_context) -> tuple[bool, int]:
-    """Garantisce che ci sia un utente loggato prima di entrare in app.
+def _ensure_admin_exists(app_context) -> bool:
+    """Se la tabella admin e' vuota, forza la creazione del singolo admin.
+    Returns True se ora un admin esiste (creato adesso o gia' presente).
+    """
+    if app_context.admin_query_service.admin_exists():
+        return True
+
+    from PySide6.QtWidgets import QMessageBox
+    from QTViews.MenuWindows.QT_admin_create_dialog import QTAdminCreateDialog
+
+    dialog = QTAdminCreateDialog(app_context=app_context)
+    if dialog.exec() != QTAdminCreateDialog.Accepted or not dialog.created:
+        QMessageBox.critical(
+            None,
+            "Avvio interrotto",
+            "Creazione amministratore annullata. L'app non puo' partire.",
+        )
+        return False
+    return True
+
+
+def _users_have_any_password(app_context) -> bool:
+    from Gestionale_Enums import DBUsersColumns
+    users = app_context.user_query_service.retrieve_users_map_list() or []
+    return any(u.get(DBUsersColumns.PASSWORD_LOGIN.value) for u in users)
+
+
+def _force_authentication(app_context) -> tuple[bool, int, bool]:
+    """Garantisce che ci sia un utente o un admin loggato prima di entrare.
 
     Returns:
-        (success, user_id). Se ``success`` e' False l'app deve terminare.
+        (success, user_id, is_admin). Se ``success`` e' False l'app
+        deve terminare. ``user_id`` vale -1 quando si entra come admin.
     """
     from PySide6.QtWidgets import QMessageBox
 
+    from QTViews.MenuWindows.QT_admin_login_dialog import QTAdminLoginDialog
+    from QTViews.MenuWindows.QT_first_password_setup_dialog import QTFirstPasswordSetupDialog
     from QTViews.MenuWindows.QT_login_dialog import QTLoginDialog
     from QTViews.MenuWindows.QT_onboarding_dialog import QTOnboardingDialog
 
     users = app_context.user_query_service.retrieve_users_map_list() or []
 
+    # Caso 1: DB vuoto di utenti -> onboarding.
     if not users:
         onboarding = QTOnboardingDialog(app_context=app_context)
         if onboarding.exec() != QTOnboardingDialog.Accepted or onboarding.created_user_id is None:
             QMessageBox.critical(None, "Avvio interrotto", "Configurazione iniziale annullata.")
-            return False, -1
-        # Onboarding ha creato l'utente e impostato la password, ma non
-        # ha ancora sbloccato la crypto session: facciamo un login
-        # programmatico ora cosi' la sessione e' attiva.
+            return False, -1, False
         success, _msg, user_id = app_context.user_auth_service.check_password_for_login(
             onboarding.created_user_name,
             onboarding.created_user_password,
         )
         if not success:
             QMessageBox.critical(None, "Errore", "Impossibile autenticare il nuovo utente.")
-            return False, -1
-        return True, user_id
+            return False, -1, False
+        return True, user_id, False
 
-    # Esistono utenti: login forzato.
+    # Caso 2: utenti esistenti ma nessuno con password -> bootstrap.
+    if not _users_have_any_password(app_context):
+        boot = QTFirstPasswordSetupDialog(app_context=app_context)
+        boot.exec()
+        if boot.success and boot.target_user_id is not None:
+            # Setup password riuscito: login programmatico come quell'utente.
+            ok, _msg, user_id = app_context.user_auth_service.check_password_for_login(
+                boot.target_user_name,
+                boot.target_password,
+            )
+            if ok:
+                return True, user_id, False
+            QMessageBox.critical(None, "Errore", "Impossibile autenticare l'utente appena impostato.")
+            return False, -1, False
+        # Skip: l'utente ha scelto di proseguire come admin.
+        admin_login = QTAdminLoginDialog(app_context=app_context, mandatory=True)
+        if admin_login.exec() != QTAdminLoginDialog.Accepted or not admin_login.success:
+            QMessageBox.critical(None, "Avvio interrotto", "Login admin obbligatorio non completato.")
+            return False, -1, False
+        return True, -1, True
+
+    # Caso 3: scenario normale -> login utente (con opzione admin).
     login = QTLoginDialog(app_context=app_context, mandatory=True)
     if login.exec() != QTLoginDialog.Accepted or not login.success:
         QMessageBox.critical(None, "Avvio interrotto", "Login obbligatorio non completato.")
-        return False, -1
-    return True, login.user_id
+        return False, -1, False
+    return True, login.user_id, bool(getattr(login, "logged_as_admin", False))
 
 
 def main():
@@ -83,7 +132,12 @@ def main():
     qt_app = QApplication.instance() or QApplication(sys.argv)
     qt_app.palette_manager = QTPaletteManager.install(qt_app)
 
-    ok, user_id = _force_authentication(app_context)
+    # Step preliminare: assicura che esista l'admin di sistema.
+    if not _ensure_admin_exists(app_context):
+        scheduler.stop()
+        sys.exit(1)
+
+    ok, user_id, is_admin = _force_authentication(app_context)
     if not ok:
         scheduler.stop()
         sys.exit(1)
@@ -92,18 +146,13 @@ def main():
         app_context=app_context,
         initial_invoice_id=QT_INITIAL_INVOICE_ID,
     )
-    # Allinea lo stato di login della main window al risultato del
-    # forced auth, cosi' la UI parte gia' "loggata" senza richiedere
-    # un secondo click sul bottone Login.
     window.login_status = True
     window.logged_user_id = user_id
-    # Aggiorna testo bottone login + icona utente nel corner della
-    # main window (altrimenti l'icona di default resta finche' non si
-    # cambia tab).
+    window.is_admin = is_admin
     window._toggle_login_widgets()
     app_context.event_bus.publish(
         ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
-        {"login_status": True, "logged_user_id": user_id},
+        {"login_status": True, "logged_user_id": user_id, "is_admin": is_admin},
     )
     window.show()
 

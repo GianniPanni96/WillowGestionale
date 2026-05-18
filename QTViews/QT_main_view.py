@@ -191,6 +191,7 @@ class QTMainWindow(QMainWindow):
         self.account_detail_view = None
         self.login_status = False
         self.logged_user_id = -1
+        self.is_admin = False
         self.user_icon_label = None
         self.backup_runner = QTBackupRunner(app_context=app_context, parent=self)
 
@@ -443,6 +444,10 @@ class QTMainWindow(QMainWindow):
         self.switch_account_action.triggered.connect(self._switch_account)
         self.switch_account_action.setEnabled(False)
         self.user_menu.addAction(self.switch_account_action)
+        self.user_menu.addSeparator()
+        self.admin_login_action = QAction("Login come amministratore", self)
+        self.admin_login_action.triggered.connect(self._login_as_admin)
+        self.user_menu.addAction(self.admin_login_action)
         self.user_icon_button.setMenu(self.user_menu)
 
         # Per retrocompatibilita' con _set_user_icon_from_path /
@@ -499,6 +504,15 @@ class QTMainWindow(QMainWindow):
             pass
         return ""
 
+    def _admin_icon_path(self) -> str:
+        try:
+            path = Path(self.app_context.images_path) / "ADMIN.png"
+            if path.exists():
+                return str(path)
+        except Exception:
+            pass
+        return ""
+
     def _set_user_icon_from_path(self, image_path):
         if getattr(self, "user_icon_button", None) is None:
             return
@@ -530,6 +544,12 @@ class QTMainWindow(QMainWindow):
         self.user_icon_button.setIcon(QIcon(circular))
 
     def _refresh_logged_user_icon(self):
+        if self.login_status and self.is_admin:
+            admin_icon = self._admin_icon_path()
+            if admin_icon:
+                self._set_user_icon_from_path(admin_icon)
+                return
+
         image_path = self._default_user_icon_path()
         if self.login_status and self.logged_user_id != -1:
             try:
@@ -755,29 +775,43 @@ class QTMainWindow(QMainWindow):
             self._refresh_current_tab()
 
     def _switch_account(self):
-        """Logout dell'utente corrente + apertura login dialog per
-        autenticare un nuovo utente. Se l'utente annulla la nuova
-        login resta in stato "non loggato" (coerente con il logout)."""
+        """Logout della sessione corrente + apertura login dialog utente.
+        Se l'utente annulla la nuova login resta in stato "non loggato"."""
         if not self.login_status:
             return
-        self.login_status = False
-        self.logged_user_id = -1
-        self.app_context.user_auth_service.logout()
-        self._toggle_login_widgets()
-        self.app_context.event_bus.publish(
-            ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
-            {"login_status": False, "logged_user_id": -1},
-        )
+        self._do_logout(publish=True)
 
         dialog = QTLoginDialog(app_context=self.app_context, parent=self)
         dialog.exec()
         if dialog.success:
             self.login_status = True
             self.logged_user_id = dialog.user_id
+            self.is_admin = False
             self._toggle_login_widgets()
             self.app_context.event_bus.publish(
                 ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
-                {"login_status": True, "logged_user_id": dialog.user_id},
+                {"login_status": True, "logged_user_id": dialog.user_id, "is_admin": False},
+            )
+            self._refresh_current_tab()
+
+    def _login_as_admin(self):
+        """Voce di menu "Login come amministratore": chiude eventuale
+        sessione corrente e apre il dialog di login admin dedicato."""
+        from QTViews.MenuWindows.QT_admin_login_dialog import QTAdminLoginDialog
+
+        if self.login_status:
+            self._do_logout(publish=True)
+
+        dialog = QTAdminLoginDialog(app_context=self.app_context, parent=self)
+        dialog.exec()
+        if dialog.success:
+            self.login_status = True
+            self.logged_user_id = -1
+            self.is_admin = True
+            self._toggle_login_widgets()
+            self.app_context.event_bus.publish(
+                ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
+                {"login_status": True, "logged_user_id": -1, "is_admin": True},
             )
             self._refresh_current_tab()
 
@@ -790,14 +824,7 @@ class QTMainWindow(QMainWindow):
                 QMessageBox.Yes | QMessageBox.No,
             )
             if confirm == QMessageBox.Yes:
-                self.login_status = False
-                self.logged_user_id = -1
-                self.app_context.user_auth_service.logout()
-                self._toggle_login_widgets()
-                self.app_context.event_bus.publish(
-                    ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
-                    {"login_status": False, "logged_user_id": -1},
-                )
+                self._do_logout(publish=True)
             return
 
         dialog = QTLoginDialog(app_context=self.app_context, parent=self)
@@ -805,19 +832,37 @@ class QTMainWindow(QMainWindow):
         if dialog.success:
             self.login_status = True
             self.logged_user_id = dialog.user_id
+            self.is_admin = False
             self._toggle_login_widgets()
             self.app_context.event_bus.publish(
                 ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
-                {"login_status": True, "logged_user_id": dialog.user_id},
+                {"login_status": True, "logged_user_id": dialog.user_id, "is_admin": False},
+            )
+
+    def _do_logout(self, publish: bool = True) -> None:
+        """Helper: chiude qualsiasi sessione attiva (utente o admin)."""
+        self.login_status = False
+        self.logged_user_id = -1
+        self.is_admin = False
+        self.app_context.user_auth_service.logout()
+        self._toggle_login_widgets()
+        if publish:
+            self.app_context.event_bus.publish(
+                ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
+                {"login_status": False, "logged_user_id": -1, "is_admin": False},
             )
 
     def _toggle_login_widgets(self):
         if self.login_status:
             self.login_action.setText("Esegui il logout")
+            # Switch utente: ha senso anche da admin (porta a login utente).
             self.switch_account_action.setEnabled(True)
+            # Disabilita "Login come admin" se gia' loggato come admin.
+            self.admin_login_action.setEnabled(not self.is_admin)
         else:
             self.login_action.setText("Esegui il login")
             self.switch_account_action.setEnabled(False)
+            self.admin_login_action.setEnabled(True)
         self._refresh_logged_user_icon()
 
     # ------------------------------------------------------------------

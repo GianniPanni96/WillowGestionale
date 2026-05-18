@@ -353,3 +353,18 @@ class DBRefundsColumns(Enum):
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 
+class DBAdminColumns(Enum):
+    """Tabella admin: singolo amministratore del sistema.
+    Non cifra dati propri (non ha provider creds o campi sensibili),
+    quindi NON ha crypto_salt/crypto_check: solo hash della password
+    e hash del recovery code."""
+    ID = "id"
+    NAME = "name"
+    PASSWORD_LOGIN = "password_login"
+    RECOVERY_HASH = "recovery_hash"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+
+
+ADMIN_FIXED_NAME = "ADMIN"
+

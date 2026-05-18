@@ -132,6 +132,7 @@ class QTUserDetailViewH(QWidget):
         parent_window = parent
         self._login_status: bool = getattr(parent_window, "login_status", False)
         self._logged_user_id: int = getattr(parent_window, "logged_user_id", -1)
+        self._is_admin: bool = getattr(parent_window, "is_admin", False)
 
         try:
             self.event_bus.subscribe(
@@ -385,8 +386,12 @@ class QTUserDetailViewH(QWidget):
         hbox.addWidget(eye_btn)
         self._eye_buttons.append(eye_btn)
 
-        # Esponiamo l'entry come attributo per comodita'.
+        # Esponiamo entry + eye button come attributi: serve a
+        # ``_apply_sensitive_visibility_policy`` per resettare in modo
+        # coerente echo e label del pulsante quando si rientra nello
+        # stato "campo oscurato".
         wrapper.entry = line_edit  # type: ignore[attr-defined]
+        wrapper.eye_button = eye_btn  # type: ignore[attr-defined]
         return wrapper
 
     @staticmethod
@@ -1128,7 +1133,15 @@ class QTUserDetailViewH(QWidget):
         if not hasattr(self, "save_btn"):
             return
         self.save_btn.setEnabled(enabled)
-        self.delete_btn.setEnabled(enabled)
+        # Eliminazione utente: azione amministrativa, abilitata solo per admin.
+        can_delete = enabled and self._is_admin
+        self.delete_btn.setEnabled(can_delete)
+        if not self._is_admin:
+            self.delete_btn.setToolTip(
+                "Solo l'amministratore puo' eliminare un utente."
+            )
+        else:
+            self.delete_btn.setToolTip("")
 
         readonly_keys = {
             DBUsersColumns.CREATED_AT.value,
@@ -1142,9 +1155,13 @@ class QTUserDetailViewH(QWidget):
         self._apply_sensitive_visibility_policy(enabled)
 
     def _apply_sensitive_visibility_policy(self, modify_enabled: bool):
-        """Replica della legacy ``toggle_sensible_data``:
+        """Replica della legacy ``toggle_sensible_data`` con eccezione admin:
         - se l'utente loggato sta vedendo il proprio profilo, i campi
           sensibili seguono lo stato dello switch;
+        - se chi sta guardando e' l'admin, puo' modificare SOLO il campo
+          ``PASSWORD_LOGIN`` (force-reset password); gli altri sensibili
+          (provider creds, dati finanziari) restano disabilitati: senza
+          la chiave AES dell'utente non avrebbero senso comunque;
         - altrimenti i campi sensibili restano sempre disabled e
           mascherati con asterischi (anche se lo switch e' on).
         """
@@ -1159,25 +1176,43 @@ class QTUserDetailViewH(QWidget):
             entry = getattr(wrapper, "entry", None) or wrapper
             if not isinstance(entry, QLineEdit):
                 continue
+            eye_btn = getattr(wrapper, "eye_button", None)
             if is_own_profile:
                 entry.setEnabled(modify_enabled)
-                # echo mode: lasciamo il default (Password) — l'utente
-                # rivela il valore col bottone occhio.
+            elif self._is_admin and key == DBUsersColumns.PASSWORD_LOGIN.value:
+                # Admin: solo force-reset password.
+                entry.setEnabled(modify_enabled)
             else:
                 entry.setEnabled(False)
                 entry.setEchoMode(QLineEdit.Password)
+                # Sincronizza il bottone occhio col reset dell'echo,
+                # altrimenti resta visivamente "rivelato" (icona lucchetto)
+                # mentre il campo e' mascherato.
+                if eye_btn is not None:
+                    eye_btn.setChecked(False)
+                    eye_btn.setText("👁")
 
-        # Bottoni occhio: abilitati solo se l'utente puo' realmente
-        # interagire (proprio profilo + edit mode).
+        # Bottoni occhio: utili solo se l'utente sta digitando un valore
+        # nei campi sensibili (proprio profilo) — admin force-reset non
+        # ha bisogno di rivelare il valore digitato.
         for btn in self._eye_buttons:
             btn.setEnabled(is_own_profile and modify_enabled)
 
     def _on_login_changed(self, data):
+        """Handler dell'evento ``LOGIN_STATUS_CHANGED`` (event bus).
+
+        Re-valuta tutta la UI dipendente dallo stato di login: campi
+        sensibili (oscurati se non sei sul tuo profilo), bottone elimina
+        (admin-only), tooltip. Chiama ``_on_modify_toggled`` che internamente
+        invoca ``_apply_sensitive_visibility_policy`` — un unico punto
+        di sincronizzazione.
+        """
         if isinstance(data, dict):
             self._login_status = bool(data.get("login_status", False))
             self._logged_user_id = data.get("logged_user_id", -1)
-        # Ri-applica la policy con lo stato corrente dello switch.
-        self._apply_sensitive_visibility_policy(self.modify_switch.isChecked())
+            self._is_admin = bool(data.get("is_admin", False))
+        if hasattr(self, "modify_switch"):
+            self._on_modify_toggled(self.modify_switch.isChecked())
 
     # ------------------------------------------------------------------
     # Salvataggio / eliminazione

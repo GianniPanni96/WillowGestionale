@@ -232,6 +232,85 @@ chiave condivisa hardcoded. Al primo login di un utente su un database
 
 ---
 
+---
+
+## L'amministratore di sistema
+
+In aggiunta agli utenti normali, l'app prevede un **singolo
+amministratore di sistema**. È un'entità separata dagli utenti: vive
+nella propria tabella `admin` del database e non rappresenta una
+persona che lavora nel gestionale, ma un ruolo tecnico per le
+operazioni che vanno oltre il normale uso quotidiano.
+
+### Cosa rende l'admin diverso da un utente normale
+
+- **Non cifra dati propri**: non ha credenziali del provider di
+  fatturazione, non ha campi sensibili da proteggere. Per questo nella
+  tabella `admin` non esistono colonne `crypto_salt` o `crypto_check`,
+  solo `password_login` (hash PBKDF2) e `recovery_hash`.
+- **È sempre uno solo**: il codice rifiuta la creazione di un secondo
+  admin. Niente "promote/demote" tra utenti — il ruolo è una colonna
+  vuota o piena in una tabella separata, non un permesso da scambiare.
+- **Non può "spiare" gli utenti**: l'admin non conosce le password
+  degli utenti, quindi non può ricostruire le loro chiavi AES, quindi
+  non può decifrare le loro credenziali del provider. I limiti
+  crittografici valgono anche per lui.
+
+### Cosa può fare l'admin
+
+| Azione | Note |
+|---|---|
+| Impostare la password a un utente che non ne ha | Sblocca un utente esistente senza dati cifrati da perdere |
+| Forzare un reset password a un utente esistente | L'utente potrà di nuovo loggarsi, ma le sue credenziali provider vengono svuotate (sono illeggibili senza la vecchia password) |
+| Eliminare altri utenti | Operazione distruttiva, solo admin |
+| Modificare/eliminare conti correnti | Sono dati che impattano tutti, solo admin |
+
+Tutte le altre operazioni (creare clienti, fatture, ecc.) restano
+accessibili agli utenti normali come prima.
+
+### Flussi che coinvolgono l'admin
+
+**Primo avvio dopo installazione**
+1. L'app rileva che la tabella `admin` è vuota → si apre il
+   `QTAdminCreateDialog`, dialog non chiudibile che chiede di
+   impostare la password admin.
+2. Viene generato un recovery code admin e mostrato una volta sola.
+3. Dopodiché parte l'onboarding normale (creazione conto + primo
+   utente).
+
+**Primo avvio dopo aggiornamento (installazione esistente)**
+1. Dopo aver eseguito lo script `fix_db/add_admin_table.py` (che
+   crea la tabella admin nel database), al primo avvio dell'app si
+   attiva lo stesso `QTAdminCreateDialog`.
+2. Se nessuno degli utenti esistenti ha una password (caso di chi
+   non l'aveva mai impostata): si apre il `QTFirstPasswordSetupDialog`
+   che permette di scegliere uno degli utenti e impostargli la
+   password. In alternativa, "Salta" e si entra direttamente come
+   admin per gestire tutto da lì.
+
+**Login come admin in qualsiasi momento**
+- L'icona utente in alto a destra ha la voce "Login come
+  amministratore" nel menu a tendina.
+- Si apre il `QTAdminLoginDialog`: una sola riga password.
+- Una volta autenticato, l'icona del corner cambia in `ADMIN.png`
+  per dare un feedback visivo immediato.
+
+**Logout admin**
+- Funziona esattamente come per gli utenti normali: dal menu in alto
+  a destra, "Esegui il logout". La sessione admin si chiude.
+
+**Cosa succede se l'admin dimentica la password**
+- Stesso meccanismo degli utenti: il dialog di login admin ha il
+  link "Password admin dimenticata?" che apre il flusso di reset via
+  recovery code. Verificato l'hash del recovery code, si imposta una
+  nuova password admin e viene generato un nuovo recovery code.
+- **Se l'admin perde sia la password che il recovery code**, l'unica
+  via di uscita è eliminare manualmente la riga dalla tabella `admin`
+  del database e ricrearlo al successivo avvio dell'app. Nessun dato
+  utente viene perso in questo scenario (l'admin non cifra nulla).
+
+---
+
 ## Tabella riassuntiva: da cosa siamo protetti (e da cosa no)
 
 | Scenario | Protetti? | Perché |
@@ -253,12 +332,19 @@ Per chi volesse esplorare l'implementazione:
 | File | Cosa fa |
 |---|---|
 | `OtherServices/User_crypto_service.py` | Cifratura/decifratura per-utente, decifrazione legacy |
-| `OtherServices/User_auth_service.py` | Login, sblocco sessione crypto, migrazione trasparente |
+| `OtherServices/User_auth_service.py` | Login utente + admin, sblocco sessione crypto, migrazione trasparente |
 | `Controllerss/User_controller.py` | Gestione crypto e recovery code al salvataggio/aggiornamento utente |
+| `Controllerss/Admin_controller.py` | Creazione/aggiornamento del singolo admin + reset via recovery |
+| `QueryServices/Admin_query_service.py` | Lettura dell'admin (exists, password hash, recovery hash) |
 | `Utils/Controller_utils.py` | Generazione e verifica del recovery code |
-| `QTViews/MenuWindows/QT_login_dialog.py` | Finestra di login con link "Password dimenticata?" |
-| `QTViews/MenuWindows/QT_onboarding_dialog.py` | Wizard di primo avvio |
+| `QTViews/MenuWindows/QT_login_dialog.py` | Finestra di login utente con link "Password dimenticata?" |
+| `QTViews/MenuWindows/QT_admin_login_dialog.py` | Finestra di login admin |
+| `QTViews/MenuWindows/QT_admin_create_dialog.py` | Dialog di creazione admin (primo avvio / post-update) |
+| `QTViews/MenuWindows/QT_admin_recovery_reset_dialog.py` | Flusso "Password admin dimenticata?" |
+| `QTViews/MenuWindows/QT_first_password_setup_dialog.py` | Bootstrap dialog per utenti esistenti senza password |
+| `QTViews/MenuWindows/QT_onboarding_dialog.py` | Wizard di primo avvio (conto + primo utente) |
 | `QTViews/MenuWindows/QT_recovery_code_show_dialog.py` | Finestra di consegna del recovery code |
-| `QTViews/MenuWindows/QT_recovery_reset_dialog.py` | Flusso "Password dimenticata?" |
-| `MainQT.py` | Login obbligatorio prima della finestra principale |
-| `fix_db/add_crypto_columns_to_users_db.py` | Script di migrazione del database per installazioni esistenti |
+| `QTViews/MenuWindows/QT_recovery_reset_dialog.py` | Flusso "Password dimenticata?" per utenti |
+| `MainQT.py` | Orchestrazione boot: creazione admin, onboarding, bootstrap password, login |
+| `fix_db/add_crypto_columns_to_users_db.py` | Migrazione schema crypto utenti (installazioni esistenti) |
+| `fix_db/add_admin_table.py` | Creazione tabella admin (installazioni esistenti) |

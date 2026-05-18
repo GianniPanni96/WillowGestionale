@@ -19,9 +19,10 @@ pre-update), il primo login esegue una migrazione transparente:
 
 from __future__ import annotations
 
-from Gestionale_Enums import DBUsersColumns
+from Gestionale_Enums import DBAdminColumns, DBUsersColumns
 from Model import DatabaseModel
 from OtherServices.User_crypto_service import UserCryptoService
+from QueryServices.Admin_query_service import AdminQueryService
 from QueryServices.Users_query_service import UserQueryService
 from Utils.Controller_utils import ControllerUtils
 
@@ -50,14 +51,43 @@ class UserAuthService:
         user_query_service: UserQueryService,
         db_model: DatabaseModel,
         user_crypto_service: UserCryptoService,
+        admin_query_service: AdminQueryService | None = None,
     ):
         self.user_query_service = user_query_service
         self.db_model = db_model
         self.user_crypto_service = user_crypto_service
+        self.admin_query_service = admin_query_service
+        # Stato admin: separato dall'utente loggato (sessioni mutuamente
+        # esclusive — chi e' loggato come admin non e' anche un utente).
+        self._is_admin: bool = False
 
     # ------------------------------------------------------------------
     # API
     # ------------------------------------------------------------------
+
+    @property
+    def is_admin(self) -> bool:
+        return self._is_admin
+
+    def check_admin_password_for_login(self, password: str):
+        """Verifica la password dell'admin. Non sblocca nessuna crypto
+        session (l'admin non cifra dati propri). Returns (success, message).
+        """
+        if self.admin_query_service is None:
+            return False, "Servizio admin non configurato."
+        admin = self.admin_query_service.retrieve_admin_map()
+        if not admin:
+            return False, "Nessun amministratore presente nel sistema."
+        db_hash = admin.get(DBAdminColumns.PASSWORD_LOGIN.value)
+        if not db_hash:
+            return False, "L'amministratore non ha una password impostata."
+        if not ControllerUtils.verify_password(password, db_hash):
+            return False, "Password admin errata."
+        # Sicurezza: una sessione admin esclude una sessione utente in
+        # corso (e viceversa al check_password_for_login).
+        self.user_crypto_service.lock()
+        self._is_admin = True
+        return True, "Login admin effettuato."
 
     def check_password_for_login(self, username: str, password: str):
         """Verifica la password e, se ok, sblocca la crypto session.
@@ -80,6 +110,8 @@ class UserAuthService:
             return False, "Password errata!", -1
 
         user_id = int(user[DBUsersColumns.ID.value])
+        # Login utente: chiude una eventuale sessione admin attiva.
+        self._is_admin = False
         try:
             self._activate_crypto_session(user, password)
         except Exception as exc:
@@ -96,6 +128,7 @@ class UserAuthService:
 
     def logout(self) -> None:
         self.user_crypto_service.lock()
+        self._is_admin = False
 
     # ------------------------------------------------------------------
     # Internals

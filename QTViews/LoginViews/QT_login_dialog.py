@@ -47,6 +47,7 @@ class QTLoginDialog(QDialog):
 
         self.success = False
         self.user_id = -1
+        self.exit_requested: bool = False
         self.persist_enabled: bool = False
         self.persist_minutes: int = 30
         self._mandatory = mandatory
@@ -97,6 +98,13 @@ class QTLoginDialog(QDialog):
         forgot_btn.setStyleSheet("text-align: center; color: palette(highlight);")
         forgot_btn.clicked.connect(self._open_recovery_reset)
         layout.addWidget(forgot_btn)
+
+        if self._mandatory:
+            exit_btn = QPushButton("Esci dall'app")
+            exit_btn.setFlat(True)
+            exit_btn.setStyleSheet("text-align: center; color: palette(mid);")
+            exit_btn.clicked.connect(self._exit_app)
+            layout.addWidget(exit_btn)
 
     def _build_persist_widgets(self, layout: QVBoxLayout) -> None:
         """Toggle + slider per la persistenza della sessione dopo la
@@ -160,7 +168,7 @@ class QTLoginDialog(QDialog):
         # Import locale: il modulo importa QTLoginDialog indirettamente
         # via gli show-dialog, niente cicli ma teniamo l'import vicino
         # all'uso per non rallentare la finestra di login.
-        from QTViews.MenuWindows.QT_recovery_reset_dialog import QTRecoveryResetDialog
+        from QTViews.LoginViews.QT_recovery_reset_dialog import QTRecoveryResetDialog
 
         dialog = QTRecoveryResetDialog(app_context=self.app_context, parent=self)
         if dialog.exec() != QTRecoveryResetDialog.Accepted or not dialog.success:
@@ -173,6 +181,10 @@ class QTLoginDialog(QDialog):
                 self.username_combo.setCurrentIndex(idx)
         self.password_edit.setText(dialog.reset_password or "")
         self.password_edit.setFocus()
+
+    def _exit_app(self):
+        self.exit_requested = True
+        self.done(QDialog.Rejected)
 
     def _try_login(self):
         username = self.username_combo.currentText()

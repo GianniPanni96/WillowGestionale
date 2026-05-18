@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -26,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from Gestionale_Enums import DBUsersColumns
-from QTViews.MenuWindows.QT_recovery_code_show_dialog import QTRecoveryCodeShowDialog
+from QTViews.LoginViews.QT_recovery_code_show_dialog import QTRecoveryCodeShowDialog
 from Utils.Validation_utils import ValidationUtils
 
 if TYPE_CHECKING:

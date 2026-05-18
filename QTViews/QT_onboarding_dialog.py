@@ -243,7 +243,7 @@ class QTOnboardingDialog(QDialog):
 
         recovery_code = (info or {}).get("recovery_code")
         if recovery_code:
-            from QTViews.MenuWindows.QT_recovery_code_show_dialog import QTRecoveryCodeShowDialog
+            from QTViews.LoginViews.QT_recovery_code_show_dialog import QTRecoveryCodeShowDialog
             QTRecoveryCodeShowDialog(recovery_code, parent=self).exec()
 
         self.created_user_id = int(row[0])

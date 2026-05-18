@@ -121,6 +121,112 @@ dell'utente.
 
 ---
 
+## Sessione persistente ("Mantieni l'accesso")
+
+Al login è possibile attivare l'opzione **"Mantieni l'accesso dopo la
+chiusura dell'app"**, che consente di riaprire l'app senza dover
+reinserire la password per un intervallo di tempo configurabile
+(da 5 a 60 minuti, in passi da 5).
+
+### Come funziona
+
+Abilitare l'opzione non fa nulla da sola: la chiave non viene salvata
+nel momento in cui si attiva il checkbox.
+
+Alla **chiusura dell'app**, se l'opzione era attiva, appare un popup
+di conferma: "Vuoi rimanere loggato per N minuti?". Questo è il momento
+in cui l'utente decide se procedere.
+
+Se si risponde **Sì**:
+1. La chiave AES attiva in RAM viene letta e serializzata in una
+   struttura JSON che contiene anche il tipo di sessione, lo `user_id`
+   e il timestamp di scadenza (`adesso + N minuti`).
+2. La struttura JSON viene **cifrata con DPAPI** (Windows Data
+   Protection API) prima di essere scritta su disco.
+3. Il file cifrato viene salvato come `session.bin` nella stessa
+   cartella degli altri file di configurazione (`storage_root`).
+
+Se si risponde **No**, nessun file viene scritto (o eventuale file
+precedente viene cancellato).
+
+### Cos'è DPAPI e perché la usiamo
+
+**DPAPI** è un servizio di Windows che cifra dati usando una chiave
+derivata dalle credenziali dell'utente Windows corrente. In pratica:
+il file `session.bin` può essere decifrato **solo dallo stesso utente
+Windows sulla stessa macchina**. Nessun altro utente del PC, nessun
+programma esterno, nessuno che copia solo il file può leggerlo.
+
+Questo ci consente di salvare la chiave AES senza introdurre una
+"master key hardcoded" nel codice: la protezione è delegata al sistema
+operativo, che usa a sua volta le credenziali di accesso al PC.
+
+Su macOS / Linux la persistenza della sessione è disabilitata
+(i widget non compaiono nel dialog di login) perché non esiste un
+equivalente di DPAPI su quelle piattaforme senza dipendenze aggiuntive.
+
+### Cosa viene salvato nel file
+
+Per un utente normale:
+```
+{
+  "kind": "user",
+  "user_id": 3,
+  "crypto_key_hex": "<32 byte hex>",
+  "expires_at": "2026-05-18T16:45:00"
+}
+```
+*(tutto cifrato con DPAPI prima della scrittura — questo è solo lo schema del payload in chiaro)*
+
+Per una sessione admin:
+```
+{
+  "kind": "admin",
+  "user_id": -1,
+  "expires_at": "2026-05-18T16:45:00"
+}
+```
+*(l'admin non ha una chiave AES da salvare)*
+
+### All'avvio successivo
+
+Prima di mostrare il dialog di login, l'app:
+1. Controlla se esiste `session.bin`.
+2. Tenta di decifrarlo con DPAPI.
+3. Verifica che `expires_at` non sia nel passato.
+4. Se tutto è valido: ripristina la sessione (utente → ricarica la
+   chiave in RAM senza ricalcolarla; admin → segna la sessione admin
+   come attiva) e apre direttamente l'app, saltando il dialog di login.
+5. Se il file non esiste, è corrotto, o è scaduto: lo cancella e
+   mostra il dialog di login normalmente.
+
+### Quando la sessione persistente viene cancellata
+
+- **Logout esplicito** (dal menu in alto a destra): cancella subito
+  `session.bin`. Un logout è una revoca esplicita del consenso
+  a restare loggati.
+- **Scadenza naturale**: se al successivo avvio `expires_at` è già
+  passato, il file viene cancellato prima del login.
+- **Risposta "No" al popup di chiusura**: se l'utente aveva abilitato
+  l'opzione ma alla chiusura risponde No, nessun file viene salvato.
+
+### Limitazione di sicurezza da tenere presente
+
+Salvare la chiave AES su disco — anche cifrata con DPAPI — è una
+concessione di convenienza che riduce leggermente la sicurezza rispetto
+al modello base "chiave solo in RAM". In particolare:
+
+- Se qualcuno ottiene accesso alla sessione Windows dell'utente
+  mentre `session.bin` è presente, potrebbe leggere la chiave.
+- L'intervallo di tempo è breve per design: il valore massimo è 60
+  minuti, e il timer parte dalla chiusura dell'app.
+
+Per uso normale in un ambiente di fiducia (PC personale, ufficio) il
+rischio è accettabile. In ambienti condivisi o non sicuri è
+preferibile non usare questa opzione.
+
+---
+
 ## Il crypto_check: come l'app sa che hai inserito la password giusta
 
 Quando cifri qualcosa con una chiave sbagliata ottieni solo spazzatura —
@@ -187,10 +293,15 @@ di quell'utente sono persi per sempre. Non esiste backdoor.
 4. L'utente è loggato automaticamente e l'app è pronta.
 
 ### Avvio normale (utenti già esistenti)
-1. Si apre il dialog di login (non si può chiudere con la X o con ESC).
-2. Inserisci la password → l'app esegue PBKDF2, costruisce la chiave,
+1. Se è presente una sessione persistente valida (`session.bin` non
+   scaduto), l'app ripristina automaticamente la sessione — nessun
+   dialog di login mostrato.
+2. Altrimenti si apre il dialog di login (non si può chiudere con la
+   X o con ESC, ma è presente il pulsante "Esci dall'app" per poter
+   chiudere il programma senza fare il login).
+3. Inserisci la password → l'app esegue PBKDF2, costruisce la chiave,
    verifica il `crypto_check`.
-3. Se corretto: la chiave rimane in RAM, l'app si apre con il tuo
+4. Se corretto: la chiave rimane in RAM, l'app si apre con il tuo
    profilo attivo.
 
 ### Logout
@@ -345,6 +456,7 @@ Per chi volesse esplorare l'implementazione:
 | `QTViews/MenuWindows/QT_onboarding_dialog.py` | Wizard di primo avvio (conto + primo utente) |
 | `QTViews/MenuWindows/QT_recovery_code_show_dialog.py` | Finestra di consegna del recovery code |
 | `QTViews/MenuWindows/QT_recovery_reset_dialog.py` | Flusso "Password dimenticata?" per utenti |
-| `MainQT.py` | Orchestrazione boot: creazione admin, onboarding, bootstrap password, login |
+| `OtherServices/Session_persistence_service.py` | Salvataggio/caricamento sessione persistente cifrata con DPAPI |
+| `MainQT.py` | Orchestrazione boot: ripristino sessione, creazione admin, onboarding, bootstrap password, login |
 | `fix_db/add_crypto_columns_to_users_db.py` | Migrazione schema crypto utenti (installazioni esistenti) |
 | `fix_db/add_admin_table.py` | Creazione tabella admin (installazioni esistenti) |

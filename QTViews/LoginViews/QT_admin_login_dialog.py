@@ -38,6 +38,7 @@ class QTAdminLoginDialog(QDialog):
         self.event_bus = app_context.event_bus
 
         self.success: bool = False
+        self.exit_requested: bool = False
         self.persist_enabled: bool = False
         self.persist_minutes: int = 30
         self._mandatory = mandatory
@@ -87,6 +88,13 @@ class QTAdminLoginDialog(QDialog):
         forgot_btn.setStyleSheet("text-align: center; color: palette(highlight);")
         forgot_btn.clicked.connect(self._open_recovery_reset)
         layout.addWidget(forgot_btn)
+
+        if self._mandatory:
+            exit_btn = QPushButton("Esci dall'app")
+            exit_btn.setFlat(True)
+            exit_btn.setStyleSheet("text-align: center; color: palette(mid);")
+            exit_btn.clicked.connect(self._exit_app)
+            layout.addWidget(exit_btn)
 
     def _build_persist_widgets(self, layout: QVBoxLayout) -> None:
         if not self._persist_supported:
@@ -141,7 +149,7 @@ class QTAdminLoginDialog(QDialog):
         super().reject()
 
     def _open_recovery_reset(self):
-        from QTViews.MenuWindows.QT_admin_recovery_reset_dialog import QTAdminRecoveryResetDialog
+        from QTViews.LoginViews.QT_admin_recovery_reset_dialog import QTAdminRecoveryResetDialog
 
         dialog = QTAdminRecoveryResetDialog(app_context=self.app_context, parent=self)
         if dialog.exec() != QDialog.Accepted or not dialog.success:
@@ -149,6 +157,10 @@ class QTAdminLoginDialog(QDialog):
         # Pre-popola la password reimpostata.
         self.password_edit.setText(dialog.new_password or "")
         self.password_edit.setFocus()
+
+    def _exit_app(self):
+        self.exit_requested = True
+        self.done(QDialog.Rejected)
 
     def _try_login(self):
         password = self.password_edit.text()

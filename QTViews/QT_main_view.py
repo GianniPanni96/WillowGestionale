@@ -50,7 +50,7 @@ from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
 from QTViews.MenuWindows.QT_fiscal_year_closer_dialog import QTFiscalYearCloserDialog
 from QTViews.MenuWindows.QT_warnings_settings_dialog import QTWarningsSettingsDialog
 from QTViews.MenuWindows.QT_load_backup_dialog import QTLoadBackupDialog
-from QTViews.MenuWindows.QT_login_dialog import QTLoginDialog
+from QTViews.LoginViews.QT_login_dialog import QTLoginDialog
 from QTViews.MenuWindows.QT_recurring_expenses_dialog import QTRecurringExpensesDialog
 
 if TYPE_CHECKING:
@@ -808,7 +808,7 @@ class QTMainWindow(QMainWindow):
     def _login_as_admin(self):
         """Voce di menu "Login come amministratore": chiude eventuale
         sessione corrente e apre il dialog di login admin dedicato."""
-        from QTViews.MenuWindows.QT_admin_login_dialog import QTAdminLoginDialog
+        from QTViews.LoginViews.QT_admin_login_dialog import QTAdminLoginDialog
 
         if self.login_status:
             self._do_logout(publish=True)

@@ -41,7 +41,7 @@ def _ensure_admin_exists(app_context) -> bool:
         return True
 
     from PySide6.QtWidgets import QMessageBox
-    from QTViews.MenuWindows.QT_admin_create_dialog import QTAdminCreateDialog
+    from QTViews.Creators.QT_admin_create_dialog import QTAdminCreateDialog
 
     dialog = QTAdminCreateDialog(app_context=app_context)
     if dialog.exec() != QTAdminCreateDialog.Accepted or not dialog.created:
@@ -106,10 +106,10 @@ def _force_authentication(app_context) -> tuple[bool, int, bool, bool, int]:
     """
     from PySide6.QtWidgets import QMessageBox
 
-    from QTViews.MenuWindows.QT_admin_login_dialog import QTAdminLoginDialog
-    from QTViews.MenuWindows.QT_first_password_setup_dialog import QTFirstPasswordSetupDialog
-    from QTViews.MenuWindows.QT_login_dialog import QTLoginDialog
-    from QTViews.MenuWindows.QT_onboarding_dialog import QTOnboardingDialog
+    from QTViews.LoginViews.QT_admin_login_dialog import QTAdminLoginDialog
+    from QTViews.LoginViews.QT_first_password_setup_dialog import QTFirstPasswordSetupDialog
+    from QTViews.LoginViews.QT_login_dialog import QTLoginDialog
+    from QTViews.QT_onboarding_dialog import QTOnboardingDialog
 
     users = app_context.user_query_service.retrieve_users_map_list() or []
 
@@ -144,7 +144,8 @@ def _force_authentication(app_context) -> tuple[bool, int, bool, bool, int]:
         # Skip: l'utente ha scelto di proseguire come admin.
         admin_login = QTAdminLoginDialog(app_context=app_context, mandatory=True)
         if admin_login.exec() != QTAdminLoginDialog.Accepted or not admin_login.success:
-            QMessageBox.critical(None, "Avvio interrotto", "Login admin obbligatorio non completato.")
+            if not admin_login.exit_requested:
+                QMessageBox.critical(None, "Avvio interrotto", "Login admin obbligatorio non completato.")
             return False, -1, False, False, 30
         return (
             True, -1, True,
@@ -155,7 +156,8 @@ def _force_authentication(app_context) -> tuple[bool, int, bool, bool, int]:
     # Caso 3: scenario normale -> login utente (con opzione admin).
     login = QTLoginDialog(app_context=app_context, mandatory=True)
     if login.exec() != QTLoginDialog.Accepted or not login.success:
-        QMessageBox.critical(None, "Avvio interrotto", "Login obbligatorio non completato.")
+        if not login.exit_requested:
+            QMessageBox.critical(None, "Avvio interrotto", "Login obbligatorio non completato.")
         return False, -1, False, False, 30
     is_admin = bool(getattr(login, "logged_as_admin", False))
     return (

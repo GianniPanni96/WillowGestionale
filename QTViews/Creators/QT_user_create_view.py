@@ -14,7 +14,6 @@ Differenze dalla legacy:
 """
 
 import os
-import re
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -322,7 +321,7 @@ class QTUserCreateViewH(QDialog):
 
         recovery_code = (info or {}).get("recovery_code")
         if recovery_code:
-            from QTViews.MenuWindows.QT_recovery_code_show_dialog import QTRecoveryCodeShowDialog
+            from QTViews.LoginViews.QT_recovery_code_show_dialog import QTRecoveryCodeShowDialog
             QTRecoveryCodeShowDialog(recovery_code, parent=self).exec()
 
         # Recuperiamo l'id assegnato dal DB usando fullname (come la legacy).

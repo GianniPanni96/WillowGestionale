@@ -2,6 +2,7 @@ from datetime import datetime
 
 from Gestionale_Enums import DBAccountsColumns
 from Model import DatabaseModel
+from OtherServices.User_auth_service import UserAuthService
 from QueryServices.Account_query_service import AccountQueryService
 from AnalyzerServices.Account_analyzer_service import AccountAnalyzerService
 from Utils.Validation_utils import ValidationUtils
@@ -13,10 +14,12 @@ class AccountController:
         db_model: DatabaseModel,
         account_query_service: AccountQueryService,
         account_analyzer_service: AccountAnalyzerService,
+        user_auth_service: UserAuthService,
     ):
         self.db_model = db_model
         self.account_query_service = account_query_service
         self.account_analyzer_service = account_analyzer_service
+        self.user_auth_service = user_auth_service
 
 
     def save_account(self, account_data):
@@ -42,6 +45,8 @@ class AccountController:
 
     def update_account(self, account_id, account_data):
         try:
+            if not self.user_auth_service.is_admin:
+                return False, "Solo l'amministratore puo' modificare un conto corrente."
             if not account_id or not isinstance(account_id, int):
                 return False, "ID account non valido. Deve essere un intero positivo."
 
@@ -63,6 +68,8 @@ class AccountController:
             return False, f"Errore durante l'aggiornamento del conto: {str(e)}"
 
     def delete_account_by_ID(self, account_id):
+        if not self.user_auth_service.is_admin:
+            return False, "Solo l'amministratore puo' eliminare un conto corrente."
         try:
             self.db_model.delete_row("accounts", DBAccountsColumns.ID.value, account_id)
             return True, f"Account {account_id} rimosso con successo"

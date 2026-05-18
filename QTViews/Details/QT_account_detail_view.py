@@ -61,9 +61,30 @@ class QTAccountDetailViewH(QWidget):
         self.on_back = on_back
 
         self._widgets: dict = {}
+        # Stato admin: la gestione conti (modifica/eliminazione) e'
+        # un'azione amministrativa, quindi i pulsanti restano disabilitati
+        # per gli utenti normali anche col toggle "Abilita la modifica".
+        self._is_admin: bool = getattr(parent, "is_admin", False)
+        if self._is_admin is False and parent is not None:
+            # Fallback: chiede a tutta la finestra principale.
+            parent_window = parent.window() if hasattr(parent, "window") else parent
+            self._is_admin = getattr(parent_window, "is_admin", False)
+        try:
+            app_context.event_bus.subscribe(
+                "LOGIN_STATUS_CHANGED",
+                self._on_login_changed,
+            )
+        except Exception:
+            pass
 
         self._build_ui()
         self.load_account(account_id)
+
+    def _on_login_changed(self, data):
+        if isinstance(data, dict):
+            self._is_admin = bool(data.get("is_admin", False))
+        if hasattr(self, "modify_switch"):
+            self._on_modify_toggled(self.modify_switch.isChecked())
 
     # ------------------------------------------------------------------
     # UI base (head bar + content + action bar)
@@ -322,10 +343,19 @@ class QTAccountDetailViewH(QWidget):
     def _on_modify_toggled(self, enabled: bool):
         if not hasattr(self, "save_btn"):
             return
-        self.save_btn.setEnabled(enabled)
-        self.delete_btn.setEnabled(enabled)
+        # Gestione conti: solo admin puo' salvare/eliminare.
+        admin_enabled = enabled and self._is_admin
+        self.save_btn.setEnabled(admin_enabled)
+        self.delete_btn.setEnabled(admin_enabled)
         for widget in self._widgets.values():
-            widget.setEnabled(enabled)
+            widget.setEnabled(admin_enabled)
+        if not self._is_admin:
+            tooltip = "Solo l'amministratore puo' modificare i conti correnti."
+            self.save_btn.setToolTip(tooltip)
+            self.delete_btn.setToolTip(tooltip)
+        else:
+            self.save_btn.setToolTip("")
+            self.delete_btn.setToolTip("")
 
     # ------------------------------------------------------------------
     # Salvataggio / eliminazione

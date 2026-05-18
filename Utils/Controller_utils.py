@@ -584,6 +584,37 @@ class ControllerUtils:
             print(f"Errore nella verifica password: {e}")
             return False
 
+    # Alfabeto Crockford base32 senza I, L, O, U (no caratteri ambigui).
+    _RECOVERY_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+    @staticmethod
+    def generate_recovery_code() -> str:
+        """16 caratteri random (Crockford base32) in 4 gruppi separati
+        da trattino: XXXX-XXXX-XXXX-XXXX. ~80 bit di entropia."""
+        chars = "".join(
+            secrets.choice(ControllerUtils._RECOVERY_ALPHABET) for _ in range(16)
+        )
+        return f"{chars[0:4]}-{chars[4:8]}-{chars[8:12]}-{chars[12:16]}"
+
+    @staticmethod
+    def normalize_recovery_code(code: str) -> str:
+        """Rimuove spazi/trattini e uppercase. Tollera input dell'utente
+        in qualsiasi forma (con o senza dashes, lower/upper case)."""
+        return "".join(ch for ch in code.upper() if ch.isalnum())
+
+    @staticmethod
+    def hash_recovery_code(code: str) -> str:
+        """Riusa lo stesso formato/iterazioni di hash_password."""
+        return ControllerUtils.hash_password(ControllerUtils.normalize_recovery_code(code))
+
+    @staticmethod
+    def verify_recovery_code(code: str, stored_hash: str) -> bool:
+        if not stored_hash:
+            return False
+        return ControllerUtils.verify_password(
+            ControllerUtils.normalize_recovery_code(code), stored_hash
+        )
+
     @staticmethod
     def row_to_map(row, database_columns):
         """Converte una singola riga in un dizionario."""

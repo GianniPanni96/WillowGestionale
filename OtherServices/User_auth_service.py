@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from Gestionale_Enums import DBAdminColumns, DBUsersColumns
 from Model import DatabaseModel
+from OtherServices.Admin_audit_log import AdminAuditLog
 from OtherServices.User_crypto_service import UserCryptoService
 from QueryServices.Admin_query_service import AdminQueryService
 from QueryServices.Users_query_service import UserQueryService
@@ -52,11 +53,13 @@ class UserAuthService:
         db_model: DatabaseModel,
         user_crypto_service: UserCryptoService,
         admin_query_service: AdminQueryService | None = None,
+        admin_audit_log: AdminAuditLog | None = None,
     ):
         self.user_query_service = user_query_service
         self.db_model = db_model
         self.user_crypto_service = user_crypto_service
         self.admin_query_service = admin_query_service
+        self.admin_audit_log = admin_audit_log
         # Stato admin: separato dall'utente loggato (sessioni mutuamente
         # esclusive — chi e' loggato come admin non e' anche un utente).
         self._is_admin: bool = False
@@ -74,19 +77,24 @@ class UserAuthService:
         session (l'admin non cifra dati propri). Returns (success, message).
         """
         if self.admin_query_service is None:
+            self._audit_login_failure("admin_service_not_configured")
             return False, "Servizio admin non configurato."
         admin = self.admin_query_service.retrieve_admin_map()
         if not admin:
+            self._audit_login_failure("no_admin_in_db")
             return False, "Nessun amministratore presente nel sistema."
         db_hash = admin.get(DBAdminColumns.PASSWORD_LOGIN.value)
         if not db_hash:
+            self._audit_login_failure("admin_password_not_set")
             return False, "L'amministratore non ha una password impostata."
         if not ControllerUtils.verify_password(password, db_hash):
+            self._audit_login_failure("wrong_password")
             return False, "Password admin errata."
         # Sicurezza: una sessione admin esclude una sessione utente in
         # corso (e viceversa al check_password_for_login).
         self.user_crypto_service.lock()
         self._is_admin = True
+        self._audit_login_success()
         return True, "Login admin effettuato."
 
     def check_password_for_login(self, username: str, password: str):
@@ -126,9 +134,40 @@ class UserAuthService:
 
         return True, "Login Effettuato", user_id
 
+    def mark_admin_session_active(self) -> None:
+        """Imposta lo stato 'admin loggato' senza ripassare per la
+        verifica password. Usato dal ripristino di una sessione
+        persistita (la verifica e' gia' stata fatta al login originale)."""
+        self._is_admin = True
+
+    def mark_user_session_active(self) -> None:
+        """Imposta lo stato 'utente loggato' senza ripassare per la
+        verifica password (la crypto session viene ripristinata altrove
+        in ``UserCryptoService.unlock_with_key_hex``)."""
+        self._is_admin = False
+
     def logout(self) -> None:
+        was_admin = self._is_admin
         self.user_crypto_service.lock()
         self._is_admin = False
+        if was_admin:
+            self._audit_logout()
+
+    # ------------------------------------------------------------------
+    # Audit log helpers (no-op se il logger non e' configurato)
+    # ------------------------------------------------------------------
+
+    def _audit_login_success(self) -> None:
+        if self.admin_audit_log is not None:
+            self.admin_audit_log.log_login_success()
+
+    def _audit_login_failure(self, reason: str) -> None:
+        if self.admin_audit_log is not None:
+            self.admin_audit_log.log_login_failure(reason=reason)
+
+    def _audit_logout(self) -> None:
+        if self.admin_audit_log is not None:
+            self.admin_audit_log.log_logout()
 
     # ------------------------------------------------------------------
     # Internals

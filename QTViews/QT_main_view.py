@@ -192,6 +192,8 @@ class QTMainWindow(QMainWindow):
         self.login_status = False
         self.logged_user_id = -1
         self.is_admin = False
+        self.persist_session_enabled: bool = False
+        self.persist_session_minutes: int = 30
         self.user_icon_label = None
         self.backup_runner = QTBackupRunner(app_context=app_context, parent=self)
 
@@ -269,6 +271,9 @@ class QTMainWindow(QMainWindow):
         warnings_menu.addAction("Visibilità warnings").triggered.connect(
             self._open_warnings_settings
         )
+
+        self.admin_menu = menubar.addMenu("ADMIN")
+        self.admin_menu.addAction("Log Accessi").triggered.connect(self._open_admin_audit_log)
 
     def _build_tab_page(self, list_view):
         page = QStackedWidget()
@@ -787,12 +792,18 @@ class QTMainWindow(QMainWindow):
             self.login_status = True
             self.logged_user_id = dialog.user_id
             self.is_admin = False
+            self._record_persist_prefs(dialog)
             self._toggle_login_widgets()
             self.app_context.event_bus.publish(
                 ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
                 {"login_status": True, "logged_user_id": dialog.user_id, "is_admin": False},
             )
             self._refresh_current_tab()
+
+    def _open_admin_audit_log(self):
+        from QTViews.MenuWindows.QT_admin_audit_log_dialog import QTAdminAuditLogDialog
+        dialog = QTAdminAuditLogDialog(app_context=self.app_context, parent=self)
+        dialog.exec()
 
     def _login_as_admin(self):
         """Voce di menu "Login come amministratore": chiude eventuale
@@ -808,6 +819,7 @@ class QTMainWindow(QMainWindow):
             self.login_status = True
             self.logged_user_id = -1
             self.is_admin = True
+            self._record_persist_prefs(dialog)
             self._toggle_login_widgets()
             self.app_context.event_bus.publish(
                 ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
@@ -833,17 +845,27 @@ class QTMainWindow(QMainWindow):
             self.login_status = True
             self.logged_user_id = dialog.user_id
             self.is_admin = False
+            self._record_persist_prefs(dialog)
             self._toggle_login_widgets()
             self.app_context.event_bus.publish(
                 ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
                 {"login_status": True, "logged_user_id": dialog.user_id, "is_admin": False},
             )
 
+    def _record_persist_prefs(self, dialog) -> None:
+        """Cattura preferenze 'mantieni l'accesso' dal dialog di login."""
+        self.persist_session_enabled = bool(getattr(dialog, "persist_enabled", False))
+        self.persist_session_minutes = int(getattr(dialog, "persist_minutes", 30))
+
     def _do_logout(self, publish: bool = True) -> None:
-        """Helper: chiude qualsiasi sessione attiva (utente o admin)."""
+        """Helper: chiude qualsiasi sessione attiva (utente o admin).
+        Cancella anche eventuale sessione persistita: un logout esplicito
+        e' la cancellazione di consenso a restare loggati."""
         self.login_status = False
         self.logged_user_id = -1
         self.is_admin = False
+        self.persist_session_enabled = False
+        self.app_context.session_persistence_service.clear_session()
         self.app_context.user_auth_service.logout()
         self._toggle_login_widgets()
         if publish:
@@ -868,6 +890,7 @@ class QTMainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def closeEvent(self, event):
+        self._maybe_persist_session()
         scheduler = getattr(self.app_context, "backup_scheduler", None)
         if scheduler is not None:
             try:
@@ -875,3 +898,39 @@ class QTMainWindow(QMainWindow):
             except Exception as exc:
                 print(f"Errore nello stop del backup scheduler: {exc}")
         super().closeEvent(event)
+
+    def _maybe_persist_session(self) -> None:
+        """Se l'utente ha abilitato il "mantieni l'accesso" al login,
+        chiede conferma e salva la sessione persistente prima di chiudere.
+        """
+        if not (self.login_status and self.persist_session_enabled):
+            return
+
+        service = self.app_context.session_persistence_service
+        if not service.is_supported():
+            return
+
+        minutes = int(self.persist_session_minutes)
+        reply = QMessageBox.question(
+            self,
+            "Mantieni l'accesso",
+            (
+                f"Vuoi rimanere loggato per {minutes} minuti dopo la chiusura "
+                "dell'app?\n\nAlla prossima apertura entro questo intervallo "
+                "non ti verra' chiesta la password."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+        if reply != QMessageBox.Yes:
+            service.clear_session()
+            return
+
+        if self.is_admin:
+            service.save_admin_session(minutes)
+        else:
+            key_hex = self.app_context.user_crypto_service.active_key_hex
+            if key_hex is None:
+                print("[session] crypto session non attiva: salvataggio annullato")
+                return
+            service.save_user_session(self.logged_user_id, key_hex, minutes)

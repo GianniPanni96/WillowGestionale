@@ -3,13 +3,17 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSlider,
     QVBoxLayout,
+    QWidget,
 )
 
 from Model import DBUsersColumns
@@ -43,10 +47,13 @@ class QTLoginDialog(QDialog):
 
         self.success = False
         self.user_id = -1
+        self.persist_enabled: bool = False
+        self.persist_minutes: int = 30
         self._mandatory = mandatory
+        self._persist_supported = app_context.session_persistence_service.is_supported()
 
         self.setWindowTitle("Esegui il login")
-        self.resize(380, 320)
+        self.resize(420, 420)
         self.setModal(True)
 
         if mandatory:
@@ -77,6 +84,8 @@ class QTLoginDialog(QDialog):
         self.password_edit.returnPressed.connect(self._try_login)
         layout.addWidget(self.password_edit)
 
+        self._build_persist_widgets(layout)
+
         layout.addStretch(1)
 
         login_btn = QPushButton("Esegui il login")
@@ -88,6 +97,51 @@ class QTLoginDialog(QDialog):
         forgot_btn.setStyleSheet("text-align: center; color: palette(highlight);")
         forgot_btn.clicked.connect(self._open_recovery_reset)
         layout.addWidget(forgot_btn)
+
+    def _build_persist_widgets(self, layout: QVBoxLayout) -> None:
+        """Toggle + slider per la persistenza della sessione dopo la
+        chiusura dell'app. Su piattaforme dove la persistenza non e'
+        supportata (no DPAPI) i widget vengono nascosti."""
+        if not self._persist_supported:
+            return
+
+        self.persist_checkbox = QCheckBox("Mantieni l'accesso dopo la chiusura dell'app")
+        layout.addWidget(self.persist_checkbox)
+
+        slider_row = QWidget()
+        slider_layout = QHBoxLayout(slider_row)
+        slider_layout.setContentsMargins(0, 0, 0, 0)
+        slider_layout.setSpacing(8)
+
+        slider_layout.addWidget(QLabel("Durata:"))
+        self.persist_slider = QSlider(Qt.Horizontal)
+        self.persist_slider.setMinimum(5)
+        self.persist_slider.setMaximum(60)
+        self.persist_slider.setSingleStep(5)
+        self.persist_slider.setPageStep(5)
+        self.persist_slider.setTickInterval(5)
+        self.persist_slider.setTickPosition(QSlider.TicksBelow)
+        self.persist_slider.setValue(self.persist_minutes)
+        self.persist_slider.setEnabled(False)
+
+        self.persist_value_label = QLabel(f"{self.persist_minutes} min")
+        self.persist_value_label.setFixedWidth(60)
+
+        def _on_slider_changed(value: int) -> None:
+            # Snap a multipli di 5.
+            snapped = max(5, round(value / 5) * 5)
+            if snapped != value:
+                self.persist_slider.blockSignals(True)
+                self.persist_slider.setValue(snapped)
+                self.persist_slider.blockSignals(False)
+            self.persist_value_label.setText(f"{snapped} min")
+
+        self.persist_slider.valueChanged.connect(_on_slider_changed)
+        self.persist_checkbox.toggled.connect(self.persist_slider.setEnabled)
+
+        slider_layout.addWidget(self.persist_slider, stretch=1)
+        slider_layout.addWidget(self.persist_value_label)
+        layout.addWidget(slider_row)
 
     def keyPressEvent(self, event: QKeyEvent):
         # Blocca ESC quando la dialog e' obbligatoria.
@@ -130,6 +184,9 @@ class QTLoginDialog(QDialog):
             QMessageBox.information(self, "Login", message)
             self.success = True
             self.user_id = user_id
+            if self._persist_supported:
+                self.persist_enabled = self.persist_checkbox.isChecked()
+                self.persist_minutes = int(self.persist_slider.value())
             self.event_bus.publish(
                 ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
                 {"login_status": True, "logged_user_id": user_id, "is_admin": False},

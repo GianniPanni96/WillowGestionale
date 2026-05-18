@@ -25,6 +25,8 @@ class RuntimePaths:
     historical_financial_data_file: Path
     recurring_expenses_file: Path
     legacy_config_file: Path
+    admin_audit_log_file: Path
+    session_file: Path
     books_dir: Path
     backups_dir: Path
     resource_root: Path   # alias for install_root (backward compatibility)
@@ -229,6 +231,8 @@ def initialize_runtime_paths() -> RuntimePaths:
             historical_financial_data_file=storage_root / "historical_financial_data.json",
             recurring_expenses_file=storage_root / "recurring_expenses.json",
             legacy_config_file=storage_root / "app_config.json",
+            admin_audit_log_file=storage_root / "admin_audit.jsonl",
+            session_file=storage_root / "session.bin",
             books_dir=books_dir,
             backups_dir=backups_dir,
             resource_root=install_root,

@@ -105,6 +105,21 @@ class UserCryptoService:
         self._active_key = self._derive_key(password, salt)
         self._active_user_id = user_id
 
+    def unlock_with_key_hex(self, user_id: int, key_hex: str) -> None:
+        """Ripristina una sessione gia' sbloccata da una chiave salvata
+        (usato dalla session persistence: la chiave era stata derivata
+        in un login precedente)."""
+        self._active_key = bytes.fromhex(key_hex)
+        self._active_user_id = user_id
+
+    @property
+    def active_key_hex(self) -> str | None:
+        """Esporta la chiave AES attiva come hex (per la persistenza
+        della sessione). Ritorna None se nessuna sessione e' attiva."""
+        if self._active_key is None:
+            return None
+        return self._active_key.hex()
+
     def lock(self) -> None:
         """Cancella chiave + user id dalla memoria del processo."""
         self._active_key = None

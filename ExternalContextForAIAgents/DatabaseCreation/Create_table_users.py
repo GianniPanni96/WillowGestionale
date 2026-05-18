@@ -26,6 +26,9 @@ columns = [
     f"{DBUsersColumns.PHOTO_PATH.value} TEXT",
     f"{DBUsersColumns.CREATED_AT.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
     f"{DBUsersColumns.UPDATED_AT.value} TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    f"{DBUsersColumns.CRYPTO_SALT.value} TEXT",
+    f"{DBUsersColumns.CRYPTO_CHECK.value} TEXT",
+    f"{DBUsersColumns.RECOVERY_HASH.value} TEXT",
     f"FOREIGN KEY ({DBUsersColumns.CONTO_CORRENTE_ID.value}) REFERENCES accounts (id)"
 ]
 

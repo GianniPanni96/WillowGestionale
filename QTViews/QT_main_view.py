@@ -2,17 +2,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QAction, QIcon, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMenu,
     QMenuBar,
     QMessageBox,
-    QPushButton,
     QStackedWidget,
     QTabWidget,
+    QToolButton,
     QWidget,
 )
 
@@ -49,7 +50,7 @@ from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
 from QTViews.MenuWindows.QT_fiscal_year_closer_dialog import QTFiscalYearCloserDialog
 from QTViews.MenuWindows.QT_warnings_settings_dialog import QTWarningsSettingsDialog
 from QTViews.MenuWindows.QT_load_backup_dialog import QTLoadBackupDialog
-from QTViews.MenuWindows.QT_login_dialog import QTLoginDialog
+from QTViews.LoginViews.QT_login_dialog import QTLoginDialog
 from QTViews.MenuWindows.QT_recurring_expenses_dialog import QTRecurringExpensesDialog
 
 if TYPE_CHECKING:
@@ -190,6 +191,9 @@ class QTMainWindow(QMainWindow):
         self.account_detail_view = None
         self.login_status = False
         self.logged_user_id = -1
+        self.is_admin = False
+        self.persist_session_enabled: bool = False
+        self.persist_session_minutes: int = 30
         self.user_icon_label = None
         self.backup_runner = QTBackupRunner(app_context=app_context, parent=self)
 
@@ -267,6 +271,9 @@ class QTMainWindow(QMainWindow):
         warnings_menu.addAction("Visibilità warnings").triggered.connect(
             self._open_warnings_settings
         )
+
+        self.admin_menu = menubar.addMenu("ADMIN")
+        self.admin_menu.addAction("Log Accessi").triggered.connect(self._open_admin_audit_log)
 
     def _build_tab_page(self, list_view):
         page = QStackedWidget()
@@ -399,23 +406,62 @@ class QTMainWindow(QMainWindow):
                 idx = self.tabview.addTab(placeholder, name)
                 self.tabview.setTabEnabled(idx, False)
 
+    USER_ICON_SIZE = 40
+
     def _build_menu_corner(self):
         layout = self.menu_actions_layout
 
-        self.login_button = QPushButton("Login")
-        self.login_button.clicked.connect(self._manage_login)
-        layout.addWidget(self.login_button)
+        # Bottone-icona dell'utente: trigger del menu utente (login,
+        # logout, switch account). Stile "tool button" arrotondato con
+        # hover/pressed evidenti per chiarire l'affordance cliccabile.
+        self.user_icon_button = QToolButton()
+        self.user_icon_button.setPopupMode(QToolButton.InstantPopup)
+        self.user_icon_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.user_icon_button.setIconSize(QSize(self.USER_ICON_SIZE, self.USER_ICON_SIZE))
+        self.user_icon_button.setFixedSize(self.USER_ICON_SIZE + 12, self.USER_ICON_SIZE + 12)
+        self.user_icon_button.setCursor(Qt.PointingHandCursor)
+        self.user_icon_button.setToolTip("Menu utente")
+        self.user_icon_button.setAutoRaise(False)
+        self.user_icon_button.setStyleSheet(
+            f"""
+            QToolButton {{
+                border: 1px solid palette(mid);
+                border-radius: {(self.USER_ICON_SIZE + 12) // 2}px;
+                padding: 2px;
+                background-color: palette(window);
+            }}
+            QToolButton:hover {{
+                border: 1px solid palette(highlight);
+                background-color: palette(alternate-base);
+            }}
+            QToolButton:pressed {{
+                background-color: palette(highlight);
+            }}
+            QToolButton::menu-indicator {{ image: none; width: 0px; }}
+            """
+        )
 
-        self.user_icon_label = QLabel()
-        self.user_icon_label.setFixedSize(28, 28)
-        self.user_icon_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.user_icon_label)
+        self.user_menu = QMenu(self.user_icon_button)
+        self.login_action = QAction("Esegui il login", self)
+        self.login_action.triggered.connect(self._manage_login)
+        self.user_menu.addAction(self.login_action)
+        self.switch_account_action = QAction("Cambia utente", self)
+        self.switch_account_action.triggered.connect(self._switch_account)
+        self.switch_account_action.setEnabled(False)
+        self.user_menu.addAction(self.switch_account_action)
+        self.user_menu.addSeparator()
+        self.admin_login_action = QAction("Login come amministratore", self)
+        self.admin_login_action.triggered.connect(self._login_as_admin)
+        self.user_menu.addAction(self.admin_login_action)
+        self.user_icon_button.setMenu(self.user_menu)
+
+        # Per retrocompatibilita' con _set_user_icon_from_path /
+        # _refresh_logged_user_icon manteniamo l'attributo come riferimento
+        # al QToolButton: il setter capisce di che widget si tratta.
+        self.user_icon_label = self.user_icon_button
+
+        layout.addWidget(self.user_icon_button)
         self._set_user_icon_from_path(self._default_user_icon_path())
-
-        self.refresh_button = QPushButton("Aggiorna")
-        self.refresh_button.setToolTip("Aggiorna la tab corrente")
-        self.refresh_button.clicked.connect(self._refresh_current_tab)
-        layout.addWidget(self.refresh_button)
 
     # ------------------------------------------------------------------
     # Azioni
@@ -463,20 +509,52 @@ class QTMainWindow(QMainWindow):
             pass
         return ""
 
+    def _admin_icon_path(self) -> str:
+        try:
+            path = Path(self.app_context.images_path) / "ADMIN.png"
+            if path.exists():
+                return str(path)
+        except Exception:
+            pass
+        return ""
+
     def _set_user_icon_from_path(self, image_path):
-        if self.user_icon_label is None:
+        if getattr(self, "user_icon_button", None) is None:
             return
 
         pix = QPixmap(str(image_path)) if image_path else QPixmap()
         if pix.isNull():
-            self.user_icon_label.clear()
+            self.user_icon_button.setIcon(QIcon())
             return
 
-        self.user_icon_label.setPixmap(
-            pix.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        )
+        size = self.USER_ICON_SIZE
+        # Scale to cover the square, then crop to center
+        scaled = pix.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        if scaled.width() != size or scaled.height() != size:
+            x = (scaled.width() - size) // 2
+            y = (scaled.height() - size) // 2
+            scaled = scaled.copy(x, y, size, size)
+
+        # Paint into a circular mask
+        circular = QPixmap(size, size)
+        circular.fill(Qt.transparent)
+        painter = QPainter(circular)
+        painter.setRenderHint(QPainter.Antialiasing)
+        path = QPainterPath()
+        path.addEllipse(0, 0, size, size)
+        painter.setClipPath(path)
+        painter.drawPixmap(0, 0, scaled)
+        painter.end()
+
+        self.user_icon_button.setIcon(QIcon(circular))
 
     def _refresh_logged_user_icon(self):
+        if self.login_status and self.is_admin:
+            admin_icon = self._admin_icon_path()
+            if admin_icon:
+                self._set_user_icon_from_path(admin_icon)
+                return
+
         image_path = self._default_user_icon_path()
         if self.login_status and self.logged_user_id != -1:
             try:
@@ -701,6 +779,54 @@ class QTMainWindow(QMainWindow):
             # ma evitiamo all'utente di doverlo fare a mano).
             self._refresh_current_tab()
 
+    def _switch_account(self):
+        """Logout della sessione corrente + apertura login dialog utente.
+        Se l'utente annulla la nuova login resta in stato "non loggato"."""
+        if not self.login_status:
+            return
+        self._do_logout(publish=True)
+
+        dialog = QTLoginDialog(app_context=self.app_context, parent=self)
+        dialog.exec()
+        if dialog.success:
+            self.login_status = True
+            self.logged_user_id = dialog.user_id
+            self.is_admin = False
+            self._record_persist_prefs(dialog)
+            self._toggle_login_widgets()
+            self.app_context.event_bus.publish(
+                ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
+                {"login_status": True, "logged_user_id": dialog.user_id, "is_admin": False},
+            )
+            self._refresh_current_tab()
+
+    def _open_admin_audit_log(self):
+        from QTViews.MenuWindows.QT_admin_audit_log_dialog import QTAdminAuditLogDialog
+        dialog = QTAdminAuditLogDialog(app_context=self.app_context, parent=self)
+        dialog.exec()
+
+    def _login_as_admin(self):
+        """Voce di menu "Login come amministratore": chiude eventuale
+        sessione corrente e apre il dialog di login admin dedicato."""
+        from QTViews.LoginViews.QT_admin_login_dialog import QTAdminLoginDialog
+
+        if self.login_status:
+            self._do_logout(publish=True)
+
+        dialog = QTAdminLoginDialog(app_context=self.app_context, parent=self)
+        dialog.exec()
+        if dialog.success:
+            self.login_status = True
+            self.logged_user_id = -1
+            self.is_admin = True
+            self._record_persist_prefs(dialog)
+            self._toggle_login_widgets()
+            self.app_context.event_bus.publish(
+                ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
+                {"login_status": True, "logged_user_id": -1, "is_admin": True},
+            )
+            self._refresh_current_tab()
+
     def _manage_login(self):
         if self.login_status:
             confirm = QMessageBox.question(
@@ -710,13 +836,7 @@ class QTMainWindow(QMainWindow):
                 QMessageBox.Yes | QMessageBox.No,
             )
             if confirm == QMessageBox.Yes:
-                self.login_status = False
-                self.logged_user_id = -1
-                self._toggle_login_widgets()
-                self.app_context.event_bus.publish(
-                    ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
-                    {"login_status": False, "logged_user_id": -1},
-                )
+                self._do_logout(publish=True)
             return
 
         dialog = QTLoginDialog(app_context=self.app_context, parent=self)
@@ -724,15 +844,53 @@ class QTMainWindow(QMainWindow):
         if dialog.success:
             self.login_status = True
             self.logged_user_id = dialog.user_id
+            self.is_admin = False
+            self._record_persist_prefs(dialog)
             self._toggle_login_widgets()
+            self.app_context.event_bus.publish(
+                ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
+                {"login_status": True, "logged_user_id": dialog.user_id, "is_admin": False},
+            )
+
+    def _record_persist_prefs(self, dialog) -> None:
+        """Cattura preferenze 'mantieni l'accesso' dal dialog di login."""
+        self.persist_session_enabled = bool(getattr(dialog, "persist_enabled", False))
+        self.persist_session_minutes = int(getattr(dialog, "persist_minutes", 30))
+
+    def _do_logout(self, publish: bool = True) -> None:
+        """Helper: chiude qualsiasi sessione attiva (utente o admin).
+        Cancella anche eventuale sessione persistita: un logout esplicito
+        e' la cancellazione di consenso a restare loggati."""
+        self.login_status = False
+        self.logged_user_id = -1
+        self.is_admin = False
+        self.persist_session_enabled = False
+        self.app_context.session_persistence_service.clear_session()
+        self.app_context.user_auth_service.logout()
+        self._toggle_login_widgets()
+        if publish:
+            self.app_context.event_bus.publish(
+                ViewUtils.EventBusKeys.LOGIN_STATUS_CHANGED.value,
+                {"login_status": False, "logged_user_id": -1, "is_admin": False},
+            )
 
     def _toggle_login_widgets(self):
-        self.login_button.setText("Esegui Logout" if self.login_status else "Login")
+        if self.login_status:
+            self.login_action.setText("Esegui il logout")
+            # Switch utente: ha senso anche da admin (porta a login utente).
+            self.switch_account_action.setEnabled(True)
+            # Disabilita "Login come admin" se gia' loggato come admin.
+            self.admin_login_action.setEnabled(not self.is_admin)
+        else:
+            self.login_action.setText("Esegui il login")
+            self.switch_account_action.setEnabled(False)
+            self.admin_login_action.setEnabled(True)
         self._refresh_logged_user_icon()
 
     # ------------------------------------------------------------------
 
     def closeEvent(self, event):
+        self._maybe_persist_session()
         scheduler = getattr(self.app_context, "backup_scheduler", None)
         if scheduler is not None:
             try:
@@ -740,3 +898,39 @@ class QTMainWindow(QMainWindow):
             except Exception as exc:
                 print(f"Errore nello stop del backup scheduler: {exc}")
         super().closeEvent(event)
+
+    def _maybe_persist_session(self) -> None:
+        """Se l'utente ha abilitato il "mantieni l'accesso" al login,
+        chiede conferma e salva la sessione persistente prima di chiudere.
+        """
+        if not (self.login_status and self.persist_session_enabled):
+            return
+
+        service = self.app_context.session_persistence_service
+        if not service.is_supported():
+            return
+
+        minutes = int(self.persist_session_minutes)
+        reply = QMessageBox.question(
+            self,
+            "Mantieni l'accesso",
+            (
+                f"Vuoi rimanere loggato per {minutes} minuti dopo la chiusura "
+                "dell'app?\n\nAlla prossima apertura entro questo intervallo "
+                "non ti verra' chiesta la password."
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+        if reply != QMessageBox.Yes:
+            service.clear_session()
+            return
+
+        if self.is_admin:
+            service.save_admin_session(minutes)
+        else:
+            key_hex = self.app_context.user_crypto_service.active_key_hex
+            if key_hex is None:
+                print("[session] crypto session non attiva: salvataggio annullato")
+                return
+            service.save_user_session(self.logged_user_id, key_hex, minutes)

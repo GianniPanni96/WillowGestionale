@@ -42,6 +42,7 @@ from Controllerss.Account_controller import AccountController
 from Controllerss.Transfer_controller import TransferController
 from Controllerss.Salary_controller import SalaryController
 from Controllerss.User_controller import UserController
+from Controllerss.Admin_controller import AdminController
 
 from QueryServices.Account_query_service import AccountQueryService
 from QueryServices.Clients_query_service import ClientQueryService
@@ -54,8 +55,12 @@ from QueryServices.Expenses_query_service import ExpenseQueryService
 from QueryServices.Transfers_query_service import TransferQueryService
 from QueryServices.Salaries_query_service import SalaryQueryService
 from QueryServices.Users_query_service import UserQueryService
+from QueryServices.Admin_query_service import AdminQueryService
+from OtherServices.Admin_audit_log import AdminAuditLog
+from OtherServices.Session_persistence_service import SessionPersistenceService
 from OtherServices.User_auth_service import UserAuthService
 from OtherServices.User_crypto_service import UserCryptoService
+from Utils.App_paths import get_runtime_paths
 from WarningServices.Production_warning_service import ProductionWarningService
 from WarningServices.Invoice_warning_service import InvoiceWarningService
 from WarningServices.Payment_warning_service import PaymentWarningService
@@ -130,7 +135,24 @@ class AppContext:
                                                                                       self.refunds_query_service,
                                                                                       )
         self.user_crypto_service:UserCryptoService = UserCryptoService()
-        self.user_auth_service:UserAuthService = UserAuthService(self.user_query_service)
+        self.admin_query_service:AdminQueryService = AdminQueryService(self.db_model)
+        self.admin_audit_log:AdminAuditLog = AdminAuditLog(
+            get_runtime_paths().admin_audit_log_file
+        )
+        self.session_persistence_service: SessionPersistenceService = SessionPersistenceService(
+            get_runtime_paths().session_file
+        )
+        self.user_auth_service:UserAuthService = UserAuthService(
+            self.user_query_service,
+            self.db_model,
+            self.user_crypto_service,
+            self.admin_query_service,
+            self.admin_audit_log,
+        )
+        self.admin_controller:AdminController = AdminController(
+            self.db_model,
+            self.admin_query_service,
+        )
         self.production_warning_service:ProductionWarningService = ProductionWarningService(
             productions_query_service=self.productions_query_service,
             productions_analyzer_service=self.productions_analyzer_service,
@@ -181,7 +203,8 @@ class AppContext:
         self.account_controller:AccountController = AccountController(
             self.db_model,
             self.account_query_service,
-            self.account_analyzer_service
+            self.account_analyzer_service,
+            self.user_auth_service,
         )
         self.salary_controller:SalaryController = SalaryController(
             self.db_model,

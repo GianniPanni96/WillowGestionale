@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v1.3.0 (2026-05-19)
+
+### Features
+
+- Aggiunta preferenze visualizzazione GUI per filtri e tab all'apertura + Nome del collettivo [Merge
+  pull request #120 from GianniPanni96/Development]
+  ([`438a031`](https://github.com/GianniPanni96/WillowGestionale/commit/438a03115cce0f61dc27ed6050e1cd1304e0ec3f))
+
+feat: aggiunta preferenze visualizzazione GUI per filtri e tab all'apertura + Nome del collettivo
+
+
 ## v1.2.0 (2026-05-19)
 
 ### Features

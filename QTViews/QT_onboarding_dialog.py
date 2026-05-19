@@ -95,8 +95,26 @@ class QTOnboardingDialog(QDialog):
         subtitle.setStyleSheet("color: palette(mid);")
         root.addWidget(subtitle)
 
+        # --- Sezione Collettivo ---
+        root.addWidget(self._section_header("1. Nome del collettivo"))
+        collective_form = QFormLayout()
+        collective_form.setLabelAlignment(Qt.AlignLeft)
+        self.collective_name_edit = QLineEdit()
+        self.collective_name_edit.setText("Willow")
+        self.collective_name_edit.setPlaceholderText("es. Willow")
+        collective_form.addRow("Nome del collettivo:", self.collective_name_edit)
+        hint = QLabel(
+            "Verra' usato nell'interfaccia per identificare il gruppo "
+            "(es. 'Fatture <nome>', 'Tasse <nome>'). Modificabile in seguito "
+            "dal menu GUI."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: palette(mid);")
+        root.addLayout(collective_form)
+        root.addWidget(hint)
+
         # --- Sezione Conto Corrente ---
-        root.addWidget(self._section_header("1. Conto corrente"))
+        root.addWidget(self._section_header("2. Conto corrente"))
         account_form = QFormLayout()
         account_form.setLabelAlignment(Qt.AlignLeft)
         self.account_name_edit = QLineEdit()
@@ -109,7 +127,7 @@ class QTOnboardingDialog(QDialog):
         root.addLayout(account_form)
 
         # --- Sezione Utente ---
-        root.addWidget(self._section_header("2. Primo utente"))
+        root.addWidget(self._section_header("3. Primo utente"))
         user_form = QFormLayout()
         user_form.setLabelAlignment(Qt.AlignLeft)
 
@@ -196,6 +214,18 @@ class QTOnboardingDialog(QDialog):
     def _on_create(self):
         if not self._validate():
             return
+
+        # Salva subito il nome del collettivo: i fallback degli step
+        # successivi (creazione account/utente) non dipendono da questo
+        # valore, ma vogliamo che sia gia' persistito prima che la UI
+        # principale lo legga.
+        try:
+            collective_name = self.collective_name_edit.text().strip() or "Willow"
+            self.app_context.config_manager.app_settings_manager.set_collective_name(
+                collective_name
+            )
+        except Exception as exc:
+            print(f"[onboarding] errore salvataggio nome collettivo: {exc}")
 
         account_data = {
             DBAccountsColumns.NAME.value: self.account_name_edit.text().strip(),

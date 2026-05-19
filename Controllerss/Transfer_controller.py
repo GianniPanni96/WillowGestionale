@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from Gestionale_Enums import DBAccountsColumns, DBTransfersColumns
 from Model import DatabaseModel
 from QueryServices.Account_query_service import AccountQueryService
@@ -48,3 +50,46 @@ class TransferController:
             return True, "Bonifico salvato con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
+
+    def update_transfer(self, transfer_id, transfer_data):
+        """Aggiorna i dati di un bonifico esistente."""
+        try:
+            if not transfer_id or not isinstance(transfer_id, int):
+                return False, "ID bonifico non valido."
+
+            description = transfer_data.get(DBTransfersColumns.DESCRIPTION.value)
+            amount = transfer_data.get(DBTransfersColumns.AMOUNT.value)
+            sender_id = transfer_data.get(DBTransfersColumns.SENDER_ACCOUNT_ID.value)
+            receiver_id = transfer_data.get(DBTransfersColumns.RECEIVER_ACCOUNT_ID.value)
+
+            if not description:
+                return False, "La causale non puo' essere vuota."
+            if amount is None or not ValidationUtils.validate_amount(amount):
+                return False, "L'importo inserito non e' valido."
+            if sender_id is None or receiver_id is None:
+                return False, "Conto mittente e ricevente sono obbligatori."
+            if sender_id == receiver_id:
+                return False, "Il conto mittente e quello ricevente devono essere diversi."
+
+            prepared = {
+                DBTransfersColumns.DESCRIPTION.value: description,
+                DBTransfersColumns.AMOUNT.value: amount,
+                DBTransfersColumns.SENDER_ACCOUNT_ID.value: sender_id,
+                DBTransfersColumns.RECEIVER_ACCOUNT_ID.value: receiver_id,
+                DBTransfersColumns.UPDATED_AT.value: datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            self.db_model.update_transfer(transfer_id, **prepared)
+            return True, "Bonifico aggiornato con successo!"
+        except ValueError as ve:
+            return False, str(ve)
+        except Exception as e:
+            return False, f"Errore durante l'aggiornamento del bonifico: {str(e)}"
+
+    def delete_transfer(self, transfer_id):
+        try:
+            result = self.db_model.delete_transfer(transfer_id)
+            if result:
+                return True, "Bonifico eliminato con successo."
+            return False, "Bonifico non trovato o errore durante l'eliminazione."
+        except Exception as e:
+            return False, f"Errore durante l'eliminazione del bonifico: {str(e)}"

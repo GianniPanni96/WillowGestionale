@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 class QTAccountDetailViewH(QWidget):
     """QWidget dettaglio conto corrente."""
 
-    def __init__(self, app_context: "AppContext", account_id, on_back, parent=None):
+    def __init__(self, app_context: "AppContext", account_id, on_back, on_open_movement=None, parent=None):
         super().__init__(parent)
         self.app_context = app_context
         self.account_controller = app_context.account_controller
@@ -59,6 +59,8 @@ class QTAccountDetailViewH(QWidget):
         self.current_account_id = account_id
         self.account: dict | None = None
         self.on_back = on_back
+        self.on_open_movement = on_open_movement
+        self._movements: list[dict] = []
 
         self._widgets: dict = {}
         # Stato admin: la gestione conti (modifica/eliminazione) e'
@@ -218,6 +220,8 @@ class QTAccountDetailViewH(QWidget):
     # ------------------------------------------------------------------
 
     def _build_movements_section(self, movements: list[dict]):
+        self._movements = movements
+
         frame = QFrame()
         frame.setObjectName("AccountMovementsFrame")
         frame.setStyleSheet(
@@ -234,15 +238,21 @@ class QTAccountDetailViewH(QWidget):
         title.setFont(tf)
         v.addWidget(title)
 
+        hint = QLabel("Doppio clic su una riga per aprire il dettaglio del movimento.")
+        hint.setStyleSheet("color: palette(mid); font-style: italic;")
+        v.addWidget(hint)
+
         table = QTableWidget()
         table.setColumnCount(4)
         table.setHorizontalHeaderLabels(["Data", "Descrizione", "Tipo", "Importo"])
         table.setRowCount(len(movements))
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        table.setSelectionMode(QAbstractItemView.NoSelection)
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SingleSelection)
         table.verticalHeader().setVisible(False)
         table.verticalHeader().setDefaultSectionSize(42)
         table.setAlternatingRowColors(True)
+        table.cellDoubleClicked.connect(self._on_movement_double_clicked)
         table.setStyleSheet(
             """
             QTableWidget {
@@ -294,6 +304,18 @@ class QTAccountDetailViewH(QWidget):
 
         self.content_layout.addWidget(frame, stretch=3)
 
+    def _on_movement_double_clicked(self, row: int, _col: int):
+        if self.on_open_movement is None:
+            return
+        if row < 0 or row >= len(self._movements):
+            return
+        mov = self._movements[row]
+        kind = mov.get("kind")
+        item_id = mov.get("id")
+        if not kind or item_id is None:
+            return
+        self.on_open_movement(kind, item_id, self.current_account_id)
+
     # ------------------------------------------------------------------
     # Caricamento conto
     # ------------------------------------------------------------------
@@ -332,6 +354,7 @@ class QTAccountDetailViewH(QWidget):
                 widget.setParent(None)
                 widget.deleteLater()
         self._widgets.clear()
+        self._movements = []
         self.modify_switch.blockSignals(True)
         self.modify_switch.setChecked(False)
         self.modify_switch.blockSignals(False)

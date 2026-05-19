@@ -20,7 +20,7 @@ from Event_bus import EventBus
 from Books_retriever import BooksRetriever
 from Book_closer import BookCloser
 from ConfigManagers import ConfigManager, FiscalSettings
-from ConfigManagers.warnings_visibility_manager import WarningsVisibilityManager
+from ConfigManagers.gui_preferences_manager import GuiPreferencesManager
 
 from AggregateTooltipServices.Invoices_aggregate_tooltip_builder import InvoicesAggregateTooltipBuilder
 from AggregateTooltipServices.Payments_aggregate_tooltip_builder import PaymentsAggregateTooltipBuilder
@@ -260,8 +260,12 @@ class AppContext:
                                  self.account_analyzer_service)
         self.catalogo_elenchi = catalogo_elenchi
         self.config_manager:ConfigManager = config_manager
-        self.warnings_visibility_manager: WarningsVisibilityManager = WarningsVisibilityManager()
-        self.warnings_visibility_manager.ensure_exists()
+        self.gui_preferences_manager: GuiPreferencesManager = GuiPreferencesManager()
+        self.gui_preferences_manager.ensure_exists()
+        # Alias di retrocompatibilita': consumer storici puntano ancora
+        # a ``warnings_visibility_manager``. Stessa istanza, nessuna
+        # divergenza di cache.
+        self.warnings_visibility_manager = self.gui_preferences_manager
 
         # Tooltip builder per le card aggregate delle list view. Vivono
         # fuori dalle view (MVC: la view legge dict[key, testo] e

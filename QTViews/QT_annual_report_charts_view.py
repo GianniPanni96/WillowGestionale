@@ -308,12 +308,27 @@ class QTAnnualReportChartsViewH(QWidget):
         title_lbl.setStyleSheet(f"color: {title_color};")
         v.addWidget(title_lbl)
 
+        current_year = datetime.today().year
+
         # Caso speciale del patrimonio: messaggio se anno != corrente.
-        if chart_title == "SEZIONE PATRIMONIO" and self.selected_year != datetime.today().year:
+        if chart_title == "SEZIONE PATRIMONIO" and self.selected_year != current_year:
             note = QLabel(
                 "La suddivisione del patrimonio tra i conti è visualizzabile "
                 "solo selezionando l'anno corrente, poiché rappresenta i saldi "
                 "attuali in tempo reale."
+            )
+            note.setWordWrap(True)
+            note.setAlignment(Qt.AlignCenter)
+            note.setStyleSheet(f"color: {SUBTLE_FG};")
+            v.addWidget(note, stretch=1)
+            return card
+
+        # Crediti vs incassato: snapshot istantaneo, non ha senso per anni passati.
+        if chart_title == "Crediti VS incassato" and self.selected_year != current_year:
+            note = QLabel(
+                "Il dato \"Crediti VS incassato\" rappresenta una fotografia "
+                "istantanea dei crediti aperti nell'esercizio corrente e non "
+                "è disponibile per anni precedenti."
             )
             note.setWordWrap(True)
             note.setAlignment(Qt.AlignCenter)

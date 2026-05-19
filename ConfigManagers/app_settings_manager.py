@@ -5,6 +5,13 @@ from ConfigManagers.defaults import APP_SETTINGS_DEFAULT, clone_default_config
 from ConfigManagers.type_utils import MISSING, coerce_like_existing_or_default
 
 
+# Fallback hard-coded: usato dal getter se il file di config esistente
+# (es. app gia' in produzione) non contiene ancora la sezione 'general'
+# o la chiave 'collective_name'. ``merge_with_defaults`` dovrebbe gia'
+# coprire questo caso, ma manteniamo il fallback come hardening.
+DEFAULT_COLLECTIVE_NAME = "Willow"
+
+
 class AppSettingsManager(BaseJsonConfigManager):
     file_name = "app_settings.json"
     default_data = APP_SETTINGS_DEFAULT
@@ -15,6 +22,39 @@ class AppSettingsManager(BaseJsonConfigManager):
             str(self.storage_root), "Backups"
         )
         return data
+
+    def get_collective_name(self) -> str:
+        """Nome del collettivo di partite IVA, mostrato nella UI.
+
+        Fa fallback a ``DEFAULT_COLLECTIVE_NAME`` se la sezione 'general'
+        o la chiave 'collective_name' non esistono o sono vuote (caso
+        delle installazioni in produzione il cui ``app_settings.json``
+        e' stato creato prima dell'introduzione di questo campo).
+        """
+        try:
+            data = self.load()
+        except Exception:
+            return DEFAULT_COLLECTIVE_NAME
+
+        general = data.get("general") if isinstance(data, dict) else None
+        if not isinstance(general, dict):
+            return DEFAULT_COLLECTIVE_NAME
+        node = general.get("collective_name")
+        if isinstance(node, dict):
+            value = node.get("value")
+        else:
+            value = node
+        if not isinstance(value, str) or not value.strip():
+            return DEFAULT_COLLECTIVE_NAME
+        return value.strip()
+
+    def set_collective_name(self, name: str):
+        """Aggiorna il nome del collettivo nel file di config.
+
+        Vuoto / None / soli spazi resettano al default ``Willow``.
+        """
+        cleaned = (name or "").strip() or DEFAULT_COLLECTIVE_NAME
+        self.update_section("general", {"collective_name": cleaned})
 
     def update_section(self, section_key: str, new_section_data: dict):
         try:

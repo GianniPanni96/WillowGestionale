@@ -351,6 +351,12 @@ class QTBaseListView(QWidget):
 
     DEFAULT_WINDOW_INDEX = 0
 
+    LIST_VIEW_KEY: str = None
+    """Chiave usata dalla sezione ``list_views`` di ``gui_preferences.json``
+    per persistere preferenze per-list-view (es. l'indice di
+    ``TIME_WINDOWS`` da preselezionare). Lasciato a ``None`` se la list
+    view non ha preferenze persistenti."""
+
     SEARCH_PLACEHOLDER = "Cerca in tutte le colonne…"
     ADD_BUTTON_TEXT = "Aggiungi un elemento"
     ITEM_LABEL_PLURAL = "elementi"
@@ -438,7 +444,7 @@ class QTBaseListView(QWidget):
 
         self._build_ui()
 
-        _, days = self.TIME_WINDOWS[self.DEFAULT_WINDOW_INDEX]
+        _, days = self.TIME_WINDOWS[self._initial_window_index()]
         self._reload_data(window_days=days)
 
         if initial_item_id is not None:
@@ -510,6 +516,26 @@ class QTBaseListView(QWidget):
             self._aggregate_cards[key] = card
         self.aggregates_bar.addStretch(1)
 
+    def _initial_window_index(self) -> int:
+        """Indice della time window da preselezionare all'apertura.
+        Legge la preferenza utente da ``gui_preferences.json`` quando la
+        sottoclasse dichiara ``LIST_VIEW_KEY``; in fallback usa
+        ``DEFAULT_WINDOW_INDEX``."""
+        fallback = self.DEFAULT_WINDOW_INDEX
+        key = self.LIST_VIEW_KEY
+        if not key:
+            return fallback
+        manager = getattr(self.app_context, "gui_preferences_manager", None)
+        if manager is None:
+            return fallback
+        try:
+            idx = manager.get_list_view_window_index(key, default=fallback)
+        except Exception:
+            return fallback
+        if not (0 <= idx < len(self.TIME_WINDOWS)):
+            return fallback
+        return idx
+
     def _build_controls_bar(self, root: QVBoxLayout):
         controls = QHBoxLayout()
         controls.setSpacing(8)
@@ -519,7 +545,7 @@ class QTBaseListView(QWidget):
         self.window_combo = QComboBox()
         for label, _ in self.TIME_WINDOWS:
             self.window_combo.addItem(label)
-        self.window_combo.setCurrentIndex(self.DEFAULT_WINDOW_INDEX)
+        self.window_combo.setCurrentIndex(self._initial_window_index())
         self.window_combo.currentIndexChanged.connect(self._on_window_changed)
         controls.addWidget(self.window_combo)
 

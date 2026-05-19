@@ -99,6 +99,19 @@ def _fmt_eur(value) -> str:
     return f"{s} €"
 
 
+def _localize_collective(text: str, name: str) -> str:
+    """Sostituisce le occorrenze hard-coded del nome storico 'Willow'
+    con il nome del collettivo configurato.
+
+    Solo per stringhe user-facing (label, tooltip): le chiavi interne
+    dei dict (es. ``"SALDO WILLOW"``, ``"WILLOW_IRPEF"``) NON devono
+    passare da qui, restano stabili come identificatori.
+    """
+    if not text:
+        return text
+    return text.replace("WILLOW", name.upper()).replace("Willow", name)
+
+
 class QTUserDetailViewH(QWidget):
     """QWidget dettaglio utente."""
 
@@ -129,6 +142,11 @@ class QTUserDetailViewH(QWidget):
         self._section_grids: dict = {}
         self._section_rows: dict = {}
         self._login_password_is_present: bool = False
+
+        # Nome del collettivo: usato per le label/tooltip che parlano del
+        # gruppo (es. "FATTURE <nome>", "IRPEF <nome>", "Quota proporzionale
+        # <nome>"). Fallback a "Willow" gia' gestito dal manager.
+        self._collective_name = app_context.config_manager.app_settings_manager.get_collective_name()
 
         # Login state (aggiornato via event bus).
         parent_window = parent
@@ -522,7 +540,7 @@ class QTUserDetailViewH(QWidget):
         # Header: titolo a sinistra, switch ancorato a destra con label
         # descrittiva subito prima dello switch.
         header_row = QHBoxLayout()
-        title_lbl = QLabel("FATTURE WILLOW")
+        title_lbl = QLabel(f"FATTURE {self._collective_name.upper()}")
         f = title_lbl.font()
         f.setBold(True)
         f.setPointSize(12)
@@ -541,7 +559,7 @@ class QTUserDetailViewH(QWidget):
 
         # Aggregate card con riferimento al label del valore per aggiornamenti.
         agg_card = self._make_aggregate_card(
-            "TOTALE FATTURATO WILLOW",
+            f"TOTALE FATTURATO {self._collective_name.upper()}",
             _fmt_eur(self.user_analyzer_service.calcola_tot_fatturato_utente(
                 self.current_user_id, year=None, include_unpaid_invoices=True,
             )),
@@ -792,12 +810,15 @@ class QTUserDetailViewH(QWidget):
         except Exception:
             tasse, versamenti, total = {}, {}, {}
 
-        # Card totali.
+        # Card totali. Il key originale (es. "IRPEF WILLOW") rimane chiave
+        # di lookup per i tooltip; la card visualizza la versione localizzata
+        # col nome del collettivo.
         section.layout().addWidget(self._make_subtitle("Totali"))
         totali_row = QHBoxLayout()
         totali_row.setSpacing(10)
         for k, v in tasse.items():
-            card = self._make_aggregate_card(k, _fmt_eur(v), header_color=self._tax_header_color(k))
+            display_k = _localize_collective(k, self._collective_name)
+            card = self._make_aggregate_card(display_k, _fmt_eur(v), header_color=self._tax_header_color(k))
             self._apply_tax_tooltip(card, k, total, regime_value, kind="totali")
             totali_row.addWidget(card, stretch=1)
         totali_row.addStretch(1)
@@ -808,7 +829,8 @@ class QTUserDetailViewH(QWidget):
         versam_row = QHBoxLayout()
         versam_row.setSpacing(10)
         for k, v in versamenti.items():
-            card = self._make_aggregate_card(k, _fmt_eur(v), header_color=self._tax_header_color(k))
+            display_k = _localize_collective(k, self._collective_name)
+            card = self._make_aggregate_card(display_k, _fmt_eur(v), header_color=self._tax_header_color(k))
             self._apply_tax_tooltip(card, k, total, regime_value, kind="versamenti")
             versam_row.addWidget(card, stretch=1)
         versam_row.addStretch(1)
@@ -834,6 +856,8 @@ class QTUserDetailViewH(QWidget):
             text = ""
         if not text:
             text = "Informazioni non disponibili"
+        else:
+            text = _localize_collective(text, self._collective_name)
         card_widget.setToolTip(text)
 
     @staticmethod

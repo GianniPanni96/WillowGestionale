@@ -31,6 +31,7 @@ class QTInvoicesViewH(QTBaseListView):
         #("TUTTE", None),
     )
     DEFAULT_WINDOW_INDEX = 0
+    LIST_VIEW_KEY = "invoices"
     ADD_BUTTON_TEXT = "Aggiungi una fattura"
     ITEM_LABEL_PLURAL = "fatture"
 

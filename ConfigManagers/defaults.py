@@ -2,6 +2,16 @@ from copy import deepcopy
 
 
 APP_SETTINGS_DEFAULT = {
+    "general": {
+        "collective_name": {
+            "value": "Willow",
+            "description": (
+                "Nome del collettivo di partite IVA, usato nell'interfaccia "
+                "per identificare il gruppo (es. 'Fatture <nome>', 'Tasse <nome>'). "
+                "Non modifica il nome del software, che resta 'Willow Gestionale'."
+            ),
+        },
+    },
     "backup_settings": {
         "backup_base_path": {
             "value": "Backups",
@@ -226,15 +236,13 @@ HISTORICAL_FINANCIAL_DATA_DEFAULT = {
 
 
 def build_warnings_visibility_default():
-    """Costruisce la struttura di default per ``warnings_visibility.json``.
+    """Costruisce la struttura di default per la sezione ``warnings``
+    di ``gui_preferences.json``.
 
     Itera sul catalogo dei warning (``WARNING_CATALOG``) e produce per
     ogni dominio una mappa ``type_key -> True`` solo per i warning di
     severity 2/3. I sev 1 NON compaiono nel file (sono sempre attivi e
     non disabilitabili)."""
-    # Import locale per evitare cicli: WarningServices/Warning_types non
-    # dipende da ConfigManagers, ma ConfigManagers/defaults conosce il
-    # nome del modulo.
     from WarningServices.Warning_types import WARNING_CATALOG, WarningSeverity
 
     data: dict = {}
@@ -242,11 +250,42 @@ def build_warnings_visibility_default():
         domain_data: dict = {}
         for type_key, severity, _label, _desc in items:
             if severity == WarningSeverity.CONSISTENCY:
-                # Sev 1: sempre attivo, non scrivibile.
                 continue
             domain_data[type_key] = True
         data[domain_key] = domain_data
     return data
+
+
+# Default per la sezione ``list_views`` di ``gui_preferences.json``.
+# Ogni chiave corrisponde all'attributo ``LIST_VIEW_KEY`` della relativa
+# list view; il valore ``window_index`` e' l'indice dentro
+# ``TIME_WINDOWS`` da preselezionare all'apertura della view.
+LIST_VIEWS_PREFERENCES_DEFAULT = {
+    "clients": {"window_index": 1},
+    "suppliers": {"window_index": 1},
+    "productions": {"window_index": 1},
+    "invoices": {"window_index": 0},
+    "payments": {"window_index": 1},
+    "refunds": {"window_index": 1},
+    "expenses": {"window_index": 1},
+    "salaries": {"window_index": 1},
+}
+
+
+# Tab di avvio di default. Deve corrispondere a una delle costanti
+# ``QTMainWindowH.TAB_*`` (il nome usato dal QTabWidget).
+DEFAULT_STARTUP_TAB = "Utenti"
+
+
+def build_gui_preferences_default():
+    """Costruisce la struttura di default per ``gui_preferences.json``."""
+    return {
+        "warnings": build_warnings_visibility_default(),
+        "list_views": clone_default_config(LIST_VIEWS_PREFERENCES_DEFAULT),
+        "general": {
+            "startup_tab": DEFAULT_STARTUP_TAB,
+        },
+    }
 
 
 def clone_default_config(default_config):

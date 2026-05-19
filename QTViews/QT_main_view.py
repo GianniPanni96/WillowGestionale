@@ -29,6 +29,7 @@ from QTViews.Details.QT_production_detail_view import QTProductionDetailViewH
 from QTViews.Details.QT_refund_detail_view import QTRefundDetailViewH
 from QTViews.Details.QT_salary_detail_view import QTSalaryDetailViewH
 from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
+from QTViews.Details.QT_transfer_detail_view import QTTransferDetailViewH
 from QTViews.Details.QT_user_detail_view import QTUserDetailViewH
 from QTViews.QT_accounts_view import QTAccountsViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
@@ -46,6 +47,11 @@ from QTViews.ListViews.QT_suppliers_view import QTSuppliersViewH
 from QTViews.ListViews.QT_users_view import QTUsersViewH
 from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
 from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
+from QTViews.MenuWindows.QT_collective_name_dialog import QTCollectiveNameDialog
+from QTViews.MenuWindows.QT_gui_preferences_dialog import (
+    QTListViewFiltersDialog,
+    QTStartupTabDialog,
+)
 from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
 from QTViews.MenuWindows.QT_fiscal_year_closer_dialog import QTFiscalYearCloserDialog
 from QTViews.MenuWindows.QT_warnings_settings_dialog import QTWarningsSettingsDialog
@@ -207,8 +213,7 @@ class QTMainWindow(QMainWindow):
         # questo subscribe i click rimangono inerti.
         self._subscribe_cross_domain_navigation()
 
-        if self.invoices_page is not None:
-            self.tabview.setCurrentWidget(self.invoices_page)
+        self._apply_startup_tab(initial_invoice_id)
 
     # ------------------------------------------------------------------
     # Setup
@@ -277,6 +282,15 @@ class QTMainWindow(QMainWindow):
         warnings_menu.addAction("Visibilità warnings").triggered.connect(
             self._open_warnings_settings
         )
+        warnings_menu.addAction("Nome del collettivo").triggered.connect(
+            self._open_collective_name_settings
+        )
+        warnings_menu.addAction("Tab di avvio").triggered.connect(
+            self._open_startup_tab_settings
+        )
+        warnings_menu.addAction("Filtri temporali liste").triggered.connect(
+            self._open_list_view_filters_settings
+        )
 
         self.admin_menu = menubar.addMenu("ADMIN")
         self.admin_menu.addAction("Log Accessi").triggered.connect(self._open_admin_audit_log)
@@ -286,6 +300,35 @@ class QTMainWindow(QMainWindow):
         page.setContentsMargins(0, 0, 0, 0)
         page.addWidget(list_view)
         return page
+
+    def _apply_startup_tab(self, initial_invoice_id):
+        """Imposta la tab di partenza. Se l'app e' stata avviata da un
+        link a una fattura specifica, quella ha priorita' sulla
+        preferenza utente (comportamento legacy)."""
+        if initial_invoice_id is not None and self.invoices_page is not None:
+            self.tabview.setCurrentWidget(self.invoices_page)
+            return
+
+        preferred_name = None
+        manager = getattr(self.app_context, "gui_preferences_manager", None)
+        if manager is not None:
+            try:
+                preferred_name = manager.get_startup_tab()
+            except Exception:
+                preferred_name = None
+
+        if preferred_name:
+            for idx in range(self.tabview.count()):
+                if self.tabview.tabText(idx) == preferred_name:
+                    self.tabview.setCurrentIndex(idx)
+                    return
+
+        # Fallback: Utenti, poi Fatture, infine prima tab disponibile.
+        if self.users_page is not None:
+            self.tabview.setCurrentWidget(self.users_page)
+            return
+        if self.invoices_page is not None:
+            self.tabview.setCurrentWidget(self.invoices_page)
 
     def _build_tabs(self, initial_invoice_id):
         for name in self._tab_names():
@@ -743,8 +786,57 @@ class QTMainWindow(QMainWindow):
             app_context=self.app_context,
             account_id=account_id,
             on_back=self._back_to_accounts_list,
+            on_open_movement=self._open_movement_from_account,
             parent=self,
         )
+        self._show_detail_view(self.accounts_page, "account_detail_view", detail_view)
+
+    def _open_movement_from_account(self, kind, item_id, account_id):
+        """Apre il dettaglio del movimento dalla tabella del dettaglio conto.
+        Il back rigenera la view di dettaglio del conto di partenza."""
+        on_back = lambda aid=account_id: self._open_account_detail(aid)
+
+        if kind == "payment":
+            detail_view = QTPaymentDetailViewH(
+                app_context=self.app_context,
+                payment_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        elif kind == "refund":
+            detail_view = QTRefundDetailViewH(
+                app_context=self.app_context,
+                refund_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        elif kind == "expense":
+            detail_view = QTExpenseDetailViewH(
+                app_context=self.app_context,
+                expense_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        elif kind == "salary":
+            detail_view = QTSalaryDetailViewH(
+                app_context=self.app_context,
+                salary_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        elif kind == "transfer":
+            detail_view = QTTransferDetailViewH(
+                app_context=self.app_context,
+                transfer_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        else:
+            return
+
+        if hasattr(detail_view, "back_button"):
+            detail_view.back_button.setText("Torna al conto")
+
         self._show_detail_view(self.accounts_page, "account_detail_view", detail_view)
 
     def _back_to_invoices_list(self):
@@ -845,6 +937,32 @@ class QTMainWindow(QMainWindow):
             # visibilita' (in genere il refresh manuale non e' necessario,
             # ma evitiamo all'utente di doverlo fare a mano).
             self._refresh_current_tab()
+
+    def _open_collective_name_settings(self):
+        dialog = QTCollectiveNameDialog(app_context=self.app_context, parent=self)
+        if dialog.exec() == QTCollectiveNameDialog.Accepted:
+            # Forza il refresh della tab corrente per propagare subito il
+            # nuovo nome alle label che lo leggono al build.
+            self._refresh_current_tab()
+
+    def _open_startup_tab_settings(self):
+        dialog = QTStartupTabDialog(app_context=self.app_context, parent=self)
+        if dialog.exec() == QTStartupTabDialog.Accepted:
+            QMessageBox.information(
+                self,
+                "Tab di avvio aggiornata",
+                "La nuova tab di avvio sara' applicata al prossimo riavvio dell'app.",
+            )
+
+    def _open_list_view_filters_settings(self):
+        dialog = QTListViewFiltersDialog(app_context=self.app_context, parent=self)
+        if dialog.exec() == QTListViewFiltersDialog.Accepted:
+            QMessageBox.information(
+                self,
+                "Filtri temporali aggiornati",
+                "I nuovi filtri saranno applicati alla prossima apertura "
+                "delle view interessate (o al riavvio dell'app).",
+            )
 
     def _switch_account(self):
         """Logout della sessione corrente + apertura login dialog utente.

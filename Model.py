@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import shutil
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from Utils.App_paths import get_runtime_paths
 from Gestionale_Enums import (
@@ -32,9 +33,27 @@ class DatabaseModel:
         """ Inizializza il percorso al database """
         self.db_path = db_path
 
+    @contextmanager
     def _connect(self):
-        """ Crea una nuova connessione al database """
-        return sqlite3.connect(self.db_path)
+        """Apre una connessione al database e la chiude sempre all'uscita.
+
+        Il context manager nativo di ``sqlite3.Connection`` esegue
+        commit/rollback all'uscita del ``with`` ma **non** chiude la
+        connection: il file handle resta aperto fino al successivo GC.
+        Su Windows questo impedisce a ``os.replace`` di sovrascrivere
+        ``gestionale.db`` durante l'import di un backup (errore
+        ``[WinError 5] Accesso negato``). Qui replichiamo la semantica
+        di auto-commit/rollback e aggiungiamo il ``close()`` mancante.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            yield conn
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     # Funzioni generali
     def delete_row(self, table_name, primary_key_column, primary_key_value):
@@ -1860,6 +1879,38 @@ class DatabaseModel:
             cursor = conn.cursor()
             cursor.execute(query, (account_id,))
             return cursor.fetchall()
+
+    def update_transfer(self, transfer_id, **kwargs):
+        """
+        Aggiorna i valori di un bonifico esistente nella tabella `transfers`.
+        I campi da aggiornare devono essere passati come keyword arguments.
+        """
+        valid_columns = {column.value for column in DBTransfersColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE transfers SET {set_clause} WHERE {DBTransfersColumns.ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (*update_fields.values(), transfer_id))
+            conn.commit()
+
+    def delete_transfer(self, transfer_id):
+        """Elimina un bonifico dato il suo ID. Restituisce True se ha cancellato una riga."""
+        query = f"DELETE FROM transfers WHERE {DBTransfersColumns.ID.value} = ?"
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (transfer_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione del bonifico: {e}")
+            return False
 
 
 

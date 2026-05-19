@@ -46,7 +46,7 @@ def _invalid_explanation(reason: str, missing: list) -> str:
             "che utilizzava un unico file di configurazione (app_config.json).\n\n"
             "La struttura dei file di configurazione e' stata suddivisa in piu' file "
             "(app_settings, catalogs, fiscal_rules, historical_financial_data, "
-            "recurring_expenses, warnings_visibility) e questo backup non e' piu' "
+            "recurring_expenses, gui_preferences) e questo backup non e' piu' "
             "compatibile.\n\n"
             "Per questo motivo non puo' essere importato."
         )

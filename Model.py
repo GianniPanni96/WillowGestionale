@@ -1880,6 +1880,38 @@ class DatabaseModel:
             cursor.execute(query, (account_id,))
             return cursor.fetchall()
 
+    def update_transfer(self, transfer_id, **kwargs):
+        """
+        Aggiorna i valori di un bonifico esistente nella tabella `transfers`.
+        I campi da aggiornare devono essere passati come keyword arguments.
+        """
+        valid_columns = {column.value for column in DBTransfersColumns}
+        update_fields = {key: value for key, value in kwargs.items() if key in valid_columns}
+
+        if not update_fields:
+            raise ValueError("Nessun campo valido specificato per l'aggiornamento.")
+
+        set_clause = ", ".join([f"{field} = ?" for field in update_fields.keys()])
+        query = f"UPDATE transfers SET {set_clause} WHERE {DBTransfersColumns.ID.value} = ?"
+
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, (*update_fields.values(), transfer_id))
+            conn.commit()
+
+    def delete_transfer(self, transfer_id):
+        """Elimina un bonifico dato il suo ID. Restituisce True se ha cancellato una riga."""
+        query = f"DELETE FROM transfers WHERE {DBTransfersColumns.ID.value} = ?"
+        try:
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, (transfer_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            print(f"Errore durante l'eliminazione del bonifico: {e}")
+            return False
+
 
 
 

@@ -73,6 +73,8 @@ class AccountAnalyzerService:
         filtered_payments = [p for p in payments if p[DBPaymentsColumns.CONTO_ID.value] == account_id]
         for payment in filtered_payments:
             movements.append({
+                "id": payment[DBPaymentsColumns.ID.value],
+                "kind": "payment",
                 "name": payment[DBPaymentsColumns.PAYMENT_NAME.value],
                 "date": payment[DBPaymentsColumns.PAYMENT_DATE.value],
                 "amount": float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value]),
@@ -85,6 +87,8 @@ class AccountAnalyzerService:
         filtered_refunds = [r for r in refunds if r[DBRefundsColumns.CONTO_ID.value] == account_id]
         for refund in filtered_refunds:
             movements.append({
+                "id": refund[DBRefundsColumns.ID.value],
+                "kind": "refund",
                 "name": refund[DBRefundsColumns.REFUND_NAME.value],
                 "date": refund[DBRefundsColumns.REFUND_DATE.value],
                 "amount": float(refund[DBRefundsColumns.REFUND_AMOUNT.value]),
@@ -97,6 +101,8 @@ class AccountAnalyzerService:
         filtered_expenses = [e for e in expenses if e[DBExpensesColumns.ACCOUNT_ID.value] == account_id]
         for expense in filtered_expenses:
             movements.append({
+                "id": expense[DBExpensesColumns.ID.value],
+                "kind": "expense",
                 "name": expense[DBExpensesColumns.NAME.value],
                 "date": expense[DBExpensesColumns.DATE.value],
                 "amount": float(expense[DBExpensesColumns.TOT_AMOUNT.value]),
@@ -109,6 +115,8 @@ class AccountAnalyzerService:
         filtered_salaries = [s for s in salaries if s[DBSalariesColumns.ACCOUNT_ID.value] == account_id]
         for salary in filtered_salaries:
             movements.append({
+                "id": salary[DBSalariesColumns.ID.value],
+                "kind": "salary",
                 "name": salary[DBSalariesColumns.NAME.value],
                 "date": salary[DBSalariesColumns.DATE.value],
                 "amount": float(salary[DBSalariesColumns.AMOUNT.value]),
@@ -123,6 +131,8 @@ class AccountAnalyzerService:
         incoming_transfers = [t for t in transfers if t[DBTransfersColumns.RECEIVER_ACCOUNT_ID.value] == account_id]
         for transfer in incoming_transfers:
             movements.append({
+                "id": transfer[DBTransfersColumns.ID.value],
+                "kind": "transfer",
                 "name": f"{transfer[DBTransfersColumns.DESCRIPTION.value]}",
                 "date": transfer[DBTransfersColumns.CREATED_AT.value].split(" ")[0],
                 "amount": float(transfer[DBTransfersColumns.AMOUNT.value]),
@@ -134,6 +144,8 @@ class AccountAnalyzerService:
         outgoing_transfers = [t for t in transfers if t[DBTransfersColumns.SENDER_ACCOUNT_ID.value] == account_id]
         for transfer in outgoing_transfers:
             movements.append({
+                "id": transfer[DBTransfersColumns.ID.value],
+                "kind": "transfer",
                 "name": f"{transfer[DBTransfersColumns.DESCRIPTION.value]}",
                 "date": transfer[DBTransfersColumns.CREATED_AT.value].split(" ")[0],
                 "amount": float(transfer[DBTransfersColumns.AMOUNT.value]),

@@ -29,6 +29,7 @@ from QTViews.Details.QT_production_detail_view import QTProductionDetailViewH
 from QTViews.Details.QT_refund_detail_view import QTRefundDetailViewH
 from QTViews.Details.QT_salary_detail_view import QTSalaryDetailViewH
 from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
+from QTViews.Details.QT_transfer_detail_view import QTTransferDetailViewH
 from QTViews.Details.QT_user_detail_view import QTUserDetailViewH
 from QTViews.QT_accounts_view import QTAccountsViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
@@ -747,8 +748,57 @@ class QTMainWindow(QMainWindow):
             app_context=self.app_context,
             account_id=account_id,
             on_back=self._back_to_accounts_list,
+            on_open_movement=self._open_movement_from_account,
             parent=self,
         )
+        self._show_detail_view(self.accounts_page, "account_detail_view", detail_view)
+
+    def _open_movement_from_account(self, kind, item_id, account_id):
+        """Apre il dettaglio del movimento dalla tabella del dettaglio conto.
+        Il back rigenera la view di dettaglio del conto di partenza."""
+        on_back = lambda aid=account_id: self._open_account_detail(aid)
+
+        if kind == "payment":
+            detail_view = QTPaymentDetailViewH(
+                app_context=self.app_context,
+                payment_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        elif kind == "refund":
+            detail_view = QTRefundDetailViewH(
+                app_context=self.app_context,
+                refund_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        elif kind == "expense":
+            detail_view = QTExpenseDetailViewH(
+                app_context=self.app_context,
+                expense_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        elif kind == "salary":
+            detail_view = QTSalaryDetailViewH(
+                app_context=self.app_context,
+                salary_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        elif kind == "transfer":
+            detail_view = QTTransferDetailViewH(
+                app_context=self.app_context,
+                transfer_id=item_id,
+                on_back=on_back,
+                parent=self,
+            )
+        else:
+            return
+
+        if hasattr(detail_view, "back_button"):
+            detail_view.back_button.setText("Torna al conto")
+
         self._show_detail_view(self.accounts_page, "account_detail_view", detail_view)
 
     def _back_to_invoices_list(self):

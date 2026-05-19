@@ -39,6 +39,7 @@ class QTExpensesViewH(QTBaseListView):
         ("365 GG", 365),
     )
     DEFAULT_WINDOW_INDEX = 1  # 60 GG, come la legacy
+    LIST_VIEW_KEY = "expenses"
     ADD_BUTTON_TEXT = "Aggiungi una spesa"
     ITEM_LABEL_PLURAL = "spese"
     SEARCH_PLACEHOLDER = "Cerca in tutte le colonne…"

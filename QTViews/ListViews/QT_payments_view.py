@@ -39,6 +39,7 @@ class QTPaymentsViewH(QTBaseListView):
         ("365 GG", 365),
     )
     DEFAULT_WINDOW_INDEX = 1  # 60 GG, come la legacy
+    LIST_VIEW_KEY = "payments"
     ADD_BUTTON_TEXT = "Aggiungi un pagamento"
     ITEM_LABEL_PLURAL = "pagamenti"
     SEARCH_PLACEHOLDER = "Cerca in tutte le colonne…"

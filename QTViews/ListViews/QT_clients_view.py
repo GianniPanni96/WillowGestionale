@@ -39,6 +39,7 @@ class QTClientsViewH(QTBaseListView):
         ("365 GG", 365),
     )
     DEFAULT_WINDOW_INDEX = 1  # 60 GG, come la legacy
+    LIST_VIEW_KEY = "clients"
     ADD_BUTTON_TEXT = "Aggiungi un cliente"
     ITEM_LABEL_PLURAL = "clienti"
     SEARCH_PLACEHOLDER = "Cerca in tutte le colonne…"

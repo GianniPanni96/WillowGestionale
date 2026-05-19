@@ -59,14 +59,14 @@ class QTWarningsSettingsDialog(QDialog):
     def __init__(self, app_context: "AppContext", parent=None):
         super().__init__(parent)
         self.app_context = app_context
-        self.manager = app_context.warnings_visibility_manager
+        self.manager = app_context.gui_preferences_manager
 
         self.setWindowTitle("Gestione Warnings")
         self.resize(720, 720)
         self.setModal(True)
 
         # Stato corrente (copia mutabile) — verra' salvato su OK.
-        self._state = self.manager.snapshot()
+        self._state = self.manager.warnings_snapshot()
 
         # Map (domain, type_key) -> QCheckBox per leggere lo stato finale.
         self._checkboxes: dict = {}
@@ -264,5 +264,5 @@ class QTWarningsSettingsDialog(QDialog):
                 domain_data[type_key] = bool(checkbox.isChecked()) if checkbox else True
             new_state[domain_key] = domain_data
 
-        self.manager.replace_all(new_state)
+        self.manager.replace_warnings(new_state)
         self.accept()

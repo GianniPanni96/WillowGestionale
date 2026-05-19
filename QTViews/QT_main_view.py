@@ -48,6 +48,10 @@ from QTViews.ListViews.QT_users_view import QTUsersViewH
 from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
 from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
 from QTViews.MenuWindows.QT_collective_name_dialog import QTCollectiveNameDialog
+from QTViews.MenuWindows.QT_gui_preferences_dialog import (
+    QTListViewFiltersDialog,
+    QTStartupTabDialog,
+)
 from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
 from QTViews.MenuWindows.QT_fiscal_year_closer_dialog import QTFiscalYearCloserDialog
 from QTViews.MenuWindows.QT_warnings_settings_dialog import QTWarningsSettingsDialog
@@ -209,8 +213,7 @@ class QTMainWindow(QMainWindow):
         # questo subscribe i click rimangono inerti.
         self._subscribe_cross_domain_navigation()
 
-        if self.invoices_page is not None:
-            self.tabview.setCurrentWidget(self.invoices_page)
+        self._apply_startup_tab(initial_invoice_id)
 
     # ------------------------------------------------------------------
     # Setup
@@ -282,6 +285,12 @@ class QTMainWindow(QMainWindow):
         warnings_menu.addAction("Nome del collettivo").triggered.connect(
             self._open_collective_name_settings
         )
+        warnings_menu.addAction("Tab di avvio").triggered.connect(
+            self._open_startup_tab_settings
+        )
+        warnings_menu.addAction("Filtri temporali liste").triggered.connect(
+            self._open_list_view_filters_settings
+        )
 
         self.admin_menu = menubar.addMenu("ADMIN")
         self.admin_menu.addAction("Log Accessi").triggered.connect(self._open_admin_audit_log)
@@ -291,6 +300,35 @@ class QTMainWindow(QMainWindow):
         page.setContentsMargins(0, 0, 0, 0)
         page.addWidget(list_view)
         return page
+
+    def _apply_startup_tab(self, initial_invoice_id):
+        """Imposta la tab di partenza. Se l'app e' stata avviata da un
+        link a una fattura specifica, quella ha priorita' sulla
+        preferenza utente (comportamento legacy)."""
+        if initial_invoice_id is not None and self.invoices_page is not None:
+            self.tabview.setCurrentWidget(self.invoices_page)
+            return
+
+        preferred_name = None
+        manager = getattr(self.app_context, "gui_preferences_manager", None)
+        if manager is not None:
+            try:
+                preferred_name = manager.get_startup_tab()
+            except Exception:
+                preferred_name = None
+
+        if preferred_name:
+            for idx in range(self.tabview.count()):
+                if self.tabview.tabText(idx) == preferred_name:
+                    self.tabview.setCurrentIndex(idx)
+                    return
+
+        # Fallback: Utenti, poi Fatture, infine prima tab disponibile.
+        if self.users_page is not None:
+            self.tabview.setCurrentWidget(self.users_page)
+            return
+        if self.invoices_page is not None:
+            self.tabview.setCurrentWidget(self.invoices_page)
 
     def _build_tabs(self, initial_invoice_id):
         for name in self._tab_names():
@@ -906,6 +944,25 @@ class QTMainWindow(QMainWindow):
             # Forza il refresh della tab corrente per propagare subito il
             # nuovo nome alle label che lo leggono al build.
             self._refresh_current_tab()
+
+    def _open_startup_tab_settings(self):
+        dialog = QTStartupTabDialog(app_context=self.app_context, parent=self)
+        if dialog.exec() == QTStartupTabDialog.Accepted:
+            QMessageBox.information(
+                self,
+                "Tab di avvio aggiornata",
+                "La nuova tab di avvio sara' applicata al prossimo riavvio dell'app.",
+            )
+
+    def _open_list_view_filters_settings(self):
+        dialog = QTListViewFiltersDialog(app_context=self.app_context, parent=self)
+        if dialog.exec() == QTListViewFiltersDialog.Accepted:
+            QMessageBox.information(
+                self,
+                "Filtri temporali aggiornati",
+                "I nuovi filtri saranno applicati alla prossima apertura "
+                "delle view interessate (o al riavvio dell'app).",
+            )
 
     def _switch_account(self):
         """Logout della sessione corrente + apertura login dialog utente.

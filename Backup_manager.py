@@ -12,14 +12,14 @@ LEGACY_CONFIG_FILENAME = "app_config.json"
 
 # JSON di configurazione da includere in ogni backup. Mirror della suddivisione
 # applicata da fix_db/migrate_legacy_app_config_to_split_jsons.py, piu'
-# warnings_visibility.json (gestito separatamente da WarningsVisibilityManager).
+# gui_preferences.json (gestito separatamente da GuiPreferencesManager).
 CONFIG_BACKUP_FILES: Tuple[str, ...] = (
     "app_settings.json",
     "catalogs.json",
     "fiscal_rules.json",
     "historical_financial_data.json",
     "recurring_expenses.json",
-    "warnings_visibility.json",
+    "gui_preferences.json",
 )
 
 
@@ -250,7 +250,7 @@ class BackupImporter:
       - gestionale.db
       - tutti i file in CONFIG_BACKUP_FILES (app_settings.json, catalogs.json,
         fiscal_rules.json, historical_financial_data.json,
-        recurring_expenses.json, warnings_visibility.json).
+        recurring_expenses.json, gui_preferences.json).
 
     I backup creati da versioni precedenti dell'app (con un unico
     ``app_config.json`` o senza i file split) sono identificabili tramite

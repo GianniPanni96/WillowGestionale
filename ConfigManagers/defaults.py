@@ -2,6 +2,16 @@ from copy import deepcopy
 
 
 APP_SETTINGS_DEFAULT = {
+    "general": {
+        "collective_name": {
+            "value": "Willow",
+            "description": (
+                "Nome del collettivo di partite IVA, usato nell'interfaccia "
+                "per identificare il gruppo (es. 'Fatture <nome>', 'Tasse <nome>'). "
+                "Non modifica il nome del software, che resta 'Willow Gestionale'."
+            ),
+        },
+    },
     "backup_settings": {
         "backup_base_path": {
             "value": "Backups",

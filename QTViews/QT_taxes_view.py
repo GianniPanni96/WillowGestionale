@@ -65,6 +65,11 @@ class QTTaxesViewH(QWidget):
 
         self._show_current_year: bool = True
 
+        # Nome del collettivo (con fallback a "Willow") letto al build per
+        # essere riportato nelle label/title della vista. Il refresh forza
+        # una nuova load() — vedi ``refresh``.
+        self._collective_name = app_context.config_manager.app_settings_manager.get_collective_name()
+
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -81,7 +86,7 @@ class QTTaxesViewH(QWidget):
         c_layout = QHBoxLayout(controls)
         c_layout.setContentsMargins(20, 16, 20, 8)
 
-        title = QLabel("Previsione Tasse Willow")
+        title = QLabel(f"Previsione Tasse {self._collective_name}")
         tf = title.font()
         tf.setPointSize(15)
         tf.setBold(True)
@@ -207,7 +212,7 @@ class QTTaxesViewH(QWidget):
 
         # Titolo della sezione.
         section_title = QLabel(
-            f"Previsione Tasse Willow - Panoramica Generale {display_year}"
+            f"Previsione Tasse {self._collective_name} - Panoramica Generale {display_year}"
         )
         stf = section_title.font()
         stf.setPointSize(15)
@@ -229,8 +234,8 @@ class QTTaxesViewH(QWidget):
                 tasse_data,
                 headers=[
                     "Utente",
-                    f"Saldo Willow - {display_year} (€)",
-                    f"Acconto Willow - {next_year} (€)",
+                    f"Saldo {self._collective_name} - {display_year} (€)",
+                    f"Acconto {self._collective_name} - {next_year} (€)",
                 ],
                 value_keys=["SALDO WILLOW", "ACCONTO WILLOW"],
             )
@@ -246,7 +251,7 @@ class QTTaxesViewH(QWidget):
         self.content_layout.addWidget(
             self._make_table(
                 tasse_data,
-                headers=["Utente", "IRPEF Willow (€)", "INPS Willow (€)"],
+                headers=["Utente", f"IRPEF {self._collective_name} (€)", f"INPS {self._collective_name} (€)"],
                 value_keys=["IRPEF WILLOW", "INPS WILLOW"],
             )
         )
@@ -396,4 +401,9 @@ class QTTaxesViewH(QWidget):
     # ------------------------------------------------------------------
 
     def refresh(self):
+        # Ricarica il nome del collettivo in caso sia stato modificato
+        # dal menu GUI prima di ripopolare la vista.
+        self._collective_name = (
+            self.app_context.config_manager.app_settings_manager.get_collective_name()
+        )
         self._populate()

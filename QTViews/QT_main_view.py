@@ -46,6 +46,7 @@ from QTViews.ListViews.QT_suppliers_view import QTSuppliersViewH
 from QTViews.ListViews.QT_users_view import QTUsersViewH
 from QTViews.MenuWindows.QT_backup_runner import QTBackupRunner
 from QTViews.MenuWindows.QT_backup_settings_dialog import QTBackupSettingsDialog
+from QTViews.MenuWindows.QT_collective_name_dialog import QTCollectiveNameDialog
 from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
 from QTViews.MenuWindows.QT_fiscal_year_closer_dialog import QTFiscalYearCloserDialog
 from QTViews.MenuWindows.QT_warnings_settings_dialog import QTWarningsSettingsDialog
@@ -276,6 +277,9 @@ class QTMainWindow(QMainWindow):
         warnings_menu = menubar.addMenu("GUI")
         warnings_menu.addAction("Visibilità warnings").triggered.connect(
             self._open_warnings_settings
+        )
+        warnings_menu.addAction("Nome del collettivo").triggered.connect(
+            self._open_collective_name_settings
         )
 
         self.admin_menu = menubar.addMenu("ADMIN")
@@ -844,6 +848,13 @@ class QTMainWindow(QMainWindow):
             # Ricarica la tab corrente per riflettere le nuove regole di
             # visibilita' (in genere il refresh manuale non e' necessario,
             # ma evitiamo all'utente di doverlo fare a mano).
+            self._refresh_current_tab()
+
+    def _open_collective_name_settings(self):
+        dialog = QTCollectiveNameDialog(app_context=self.app_context, parent=self)
+        if dialog.exec() == QTCollectiveNameDialog.Accepted:
+            # Forza il refresh della tab corrente per propagare subito il
+            # nuovo nome alle label che lo leggono al build.
             self._refresh_current_tab()
 
     def _switch_account(self):

@@ -7,6 +7,28 @@ from ConfigManagers.type_utils import coerce_to_int
 from Utils.App_paths import get_runtime_paths
 
 
+DB_FILENAME = "gestionale.db"
+LEGACY_CONFIG_FILENAME = "app_config.json"
+
+# JSON di configurazione da includere in ogni backup. Mirror della suddivisione
+# applicata da fix_db/migrate_legacy_app_config_to_split_jsons.py, piu'
+# warnings_visibility.json (gestito separatamente da WarningsVisibilityManager).
+CONFIG_BACKUP_FILES: Tuple[str, ...] = (
+    "app_settings.json",
+    "catalogs.json",
+    "fiscal_rules.json",
+    "historical_financial_data.json",
+    "recurring_expenses.json",
+    "warnings_visibility.json",
+)
+
+
+# Motivi di non-importabilita' per un backup. Vengono mappati a un messaggio
+# user-facing dalla dialog di import.
+INVALID_REASON_LEGACY = "legacy"
+INVALID_REASON_INCOMPLETE = "incomplete"
+INVALID_REASON_MISSING = "missing"
+
 
 class BackupScheduler:
     def __init__(self, interval_minutes, max_backups, db_backup_base_path, delta_days, books_backup_path, books_default_path):
@@ -112,11 +134,17 @@ class BackupScheduler:
             print(f"Errore: Il file {db_file} non esiste.")
             return
 
-        # Verifica che il file di app settings esista
-        app_settings_file = str(runtime_paths.app_settings_file)
-        if not os.path.exists(app_settings_file):
-            print(f"Errore: Il file {app_settings_file} non esiste.")
-            return
+        # Raccoglie tutti i file di configurazione split. Il backup deve essere
+        # completo: se uno manca, abortiamo per evitare di scrivere backup
+        # parziali che poi non risulterebbero importabili.
+        storage_root = runtime_paths.storage_root
+        config_sources: Dict[str, str] = {}
+        for name in CONFIG_BACKUP_FILES:
+            src = str(storage_root / name)
+            if not os.path.exists(src):
+                print(f"Errore: il file di configurazione {src} non esiste. Backup annullato.")
+                return
+            config_sources[name] = src
 
         # Determina l'intervallo di tempo corrente e il nome della sottocartella
         now = datetime.now()
@@ -127,19 +155,18 @@ class BackupScheduler:
         # Verifica o crea la cartella per l'intervallo corrente
         os.makedirs(interval_folder, exist_ok=True)
 
-        # Crea la sottocartella contenente bk del db e del file di config
+        # Crea la sottocartella contenente bk del db e dei file di config
         sub_folder = os.path.join(interval_folder, f"gestionale_data_{now.strftime('%Y%m%d_%H%M%S')}")
         os.makedirs(sub_folder, exist_ok=True)
 
-        # Crea il nome del file di backup basato sulla data e ora correnti
-        db_backup_filename = "gestionale.db"
-        config_backup_filename = "app_settings.json"
-        db_backup_filepath = os.path.join(sub_folder, db_backup_filename)
-        config_backup_filepath = os.path.join(sub_folder, config_backup_filename)
-
-        # Copia il database nella cartella dell'intervallo corrente
+        # Copia il database e tutti i file di configurazione split
+        db_backup_filepath = os.path.join(sub_folder, DB_FILENAME)
         shutil.copy2(db_file, db_backup_filepath)
-        shutil.copy2(app_settings_file, config_backup_filepath)
+        copied_files: List[str] = [db_backup_filepath]
+        for name, src in config_sources.items():
+            dst = os.path.join(sub_folder, name)
+            shutil.copy2(src, dst)
+            copied_files.append(dst)
 
         # Gestione della rotazione dei backup
         if os.path.exists(interval_folder):
@@ -160,7 +187,7 @@ class BackupScheduler:
                 except Exception as e:
                     print(f"Errore nella rimozione di {oldest_subfolder_path}: {e}")
 
-        print(f"Backup creato: {db_backup_filepath}, {config_backup_filepath}")
+        print(f"Backup creato in {sub_folder}: {', '.join(os.path.basename(f) for f in copied_files)}")
 
     def backup_gestionale_books(self, books_backup_path=None):
         """
@@ -219,12 +246,21 @@ class BackupImporter:
     Manages listing and importing backups stored under:
       db_backup_base_path/<interval_folder>/<subfolder_with_timestamp>/
 
-    Each subfolder is expected to contain:
+    Ogni subfolder importabile deve contenere:
       - gestionale.db
-      - app_setttings.json
+      - tutti i file in CONFIG_BACKUP_FILES (app_settings.json, catalogs.json,
+        fiscal_rules.json, historical_financial_data.json,
+        recurring_expenses.json, warnings_visibility.json).
+
+    I backup creati da versioni precedenti dell'app (con un unico
+    ``app_config.json`` o senza i file split) sono identificabili tramite
+    ``validate_backup`` e vengono mostrati in UI ma non sono importabili,
+    perche' la struttura dei config files non e' piu' compatibile.
 
     API principali:
-      - list_backups_for_year(year) -> List[dict] (each dict contiene 'path', 'datetime', 'display')
+      - list_backups_for_year(year) -> List[dict] (each dict contiene
+        'path', 'datetime', 'display', 'valid', 'reason', 'missing')
+      - validate_backup(subfolder) -> dict {valid, reason, missing}
       - import_backup(subfolder_path) -> (success: bool, message: str)
     """
 
@@ -282,6 +318,10 @@ class BackupImporter:
             - 'path': percorso assoluto della sottocartella del backup
             - 'datetime': datetime oggetto (se ricavato), altrimenti la ctime come fallback
             - 'display': stringa leggibile per mostrare in UI
+            - 'valid': True se il backup contiene tutti i file richiesti
+            - 'reason': None se valid, altrimenti uno tra
+              INVALID_REASON_LEGACY / INVALID_REASON_INCOMPLETE / INVALID_REASON_MISSING
+            - 'missing': lista dei file mancanti (vuota se valid)
         Ordinati dal più recente al più vecchio.
         """
         candidates = self._collect_all_subfolders()
@@ -300,11 +340,47 @@ class BackupImporter:
 
             if dt.year == year:
                 display = dt.strftime("%Y-%m-%d %H:%M:%S") + " — " + os.path.relpath(p, self.db_backup_base_path)
-                found.append({"path": p, "datetime": dt, "display": display})
+                validation = self.validate_backup(p)
+                found.append({
+                    "path": p,
+                    "datetime": dt,
+                    "display": display,
+                    "valid": validation["valid"],
+                    "reason": validation["reason"],
+                    "missing": validation["missing"],
+                })
 
         # Ordina dal più recente al più vecchio
         found.sort(key=lambda x: x["datetime"], reverse=True)
         return found
+
+    # --- Validation ------------------------------------------------------
+    def validate_backup(self, subfolder_path: str) -> Dict:
+        """
+        Verifica se ``subfolder_path`` contiene tutti i file richiesti dal
+        nuovo schema (db + split config JSON).
+
+        Restituisce ``{"valid": bool, "reason": str|None, "missing": list}``.
+
+        Reason values quando ``valid`` e' False:
+          - INVALID_REASON_LEGACY: backup creato dalla vecchia versione con
+            ``app_config.json`` monolitico (i config sono stati smembrati in
+            file separati e la struttura non e' piu' compatibile).
+          - INVALID_REASON_INCOMPLETE: alcuni file split sono presenti ma
+            non tutti (backup parziale o corrotto).
+          - INVALID_REASON_MISSING: percorso non esiste o non e' una cartella.
+        """
+        if not subfolder_path or not os.path.isdir(subfolder_path):
+            return {"valid": False, "reason": INVALID_REASON_MISSING, "missing": []}
+
+        required = (DB_FILENAME,) + CONFIG_BACKUP_FILES
+        missing = [f for f in required if not os.path.exists(os.path.join(subfolder_path, f))]
+        if not missing:
+            return {"valid": True, "reason": None, "missing": []}
+
+        has_legacy_config = os.path.exists(os.path.join(subfolder_path, LEGACY_CONFIG_FILENAME))
+        reason = INVALID_REASON_LEGACY if has_legacy_config else INVALID_REASON_INCOMPLETE
+        return {"valid": False, "reason": reason, "missing": missing}
 
     # --- Import helper ---------------------------------------------------
     def _destination_folder(self) -> Optional[str]:
@@ -321,24 +397,33 @@ class BackupImporter:
 
     def import_backup(self, subfolder_path: str) -> Tuple[bool, str]:
         """
-        Copia i file gestionale.db e app_settings.json da subfolder_path -> destinazione.
-        L'operazione va a buon fine SOLO SE entrambi i file esistono nel subfolder.
+        Copia il database e tutti i file di configurazione split da
+        ``subfolder_path`` verso la destinazione (cartella del gestionale).
+
+        L'operazione e' atomica best-effort: tutti i file vengono copiati su
+        file temporanei nella stessa cartella di destinazione, e solo se TUTTE
+        le copie hanno successo viene eseguita la sequenza di
+        ``os.replace`` finale. In caso di errore i ``.tmp`` vengono ripuliti
+        e i file gia' presenti restano intatti.
+
         Ritorna (True, "messaggio") oppure (False, "messaggio di errore").
         """
+        tmp_paths: List[Tuple[str, str]] = []
         try:
-            if not subfolder_path or not os.path.isdir(subfolder_path):
-                return False, "Backup selezionato non trovato o non è una cartella."
-
-            db_file = os.path.join(subfolder_path, "gestionale.db")
-            config_file = os.path.join(subfolder_path, "app_settings.json")
-
-            if not os.path.exists(db_file) or not os.path.exists(config_file):
-                missing = []
-                if not os.path.exists(db_file):
-                    missing.append("gestionale.db")
-                if not os.path.exists(config_file):
-                    missing.append("app_settings.json")
-                return False, f"Backup incompleto: mancano i file: {', '.join(missing)}"
+            validation = self.validate_backup(subfolder_path)
+            if not validation["valid"]:
+                reason = validation["reason"]
+                if reason == INVALID_REASON_LEGACY:
+                    return False, (
+                        "Backup non importabile: appartiene a una versione precedente "
+                        "dell'applicazione che utilizzava un singolo file di configurazione "
+                        "(app_config.json). La struttura dei file di configurazione e' "
+                        "cambiata e questo backup non e' piu' compatibile."
+                    )
+                if reason == INVALID_REASON_INCOMPLETE:
+                    missing = ", ".join(validation["missing"])
+                    return False, f"Backup incompleto: mancano i file: {missing}"
+                return False, "Backup selezionato non trovato o non e' una cartella valida."
 
             dest_folder = self._destination_folder()
             if not dest_folder:
@@ -346,23 +431,30 @@ class BackupImporter:
 
             os.makedirs(dest_folder, exist_ok=True)
 
-            dest_db = os.path.join(dest_folder, "gestionale.db")
-            dest_config = os.path.join(dest_folder, "app_settings.json")
+            items_to_copy: Tuple[str, ...] = (DB_FILENAME,) + CONFIG_BACKUP_FILES
 
-            # Copia atomica best-effort:
-            # 1) copia su file temporanei nella stessa cartella di destinazione
-            # 2) rinomina/replaces per minimizzare rischi di file parziali
-            tmp_db = dest_db + ".tmp"
-            tmp_cfg = dest_config + ".tmp"
+            # 1) Copia su file temporanei
+            for name in items_to_copy:
+                src = os.path.join(subfolder_path, name)
+                dst = os.path.join(dest_folder, name)
+                tmp = dst + ".tmp"
+                shutil.copy2(src, tmp)
+                tmp_paths.append((tmp, dst))
 
-            shutil.copy2(db_file, tmp_db)
-            shutil.copy2(config_file, tmp_cfg)
+            # 2) Sostituzioni atomiche (su Windows os.replace sovrascrive)
+            for tmp, dst in tmp_paths:
+                os.replace(tmp, dst)
 
-            # poi replace finali (su Windows os.replace sovrascrive)
-            os.replace(tmp_db, dest_db)
-            os.replace(tmp_cfg, dest_config)
-
-            return True, f"Import completato: {os.path.basename(dest_db)} e {os.path.basename(dest_config)} aggiornati in {dest_folder}"
+            return True, (
+                f"Import completato: {len(items_to_copy)} file aggiornati in {dest_folder}"
+            )
         except Exception as e:
+            # Cleanup dei file temporanei in caso di errore
+            for tmp, _ in tmp_paths:
+                try:
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
+                except Exception:
+                    pass
             return False, f"Errore durante l'import: {e}"
 

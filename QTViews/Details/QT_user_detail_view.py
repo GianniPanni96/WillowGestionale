@@ -516,8 +516,7 @@ class QTUserDetailViewH(QWidget):
 
         list_widget = QScrollArea()
         list_widget.setWidgetResizable(True)
-        list_widget.setMinimumHeight(DOMAIN_LINKS_LIST_HEIGHT)
-        list_widget.setMaximumHeight(DOMAIN_LINKS_LIST_HEIGHT + 80)
+        list_widget.setFixedHeight(280)
         inner = QWidget()
         list_widget.setWidget(inner)
         inner_layout = QVBoxLayout(inner)
@@ -551,8 +550,7 @@ class QTUserDetailViewH(QWidget):
 
         list_widget = QScrollArea()
         list_widget.setWidgetResizable(True)
-        list_widget.setMinimumHeight(DOMAIN_LINKS_LIST_HEIGHT)
-        list_widget.setMaximumHeight(DOMAIN_LINKS_LIST_HEIGHT + 80)
+        list_widget.setFixedHeight(280)
         inner = QWidget()
         list_widget.setWidget(inner)
         inner_layout = QVBoxLayout(inner)
@@ -583,8 +581,7 @@ class QTUserDetailViewH(QWidget):
 
         list_widget = QScrollArea()
         list_widget.setWidgetResizable(True)
-        list_widget.setMinimumHeight(DOMAIN_LINKS_LIST_HEIGHT)
-        list_widget.setMaximumHeight(DOMAIN_LINKS_LIST_HEIGHT + 80)
+        list_widget.setFixedHeight(280)
         inner = QWidget()
         list_widget.setWidget(inner)
         inner_layout = QVBoxLayout(inner)
@@ -615,8 +612,7 @@ class QTUserDetailViewH(QWidget):
 
         list_widget = QScrollArea()
         list_widget.setWidgetResizable(True)
-        list_widget.setMinimumHeight(DOMAIN_LINKS_LIST_HEIGHT)
-        list_widget.setMaximumHeight(DOMAIN_LINKS_LIST_HEIGHT + 80)
+        list_widget.setFixedHeight(280)
         inner = QWidget()
         list_widget.setWidget(inner)
         inner_layout = QVBoxLayout(inner)

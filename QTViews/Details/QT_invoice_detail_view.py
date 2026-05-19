@@ -661,6 +661,11 @@ class QTInvoiceDetailViewH(QWidget):
         cards.addStretch(1)
         section.layout().addLayout(cards)
 
+        payments_list = QFrame()
+        list_layout = QVBoxLayout(payments_list)
+        list_layout.setContentsMargins(0, 0, 0, 0)
+        list_layout.setSpacing(6)
+
         payments = self.invoices_query_service.retrieve_invoice_with_payments_map_list(self.current_invoice_id)
         for payment in payments:
             name = payment.get(DBPaymentsColumns.PAYMENT_NAME.value)
@@ -672,7 +677,15 @@ class QTInvoiceDetailViewH(QWidget):
             btn.clicked.connect(
                 lambda _checked=False, pid=payment_id: self._show_payment_detail(pid)
             )
-            section.layout().addWidget(btn)
+            list_layout.addWidget(btn)
+
+        list_layout.addStretch(1)
+        scroll = QScrollArea()
+        scroll.setWidget(payments_list)
+        scroll.setWidgetResizable(True)
+        scroll.setFixedHeight(280)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        section.layout().addWidget(scroll, stretch=1)
 
         self.content_layout.addWidget(section)
 
@@ -686,6 +699,11 @@ class QTInvoiceDetailViewH(QWidget):
         cards.addStretch(1)
         section.layout().addLayout(cards)
 
+        expenses_list = QFrame()
+        list_layout = QVBoxLayout(expenses_list)
+        list_layout.setContentsMargins(0, 0, 0, 0)
+        list_layout.setSpacing(6)
+
         expenses = self.invoices_query_service.retrieve_invoice_with_expenses_map_list(self.current_invoice_id)
         for expense in expenses:
             name = expense.get(DBExpensesColumns.NAME.value)
@@ -697,7 +715,15 @@ class QTInvoiceDetailViewH(QWidget):
             btn.clicked.connect(
                 lambda _checked=False, eid=expense_id: self._show_expense_detail(eid)
             )
-            section.layout().addWidget(btn)
+            list_layout.addWidget(btn)
+
+        list_layout.addStretch(1)
+        scroll = QScrollArea()
+        scroll.setWidget(expenses_list)
+        scroll.setWidgetResizable(True)
+        scroll.setFixedHeight(280)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        section.layout().addWidget(scroll, stretch=1)
 
         self.content_layout.addWidget(section)
 

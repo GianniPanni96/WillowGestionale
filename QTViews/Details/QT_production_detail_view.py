@@ -539,7 +539,12 @@ class QTProductionDetailViewH(QWidget):
             list_layout.addWidget(btn)
 
         list_layout.addStretch(1)
-        section.layout().addWidget(invoices_list, stretch=1)
+        scroll = QScrollArea()
+        scroll.setWidget(invoices_list)
+        scroll.setWidgetResizable(True)
+        scroll.setFixedHeight(280)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        section.layout().addWidget(scroll, stretch=1)
         return section
 
     def _show_invoice_detail(self, invoice_id):

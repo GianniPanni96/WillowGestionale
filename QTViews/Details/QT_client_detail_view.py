@@ -433,7 +433,12 @@ class QTClientDetailViewH(QWidget):
             list_layout.addWidget(btn)
 
         list_layout.addStretch(1)
-        section.layout().addWidget(invoices_list, stretch=1)
+        scroll = QScrollArea()
+        scroll.setWidget(invoices_list)
+        scroll.setWidgetResizable(True)
+        scroll.setFixedHeight(280)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        section.layout().addWidget(scroll, stretch=1)
         return section
 
     def _create_refunds_history(self):
@@ -471,7 +476,12 @@ class QTClientDetailViewH(QWidget):
             list_layout.addWidget(btn)
 
         list_layout.addStretch(1)
-        section.layout().addWidget(refunds_list, stretch=1)
+        scroll = QScrollArea()
+        scroll.setWidget(refunds_list)
+        scroll.setWidgetResizable(True)
+        scroll.setFixedHeight(280)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        section.layout().addWidget(scroll, stretch=1)
         return section
 
     def _create_productions_history(self):
@@ -513,7 +523,12 @@ class QTClientDetailViewH(QWidget):
             list_layout.addWidget(btn)
 
         list_layout.addStretch(1)
-        section.layout().addWidget(prods_list, stretch=1)
+        scroll = QScrollArea()
+        scroll.setWidget(prods_list)
+        scroll.setWidgetResizable(True)
+        scroll.setFixedHeight(280)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        section.layout().addWidget(scroll, stretch=1)
         return section
 
     def _show_invoice_detail(self, invoice_id):

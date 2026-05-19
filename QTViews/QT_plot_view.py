@@ -32,7 +32,6 @@ from matplotlib.backends.backend_qtagg import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -41,6 +40,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from QTViews.CustomWidgets.QT_toggle_switch import QTToggleSwitch
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -165,11 +166,14 @@ class QTPlotViewH(QWidget):
         controls_layout.setContentsMargins(20, 10, 20, 4)
         controls_layout.setSpacing(8)
 
-        # Switch Mensili / Annuali. QCheckBox come switch: checked=Annuale.
+        # Switch Mensili / Annuali: label sinistra + toggle + label destra.
         controls_layout.addWidget(QLabel("Mensili"))
-        self.mode_switch = QCheckBox("Annuali")
-        self.mode_switch.toggled.connect(self._on_mode_switch_toggled)
+        self.mode_switch = QTToggleSwitch(
+            on_change=self._on_mode_switch_toggled,
+            initial=False,
+        )
         controls_layout.addWidget(self.mode_switch)
+        controls_layout.addWidget(QLabel("Annuali"))
         controls_layout.addSpacing(40)
 
         # Selettore dato visualizzato.

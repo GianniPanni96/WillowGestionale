@@ -34,6 +34,7 @@ from Model import (
 )
 from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
 from QTViews.CustomWidgets.QT_warning_banner import WarningBanner
+from Utils.View_utils import ViewUtils
 from WarningServices.Warning_types import WarningInfo, WarningSeverity
 
 if TYPE_CHECKING:
@@ -86,6 +87,7 @@ class QTInvoiceDetailViewH(QWidget):
         self.clients_query_service = app_context.clients_query_service
         self.productions_query_service = app_context.productions_query_service
         self.account_query_service = app_context.account_query_service
+        self.event_bus = app_context.event_bus
 
         self.current_invoice_id = invoice_id
         self.on_back = on_back
@@ -662,11 +664,14 @@ class QTInvoiceDetailViewH(QWidget):
         payments = self.invoices_query_service.retrieve_invoice_with_payments_map_list(self.current_invoice_id)
         for payment in payments:
             name = payment.get(DBPaymentsColumns.PAYMENT_NAME.value)
-            if not name:
+            payment_id = payment.get(DBPaymentsColumns.ID.value)
+            if not name or payment_id is None:
                 continue
             btn = QPushButton(name)
-            btn.setFlat(True)
             btn.setStyleSheet("text-align: left; padding: 6px;")
+            btn.clicked.connect(
+                lambda _checked=False, pid=payment_id: self._show_payment_detail(pid)
+            )
             section.layout().addWidget(btn)
 
         self.content_layout.addWidget(section)
@@ -684,14 +689,23 @@ class QTInvoiceDetailViewH(QWidget):
         expenses = self.invoices_query_service.retrieve_invoice_with_expenses_map_list(self.current_invoice_id)
         for expense in expenses:
             name = expense.get(DBExpensesColumns.NAME.value)
-            if not name:
+            expense_id = expense.get(DBExpensesColumns.ID.value)
+            if not name or expense_id is None:
                 continue
             btn = QPushButton(name)
-            btn.setFlat(True)
             btn.setStyleSheet("text-align: left; padding: 6px;")
+            btn.clicked.connect(
+                lambda _checked=False, eid=expense_id: self._show_expense_detail(eid)
+            )
             section.layout().addWidget(btn)
 
         self.content_layout.addWidget(section)
+
+    def _show_payment_detail(self, payment_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_PAYMENT_DETAIL.value, payment_id)
+
+    def _show_expense_detail(self, expense_id):
+        self.event_bus.publish(ViewUtils.EventBusKeys.SHOW_EXPENSE_DETAIL.value, expense_id)
 
     def _make_section_frame(self, title):
         frame = QFrame()

@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v1.2.0 (2026-05-19)
+
+### Features
+
+- Fix backups legacy version + minor GUI adj + unpaid_invoice selection in user detail [Merge pull
+  request #119 from GianniPanni96/Development]
+  ([`f159387`](https://github.com/GianniPanni96/WillowGestionale/commit/f15938703c57a3f4ad23add9df622093fb6fea39))
+
+feat: fix backups legacy version + minor GUI adj + unpaid_invoice selection in user detail
+
+
 ## v1.1.0 (2026-05-18)
 
 ### Features

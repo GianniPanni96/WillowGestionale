@@ -408,7 +408,12 @@ class QTSupplierDetailViewH(QWidget):
             list_layout.addWidget(btn)
 
         list_layout.addStretch(1)
-        section.layout().addWidget(expenses_list, stretch=1)
+        scroll = QScrollArea()
+        scroll.setWidget(expenses_list)
+        scroll.setWidgetResizable(True)
+        scroll.setFixedHeight(280)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        section.layout().addWidget(scroll, stretch=1)
         return section
 
     def _show_expense_detail(self, expense_id):

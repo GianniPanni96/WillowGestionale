@@ -30,12 +30,12 @@ from QTViews.Details.QT_refund_detail_view import QTRefundDetailViewH
 from QTViews.Details.QT_salary_detail_view import QTSalaryDetailViewH
 from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
 from QTViews.Details.QT_user_detail_view import QTUserDetailViewH
-from QTViews.ListViews.QT_accounts_view import QTAccountsViewH
+from QTViews.QT_accounts_view import QTAccountsViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
-from QTViews.ListViews.QT_iva_view import QTIvaViewH
-from QTViews.ListViews.QT_plot_view import QTPlotViewH
-from QTViews.ListViews.QT_report_view import QTReportViewH
-from QTViews.ListViews.QT_taxes_view import QTTaxesViewH
+from QTViews.QT_iva_view import QTIvaViewH
+from QTViews.QT_plot_view import QTPlotViewH
+from QTViews.QT_report_view import QTReportViewH
+from QTViews.QT_taxes_view import QTTaxesViewH
 from QTViews.ListViews.QT_expenses_view import QTExpensesViewH
 from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
 from QTViews.ListViews.QT_payments_view import QTPaymentsViewH
@@ -200,6 +200,12 @@ class QTMainWindow(QMainWindow):
         self._build_tabs(initial_invoice_id)
         self._build_menu_corner()
         self.setCentralWidget(self.tabview)
+
+        # Cablaggio della navigazione cross-domain: le card / pulsanti
+        # "linked item" nelle detail view pubblicano sull'event bus la
+        # richiesta di aprire un dettaglio in un altro dominio. Senza
+        # questo subscribe i click rimangono inerti.
+        self._subscribe_cross_domain_navigation()
 
         if self.invoices_page is not None:
             self.tabview.setCurrentWidget(self.invoices_page)
@@ -567,6 +573,67 @@ class QTMainWindow(QMainWindow):
             except Exception:
                 pass
         self._set_user_icon_from_path(image_path)
+
+    # ------------------------------------------------------------------
+    # Navigazione cross-domain via event bus
+    # ------------------------------------------------------------------
+
+    def _subscribe_cross_domain_navigation(self):
+        """Collega le chiavi ``SHOW_*_DETAIL`` dell'event bus alle azioni
+        di apertura del dettaglio corrispondente.
+
+        Le detail view pubblicano questi eventi quando l'utente clicca
+        su una card / pulsante che rappresenta un item di un altro
+        dominio (es. dal cliente → fattura, dalla fattura → pagamento).
+        La main view e' l'unico punto in cui si conoscono i tab e gli
+        handler ``_open_*_detail``, quindi e' qui che si fa il routing.
+        """
+        bus = self.app_context.event_bus
+        keys = ViewUtils.EventBusKeys
+        # Wrap in lambdas che ignorano payload non int (None / dict) per
+        # robustezza: gli handler ``_open_*_detail`` si aspettano un id.
+        bus.subscribe(keys.SHOW_INVOICE_DETAIL.value, self._on_show_invoice_detail)
+        bus.subscribe(keys.SHOW_SALARY_DETAIL.value, self._on_show_salary_detail)
+        bus.subscribe(keys.SHOW_PRODUCTION_DETAIL.value, self._on_show_production_detail)
+        bus.subscribe(keys.SHOW_REFUND_DETAIL.value, self._on_show_refund_detail)
+        bus.subscribe(keys.SHOW_EXPENSE_DETAIL.value, self._on_show_expense_detail)
+        bus.subscribe(keys.SHOW_PAYMENT_DETAIL.value, self._on_show_payment_detail)
+        bus.subscribe(keys.SHOW_ACCOUNT_TAB.value, self._on_show_account_detail)
+
+    def _on_show_invoice_detail(self, invoice_id):
+        if invoice_id is None:
+            return
+        self._open_invoice_detail(invoice_id)
+
+    def _on_show_salary_detail(self, salary_id):
+        if salary_id is None:
+            return
+        self._open_salary_detail(salary_id)
+
+    def _on_show_production_detail(self, production_id):
+        if production_id is None:
+            return
+        self._open_production_detail(production_id)
+
+    def _on_show_refund_detail(self, refund_id):
+        if refund_id is None:
+            return
+        self._open_refund_detail(refund_id)
+
+    def _on_show_expense_detail(self, expense_id):
+        if expense_id is None:
+            return
+        self._open_expense_detail(expense_id)
+
+    def _on_show_payment_detail(self, payment_id):
+        if payment_id is None:
+            return
+        self._open_payment_detail(payment_id)
+
+    def _on_show_account_detail(self, account_id):
+        if account_id is None:
+            return
+        self._open_account_detail(account_id)
 
     def _show_detail_view(self, page_stack, detail_attr, detail_view):
         old_detail = getattr(self, detail_attr)

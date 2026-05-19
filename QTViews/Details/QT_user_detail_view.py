@@ -63,6 +63,8 @@ from Gestionale_Enums import (
     RegimeFiscale,
     UserStatus,
 )
+from QTViews.CustomWidgets.QT_toggle_switch import QTToggleSwitch
+from Utils.Controller_utils import ControllerUtils
 from Utils.Validation_utils import ValidationUtils
 from Utils.View_utils import ViewUtils
 
@@ -508,39 +510,119 @@ class QTUserDetailViewH(QWidget):
         self.content_layout.addWidget(wrapper)
 
     def _build_invoices_section(self) -> QFrame:
-        section = self._make_section_frame("FATTURE WILLOW")
-        section.layout().addWidget(self._make_aggregate_card(
+        section = QFrame()
+        section.setObjectName("UserSectionFrame")
+        section.setStyleSheet(
+            "#UserSectionFrame { border: 2px solid palette(highlight); border-radius: 6px; }"
+        )
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(15, 12, 15, 12)
+        section_layout.setSpacing(8)
+
+        # Header: titolo a sinistra, switch ancorato a destra con label
+        # descrittiva subito prima dello switch.
+        header_row = QHBoxLayout()
+        title_lbl = QLabel("FATTURE WILLOW")
+        f = title_lbl.font()
+        f.setBold(True)
+        f.setPointSize(12)
+        title_lbl.setFont(f)
+        header_row.addWidget(title_lbl)
+        header_row.addStretch(1)
+
+        toggle_lbl = QLabel("Includi insoluti anno prec.")
+        header_row.addWidget(toggle_lbl)
+        self._invoices_toggle = QTToggleSwitch(
+            on_change=self._on_invoices_toggle,
+            initial=True,
+        )
+        header_row.addWidget(self._invoices_toggle)
+        section_layout.addLayout(header_row)
+
+        # Aggregate card con riferimento al label del valore per aggiornamenti.
+        agg_card = self._make_aggregate_card(
             "TOTALE FATTURATO WILLOW",
-            _fmt_eur(self.user_analyzer_service.calcola_tot_fatturato_utente(self.current_user_id)),
-        ))
+            _fmt_eur(self.user_analyzer_service.calcola_tot_fatturato_utente(
+                self.current_user_id, year=None, include_unpaid_invoices=True,
+            )),
+        )
+        self._invoices_aggregate_value_lbl = agg_card.layout().itemAt(1).widget()
+        section_layout.addWidget(agg_card)
 
-        list_widget = QScrollArea()
-        list_widget.setWidgetResizable(True)
-        list_widget.setMinimumHeight(DOMAIN_LINKS_LIST_HEIGHT)
-        list_widget.setMaximumHeight(DOMAIN_LINKS_LIST_HEIGHT + 80)
+        # Scroll area: la lista delle cards viene popolata tramite
+        # _populate_invoices_list per poter essere ricostruita al toggle.
+        list_scroll = QScrollArea()
+        list_scroll.setWidgetResizable(True)
+        list_scroll.setFixedHeight(280)
+        list_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()
-        list_widget.setWidget(inner)
-        inner_layout = QVBoxLayout(inner)
-        inner_layout.setContentsMargins(2, 2, 2, 2)
-        inner_layout.setSpacing(6)
+        list_scroll.setWidget(inner)
+        self._invoices_inner_layout = QVBoxLayout(inner)
+        self._invoices_inner_layout.setContentsMargins(2, 2, 2, 2)
+        self._invoices_inner_layout.setSpacing(6)
 
-        invoices = self.user_query_service.retrieve_user_with_invoices_map_list(self.current_user_id) or []
+        self._populate_invoices_list(include_unpaid=True)
+
+        section_layout.addWidget(list_scroll, stretch=1)
+        return section
+
+    def _populate_invoices_list(self, include_unpaid: bool):
+        """Pulisce e ricostruisce la lista di button-cards fatture."""
+        while self._invoices_inner_layout.count():
+            item = self._invoices_inner_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+
+        current_year = datetime.now().year
+        warn_prev_year = (
+            include_unpaid
+            and self.app_context.warnings_visibility_manager.is_warning_enabled("fatture", "previous_year")
+        )
+
+        invoices = self.user_query_service.retrieve_user_with_invoices_map_list(
+            self.current_user_id, year=None, include_unpaid_invoices=include_unpaid,
+        ) or []
+
         for invoice in invoices:
             nome_fattura = invoice.get(DBInvoicesColumns.NUMERO_FATTURA.value)
             if not nome_fattura:
                 continue
             id_fattura = invoice[DBInvoicesColumns.ID.value]
             id_produzione = invoice.get(DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value)
-            produzione = self.productions_query_service.retrieve_production_map_by_id(id_produzione) if id_produzione else None
+            produzione = (
+                self.productions_query_service.retrieve_production_map_by_id(id_produzione)
+                if id_produzione else None
+            )
             nome_prod = produzione[DBProductionsColumns.NAME.value] if produzione else "Produzione non trovata"
-            btn = QPushButton(f"{nome_fattura} — {nome_prod}")
-            btn.setStyleSheet("text-align: left; padding: 6px;")
-            btn.clicked.connect(lambda _=False, iid=id_fattura: self._show_invoice_detail(iid))
-            inner_layout.addWidget(btn)
-        inner_layout.addStretch(1)
 
-        section.layout().addWidget(list_widget, stretch=1)
-        return section
+            btn = QPushButton(f"{nome_fattura} — {nome_prod}")
+
+            if warn_prev_year:
+                data_str = invoice.get(DBInvoicesColumns.DATA_CREAZIONE.value)
+                dt = ControllerUtils._parse_date(data_str) if data_str else None
+                if dt and dt.year < current_year:
+                    btn.setStyleSheet(
+                        "text-align: left; padding: 6px;"
+                        " border: 2px solid #FFC107; border-radius: 4px;"
+                    )
+                else:
+                    btn.setStyleSheet("text-align: left; padding: 6px;")
+            else:
+                btn.setStyleSheet("text-align: left; padding: 6px;")
+
+            btn.clicked.connect(lambda _=False, iid=id_fattura: self._show_invoice_detail(iid))
+            self._invoices_inner_layout.addWidget(btn)
+
+        self._invoices_inner_layout.addStretch(1)
+
+    def _on_invoices_toggle(self, checked: bool):
+        """Aggiorna aggregato e lista al cambio del toggle include_unpaid."""
+        totale = self.user_analyzer_service.calcola_tot_fatturato_utente(
+            self.current_user_id, year=None, include_unpaid_invoices=checked,
+        )
+        self._invoices_aggregate_value_lbl.setText(_fmt_eur(totale))
+        self._populate_invoices_list(include_unpaid=checked)
 
     def _build_anticipated_expenses_section(self) -> QFrame:
         section = self._make_section_frame("SPESE ANTICIPATE")
@@ -551,8 +633,7 @@ class QTUserDetailViewH(QWidget):
 
         list_widget = QScrollArea()
         list_widget.setWidgetResizable(True)
-        list_widget.setMinimumHeight(DOMAIN_LINKS_LIST_HEIGHT)
-        list_widget.setMaximumHeight(DOMAIN_LINKS_LIST_HEIGHT + 80)
+        list_widget.setFixedHeight(280)
         inner = QWidget()
         list_widget.setWidget(inner)
         inner_layout = QVBoxLayout(inner)
@@ -583,8 +664,7 @@ class QTUserDetailViewH(QWidget):
 
         list_widget = QScrollArea()
         list_widget.setWidgetResizable(True)
-        list_widget.setMinimumHeight(DOMAIN_LINKS_LIST_HEIGHT)
-        list_widget.setMaximumHeight(DOMAIN_LINKS_LIST_HEIGHT + 80)
+        list_widget.setFixedHeight(280)
         inner = QWidget()
         list_widget.setWidget(inner)
         inner_layout = QVBoxLayout(inner)
@@ -615,8 +695,7 @@ class QTUserDetailViewH(QWidget):
 
         list_widget = QScrollArea()
         list_widget.setWidgetResizable(True)
-        list_widget.setMinimumHeight(DOMAIN_LINKS_LIST_HEIGHT)
-        list_widget.setMaximumHeight(DOMAIN_LINKS_LIST_HEIGHT + 80)
+        list_widget.setFixedHeight(280)
         inner = QWidget()
         list_widget.setWidget(inner)
         inner_layout = QVBoxLayout(inner)

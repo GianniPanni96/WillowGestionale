@@ -26,7 +26,6 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -35,6 +34,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from QTViews.CustomWidgets.QT_toggle_switch import QTToggleSwitch
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -89,9 +90,10 @@ class QTTaxesViewH(QWidget):
 
         c_layout.addSpacing(20)
 
-        self.year_switch = QCheckBox()
-        self.year_switch.setChecked(True)
-        self.year_switch.toggled.connect(self._on_year_switch_changed)
+        self.year_switch = QTToggleSwitch(
+            on_change=self._on_year_switch_changed,
+            initial=True,
+        )
         c_layout.addWidget(self.year_switch)
 
         self.year_label = QLabel(f"Anno: {datetime.now().year}")

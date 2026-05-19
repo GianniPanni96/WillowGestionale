@@ -43,22 +43,12 @@ class UserAnalyzerService:
             include_unpaid_invoices=include_unpaid_invoices,
             year=year,
         )
-        if not rows:
-            return 0.0
-
-        target_year = year if year is not None else datetime.now().year
         fatturato = 0.0
         for row in rows:
-            data_str = row.get(DBInvoicesColumns.DATA_CREAZIONE.value)
-            if not data_str:
+            tot = row.get(DBInvoicesColumns.TOT_DOCUMENTO.value)
+            if tot is None:
                 continue
-            try:
-                anno = datetime.strptime(data_str, '%Y-%m-%d').year
-            except ValueError:
-                continue
-            if anno == target_year:
-                fatturato += float(row.get(DBInvoicesColumns.TOT_DOCUMENTO.value) or 0.0)
-
+            fatturato += float(tot)
         return fatturato
 
     def calcola_tot_spese_utente_anticipate(self, user_id, year: int = None):

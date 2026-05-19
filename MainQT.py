@@ -18,11 +18,28 @@ QTMainWindow. Sequenza al boot:
 
 import sys
 
-# matplotlib.pyplot va importato qui (prima di PySide6) perche'
-# trascina dateutil -> six in sys.modules. Senza questo, l'hook di
-# shibokensupport di PySide6 intercetta il primo import di six durante
-# il caricamento di matplotlib.dates e crasha su
-# ``_SixMetaPathImporter._path`` mancante.
+# shibokensupport (PySide6) installa un hook su sys.meta_path che chiama
+# inspect.getsource() su ogni modulo importato per capire se usa PySide6.
+# Quando il debugger PyCharm carica PySide6 prima dello script
+# (--qt-support=auto), l'hook e' gia' attivo all'avvio. Il modulo `six`
+# sostituisce se stesso con _SixMetaPathImporter, che non ha __file__ ne'
+# _path, causando un AttributeError dentro _module_repr_from_spec di
+# Python 3.12 durante la formattazione del TypeError di inspect.getfile().
+# Patch: rendiamo _mod_uses_pyside resiliente agli errori di ispezione.
+try:
+    import shibokensupport.feature as _sbk_feature  # type: ignore[import]
+    _orig_mod_uses = _sbk_feature._mod_uses_pyside
+
+    def _safe_mod_uses_pyside(mod):  # noqa: ANN001,ANN201
+        try:
+            return _orig_mod_uses(mod)
+        except (TypeError, AttributeError, OSError):
+            return False
+
+    _sbk_feature._mod_uses_pyside = _safe_mod_uses_pyside
+except (ImportError, AttributeError):
+    pass
+
 import matplotlib.pyplot  # noqa: F401
 
 from Main_bootstrap import build_app_context

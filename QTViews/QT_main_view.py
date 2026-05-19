@@ -30,12 +30,12 @@ from QTViews.Details.QT_refund_detail_view import QTRefundDetailViewH
 from QTViews.Details.QT_salary_detail_view import QTSalaryDetailViewH
 from QTViews.Details.QT_supplier_detail_view import QTSupplierDetailViewH
 from QTViews.Details.QT_user_detail_view import QTUserDetailViewH
-from QTViews.ListViews.QT_accounts_view import QTAccountsViewH
+from QTViews.QT_accounts_view import QTAccountsViewH
 from QTViews.ListViews.QT_clients_view import QTClientsViewH
-from QTViews.ListViews.QT_iva_view import QTIvaViewH
-from QTViews.ListViews.QT_plot_view import QTPlotViewH
-from QTViews.ListViews.QT_report_view import QTReportViewH
-from QTViews.ListViews.QT_taxes_view import QTTaxesViewH
+from QTViews.QT_iva_view import QTIvaViewH
+from QTViews.QT_plot_view import QTPlotViewH
+from QTViews.QT_report_view import QTReportViewH
+from QTViews.QT_taxes_view import QTTaxesViewH
 from QTViews.ListViews.QT_expenses_view import QTExpensesViewH
 from QTViews.ListViews.QT_invoices_view import QTInvoicesViewH
 from QTViews.ListViews.QT_payments_view import QTPaymentsViewH

@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from QTViews.ListViews.QT_monthly_report_view import QTMonthlyReportViewH
+from QTViews.QT_monthly_report_view import QTMonthlyReportViewH
 
 if TYPE_CHECKING:
     from App_context import AppContext
@@ -102,7 +102,7 @@ class QTReportViewH(QWidget):
         elif tab_name == SUBTAB_ANNUAL:
             # Import locale: matplotlib viene importato solo se l'utente
             # apre davvero la sottotab annuale.
-            from QTViews.ListViews.QT_annual_report_charts_view import (
+            from QTViews.QT_annual_report_charts_view import (
                 QTAnnualReportChartsViewH,
             )
 

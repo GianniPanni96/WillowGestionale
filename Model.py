@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import shutil
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from Utils.App_paths import get_runtime_paths
 from Gestionale_Enums import (
@@ -32,9 +33,27 @@ class DatabaseModel:
         """ Inizializza il percorso al database """
         self.db_path = db_path
 
+    @contextmanager
     def _connect(self):
-        """ Crea una nuova connessione al database """
-        return sqlite3.connect(self.db_path)
+        """Apre una connessione al database e la chiude sempre all'uscita.
+
+        Il context manager nativo di ``sqlite3.Connection`` esegue
+        commit/rollback all'uscita del ``with`` ma **non** chiude la
+        connection: il file handle resta aperto fino al successivo GC.
+        Su Windows questo impedisce a ``os.replace`` di sovrascrivere
+        ``gestionale.db`` durante l'import di un backup (errore
+        ``[WinError 5] Accesso negato``). Qui replichiamo la semantica
+        di auto-commit/rollback e aggiungiamo il ``close()`` mancante.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            yield conn
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     # Funzioni generali
     def delete_row(self, table_name, primary_key_column, primary_key_value):

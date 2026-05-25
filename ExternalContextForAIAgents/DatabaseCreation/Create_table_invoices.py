@@ -1,5 +1,7 @@
 import sqlite3
-from Model import db_path, DBInvoicesColumns, DBUsersColumns, DBClientsColumns, DBProductionsColumns, DBAccountsColumns
+from Installer.Gestionale_Enums import DBUsersColumns, DBInvoicesColumns, DBClientsColumns, DBAccountsColumns, \
+    DBProductionsColumns
+from Installer.Model import db_path
 
 # Creazione della tabella `invoices` utilizzando l'enum
 columns = [

@@ -1,5 +1,7 @@
-from Model import db_path, DBUsersColumns
+from Installer.Gestionale_Enums import DBUsersColumns
+from Installer.Model import db_path
 import sqlite3
+
 
 
 # Creazione della tabella usando l'enum

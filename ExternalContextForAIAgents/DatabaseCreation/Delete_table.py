@@ -1,6 +1,5 @@
 import sqlite3
-from Model import db_path  # Assicurati che db_path sia definito in Model.py
-
+from Installer.Model import db_path
 
 def delete_all_rows(table_name):
     """

@@ -1,5 +1,6 @@
 import sqlite3
-from Model import db_path, DBTransfersColumns, DBAccountsColumns
+from Installer.Gestionale_Enums import DBTransfersColumns, DBAccountsColumns
+from Installer.Model import db_path
 
 # Definizione delle colonne per la tabella accounts
 columns = [

@@ -77,7 +77,7 @@ def _is_usable_writable_root(path: Path) -> bool:
         "fiscal_rules.json",
         "historical_financial_data.json",
         "recurring_expenses.json",
-        "app_config.json",
+        "app_config_legacy.json",
         "Books",
         "Backups",
     )
@@ -230,7 +230,7 @@ def initialize_runtime_paths() -> RuntimePaths:
             fiscal_rules_file=storage_root / "fiscal_rules.json",
             historical_financial_data_file=storage_root / "historical_financial_data.json",
             recurring_expenses_file=storage_root / "recurring_expenses.json",
-            legacy_config_file=storage_root / "app_config.json",
+            legacy_config_file=storage_root / "app_config_legacy.json",
             admin_audit_log_file=storage_root / "admin_audit.jsonl",
             session_file=storage_root / "session.bin",
             books_dir=books_dir,

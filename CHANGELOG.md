@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v1.5.0 (2026-05-28)
+
+### Features
+
+- Contextual Menu added for fast item creation from cards - Merge pull request #122 from
+  GianniPanni96/Development
+  ([`11d01bd`](https://github.com/GianniPanni96/WillowGestionale/commit/11d01bd91cfa58170679f9c52d11ff5634440398))
+
+feat: Contextual Menu added for fast item creation from cards
+
+
 ## v1.4.0 (2026-05-28)
 
 ### Features

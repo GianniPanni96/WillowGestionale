@@ -11,7 +11,7 @@ DB_FILENAME = "gestionale.db"
 LEGACY_CONFIG_FILENAME = "app_config_legacy.json"
 
 # JSON di configurazione da includere in ogni backup. Mirror della suddivisione
-# applicata da fix_db/migrate_legacy_app_config_to_split_jsons.py, piu'
+# applicata da Patches/migrate_legacy_app_config_to_split_jsons.py, piu'
 # gui_preferences.json (gestito separatamente da GuiPreferencesManager).
 CONFIG_BACKUP_FILES: Tuple[str, ...] = (
     "app_settings.json",

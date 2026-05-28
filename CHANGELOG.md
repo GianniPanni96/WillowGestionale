@@ -1,6 +1,16 @@
 # CHANGELOG
 
 
+## v1.5.2 (2026-05-28)
+
+### Bug Fixes
+
+- Release.ps1 - Merge pull request #124 from GianniPanni96/Development
+  ([`bda3966`](https://github.com/GianniPanni96/WillowGestionale/commit/bda396604cbf5528d4d06eb0eb40e0c4321c2a3b))
+
+fix: release.ps1
+
+
 ## v1.5.1 (2026-05-28)
 
 ### Bug Fixes

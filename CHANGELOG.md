@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v1.5.1 (2026-05-28)
+
+### Bug Fixes
+
+- Spec buildaggio patches in eseguibili stand alone con delivery to installer repo - Merge pull
+  request #123 from GianniPanni96/Development
+  ([`328d820`](https://github.com/GianniPanni96/WillowGestionale/commit/328d8200b40baaa147b0b90a1141ca16b08ba0ac))
+
+fix: spec buildaggio patches in eseguibili stand alone con delivery to installer repo
+
+
 ## v1.5.0 (2026-05-28)
 
 ### Features

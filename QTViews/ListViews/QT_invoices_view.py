@@ -156,3 +156,24 @@ class QTInvoicesViewH(QTBaseListView):
         )
         dialog.exec()
         return result["id"]
+
+    def context_menu_actions(self, row_data: dict) -> list[tuple[str, callable]]:
+        return [
+            ("Aggiungi pagamento", lambda: self._open_payment_create(row_data)),
+        ]
+
+    def _open_payment_create(self, row_data: dict):
+        from QTViews.Creators.QT_payment_create_view import QTPaymentCreateViewH
+
+        def _on_created(_payment_id):
+            idx = self.window_combo.currentIndex()
+            _, days = self.TIME_WINDOWS[idx]
+            self._reload_data(window_days=days)
+
+        dialog = QTPaymentCreateViewH(
+            app_context=self.app_context,
+            parent=self,
+            on_payment_created=_on_created,
+        )
+        dialog.prefill_invoice(row_data.get("name", ""))
+        dialog.exec()

@@ -21,7 +21,7 @@ import time
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QEvent, QObject, Qt, QSortFilterProxyModel
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QAction, QColor, QPalette
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
     QPushButton,
     QStyledItemDelegate,
     QStyleOptionViewItem,
@@ -574,6 +575,8 @@ class QTBaseListView(QWidget):
         self.table.horizontalHeader().setStretchLastSection(False)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.table.doubleClicked.connect(self._on_row_double_clicked)
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_context_menu)
 
         # Lascio prima alle sottoclassi la libertà di applicare stylesheet,
         # delegate custom, dimensioni cell... Poi sovrappongo i wiring
@@ -871,3 +874,45 @@ class QTBaseListView(QWidget):
     def row_for_id(self, item_id):
         """Trova la riga del source model corrispondente all'id (-1 se assente)."""
         raise NotImplementedError
+
+    def context_menu_actions(self, row_data: dict) -> list[tuple[str, callable]]:
+        """
+        Voci del menu contestuale per la riga cliccata con il tasto destro.
+
+        Override nelle sottoclassi per aggiungere azioni specifiche del dominio.
+        Ogni voce e' una tupla (etichetta, callback) dove callback non riceve
+        argomenti (il row_data e' gia' catturato nella closure dal chiamante).
+        Restituire [] disabilita il menu contestuale.
+        """
+        return []
+
+    # ------------------------------------------------------------------
+    # Context menu — infrastruttura comune
+    # ------------------------------------------------------------------
+
+    def _row_data_for_source_index(self, source_index) -> dict | None:
+        if self._source_model is None or not source_index.isValid():
+            return None
+        row = source_index.row()
+        rows = getattr(self._source_model, "_rows", None)
+        if rows is None or not (0 <= row < len(rows)):
+            return None
+        return rows[row]
+
+    def _show_context_menu(self, pos):
+        proxy_index = self.table.indexAt(pos)
+        if not proxy_index.isValid() or self._proxy is None:
+            return
+        source_index = self._proxy.mapToSource(proxy_index)
+        row_data = self._row_data_for_source_index(source_index)
+        if row_data is None:
+            return
+        actions = self.context_menu_actions(row_data)
+        if not actions:
+            return
+        menu = QMenu(self.table)
+        for label, callback in actions:
+            action = QAction(label, menu)
+            action.triggered.connect(callback)
+            menu.addAction(action)
+        menu.exec(self.table.viewport().mapToGlobal(pos))

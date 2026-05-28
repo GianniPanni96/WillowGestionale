@@ -44,6 +44,7 @@ class QTUserCard(QFrame):
     PHOTO_H_VERTICAL = 150     # zona foto in layout verticale (porzione superiore)
 
     clicked = Signal(int)
+    context_menu_requested = Signal(int)
 
     def __init__(
         self,
@@ -94,6 +95,8 @@ class QTUserCard(QFrame):
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.clicked.emit(self._user_id)
+        elif event.button() == Qt.RightButton:
+            self.context_menu_requested.emit(self._user_id)
         super().mousePressEvent(event)
 
     # ------------------------------------------------------------------

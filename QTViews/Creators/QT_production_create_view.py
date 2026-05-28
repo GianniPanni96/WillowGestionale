@@ -284,6 +284,16 @@ class QTProductionCreateViewH(QDialog):
                 production_data[key] = widget.date().toString("yyyy-MM-dd")
         return production_data
 
+    def prefill_client(self, client_name: str) -> None:
+        """Pre-seleziona il cliente nel combo e aggiorna il prefisso nome."""
+        if not client_name:
+            return
+        combo = self.production_widgets.get("NOME CLIENTE")
+        if combo is None:
+            return
+        combo.set_value(client_name)
+        self._on_client_changed(client_name)
+
     def _save_production_data(self):
         production_data = self._collect_production_data()
         success, message = self.production_controller.save_production(production_data)

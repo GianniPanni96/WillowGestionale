@@ -29,7 +29,7 @@ COSA FA LO SCRIPT
 
 ESECUZIONE (dalla macchina del cliente)
 ---------------------------------------
-    python fix_db/fix_taxes_books_2025.py
+    python Patches/fix_taxes_books_2025.py
 
 Usa gli stessi percorsi runtime dell'applicazione (get_runtime_paths): non
 serve configurare nulla se il gestionale gira gia' su quella macchina.
@@ -41,7 +41,7 @@ import shutil
 import sys
 from datetime import datetime
 
-# --- Rende importabili i moduli dell'app anche lanciando lo script da fix_db/ ---
+# --- Rende importabili i moduli dell'app anche lanciando lo script da Patches/ ---
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)

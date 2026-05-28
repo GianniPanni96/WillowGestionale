@@ -24,7 +24,7 @@ L'operazione e' idempotente: rilanciare lo script non causa danni.
 
 ESECUZIONE (dalla macchina del cliente)
 ---------------------------------------
-    python "fix_db/Patch v140/clean_invoice_status_field.py"
+    python "Patches/Patch_v140/clean_invoice_status_field.py"
 
 Usa gli stessi percorsi runtime dell'applicazione (``get_runtime_paths``):
 non serve configurare nulla se il gestionale gira gia' su quella macchina.
@@ -36,7 +36,7 @@ import sqlite3
 import sys
 from datetime import datetime
 
-# --- Rende importabili i moduli dell'app anche da fix_db/Patch v140/ ---
+# --- Rende importabili i moduli dell'app anche da Patches/Patch_v140/ ---
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)

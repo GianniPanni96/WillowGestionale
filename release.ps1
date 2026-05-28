@@ -40,8 +40,9 @@ if (-not $ver.is_release) {
 }
 
 Write-Host "==> Pulisco build/ e dist/" -ForegroundColor Cyan
-if (Test-Path build) { Remove-Item -Recurse -Force build }
-if (Test-Path dist)  { Remove-Item -Recurse -Force dist }
+if (Test-Path build)        { Remove-Item -Recurse -Force build }
+if (Test-Path dist)         { Remove-Item -Recurse -Force dist }
+if (Test-Path dist_patches) { Remove-Item -Recurse -Force dist_patches }
 
 Write-Host "==> PyInstaller ($Spec)" -ForegroundColor Cyan
 & pyinstaller $Spec --noconfirm
@@ -52,6 +53,72 @@ $exePath = Join-Path "dist" $exeName
 if (-not (Test-Path $exePath)) { throw "Eseguibile atteso non trovato: $exePath" }
 $sizeMb = [math]::Round((Get-Item $exePath).Length / 1MB, 1)
 Write-Host "    Prodotto : $exePath ($sizeMb MB)" -ForegroundColor Green
+
+# ---------------------------------------------------------------------------
+# Build patch executables
+# Cerca tutti i file *.spec dentro Patches\Patch *\ e li builda come exe
+# standalone, copiando il risultato nell'installer repo alla stessa sottocartella.
+# ---------------------------------------------------------------------------
+$installerPatchesRoot = "C:\pythonProject\WillowGestionale_installer\Patches"
+$patchSpecFiles = Get-ChildItem -Path "Patches" -Recurse -Filter "*.spec" -File |
+    Where-Object { $_.DirectoryName -match "Patch[\s_]+v?\d" }
+
+if ($patchSpecFiles.Count -eq 0) {
+    Write-Host "==> Nessuno spec patch trovato in Patches\Patch *\" -ForegroundColor Yellow
+} else {
+    Write-Host ""
+    Write-Host "==> Build patch executables ($($patchSpecFiles.Count) spec trovati)" -ForegroundColor Cyan
+
+    foreach ($specFile in $patchSpecFiles) {
+        $patchFolderName = $specFile.Directory.Name        # es. "Patch v140"
+        $specRelPath     = $specFile.FullName
+        $distPatchDir    = Join-Path $repoRoot "dist_patches\$patchFolderName"
+
+        Write-Host ""
+        Write-Host "  [$patchFolderName] spec: $($specFile.Name)" -ForegroundColor Cyan
+        Write-Host "  [$patchFolderName] output dir: $distPatchDir"
+
+        # Crea la distpath dedicata cosi' gli exe non si mescolano con quelli del gestionale
+        New-Item -ItemType Directory -Force -Path $distPatchDir | Out-Null
+
+        Write-Host "  [$patchFolderName] avvio pyinstaller..."
+        & pyinstaller $specRelPath --distpath $distPatchDir --workpath (Join-Path $repoRoot "build_patches\$patchFolderName") --noconfirm
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "  [$patchFolderName] Build FALLITO per $($specFile.Name) — continuo con gli altri spec."
+            continue
+        }
+
+        # Trova l'exe prodotto nella distpath
+        $producedExes = Get-ChildItem -Path $distPatchDir -Filter "*.exe" -File
+        if ($producedExes.Count -eq 0) {
+            Write-Warning "  [$patchFolderName] Nessun exe trovato in $distPatchDir dopo la build."
+            continue
+        }
+
+        # Destinazione nell'installer
+        $destDir = Join-Path $installerPatchesRoot $patchFolderName
+        if (-not (Test-Path $destDir)) {
+            Write-Host "  [$patchFolderName] Creo cartella destinazione: $destDir"
+            New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+        }
+
+        foreach ($exeFile in $producedExes) {
+            $destPath = Join-Path $destDir $exeFile.Name
+            $sizeMbPatch = [math]::Round($exeFile.Length / 1MB, 1)
+            Write-Host "  [$patchFolderName] Copio $($exeFile.Name) ($sizeMbPatch MB) -> $destPath" -ForegroundColor Green
+            Copy-Item -Path $exeFile.FullName -Destination $destPath -Force
+        }
+
+        Write-Host "  [$patchFolderName] OK" -ForegroundColor Green
+    }
+
+    Write-Host ""
+    Write-Host "==> Build patch executables completato." -ForegroundColor Cyan
+}
+
+# Pulizia cartelle temporanee patch
+if (Test-Path dist_patches)  { Remove-Item -Recurse -Force dist_patches }
+if (Test-Path build_patches) { Remove-Item -Recurse -Force build_patches }
 
 if ($SkipUpload) {
     Write-Host "==> Upload saltato." -ForegroundColor Yellow

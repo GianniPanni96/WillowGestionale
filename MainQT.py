@@ -134,7 +134,8 @@ def _force_authentication(app_context) -> tuple[bool, int, bool, bool, int]:
     if not users:
         onboarding = QTOnboardingDialog(app_context=app_context)
         if onboarding.exec() != QTOnboardingDialog.Accepted or onboarding.created_user_id is None:
-            QMessageBox.critical(None, "Avvio interrotto", "Configurazione iniziale annullata.")
+            if not onboarding.exit_requested:
+                QMessageBox.critical(None, "Avvio interrotto", "Configurazione iniziale annullata.")
             return False, -1, False, False, 30
         success, _msg, user_id = app_context.user_auth_service.check_password_for_login(
             onboarding.created_user_name,

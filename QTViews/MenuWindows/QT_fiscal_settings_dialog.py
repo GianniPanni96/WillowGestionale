@@ -52,6 +52,7 @@ class QTFiscalSettingsDialog(QDialog):
         "aliquota_irpef_max",
         "anni_agevolazione",
         "aliquota_inps",
+        "massimale_inps",
         "aliquota_rivalsa_inps",
     ]
 
@@ -62,7 +63,7 @@ class QTFiscalSettingsDialog(QDialog):
         "percentuale_rata_acconto_inps_forfettario",
     ]
 
-    ORD_FIXED_KEYS = ["aliquota_inps", "aliquota_cassa_inps", "aliquota_ritenuta"]
+    ORD_FIXED_KEYS = ["aliquota_inps", "massimale_inps", "aliquota_cassa_inps", "aliquota_ritenuta"]
     ORD_IMPONIBILI_KEYS = [
         "imponibile_iva",
         "imponibile_ritenuta_acconto",

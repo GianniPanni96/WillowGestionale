@@ -33,6 +33,7 @@ from Model import (
     DBUsersColumns,
 )
 from QTViews.CustomWidgets.QT_filterable_combo_box import QTFilterableComboBox
+from Utils.Invoice_status_utils import compute_invoice_status
 from QTViews.CustomWidgets.QT_warning_banner import WarningBanner
 from Utils.View_utils import ViewUtils
 from WarningServices.Warning_types import WarningInfo, WarningSeverity
@@ -268,7 +269,17 @@ class QTInvoiceDetailViewH(QWidget):
         note_edit = QLineEdit(self._fmt(invoice.get(DBInvoicesColumns.NOTE.value)))
         self._add_field("Note/Status", DBInvoicesColumns.NOTE.value, "Note", note_edit)
 
-        status_label = QLabel(str(invoice.get(DBInvoicesColumns.STATUS.value, "") or ""))
+        # Lo stato e' calcolato on-the-fly da pagamenti+scadenze. Il
+        # campo STATUS nel DB persiste solo STORNATA (eccezione manuale).
+        invoice_with_payments = self.invoices_query_service.retrieve_invoice_with_payments_map_list(
+            invoice[DBInvoicesColumns.ID.value]
+        )
+        payments_for_status = [
+            row for row in (invoice_with_payments or [])
+            if row.get(DBPaymentsColumns.LINKED_RATA.value) is not None
+        ]
+        computed_status = compute_invoice_status(invoice, payments_for_status)
+        status_label = QLabel(computed_status)
         self._add_field("Note/Status", DBInvoicesColumns.STATUS.value, "Status", status_label)
 
         tipo_label = QLabel(str(invoice.get(DBInvoicesColumns.TIPO.value, "") or ""))

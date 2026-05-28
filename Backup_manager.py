@@ -8,7 +8,7 @@ from Utils.App_paths import get_runtime_paths
 
 
 DB_FILENAME = "gestionale.db"
-LEGACY_CONFIG_FILENAME = "app_config.json"
+LEGACY_CONFIG_FILENAME = "app_config_legacy.json"
 
 # JSON di configurazione da includere in ogni backup. Mirror della suddivisione
 # applicata da fix_db/migrate_legacy_app_config_to_split_jsons.py, piu'
@@ -253,7 +253,7 @@ class BackupImporter:
         recurring_expenses.json, gui_preferences.json).
 
     I backup creati da versioni precedenti dell'app (con un unico
-    ``app_config.json`` o senza i file split) sono identificabili tramite
+    ``app_config_legacy.json`` o senza i file split) sono identificabili tramite
     ``validate_backup`` e vengono mostrati in UI ma non sono importabili,
     perche' la struttura dei config files non e' piu' compatibile.
 
@@ -364,7 +364,7 @@ class BackupImporter:
 
         Reason values quando ``valid`` e' False:
           - INVALID_REASON_LEGACY: backup creato dalla vecchia versione con
-            ``app_config.json`` monolitico (i config sono stati smembrati in
+            ``app_config_legacy.json`` monolitico (i config sono stati smembrati in
             file separati e la struttura non e' piu' compatibile).
           - INVALID_REASON_INCOMPLETE: alcuni file split sono presenti ma
             non tutti (backup parziale o corrotto).
@@ -417,7 +417,7 @@ class BackupImporter:
                     return False, (
                         "Backup non importabile: appartiene a una versione precedente "
                         "dell'applicazione che utilizzava un singolo file di configurazione "
-                        "(app_config.json). La struttura dei file di configurazione e' "
+                        "(app_config_legacy.json). La struttura dei file di configurazione e' "
                         "cambiata e questo backup non e' piu' compatibile."
                     )
                 if reason == INVALID_REASON_INCOMPLETE:

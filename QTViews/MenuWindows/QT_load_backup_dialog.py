@@ -43,7 +43,7 @@ def _invalid_explanation(reason: str, missing: list) -> str:
     if reason == INVALID_REASON_LEGACY:
         return (
             "Questo backup appartiene a una versione precedente dell'applicazione "
-            "che utilizzava un unico file di configurazione (app_config.json).\n\n"
+            "che utilizzava un unico file di configurazione (app_config_legacy.json).\n\n"
             "La struttura dei file di configurazione e' stata suddivisa in piu' file "
             "(app_settings, catalogs, fiscal_rules, historical_financial_data, "
             "recurring_expenses, gui_preferences) e questo backup non e' piu' "

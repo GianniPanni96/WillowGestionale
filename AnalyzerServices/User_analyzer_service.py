@@ -11,32 +11,6 @@ class UserAnalyzerService:
         self.db_model = db_model
         self.fiscal_settings = fiscal_settings
 
-    def calcola_reddito_tot_utente(self, user_id, year: int = None):
-        invoices = self.db_model.fetch_invoices_by_user_id(user_id)
-        user = self.user_query_service.retrieve_user_map_by_id(user_id)
-        reddito_esterno = user[DBUsersColumns.REDDITO_ESTERNO.value] if user else 0
-        reddito = reddito_esterno
-
-        filter_invoices = True
-        if year is not None:
-            selected_year = year
-            if year == -1:
-                filter_invoices = False
-        else:
-            selected_year = datetime.now().year
-
-        if filter_invoices:
-            invoices = [
-                invoice
-                for invoice in invoices
-                if datetime.strptime(invoice[DBInvoicesColumns.DATA_CREAZIONE.value], '%Y-%m-%d').year == selected_year
-            ]
-
-        for invoice in invoices:
-            reddito += invoice[DBInvoicesColumns.TOT_DOCUMENTO.value]
-
-        return reddito
-
     def calcola_tot_fatturato_utente(self, user_id, include_unpaid_invoices: bool = True, year: int = None):
         rows = self.user_query_service.retrieve_user_with_invoices_map_list(
             user_id,
@@ -50,6 +24,23 @@ class UserAnalyzerService:
                 continue
             fatturato += float(tot)
         return fatturato
+
+    def calcola_tot_imponibile_utente(self, user_id, include_unpaid_invoices: bool = False, year: int = None):
+        """Somma il solo imponibile (compensi) delle fatture, escludendo IVA,
+        cassa/rivalsa INPS e rimborsi spese. E' la base corretta per IRPEF/INPS,
+        a differenza di TOT_DOCUMENTO che e' il lordo documento IVA inclusa."""
+        rows = self.user_query_service.retrieve_user_with_invoices_map_list(
+            user_id,
+            include_unpaid_invoices=include_unpaid_invoices,
+            year=year,
+        )
+        imponibile = 0.0
+        for row in rows:
+            tot = row.get(DBInvoicesColumns.IMPONIBILE.value)
+            if tot is None:
+                continue
+            imponibile += float(tot)
+        return imponibile
 
     def calcola_tot_spese_utente_anticipate(self, user_id, year: int = None):
         rows = self.user_query_service.retrieve_user_with_anticipated_expenses_map_list(user_id, year=year)
@@ -113,7 +104,9 @@ class UserAnalyzerService:
         return tot_salary
 
     def calcola_tot_ritenuta_acconto_ordinaria(self, user_id, year: int = None):
-        invoices = self.user_query_service.retrieve_user_with_invoices_map_list(user_id, year=year)
+        invoices = self.user_query_service.retrieve_user_with_invoices_map_list(
+            user_id, year=year, include_unpaid_invoices=False,
+        )
         invoices = ControllerUtils.clear_invoices_list_from_NDC_and_stornate(invoices)
         tot = 0.0
         for invoice in invoices:
@@ -131,18 +124,6 @@ class UserAnalyzerService:
             return settings.aliquota_irpef_max
         except (ValueError, AttributeError, TypeError):
             return None
-
-    def calcola_aliquota_tax_ordinaria(self, user_id):
-        reddito = self.calcola_reddito_tot_utente(user_id)
-        scaglioni = self.fiscal_settings.partita_iva_ordinaria.scaglioni_irpef
-
-        for scaglione in scaglioni:
-            if scaglione.reddito_min <= reddito <= scaglione.reddito_max:
-                return scaglione.value
-
-        if scaglioni:
-            return scaglioni[-1].value
-        return None
 
     def retrieve_users_with_tot_fatturato(self, year: int = None) -> dict[str, dict[str, float]]:
         output_map = {
@@ -208,7 +189,11 @@ class UserAnalyzerService:
         fatturato_willow = 0.0
         if user:
             reddito_esterno = float(user[DBUsersColumns.REDDITO_ESTERNO.value])
-            fatturato_willow = self.calcola_tot_fatturato_utente(user_id, year = year)
+            # Base = solo imponibile (compensi), per cassa: esclude IVA/rivalsa/
+            # rimborsi e le fatture non incassate.
+            fatturato_willow = self.calcola_tot_imponibile_utente(
+                user_id, year=year, include_unpaid_invoices=False,
+            )
             anno_apertura = int(user[DBUsersColumns.ANNO_APERTURA_PIVA.value])
         else:
             return
@@ -219,6 +204,7 @@ class UserAnalyzerService:
         perc_acc_imp_secondo = float(forfettaria_settings.percentuale_acconto_imposta_secondo)
         perc_acc_inps = float(forfettaria_settings.percentuale_acconto_inps_forfettario)
         perc_rata_inps = float(forfettaria_settings.percentuale_rata_acconto_inps_forfettario)
+        massimale_inps = float(forfettaria_settings.massimale_inps)
 
         # Recupero anticipo anno precedente
         acconto_anno_precedente_IRPEF = float(user.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value, 0.0))
@@ -228,17 +214,20 @@ class UserAnalyzerService:
         # Calcolo valori base
         coefficiente_imponibile = float(forfettaria_settings.imponibile)
         aliquota_inps = float(forfettaria_settings.aliquota_inps)
-        aliquota_irpef = float(self.calcola_aliquota_tax_forfettaria(
-            int(datetime.today().date().year) - anno_apertura
-        ))
+        # La funzione si aspetta l'anno di apertura della P. IVA.
+        aliquota_irpef = float(self.calcola_aliquota_tax_forfettaria(anno_apertura))
 
-        # Calcolo reddito imponibile
+        # Calcolo reddito imponibile (il coefficiente si applica a fatturato
+        # interno ed esterno, entrambi ricavi lordi del regime forfettario).
         reddito_willow = fatturato_willow * coefficiente_imponibile
-        reddito_tot = reddito_willow + reddito_esterno
+        reddito_tot = (fatturato_willow + reddito_esterno) * coefficiente_imponibile
 
-        # Calcolo tasse
-        irpef = reddito_tot * aliquota_irpef
-        inps = reddito_tot * aliquota_inps
+        # Calcolo contributi INPS (con tetto al massimale Gestione Separata)
+        inps = min(reddito_tot, massimale_inps) * aliquota_inps
+
+        # Calcolo imposta sostitutiva: i contributi INPS sono deducibili dalla base
+        base_imponibile_irpef = max(0.0, reddito_tot - inps)
+        irpef = base_imponibile_irpef * aliquota_irpef
         totale_tasse = inps + irpef
 
         # Calcolo saldo corrente (tasse totali - acconto anno precedente)
@@ -298,6 +287,8 @@ class UserAnalyzerService:
             # Calcoli intermedi
             "REDDITO_WILLOW": round(reddito_willow, 2),
             "REDDITO_TOT": round(reddito_tot, 2),
+            "BASE_IMPONIBILE_IRPEF": round(base_imponibile_irpef, 2),
+            "MASSIMALE_INPS": round(massimale_inps, 2),
             "QUOTA_WILLOW": quota_willow,
 
             # Totali tasse
@@ -350,7 +341,9 @@ class UserAnalyzerService:
         # Recupero dati utente
         reddito_esterno = float(user.get(DBUsersColumns.REDDITO_ESTERNO.value, 0.0))
         spese_esterne = float(user.get(DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value, 0.0))
-        fatturato_willow = self.calcola_tot_fatturato_utente(user_id, year = year, include_unpaid_invoices = False)
+        # Base = solo imponibile (compensi), al netto di IVA/cassa/rimborsi e
+        # delle fatture non incassate (principio di cassa).
+        fatturato_willow = self.calcola_tot_imponibile_utente(user_id, year = year, include_unpaid_invoices = False)
         spese_willow = self.calcola_tot_spese_utente_dedotte(user_id, year = year)
         tot_ritenuta = self.calcola_tot_ritenuta_acconto_ordinaria(user_id, year = year)
         acconto_anno_precedente_IRPEF = float(user.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value, 0.0))
@@ -360,51 +353,34 @@ class UserAnalyzerService:
         # Recupero impostazioni fiscali
         ordinaria_settings = self.fiscal_settings.partita_iva_ordinaria
         aliquota_inps = float(ordinaria_settings.aliquota_inps)
+        massimale_inps = float(ordinaria_settings.massimale_inps)
         scaglioni = ordinaria_settings.scaglioni_irpef
         perc_acc_irpef_primo = float(ordinaria_settings.percentuale_acconto_irpef_primo)
         perc_acc_irpef_secondo = float(ordinaria_settings.percentuale_acconto_irpef_secondo)
         perc_acc_inps = float(ordinaria_settings.percentuale_acconto_inps)
         perc_rata_inps = float(ordinaria_settings.percentuale_rata_acconto_inps)
 
-        # 1. Calcolo scenario completo (con Willow)
+        # 1. Calcolo scenario completo
         ricavi_totali = fatturato_willow + reddito_esterno
         spese_totali = spese_willow + spese_esterne
         reddito_netto_completo = ricavi_totali - spese_totali
-        inps_completo = reddito_netto_completo * aliquota_inps
+        # INPS Gestione Separata con tetto al massimale contributivo
+        inps_completo = min(max(0.0, reddito_netto_completo), massimale_inps) * aliquota_inps
         base_irpef_completo = reddito_netto_completo - inps_completo
         irpef_lorda_completo = self._calcola_irpef(base_irpef_completo, scaglioni)
         irpef_netta_completo = irpef_lorda_completo - tot_ritenuta
 
-        # 2. Calcolo scenario senza Willow
-        reddito_netto_senza_willow = reddito_esterno - spese_esterne
-        inps_senza_willow = reddito_netto_senza_willow * aliquota_inps
-        base_irpef_senza_willow = reddito_netto_senza_willow - inps_senza_willow
-        irpef_lorda_senza_willow = self._calcola_irpef(base_irpef_senza_willow, scaglioni)
-
-        # 3. Calcolo della differenza di scaglione
-        scaglione_max_senza_willow = 0
-        for scaglione in sorted(scaglioni, key=lambda x: float(x.reddito_min)):
-            if base_irpef_senza_willow > float(scaglione.reddito_min):
-                scaglione_max_senza_willow = float(scaglione.reddito_min)
-
-        # 4. Calcolo IRPEF attribuibile a Willow
-        if base_irpef_senza_willow > 0:
-            base_comune = min(base_irpef_completo, base_irpef_senza_willow)
-            irpef_comune = self._calcola_irpef(base_comune, scaglioni)
-            proporzione_comune = base_irpef_senza_willow / base_irpef_completo if base_irpef_completo > 0 else 0
-        else:
-            irpef_comune = 0
-            proporzione_comune = 0
-
-        base_aggiuntiva = max(0, base_irpef_completo - base_irpef_senza_willow)
-        irpef_aggiuntiva = irpef_lorda_completo - irpef_lorda_senza_willow
-
-        quota_willow_base = (fatturato_willow - spese_willow) / (ricavi_totali - spese_totali) if (ricavi_totali - spese_totali) > 0 else 0
-        irpef_willow = (irpef_comune * quota_willow_base) + irpef_aggiuntiva
+        # 2. Ripartizione proporzionale della quota collettivo.
+        # La quota e' il peso del reddito netto interno sul reddito netto totale;
+        # IRPEF e INPS del collettivo sono la stessa frazione del totale, cosi'
+        # che quota collettivo + quota propria == totale (quadratura garantita).
         reddito_netto_willow = fatturato_willow - spese_willow
-        inps_willow = (reddito_netto_willow / reddito_netto_completo) * inps_completo if reddito_netto_completo > 0 else 0
+        quota_willow_base = (reddito_netto_willow / reddito_netto_completo) if reddito_netto_completo > 0 else 0
+        irpef_willow = irpef_lorda_completo * quota_willow_base
+        inps_willow = inps_completo * quota_willow_base
 
-        # 5. Calcolo tasse totali
+        # 3. Calcolo tasse totali. La ritenuta nasce dalle fatture interne, quindi
+        # e' interamente attribuita al collettivo.
         totale_tasse = inps_completo + max(0, irpef_netta_completo)
         tasse_willow = inps_willow + max(0, irpef_willow - tot_ritenuta)
         tasse_non_willow = totale_tasse - tasse_willow
@@ -450,9 +426,10 @@ class UserAnalyzerService:
         totale_giugno_willow = saldo_willow + rata_inps_willow + rata_irpef_primo_willow
         totale_giugno_non_willow = saldo_non_willow + rata_inps_non_willow + rata_irpef_primo_non_willow
 
-        totale_novembre = rata_irpef_secondo
-        totale_novembre_willow = rata_irpef_secondo_willow
-        totale_novembre_non_willow = rata_irpef_secondo_non_willow
+        # A novembre cade anche la seconda rata dell'acconto INPS.
+        totale_novembre = rata_irpef_secondo + rata_inps
+        totale_novembre_willow = rata_irpef_secondo_willow + rata_inps_willow
+        totale_novembre_non_willow = rata_irpef_secondo_non_willow + rata_inps_non_willow
 
         # 7. Mappa versamenti (saldo e acconti)
         versamenti_map = {
@@ -483,15 +460,9 @@ class UserAnalyzerService:
             "RATA_IRPEF_PRIMO": round(rata_irpef_primo, 2),
             "RATA_IRPEF_SECONDO": round(rata_irpef_secondo, 2),
             "RATA_INPS": round(rata_inps, 2),
+            "MASSIMALE_INPS": round(massimale_inps, 2),
 
-            # Valori senza Willow
-            "SENZA_WILLOW_REDDITO": round(reddito_netto_senza_willow, 2),
-            "SENZA_WILLOW_BASE_IRPEF": round(base_irpef_senza_willow, 2),
-            "SENZA_WILLOW_IRPEF": round(irpef_lorda_senza_willow, 2),
-
-            # Ripartizione per Willow
-            "WILLOW_IRPEF_BASE": round(irpef_comune * quota_willow_base, 2),
-            "WILLOW_IRPEF_AGGIUNTIVA": round(irpef_aggiuntiva, 2),
+            # Ripartizione per Willow (proporzionale)
             "WILLOW_IRPEF_TOT": round(irpef_willow, 2),
             "WILLOW_INPS": round(inps_willow, 2),
             "WILLOW_RITENUTA": round(tot_ritenuta, 2),
@@ -499,8 +470,6 @@ class UserAnalyzerService:
             "NON_WILLOW_TASSE_TOT": round(tasse_non_willow, 2),
 
             # Coefficienti
-            "SCAGLIONE_MAX_SENZA_WILLOW": scaglione_max_senza_willow,
-            "PROPORZIONE_COMUNE": round(proporzione_comune, 4),
             "QUOTA_WILLOW_BASE": round(quota_willow_base, 4),
             "PROP_WILLOW": round(prop_willow, 4),
             "PROP_NON_WILLOW": round(prop_non_willow, 4),
@@ -510,8 +479,6 @@ class UserAnalyzerService:
             "SPESE_ESTERNE": round(spese_esterne, 2),
             "SPESE_TOTALI": round(spese_totali, 2),
             "REDDITO_NETTO_WILLOW": round(reddito_netto_willow, 2),
-            "IRPEF_COMUNE": round(irpef_comune, 2),
-            "BASE_AGGIUNTIVA": round(base_aggiuntiva, 2),
             "WILLOW_IRPEF_NETTA": round(max(0, irpef_willow - tot_ritenuta), 2),
             "FATTURATO_WILLOW": round(fatturato_willow, 2),
             "SPESE_WILLOW": round(spese_willow, 2),

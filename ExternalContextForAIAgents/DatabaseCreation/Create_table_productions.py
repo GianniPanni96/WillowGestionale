@@ -1,4 +1,5 @@
-from Model import db_path, DBClientsColumns, DBProductionsColumns
+from Installer.Gestionale_Enums import DBProductionsColumns, DBClientsColumns
+from Installer.Model import db_path
 import sqlite3
 
 

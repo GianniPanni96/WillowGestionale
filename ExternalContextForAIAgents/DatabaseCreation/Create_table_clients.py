@@ -1,5 +1,6 @@
 import sqlite3
-from Model import db_path, DBClientsColumns
+from Installer.Gestionale_Enums import DBUsersColumns, DBClientsColumns
+from Installer.Model import db_path
 
 # Creazione della tabella `clients` utilizzando l'enum
 columns = [

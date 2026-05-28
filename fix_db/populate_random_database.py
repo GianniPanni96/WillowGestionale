@@ -25,8 +25,6 @@ from Gestionale_Enums import (
     DBSuppliersColumns,
     DBTransfersColumns,
     DBUsersColumns,
-    InvoiceRateizzSatus,
-    InvoiceSatus,
     PaymentsMethods,
     ProductionStatus,
     Rateizzazione,
@@ -341,7 +339,10 @@ def create_invoices(cursor, token, count, user_ids, client_ids, account_ids, pro
     for index in range(count):
         creation_date = iso_day(days_back=420, days_forward=20)
         rates = Rateizzazione.TRE.value if index % 3 == 0 else Rateizzazione.UNA.value
-        status = InvoiceRateizzSatus.EMESSA.value if rates == Rateizzazione.TRE.value else InvoiceSatus.EMESSA.value
+        # STATUS in DB = stringa vuota: lo stato e' calcolato on-the-fly
+        # (Utils.Invoice_status_utils.compute_invoice_status). Resta scritto
+        # solo STORNATA come eccezione manuale.
+        status = ""
         services, refunds, rivalsa, imponibile, iva, total, withholding, net = invoice_amounts()
         ids.append(
             insert_row(

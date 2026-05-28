@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v1.4.0 (2026-05-28)
+
+### Features
+
+- Better taxes prevision + better invoices_status management - Merge pull request #121 from
+  GianniPanni96/Development
+  ([`a380908`](https://github.com/GianniPanni96/WillowGestionale/commit/a380908d18e56213180b52a74bcca4eb2f51b1ee))
+
+feat: better taxes prevision + better invoices_status management
+
+
 ## v1.3.0 (2026-05-19)
 
 ### Features

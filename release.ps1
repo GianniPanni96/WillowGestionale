@@ -84,7 +84,7 @@ if ($patchSpecFiles.Count -eq 0) {
         Write-Host "  [$patchFolderName] avvio pyinstaller..."
         & pyinstaller $specRelPath --distpath $distPatchDir --workpath (Join-Path $repoRoot "build_patches\$patchFolderName") --noconfirm
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "  [$patchFolderName] Build FALLITO per $($specFile.Name) — continuo con gli altri spec."
+            Write-Warning ("  [{0}] Build FALLITO per {1} -- continuo con gli altri spec." -f $patchFolderName, $specFile.Name)
             continue
         }
 
@@ -103,9 +103,9 @@ if ($patchSpecFiles.Count -eq 0) {
         }
 
         foreach ($exeFile in $producedExes) {
-            $destPath = Join-Path $destDir $exeFile.Name
-            $sizeMbPatch = [math]::Round($exeFile.Length / 1MB, 1)
-            Write-Host "  [$patchFolderName] Copio $($exeFile.Name) ($sizeMbPatch MB) -> $destPath" -ForegroundColor Green
+            $destPath    = Join-Path $destDir $exeFile.Name
+            $patchSizeMb = [math]::Round($exeFile.Length / 1MB, 1)
+            Write-Host ("  [{0}] Copio {1} ({2} MB) -> {3}" -f $patchFolderName, $exeFile.Name, $patchSizeMb, $destPath) -ForegroundColor Green
             Copy-Item -Path $exeFile.FullName -Destination $destPath -Force
         }
 

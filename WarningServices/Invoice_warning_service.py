@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from Gestionale_Enums import DBInvoicesColumns, DBPaymentsColumns, InvoiceSatus
+from Gestionale_Enums import DBInvoicesColumns, DBPaymentsColumns
 from Utils.Controller_utils import ControllerUtils
+from Utils.Invoice_status_utils import is_invoice_fully_paid
 
 from WarningServices.Warning_types import WarningInfo, WarningSeverity
 
@@ -145,14 +146,6 @@ class InvoiceWarningService:
         if self.payments_query_service is None:
             return None
 
-        # Trigger valido solo per fatture interamente saldate: per le
-        # fatture EMESSE / SCADUTE e' normale che la somma pagamenti
-        # sia inferiore al netto (rate ancora in corso). Il warning
-        # diventerebbe ridondante con il label di stato della fattura
-        # e farebbe rumore inutile sulle rateizzate non saldate.
-        if str(invoice.get(DBInvoicesColumns.STATUS.value) or "") != InvoiceSatus.SALDATA.value:
-            return None
-
         try:
             netto = float(invoice.get(DBInvoicesColumns.NETTO_A_PAGARE.value) or 0)
         except (TypeError, ValueError):
@@ -166,6 +159,13 @@ class InvoiceWarningService:
         except Exception:
             return None
         if not payments:
+            return None
+
+        # Trigger valido solo per fatture interamente saldate: per le
+        # fatture EMESSE / SCADUTE e' normale che la somma pagamenti
+        # sia inferiore al netto (rate ancora in corso). Lo stato e'
+        # calcolato on-the-fly da pagamenti+scadenze.
+        if not is_invoice_fully_paid(invoice, payments):
             return None
 
         total_paid = 0.0

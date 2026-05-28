@@ -17,6 +17,7 @@ from Model import (
     DBUsersColumns,
 )
 from Utils.Controller_utils import ControllerUtils
+from Utils.Invoice_status_utils import compute_invoice_status
 
 
 # Coerenti con InvoicesViewH.InvoicesStatusColors del lato customtkinter.
@@ -61,6 +62,19 @@ def _status_color(status_value, num_rate):
     if status_value == InvoiceSatus.STORNATA.value:
         return COLOR_STORNATA
     return COLOR_NORMAL
+
+
+def _payments_from_join(invoice_with_payments):
+    """Estrae la lista pulita di pagamenti dal risultato del LEFT JOIN
+    ``retrieve_invoice_with_payments_map_list``. Le righe senza pagamento
+    (LINKED_RATA is None) vengono scartate."""
+    if not invoice_with_payments:
+        return []
+    payments = []
+    for row in invoice_with_payments:
+        if row.get(DBPaymentsColumns.LINKED_RATA.value) is not None:
+            payments.append(row)
+    return payments
 
 
 def _rate_colors(invoice_with_payments):
@@ -207,7 +221,10 @@ class InvoicesTableModel(WarningSupportMixin, QAbstractTableModel):
 
             creation_date = inv[DBInvoicesColumns.DATA_CREAZIONE.value] or ""
             num_rate = inv[DBInvoicesColumns.NUMERO_RATE.value]
-            status_value = inv[DBInvoicesColumns.STATUS.value] or ""
+            # Stato calcolato runtime da pagamenti+scadenze. STORNATA
+            # resta letto dal campo DB (unica eccezione persistita).
+            payments_for_status = _payments_from_join(inv_with_payments)
+            status_value = compute_invoice_status(inv, payments_for_status)
 
             rows.append(
                 {

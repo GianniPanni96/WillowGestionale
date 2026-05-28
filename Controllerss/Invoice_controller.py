@@ -145,7 +145,7 @@ class InvoiceController:
                 DBInvoicesColumns.RITENUTA.value : importi_derivati_ordinaria[DBInvoicesColumns.RITENUTA.value],  # controller = 0
                 DBInvoicesColumns.RIVALSA_INPS.value: 0,
                 DBInvoicesColumns.NETTO_A_PAGARE.value : importi_derivati_ordinaria[DBInvoicesColumns.NETTO_A_PAGARE.value],  # controller = 0
-                DBInvoicesColumns.STATUS.value : InvoiceRateizzSatus.EMESSA.value if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == Rateizzazione.TRE.value else InvoiceSatus.EMESSA.value, # controller -> default: emessa
+                DBInvoicesColumns.STATUS.value : "",  # eccezione manuale: STORNATA scritto solo via storna_invoice
                 DBInvoicesColumns.METODO_PAGAMENTO.value : invoice_data.get(DBInvoicesColumns.METODO_PAGAMENTO.value),  # view
                 DBInvoicesColumns.NUMERO_RATE.value : invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value),  # view
                 DBInvoicesColumns.TIPO.value : invoice_data.get(DBInvoicesColumns.TIPO.value),  # se è nota di credito #view
@@ -173,7 +173,7 @@ class InvoiceController:
                 DBInvoicesColumns.TOT_DOCUMENTO.value: tot_lordo,
                 DBInvoicesColumns.RITENUTA.value: 0,
                 DBInvoicesColumns.NETTO_A_PAGARE.value: tot_lordo,
-                DBInvoicesColumns.STATUS.value: InvoiceRateizzSatus.EMESSA.value if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == Rateizzazione.TRE.value else InvoiceSatus.EMESSA.value,
+                DBInvoicesColumns.STATUS.value: "",  # eccezione manuale: STORNATA scritto solo via storna_invoice
                 DBInvoicesColumns.METODO_PAGAMENTO.value: invoice_data.get(DBInvoicesColumns.METODO_PAGAMENTO.value),
                 DBInvoicesColumns.NUMERO_RATE.value: invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value),  # view
                 DBInvoicesColumns.TIPO.value: invoice_data.get(DBInvoicesColumns.TIPO.value),  # se è nota di credito #view
@@ -185,11 +185,12 @@ class InvoiceController:
         # Salvataggio nel DB
         try:
             self.db_model.add_invoice(**invoice_data_prepared)
-            self.update_stato_fatture() #aggiorno lo stato in funzione della data di oggi e dei pagamenti associati alla fattura
+            # Lo stato EMESSA/SCADUTA/SALDATA/PAGATA/PARZIALMENTE_SALDATA/CRITICA
+            # e' calcolato on-the-fly (Utils.Invoice_status_utils.compute_invoice_status),
+            # quindi non serve aggiornare nulla nel DB. Resta scritto solo STORNATA
+            # per la linked invoice in caso di nota di credito.
             if id_linked_invoice:
                 self.db_model.modify_invoice_datum(id_linked_invoice, DBInvoicesColumns.STATUS.value, InvoiceSatus.STORNATA.value)
-            #self.update_invoices_list()
-            #self.update_aggregated_data()
             return True, "Fattura salvata con successo!"
         except Exception as e:
             return False, f"Errore durante il salvataggio: {str(e)}"
@@ -270,160 +271,3 @@ class InvoiceController:
             return False, str(ve)
         except Exception as e:
             return False, f"Errore durante l'aggiornamento della fattura: {str(e)}"
-
-    def update_stato_fatture(self, year: int = None):
-        """
-        Aggiorna lo stato di tutte le fatture nel database in base ai dati correnti,
-        utilizzando il nuovo enum InvoiceRateizzSatus e sfruttando i dati dei pagamenti
-        ottenuti dal join tra invoices e payments.
-
-        Per fatture con 1 rata:
-          - Se esiste un pagamento associato (con LINKED_RATA == 1) → PAGATA
-          - Se non esiste pagamento e la scadenza (DATA_SCADENZA_1) è passata → SCADUTA
-          - Altrimenti → EMESSA
-
-        Per fatture con 3 rate:
-          - Se tutte le 3 rate sono pagate → PAGATA
-          - Se nessuna rata è pagata:
-                * Se tutte le scadenze sono passate → SCADUTA
-                * Se almeno una rata non pagata è scaduta (ma non tutte) → CRITICA
-                * Altrimenti → EMESSA
-          - Se alcune rate sono pagate (1 o 2):
-                * Se almeno una rata ancora non pagata è scaduta → CRITICA
-                * Altrimenti → PARZIALMENTE_SALDATA
-
-        Viene stampato a console il feedback per ogni fattura e un riepilogo finale.
-        """
-        # Recupera i dati dal join tra invoices e payments
-        rows = self.db_model.fetch_invoices_with_payments()
-        oggi = datetime.today().date()
-        num_invoice_cols = len(DBInvoicesColumns)
-
-        # Estrai solo la parte fatture (senza pagamenti) per il filtraggio
-        invoice_maps = [
-            ValidationUtils._row_to_map(row[0:num_invoice_cols], DBInvoicesColumns)
-            for row in rows
-        ]
-
-        # Applica il filtro utilizzando ControllerUtils
-        filtered_invoice_maps = ControllerUtils.filter_invoices(
-            invoice_maps,
-            self.db_model,
-            year=year
-        )
-
-        # Crea un set con gli ID delle fatture filtrate
-        filtered_ids = {
-            inv[DBInvoicesColumns.ID.value]
-            for inv in filtered_invoice_maps
-        }
-
-        # Filtra le righe originali mantenendo solo quelle delle fatture filtrate
-        filtered_rows = [row for row in rows if row[0] in filtered_ids]
-
-        # Raggruppa i record per invoice_id
-        grouped = {}
-        for row in filtered_rows:
-            invoice_id = row[0]
-            if invoice_id not in grouped:
-                grouped[invoice_id] = {
-                    "invoice_raw": row[0:num_invoice_cols],
-                    "payments": []
-                }
-            payment_raw = row[num_invoice_cols:]
-            if payment_raw and payment_raw[0] is not None:
-                grouped[invoice_id]["payments"].append(payment_raw)
-
-        # Converte ogni gruppo in una mappa
-        all_invoice_maps = {}
-        for inv_id, data in grouped.items():
-            inv_map = ValidationUtils._row_to_map(data["invoice_raw"], DBInvoicesColumns)
-            inv_map["payments"] = data["payments"]
-            all_invoice_maps[inv_id] = inv_map
-
-        # Filtra ulteriormente rimuovendo note di credito e fatture stornate
-        filtered_invoices = ControllerUtils.clear_invoices_list_from_NDC_and_stornate(
-            list(all_invoice_maps.values())
-        )
-
-        updates = 0
-        total = len(filtered_invoices)
-        payment_cols = [col.value for col in DBPaymentsColumns]
-
-        for invoice in filtered_invoices:
-            invoice_id = invoice[DBInvoicesColumns.ID.value]
-            stato_attuale = invoice[DBInvoicesColumns.STATUS.value]
-            num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
-            nuovo_stato = stato_attuale  # default
-
-            # Salta note di credito (già gestito in clear_invoices_list... ma doppio check)
-            if stato_attuale == InvoiceSatus.STORNATA.value:
-                print(f"Fattura {invoice_id} non aggiornata poichè è nota di credito")
-                continue
-
-            # Converti i pagamenti in mappe
-            payments = invoice.get("payments", [])
-            payments_maps = []
-            for p in payments:
-                if p and p[0] is not None:
-                    payments_maps.append(dict(zip(payment_cols, p)))
-
-            # Logica di aggiornamento stato (invariata)
-            if num_rate == int(Rateizzazione.UNA.value):
-                paid = any(int(pm[DBPaymentsColumns.LINKED_RATA.value]) == 1 for pm in payments_maps)
-                scadenza = ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_1.value])
-                if paid:
-                    nuovo_stato = InvoiceRateizzSatus.PAGATA.value
-                else:
-                    if scadenza is not None and oggi > scadenza:
-                        nuovo_stato = InvoiceRateizzSatus.SCADUTA.value
-                    else:
-                        nuovo_stato = InvoiceRateizzSatus.EMESSA.value
-
-            elif num_rate == int(Rateizzazione.TRE.value):
-                pagamenti = []
-                for rata in [1, 2, 3]:
-                    payment = next((pm for pm in payments_maps if int(pm[DBPaymentsColumns.LINKED_RATA.value]) == rata),
-                                   None)
-                    pagamenti.append(
-                        ControllerUtils.parse_date(payment[DBPaymentsColumns.PAYMENT_DATE.value]) if payment else None)
-
-                scadenze = [
-                    ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_1.value]),
-                    ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_2.value]),
-                    ControllerUtils.parse_date(invoice[DBInvoicesColumns.DATA_SCADENZA_3.value])
-                ]
-
-                count_paid = sum(1 for p in pagamenti if p is not None)
-                count_overdue = sum(
-                    1 for i in range(3) if pagamenti[i] is None and scadenze[i] is not None and oggi > scadenze[i]
-                )
-
-                if count_paid == 3:
-                    nuovo_stato = InvoiceRateizzSatus.PAGATA.value
-                elif count_paid == 0:
-                    if all(s is not None and oggi > s for s in scadenze):
-                        nuovo_stato = InvoiceRateizzSatus.SCADUTA.value
-                    elif count_overdue > 0 and count_overdue < 3:
-                        nuovo_stato = InvoiceRateizzSatus.CRITICA.value
-                    else:
-                        nuovo_stato = InvoiceRateizzSatus.EMESSA.value
-                else:
-                    if count_overdue > 0:
-                        nuovo_stato = InvoiceRateizzSatus.CRITICA.value
-                    else:
-                        nuovo_stato = InvoiceRateizzSatus.PARZIALMENTE_SALDATA.value
-            else:
-                print(
-                    f"Invoice id {invoice_id}: numero rate non riconosciuto (valore: {num_rate}). Nessuna azione effettuata.")
-                continue
-
-            # Aggiornamento se lo stato è cambiato
-            if nuovo_stato != stato_attuale:
-                self.db_model.modify_invoice_datum(invoice_id, DBInvoicesColumns.STATUS.value, nuovo_stato)
-                print(f"Invoice id {invoice_id}: stato aggiornato da '{stato_attuale}' a '{nuovo_stato}'.")
-                updates += 1
-            else:
-                print(f"Invoice id {invoice_id}: nessun cambiamento (stato corrente: '{stato_attuale}').")
-
-        print(f"Aggiornamento completato: {updates} su {total} fatture aggiornate.")

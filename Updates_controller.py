@@ -15,11 +15,10 @@ class UpdatesController:
         self.on_delete_production_view_cllbks = []
 
     def update_invoices(self, invoice_id):
-        #richiedo di updatare le liste in back
-        self.invoice_controller.update_aggregated_data()
-        self.invoice_controller.update_stato_fatture()
-
-        #updato il frontend
+        # Lo stato delle fatture e' ora calcolato on-the-fly
+        # (Utils.Invoice_status_utils.compute_invoice_status), quindi
+        # non serve piu' aggiornare nulla nel DB qui: basta notificare
+        # le view perche' ridisegnino la lista.
         for callback in self.invoice_controller.on_updating_invoice_controller_callbacks:
             try:
                 callback(invoice_id)

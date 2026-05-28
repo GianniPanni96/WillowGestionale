@@ -553,6 +553,16 @@ class QTInvoiceCreateViewH(QDialog):
         else:
             self.error_labels[self.NOME_PRODUZIONE].setText("")
 
+    def prefill_from_production(self, client_name: str, production_name: str) -> None:
+        """Pre-seleziona cliente e produzione, aggiornando la lista produzioni."""
+        client_combo = self.invoice_widgets.get(self.NOME_CLIENTE)
+        if client_combo and client_name:
+            client_combo.set_value(client_name)
+            self._update_productions_list(client_name)
+        prod_combo = self.invoice_widgets.get(self.NOME_PRODUZIONE)
+        if prod_combo and production_name:
+            prod_combo.setCurrentText(production_name)
+
     # ------------------------------------------------------------------
     # Salvataggio
     # ------------------------------------------------------------------

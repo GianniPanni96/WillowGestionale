@@ -19,10 +19,12 @@ import os
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QCursor
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -196,6 +198,7 @@ class QTUsersViewH(QWidget):
             photo_path=photo_path,
         )
         card.clicked.connect(self._on_card_clicked)
+        card.context_menu_requested.connect(self._on_card_context_menu)
         return card
 
     # ------------------------------------------------------------------
@@ -208,6 +211,30 @@ class QTUsersViewH(QWidget):
     def _on_card_clicked(self, user_id: int):
         if self.on_open_detail is not None:
             self.on_open_detail(user_id)
+
+    def _on_card_context_menu(self, user_id: int):
+        user = next(
+            (u for u in self._users if u[DBUsersColumns.ID.value] == user_id), None
+        )
+        if user is None:
+            return
+        user_name = (
+            f"{user.get(DBUsersColumns.FIRST_NAME.value, '') or ''} "
+            f"{user.get(DBUsersColumns.LAST_NAME.value, '') or ''}"
+        ).strip()
+
+        menu = QMenu(self)
+        action = QAction("Aggiungi Salario", self)
+        action.triggered.connect(lambda: self._open_salary_create(user_name))
+        menu.addAction(action)
+        menu.exec(QCursor.pos())
+
+    def _open_salary_create(self, user_name: str):
+        from QTViews.Creators.QT_salary_create_view import QTSalaryCreateViewH
+
+        dialog = QTSalaryCreateViewH(app_context=self.app_context, parent=self)
+        dialog.prefill_user(user_name)
+        dialog.exec()
 
     def _on_add_user(self):
         # Senza almeno un conto corrente la creazione utente non e' possibile

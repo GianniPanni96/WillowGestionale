@@ -239,6 +239,18 @@ class QTSalaryCreateViewH(QDialog):
                 salary_data[key] = widget.date().toString("yyyy-MM-dd")
         return salary_data
 
+    def prefill_user(self, user_name: str) -> None:
+        """Pre-seleziona l'utente nel combo e aggiorna nome e conto."""
+        if not user_name:
+            return
+        combo: QComboBox = self.salary_widgets.get(self.USER_NAME_FIELD)
+        if combo is None:
+            return
+        idx = combo.findText(user_name)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+            self._on_user_changed(user_name)
+
     def _save_salary_data(self):
         salary_data = self._collect_salary_data()
         success, message = self.salary_controller.save_salary(salary_data)

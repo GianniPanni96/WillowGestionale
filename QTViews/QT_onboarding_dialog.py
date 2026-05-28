@@ -59,6 +59,7 @@ class QTOnboardingDialog(QDialog):
         self.created_user_id: int | None = None
         self.created_user_name: str | None = None
         self.created_user_password: str | None = None
+        self.exit_requested: bool = False
 
         self.setWindowTitle("Configurazione iniziale - Willow Gestionale")
         self.setModal(True)
@@ -183,6 +184,12 @@ class QTOnboardingDialog(QDialog):
         buttons.addStretch(1)
         root.addLayout(buttons)
 
+        exit_btn = QPushButton("Esci dall'app")
+        exit_btn.setFlat(True)
+        exit_btn.setStyleSheet("text-align: center; color: palette(mid);")
+        exit_btn.clicked.connect(self._exit_app)
+        root.addWidget(exit_btn)
+
     @staticmethod
     def _section_header(text: str) -> QFrame:
         frame = QFrame()
@@ -210,6 +217,10 @@ class QTOnboardingDialog(QDialog):
     def reject(self):
         # Disattiva la chiusura forzata.
         return
+
+    def _exit_app(self):
+        self.exit_requested = True
+        self.done(QDialog.Rejected)
 
     def _on_create(self):
         if not self._validate():

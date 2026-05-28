@@ -152,6 +152,25 @@ class QTSuppliersViewH(QTBaseListView):
     def row_for_id(self, item_id):
         return self._source_model.find_row_by_supplier_id(item_id)
 
+    def context_menu_actions(self, row_data: dict) -> list[tuple[str, callable]]:
+        return [
+            ("Aggiungi una spesa", lambda: self._open_expense_create(row_data)),
+        ]
+
+    def _open_expense_create(self, row_data: dict):
+        from QTViews.Creators.QT_expense_create_view import QTExpenseCreateViewH
+
+        def _on_created(_id):
+            idx = self.window_combo.currentIndex()
+            _, days = self.TIME_WINDOWS[idx]
+            self._reload_data(window_days=days)
+
+        dialog = QTExpenseCreateViewH(
+            app_context=self.app_context, parent=self, on_expense_created=_on_created
+        )
+        dialog.prefill_supplier(row_data.get("name", ""))
+        dialog.exec()
+
     def open_creator_dialog(self):
         # Stesso pattern di QTInvoicesViewH / QTClientsViewH: contenitore
         # mutabile riempito dalla callback, leggibile al ritorno di exec().

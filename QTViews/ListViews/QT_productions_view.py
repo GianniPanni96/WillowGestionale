@@ -215,6 +215,28 @@ class QTProductionsViewH(QTBaseListView):
         # media ore, media €/h dipendono tutti dallo stato).
         self._refresh_aggregates()
 
+    def context_menu_actions(self, row_data: dict) -> list[tuple[str, callable]]:
+        return [
+            ("Aggiungi una fattura", lambda: self._open_invoice_create(row_data)),
+        ]
+
+    def _open_invoice_create(self, row_data: dict):
+        from QTViews.Creators.QT_invoice_create_view import QTInvoiceCreateViewH
+
+        def _on_created(_id):
+            idx = self.window_combo.currentIndex()
+            _, days = self.TIME_WINDOWS[idx]
+            self._reload_data(window_days=days)
+
+        dialog = QTInvoiceCreateViewH(
+            app_context=self.app_context, parent=self, on_invoice_created=_on_created
+        )
+        dialog.prefill_from_production(
+            row_data.get("client_name", ""),
+            row_data.get("name", ""),
+        )
+        dialog.exec()
+
     def open_creator_dialog(self):
         # Stesso pattern di QTInvoicesViewH / QTClientsViewH / QTSuppliersViewH.
         result = {"id": None}

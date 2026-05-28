@@ -158,6 +158,40 @@ class QTClientsViewH(QTBaseListView):
     def row_for_id(self, item_id):
         return self._source_model.find_row_by_client_id(item_id)
 
+    def context_menu_actions(self, row_data: dict) -> list[tuple[str, callable]]:
+        return [
+            ("Aggiungi una produzione", lambda: self._open_production_create(row_data)),
+            ("Aggiungi un rimborso",    lambda: self._open_refund_create(row_data)),
+        ]
+
+    def _open_production_create(self, row_data: dict):
+        from QTViews.Creators.QT_production_create_view import QTProductionCreateViewH
+
+        def _on_created(_id):
+            idx = self.window_combo.currentIndex()
+            _, days = self.TIME_WINDOWS[idx]
+            self._reload_data(window_days=days)
+
+        dialog = QTProductionCreateViewH(
+            app_context=self.app_context, parent=self, on_production_created=_on_created
+        )
+        dialog.prefill_client(row_data.get("name", ""))
+        dialog.exec()
+
+    def _open_refund_create(self, row_data: dict):
+        from QTViews.Creators.QT_refund_create_view import QTRefundCreateViewH
+
+        def _on_created(_id):
+            idx = self.window_combo.currentIndex()
+            _, days = self.TIME_WINDOWS[idx]
+            self._reload_data(window_days=days)
+
+        dialog = QTRefundCreateViewH(
+            app_context=self.app_context, parent=self, on_refund_created=_on_created
+        )
+        dialog.prefill_client(row_data.get("name", ""))
+        dialog.exec()
+
     def open_creator_dialog(self):
         # Stesso pattern di QTInvoicesViewH.open_creator_dialog: passiamo
         # al dialog una callback che riempie un contenitore mutabile con

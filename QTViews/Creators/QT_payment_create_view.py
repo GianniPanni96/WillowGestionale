@@ -225,6 +225,24 @@ class QTPaymentCreateViewH(QDialog):
             self.payment_widgets[self.INVOICE_FIELD].set_value(invoice_values[0])
             self._on_invoice_selected(invoice_values[0])
 
+    def prefill_invoice(self, invoice_name: str) -> None:
+        """Pre-seleziona la fattura col numero_fattura dato nel combo.
+
+        Cerca il primo valore del combo che inizia con ``invoice_name + ' - '``
+        e lo imposta come selezione corrente, aggiornando importo e rata.
+        """
+        if not invoice_name:
+            return
+        combo = self.payment_widgets.get(self.INVOICE_FIELD)
+        if combo is None:
+            return
+        prefix = f"{invoice_name} - "
+        for item in combo.all_values():
+            if item.startswith(prefix) or item == invoice_name:
+                combo.set_value(item)
+                self._on_invoice_selected(item)
+                return
+
     def _construct_invoices_view_friendly(self, year=None):
         invoices = {}
         for invoice in self.invoices_query_service.retrieve_invoices_map_list(

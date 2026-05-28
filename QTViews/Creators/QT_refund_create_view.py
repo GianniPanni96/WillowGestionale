@@ -218,6 +218,15 @@ class QTRefundCreateViewH(QDialog):
                 refund_data[key] = widget.date().toString("yyyy-MM-dd")
         return refund_data
 
+    def prefill_client(self, client_name: str) -> None:
+        """Pre-seleziona il cliente nel combo."""
+        if not client_name:
+            return
+        combo = self.refund_widgets.get(self.CLIENT_NAME_FIELD)
+        if combo is None:
+            return
+        combo.set_value(client_name)
+
     def _save_refund_data(self):
         refund_data = self._collect_refund_data()
         success, message = self.refund_controller.save_refund(refund_data)

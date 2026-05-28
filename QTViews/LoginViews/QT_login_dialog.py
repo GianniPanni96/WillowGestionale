@@ -47,6 +47,7 @@ class QTLoginDialog(QDialog):
 
         self.success = False
         self.user_id = -1
+        self.logged_as_admin: bool = False
         self.exit_requested: bool = False
         self.persist_enabled: bool = False
         self.persist_minutes: int = 30
@@ -98,6 +99,12 @@ class QTLoginDialog(QDialog):
         forgot_btn.setStyleSheet("text-align: center; color: palette(highlight);")
         forgot_btn.clicked.connect(self._open_recovery_reset)
         layout.addWidget(forgot_btn)
+
+        admin_btn = QPushButton("Accedi come amministratore")
+        admin_btn.setFlat(True)
+        admin_btn.setStyleSheet("text-align: center; color: palette(mid);")
+        admin_btn.clicked.connect(self._open_admin_login)
+        layout.addWidget(admin_btn)
 
         if self._mandatory:
             exit_btn = QPushButton("Esci dall'app")
@@ -181,6 +188,17 @@ class QTLoginDialog(QDialog):
                 self.username_combo.setCurrentIndex(idx)
         self.password_edit.setText(dialog.reset_password or "")
         self.password_edit.setFocus()
+
+    def _open_admin_login(self):
+        from QTViews.LoginViews.QT_admin_login_dialog import QTAdminLoginDialog
+
+        admin_login = QTAdminLoginDialog(app_context=self.app_context, mandatory=False, parent=self)
+        if admin_login.exec() != QTAdminLoginDialog.Accepted or not admin_login.success:
+            return
+        self.logged_as_admin = True
+        self.persist_enabled = getattr(admin_login, "persist_enabled", False)
+        self.persist_minutes = getattr(admin_login, "persist_minutes", 30)
+        self.accept()
 
     def _exit_app(self):
         self.exit_requested = True

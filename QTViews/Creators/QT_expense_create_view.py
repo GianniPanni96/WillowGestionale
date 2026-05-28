@@ -403,6 +403,16 @@ class QTExpenseCreateViewH(QDialog):
                 expense_data[key] = widget.date().toString("yyyy-MM-dd")
         return expense_data
 
+    def prefill_supplier(self, supplier_name: str) -> None:
+        """Pre-seleziona il fornitore nel combo e aggiorna il prefisso nome."""
+        if not supplier_name:
+            return
+        combo = self.expense_widgets.get("NOME FORNITORE")
+        if combo is None:
+            return
+        combo.set_value(supplier_name)
+        self._on_supplier_changed(supplier_name)
+
     def _save_expense_data(self):
         expense_data = self._collect_expense_data()
 

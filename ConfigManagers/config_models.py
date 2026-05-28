@@ -21,6 +21,7 @@ class PartitaIVAForfettaria:
     aliquota_irpef_max: float
     anni_agevolazione: int
     aliquota_inps: float
+    massimale_inps: float
     imponibile: float
     aliquota_rivalsa_inps: float
     percentuale_acconto_imposta_primo: float
@@ -35,6 +36,7 @@ class PartitaIVAForfettaria:
             aliquota_irpef_max=_coerce_config_float(data.get("aliquota_irpef_max", {}).get("value"), 0.15),
             anni_agevolazione=_coerce_config_int(data.get("anni_agevolazione", {}).get("value"), 5),
             aliquota_inps=_coerce_config_float(data.get("aliquota_inps", {}).get("value"), 0.2607),
+            massimale_inps=_coerce_config_float(data.get("massimale_inps", {}).get("value"), 120607.0),
             imponibile=_coerce_config_float(data.get("imponibile", {}).get("value"), 0.78),
             aliquota_rivalsa_inps=_coerce_config_float(data.get("aliquota_rivalsa_inps", {}).get("value"), 0.04),
             percentuale_acconto_imposta_primo=_coerce_config_float(
@@ -87,6 +89,7 @@ class ScaglioneIrpef:
 class PartitaIVAOrdinaria:
     scaglioni_irpef: List[ScaglioneIrpef] = field(default_factory=list)
     aliquota_inps: float = 0.0
+    massimale_inps: float = 120607.0
     aliquota_cassa_inps: float = 0.0
     aliquota_ritenuta: float = 0.0
     imponibile_iva: float = 0.0
@@ -112,6 +115,7 @@ class PartitaIVAOrdinaria:
         return PartitaIVAOrdinaria(
             scaglioni_irpef=[scaglione for _, scaglione in scaglioni],
             aliquota_inps=_coerce_config_float(data.get("aliquota_inps", {}).get("value"), 0.2607),
+            massimale_inps=_coerce_config_float(data.get("massimale_inps", {}).get("value"), 120607.0),
             aliquota_cassa_inps=_coerce_config_float(data.get("aliquota_cassa_inps", {}).get("value"), 0.04),
             aliquota_ritenuta=_coerce_config_float(data.get("aliquota_ritenuta", {}).get("value"), 0.2),
             imponibile_iva=_coerce_config_float(data.get("imponibile_iva", {}).get("value"), 1.0),

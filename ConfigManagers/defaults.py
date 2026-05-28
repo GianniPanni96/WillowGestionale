@@ -72,6 +72,10 @@ FISCAL_RULES_DEFAULT = {
                 "value": "0.2607",
                 "description": "Contributo INPS per partite IVA forfettarie.",
             },
+            "massimale_inps": {
+                "value": "120607",
+                "description": "Massimale annuo contributivo INPS Gestione Separata: oltre questa soglia di reddito imponibile non si versano contributi.",
+            },
             "aliquota_rivalsa_inps": {
                 "value": "0.04",
                 "description": "Aliquota per rivalsa INPS in regime forfettario.",
@@ -119,6 +123,10 @@ FISCAL_RULES_DEFAULT = {
             "aliquota_inps": {
                 "value": "0.2607",
                 "description": "Contributo INPS per partite IVA ordinarie",
+            },
+            "massimale_inps": {
+                "value": "120607",
+                "description": "Massimale annuo contributivo INPS Gestione Separata: oltre questa soglia di reddito imponibile non si versano contributi.",
             },
             "aliquota_cassa_inps": {"value": "0.04", "description": "Aliquota per la cassa INPS"},
             "aliquota_ritenuta": {"value": "0.2", "description": "Aliquota per la ritenuta d'acconto"},

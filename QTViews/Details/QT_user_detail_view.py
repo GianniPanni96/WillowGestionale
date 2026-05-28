@@ -334,6 +334,15 @@ class QTUserDetailViewH(QWidget):
             DBUsersColumns.REDDITO_ESTERNO.value,
             "Reddito Esterno",
             user_data.get(DBUsersColumns.REDDITO_ESTERNO.value, ""),
+            tooltip=(
+                "Ricavi/fatturato LORDO da attività svolte al di fuori del collettivo, "
+                "al netto dell'IVA (l'IVA non è reddito).\n\n"
+                "Inserisci l'imponibile dei compensi esterni, non il totale documento.\n"
+                "• Forfettario: a questo importo viene applicato il coefficiente di "
+                "redditività come al fatturato interno.\n"
+                "• Ordinario: è un ricavo lordo, da cui si sottraggono le 'Spese Dedotte "
+                "Esterne'."
+            ),
         )
         # Spese dedotte esterne: solo regime ORDINARIO (la legacy salta
         # questo campo per il forfettario).
@@ -343,6 +352,13 @@ class QTUserDetailViewH(QWidget):
                 DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value,
                 "Spese Dedotte Esterne",
                 user_data.get(DBUsersColumns.SPESE_DEDOTTE_ESTERNE.value, ""),
+                tooltip=(
+                    "Spese deducibili (inerenti all'attività) sostenute al di fuori del "
+                    "collettivo, al netto dell'IVA.\n\n"
+                    "Vengono sottratte dai ricavi esterni per determinare il reddito netto "
+                    "imponibile. Non includere spese già registrate come 'Spese in "
+                    "deduzione' interne al collettivo."
+                ),
             )
         self._add_sensitive_money_field(
             "Dati Fiscali",
@@ -380,11 +396,18 @@ class QTUserDetailViewH(QWidget):
     # Sensitive widgets + eye toggle
     # ------------------------------------------------------------------
 
-    def _add_sensitive_money_field(self, section_name, key, label_text, value):
+    def _add_sensitive_money_field(self, section_name, key, label_text, value, tooltip: str = ""):
         edit = self._make_line_edit(str(value) if value not in (None, "") else "")
         edit.setEchoMode(QLineEdit.Password)
         wrapper = self._wrap_with_eye_toggle(edit)
+        if tooltip:
+            edit.setToolTip(tooltip)
+            wrapper.setToolTip(tooltip)
         self._add_field(section_name, key, label_text, wrapper)
+        if tooltip:
+            label = self._labels.get(key)
+            if label is not None:
+                label.setToolTip(tooltip)
 
     def _wrap_with_eye_toggle(self, line_edit: QLineEdit) -> QWidget:
         """Wrappa un ``QLineEdit`` (in echo Password) con un bottone occhio
@@ -866,19 +889,22 @@ class QTUserDetailViewH(QWidget):
         if key == "INPS":
             return (
                 "Calcolo contributi INPS complessivi:\n\n"
-                "1. Fatturato totale = Fatturato Willow + Reddito esterno\n"
+                "1. Fatturato totale lordo = Fatturato Willow + Reddito esterno\n"
                 f"   = {_fmt_eur(t.get('FATTURATO_WILLOW', 0))} + {_fmt_eur(t.get('REDDITO_ESTERNO', 0))}\n"
                 "2. Reddito imponibile = Fatturato totale × Coefficiente di redditività\n"
                 f"   = {_fmt_eur(t.get('REDDITO_TOT', 0))}\n"
-                "3. Contributi INPS = Reddito imponibile × Aliquota INPS\n"
+                f"   (tetto al massimale INPS: {_fmt_eur(t.get('MASSIMALE_INPS', 0))})\n"
+                "3. Contributi INPS = min(Reddito imponibile, Massimale) × Aliquota INPS\n"
                 f"   = {_fmt_eur(t.get('INPS', 0))}"
             )
         if key == "IRPEF":
             return (
                 "Calcolo imposta sostitutiva IRPEF:\n\n"
                 f"1. Reddito imponibile = {_fmt_eur(t.get('REDDITO_TOT', 0))}\n"
-                f"2. Aliquota IRPEF applicata: {t.get('ALIQUOTA_IRPEF', 0) * 100:.2f}%\n"
-                "3. Imposta = Reddito imponibile × Aliquota IRPEF\n"
+                "2. Base imposta = Reddito imponibile − Contributi INPS (deducibili)\n"
+                f"   = {_fmt_eur(t.get('REDDITO_TOT', 0))} − {_fmt_eur(t.get('INPS', 0))} = {_fmt_eur(t.get('BASE_IMPONIBILE_IRPEF', 0))}\n"
+                f"3. Aliquota IRPEF applicata: {t.get('ALIQUOTA_IRPEF', 0) * 100:.2f}%\n"
+                "4. Imposta = Base imposta × Aliquota IRPEF\n"
                 f"   = {_fmt_eur(t.get('IRPEF', 0))}"
             )
         if key == "IRPEF WILLOW":
@@ -951,7 +977,8 @@ class QTUserDetailViewH(QWidget):
                 f"   = {_fmt_eur(t.get('SPESE_TOTALI', 0))}\n"
                 "3. Reddito netto imponibile = Ricavi − Spese\n"
                 f"   = {_fmt_eur(t.get('REDDITO_NETTO', 0))}\n"
-                "4. Contributi INPS = Reddito netto × Aliquota INPS\n"
+                f"   (tetto al massimale INPS: {_fmt_eur(t.get('MASSIMALE_INPS', 0))})\n"
+                "4. Contributi INPS = min(Reddito netto, Massimale) × Aliquota INPS\n"
                 f"   = {_fmt_eur(t.get('INPS', 0))}"
             )
         if key == "IRPEF NETTA":
@@ -968,20 +995,22 @@ class QTUserDetailViewH(QWidget):
             )
         if key == "WILLOW INPS":
             return (
-                "Quota INPS attribuibile a Willow:\n\n"
+                "Quota INPS attribuibile a Willow (proporzionale):\n\n"
                 f"1. Reddito netto Willow = {_fmt_eur(t.get('REDDITO_NETTO_WILLOW', 0))}\n"
-                f"2. Quota proporzionale = {t.get('QUOTA_WILLOW_BASE', 0)}\n"
-                "3. INPS Willow = INPS × Quota\n"
+                f"2. Quota = Reddito netto Willow / Reddito netto totale = {t.get('QUOTA_WILLOW_BASE', 0)}\n"
+                "3. INPS Willow = INPS totale × Quota\n"
                 f"   = {_fmt_eur(t.get('WILLOW_INPS', 0))}"
             )
         if key == "WILLOW IRPEF":
             return (
-                "IRPEF netta attribuibile a Willow:\n\n"
-                f"• IRPEF base Willow = {_fmt_eur(t.get('WILLOW_IRPEF_BASE', 0))}\n"
-                f"• IRPEF aggiuntiva Willow = {_fmt_eur(t.get('WILLOW_IRPEF_AGGIUNTIVA', 0))}\n"
-                f"• IRPEF lorda Willow = {_fmt_eur(t.get('WILLOW_IRPEF_TOT', 0))}\n"
-                f"• Ritenuta Willow = {_fmt_eur(t.get('WILLOW_RITENUTA', 0))}\n"
-                f"• IRPEF netta Willow = {_fmt_eur(t.get('WILLOW_IRPEF_NETTA', 0))}"
+                "IRPEF netta attribuibile a Willow (proporzionale):\n\n"
+                f"1. Quota = Reddito netto Willow / Reddito netto totale = {t.get('QUOTA_WILLOW_BASE', 0)}\n"
+                "2. IRPEF lorda Willow = IRPEF lorda totale × Quota\n"
+                f"   = {_fmt_eur(t.get('WILLOW_IRPEF_TOT', 0))}\n"
+                "3. La ritenuta nasce dalle fatture interne → tutta a Willow\n"
+                f"   = {_fmt_eur(t.get('WILLOW_RITENUTA', 0))}\n"
+                "4. IRPEF netta Willow = max(0, IRPEF lorda Willow − Ritenuta)\n"
+                f"   = {_fmt_eur(t.get('WILLOW_IRPEF_NETTA', 0))}"
             )
         return ""
 

@@ -750,14 +750,32 @@ class QTBaseListView(QWidget):
             self._on_open_detail(item_id)
 
     def _on_add_item(self):
-        new_item_id = self.open_creator_dialog()
-        if new_item_id is None:
-            return
-        # Ricarica con la time-window correntemente selezionata e seleziona
-        # il nuovo item, replicando la UX della legacy.
+        # Le creator view sono ora aperte in modalità non modale tramite la
+        # CreatorSession: il post-creazione (reload + selezione + apertura
+        # dettaglio) avviene nella callback ``_after_primary_create`` passata
+        # al creator, non più sul valore di ritorno.
+        self.open_creator_dialog()
+
+    def _launch_creator(self, dialog) -> bool:
+        """Apre una creator view non modale tramite la CreatorSession.
+
+        Garantisce che sia aperta una sola creator alla volta e che la barra
+        dei menu venga disabilitata mentre la finestra è aperta. Ritorna
+        False se un'altra creator è già aperta (in tal caso non apre nulla).
+        """
+        from QTViews.QT_creator_session import launch_creator
+
+        return launch_creator(self, self.app_context, dialog)
+
+    def _after_primary_create(self, new_item_id):
+        """Callback standard dopo la creazione dell'item principale di questa
+        list view: ricarica i dati, seleziona il nuovo item e ne apre il
+        dettaglio. Pensata per essere passata come ``on_*_created`` al creator."""
         idx = self.window_combo.currentIndex()
         _, days = self.TIME_WINDOWS[idx]
         self._reload_data(window_days=days)
+        if new_item_id is None:
+            return
         self._select_item(new_item_id)
         if self._on_open_detail is not None:
             self._on_open_detail(new_item_id)

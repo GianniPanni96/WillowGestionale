@@ -155,16 +155,10 @@ class QTExpensesViewH(QTBaseListView):
         return self._source_model.find_row_by_expense_id(item_id)
 
     def open_creator_dialog(self):
-        # Stesso pattern di QTPaymentsViewH / QTRefundsViewH.
-        result = {"id": None}
-
-        def _on_created(expense_id):
-            result["id"] = expense_id
-
+        # Creator non modale: post-creazione gestito da ``_after_primary_create``.
         dialog = QTExpenseCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_expense_created=_on_created,
+            on_expense_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)

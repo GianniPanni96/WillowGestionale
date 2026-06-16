@@ -54,6 +54,7 @@ from QTViews.MenuWindows.QT_gui_preferences_dialog import (
 )
 from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
 from QTViews.MenuWindows.QT_installment_plans_dialog import QTInstallmentPlansDialog
+from QTViews.QT_creator_session import CreatorSession
 from QTViews.MenuWindows.QT_fiscal_year_closer_dialog import QTFiscalYearCloserDialog
 from QTViews.MenuWindows.QT_warnings_settings_dialog import QTWarningsSettingsDialog
 from QTViews.MenuWindows.QT_load_backup_dialog import QTLoadBackupDialog
@@ -131,7 +132,15 @@ class QTMainWindow(QMainWindow):
         self.resize(1400, 800)
         self._set_window_icon()
 
+        # Sessione di creazione: consente una sola creator view non modale
+        # alla volta e disabilita la barra dei menu mentre è aperta. Va
+        # esposta sull'app_context PRIMA di costruire le tab (le list view la
+        # leggono da lì per aprire i creator).
+        self.creator_session = CreatorSession()
+        self.app_context.creator_session = self.creator_session
+
         self._build_menu_bar()
+        self.creator_session.bind_menu_bar(self.menubar)
 
         self.tabview = QTabWidget()
         self.tabview.setObjectName("MainTabView")
@@ -238,6 +247,7 @@ class QTMainWindow(QMainWindow):
         top_layout.setSpacing(8)
 
         menubar = QMenuBar(top_bar)
+        self.menubar = menubar
         menubar.setStyleSheet(
             """
             QMenuBar {

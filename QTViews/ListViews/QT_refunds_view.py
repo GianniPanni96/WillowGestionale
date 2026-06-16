@@ -155,17 +155,10 @@ class QTRefundsViewH(QTBaseListView):
         return self._source_model.find_row_by_refund_id(item_id)
 
     def open_creator_dialog(self):
-        # Stesso pattern di QTPaymentsViewH / QTInvoicesViewH /
-        # QTProductionsViewH.
-        result = {"id": None}
-
-        def _on_created(refund_id):
-            result["id"] = refund_id
-
+        # Creator non modale: post-creazione gestito da ``_after_primary_create``.
         dialog = QTRefundCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_refund_created=_on_created,
+            on_refund_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)

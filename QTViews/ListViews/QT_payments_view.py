@@ -162,16 +162,10 @@ class QTPaymentsViewH(QTBaseListView):
         return self._source_model.find_row_by_payment_id(item_id)
 
     def open_creator_dialog(self):
-        # Stesso pattern di QTInvoicesViewH / QTProductionsViewH.
-        result = {"id": None}
-
-        def _on_created(payment_id):
-            result["id"] = payment_id
-
+        # Creator non modale: post-creazione gestito da ``_after_primary_create``.
         dialog = QTPaymentCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_payment_created=_on_created,
+            on_payment_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)

@@ -196,30 +196,42 @@ class QTAccountsViewH(QWidget):
     def _on_bonifico_requested(self, sender_account_id: int):
         # Import locale per evitare cicli.
         from QTViews.Creators.QT_transfer_create_view import QTTransferCreateViewH
+        from QTViews.QT_creator_session import launch_creator
 
         dialog = QTTransferCreateViewH(
             app_context=self.app_context,
             sender_account_id=sender_account_id,
             parent=self,
         )
-        dialog.exec()
-        if dialog.transfer_saved:
-            # I saldi sono cambiati: ricarica le card.
-            self._reload_accounts()
+
+        def _on_finished(_result=None):
+            if dialog.transfer_saved:
+                # I saldi sono cambiati: ricarica le card.
+                self._reload_accounts()
+
+        # Connesso prima di launch_creator, così viene eseguito prima del
+        # cleanup della sessione (che fa deleteLater del dialog).
+        dialog.finished.connect(_on_finished)
+        launch_creator(self, self.app_context, dialog)
 
     def _on_add_account(self):
         # Import locale per evitare cicli.
         from QTViews.Creators.QT_account_create_view import QTAccountCreateViewH
+        from QTViews.QT_creator_session import launch_creator
 
         dialog = QTAccountCreateViewH(
             app_context=self.app_context,
             parent=self,
         )
-        if dialog.exec() == QTAccountCreateViewH.Accepted:
+
+        def _on_accepted():
             self._reload_accounts()
             new_id = dialog.created_account_id
             if new_id is not None and self.on_open_detail is not None:
                 self.on_open_detail(new_id)
+
+        dialog.accepted.connect(_on_accepted)
+        launch_creator(self, self.app_context, dialog)
 
     # ------------------------------------------------------------------
     # API esterna per la main view (refresh dopo edit)

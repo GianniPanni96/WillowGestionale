@@ -235,19 +235,13 @@ class QTProductionsViewH(QTBaseListView):
             row_data.get("client_name", ""),
             row_data.get("name", ""),
         )
-        dialog.exec()
+        self._launch_creator(dialog)
 
     def open_creator_dialog(self):
-        # Stesso pattern di QTInvoicesViewH / QTClientsViewH / QTSuppliersViewH.
-        result = {"id": None}
-
-        def _on_created(production_id):
-            result["id"] = production_id
-
+        # Creator non modale: post-creazione gestito da ``_after_primary_create``.
         dialog = QTProductionCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_production_created=_on_created,
+            on_production_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)

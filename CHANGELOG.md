@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v1.6.0 (2026-06-16)
+
+### Features
+
+- 2 rate e preferenze utente su scadenze rateizzazione + fix vari - Merge pull request #125 from
+  GianniPanni96/Development
+  ([`e856fa2`](https://github.com/GianniPanni96/WillowGestionale/commit/e856fa2118188aff98861b4cfbc6d0ab89e1f242))
+
+feat: 2 rate e preferenze utente su scadenze rateizzazione + fix vari
+
+
 ## v1.5.2 (2026-05-28)
 
 ### Bug Fixes

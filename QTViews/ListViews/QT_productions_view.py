@@ -171,7 +171,7 @@ class QTProductionsViewH(QTBaseListView):
             "# PRODUZIONI ATTIVE": str(n_attive),
             "# PRODUZIONI CHIUSE": str(n_chiuse),
             "MEDIA ORE": f"{round(media_ore, 2)} h",
-            "MEDIA €/h": f"{round(media_eur_h, 2)} €/h",
+            "MEDIA €/h": f"{media_eur_h:.2f} €/h",
         }
 
     def id_for_index(self, source_index):

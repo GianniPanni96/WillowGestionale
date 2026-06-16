@@ -145,7 +145,7 @@ class QTExpensesViewH(QTBaseListView):
         tot_expenses = analyzer.calculate_tot_expenses()
         return {
             ExpensesAggregateData.NUMERO_SPESE.value: str(n_expenses),
-            ExpensesAggregateData.TOT_SPESE.value: f"{round(tot_expenses, 2)} €",
+            ExpensesAggregateData.TOT_SPESE.value: f"{tot_expenses:.2f} €",
         }
 
     def id_for_index(self, source_index):

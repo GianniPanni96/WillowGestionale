@@ -397,6 +397,11 @@ class QTUserDetailViewH(QWidget):
     # ------------------------------------------------------------------
 
     def _add_sensitive_money_field(self, section_name, key, label_text, value, tooltip: str = ""):
+        if value not in (None, ""):
+            try:
+                value = f"{float(value):.2f}"
+            except (TypeError, ValueError):
+                pass
         edit = self._make_line_edit(str(value) if value not in (None, "") else "")
         edit.setEchoMode(QLineEdit.Password)
         wrapper = self._wrap_with_eye_toggle(edit)

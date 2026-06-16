@@ -162,9 +162,9 @@ class ExpensesTableModel(WarningSupportMixin, QAbstractTableModel):
             if col == self.COL_FORNITORE:
                 return row["supplier_name"]
             if col == self.COL_NETTO:
-                return f"{round(row['net_amount'], 2)} €"
+                return f"{row['net_amount']:.2f} €"
             if col == self.COL_LORDO:
-                return f"{round(row['tot_amount'], 2)} €"
+                return f"{row['tot_amount']:.2f} €"
             if col == self.COL_CATEGORIA:
                 return row["category"]
             if col == self.COL_DATA:

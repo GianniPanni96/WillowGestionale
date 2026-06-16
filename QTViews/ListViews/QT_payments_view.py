@@ -152,7 +152,7 @@ class QTPaymentsViewH(QTBaseListView):
         tot_payments = analyzer.calculate_tot_payments(include_unpaid_invoice_payments=False)
         return {
             "# PAGAMENTI": str(n_payments),
-            "TOT. PAGAMENTI": f"{round(tot_payments, 2)} €",
+            "TOT. PAGAMENTI": f"{tot_payments:.2f} €",
         }
 
     def id_for_index(self, source_index):

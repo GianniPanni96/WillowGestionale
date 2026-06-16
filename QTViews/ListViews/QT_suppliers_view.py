@@ -129,8 +129,8 @@ class QTSuppliersViewH(QTBaseListView):
 
         return {
             "# FORNITORI": str(n_fornitori),
-            "TOT. SPESE": f"{round(tot_spese, 2)} €",
-            "SPESA MEDIA": f"{round(spesa_media, 2)} €",
+            "TOT. SPESE": f"{tot_spese:.2f} €",
+            "SPESA MEDIA": f"{spesa_media:.2f} €",
         }
 
     def _refresh_aggregate_tooltips(self, toggle_value):

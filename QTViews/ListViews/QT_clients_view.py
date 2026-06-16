@@ -132,9 +132,9 @@ class QTClientsViewH(QTBaseListView):
 
         return {
             "# CLIENTI": str(n_clienti),
-            "TOT. ENTRATE": f"{round(tot_entrate, 2)} €",
-            "TOT. CREDITI": f"{round(tot_crediti, 2)} €",
-            "FATTURA MEDIA": f"{round(media_fattura, 2)} €",
+            "TOT. ENTRATE": f"{tot_entrate:.2f} €",
+            "TOT. CREDITI": f"{tot_crediti:.2f} €",
+            "FATTURA MEDIA": f"{media_fattura:.2f} €",
         }
 
     def _refresh_aggregate_tooltips(self, toggle_value):

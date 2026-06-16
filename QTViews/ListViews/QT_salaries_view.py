@@ -142,7 +142,7 @@ class QTSalariesViewH(QTBaseListView):
         tot_salaries = analyzer.calculate_tot_salaries()
         return {
             SalariesAggregateData.NUMERO_SALARI.value: str(n_salaries),
-            SalariesAggregateData.TOT_SALARI.value: f"{round(tot_salaries, 2)} €",
+            SalariesAggregateData.TOT_SALARI.value: f"{tot_salaries:.2f} €",
         }
 
     def id_for_index(self, source_index):

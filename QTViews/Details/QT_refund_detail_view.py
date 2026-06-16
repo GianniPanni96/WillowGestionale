@@ -192,7 +192,7 @@ class QTRefundDetailViewH(QWidget):
             "Dati Fiscali",
             DBRefundsColumns.REFUND_AMOUNT.value,
             "Importo Rimborsato (€)",
-            self._make_line_edit(refund_data.get(DBRefundsColumns.REFUND_AMOUNT.value, "")),
+            self._make_line_edit(refund_data.get(DBRefundsColumns.REFUND_AMOUNT.value, ""), money=True),
         )
 
         # --- Collegamenti ---
@@ -259,8 +259,13 @@ class QTRefundDetailViewH(QWidget):
         self.refund_labels[key] = label
         self.section_rows[section_name] = row + 1
 
-    def _make_line_edit(self, value):
+    def _make_line_edit(self, value, money=False):
         edit = QLineEdit()
+        if money and value not in (None, ""):
+            try:
+                value = f"{float(value):.2f}"
+            except (TypeError, ValueError):
+                pass
         edit.setText(str(value) if value is not None else "")
         return edit
 

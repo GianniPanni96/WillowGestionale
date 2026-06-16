@@ -145,7 +145,7 @@ class QTRefundsViewH(QTBaseListView):
         tot_refunds = analyzer.calculate_tot_refunds()
         return {
             RefundsAggregateData.NUMERO_RIMBORSI.value: str(n_refunds),
-            RefundsAggregateData.TOT_RIMBORSI.value: f"{round(tot_refunds, 2)} €",
+            RefundsAggregateData.TOT_RIMBORSI.value: f"{tot_refunds:.2f} €",
         }
 
     def id_for_index(self, source_index):

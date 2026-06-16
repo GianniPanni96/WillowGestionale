@@ -236,7 +236,7 @@ class QTProductionDetailViewH(QWidget):
                         self._make_line_edit(production.get(DBProductionsColumns.HOURS.value, "")))
         self._add_field("Dati Produzione", DBProductionsColumns.TOTALE_PREVENTIVO.value,
                         "Totale Preventivo (€)",
-                        self._make_line_edit(production.get(DBProductionsColumns.TOTALE_PREVENTIVO.value, "")))
+                        self._make_line_edit(production.get(DBProductionsColumns.TOTALE_PREVENTIVO.value, ""), money=True))
 
         # --- Note: campi statici (timestamps) ---
         created_lbl = QLabel(str(production.get(DBProductionsColumns.CREATED_AT.value, "") or ""))
@@ -280,8 +280,13 @@ class QTProductionDetailViewH(QWidget):
         self.production_labels[key] = label
         self.section_rows[section_name] = row + 1
 
-    def _make_line_edit(self, value):
+    def _make_line_edit(self, value, money=False):
         edit = QLineEdit()
+        if money and value not in (None, ""):
+            try:
+                value = f"{float(value):.2f}"
+            except (TypeError, ValueError):
+                pass
         edit.setText(str(value) if value is not None else "")
         return edit
 

@@ -122,11 +122,11 @@ class SuppliersTableModel(QAbstractTableModel):
             if col == self.COL_PARTITA_IVA:
                 return row["partita_iva"]
             if col == self.COL_TOT_SPESE:
-                return f"{round(row['tot_spese'], 2)} €"
+                return f"{row['tot_spese']:.2f} €"
             if col == self.COL_NUM_SPESE:
                 return str(row["num_spese"])
             if col == self.COL_SPESA_MEDIA:
-                return f"{round(row['media_spese'], 2)} €"
+                return f"{row['media_spese']:.2f} €"
             if col == self.COL_NOTE:
                 return row["note"]
             if col == self.COL_CONTATTO:

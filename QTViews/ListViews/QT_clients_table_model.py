@@ -132,17 +132,17 @@ class ClientsTableModel(QAbstractTableModel):
             if col == self.COL_NOME:
                 return row["name"]
             if col == self.COL_TOT_ENTRATE:
-                return f"{round(row['tot_entrate'], 2)} €"
+                return f"{row['tot_entrate']:.2f} €"
             if col == self.COL_NUM_FATTURE:
                 return str(row["num_fatture"])
             if col == self.COL_FATTURA_MEDIA:
-                return f"{round(row['media_fatture'], 2)} €"
+                return f"{row['media_fatture']:.2f} €"
             if col == self.COL_TOT_CREDITI:
-                return f"{round(row['tot_crediti'], 2)} €"
+                return f"{row['tot_crediti']:.2f} €"
             if col == self.COL_TOT_RIMBORSI:
-                return f"{round(row['tot_rimborsi'], 2)} €"
+                return f"{row['tot_rimborsi']:.2f} €"
             if col == self.COL_PAGAM_ORARIO:
-                return f"{round(row['pagam_orario'], 2)} €/h"
+                return f"{row['pagam_orario']:.2f} €/h"
             if col == self.COL_GIORNI_RIT:
                 return str(row["giorni_rit"])
             if col == self.COL_MEDIA_RIT:

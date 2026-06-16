@@ -313,7 +313,7 @@ class QTPaymentCreateViewH(QDialog):
             except (TypeError, ValueError):
                 rata_index = 1
             quota = self.fiscal_settings.quota_for_rata(invoice_amount, invoice_rateiz, rata_index)
-            amount_widget.setText(f"{round(quota, 2):.2f}")
+            amount_widget.setText(f"{quota:.2f}")
 
     def _control_linked_rata(self, selected_value):
         invoice = self._get_selected_invoice_map()
@@ -352,19 +352,19 @@ class QTPaymentCreateViewH(QDialog):
         if rate_saldate.get(selected_rata):
             error_label.setText(
                 f"La rata {selected_rata} e' gia interamente saldata "
-                f"({round(netto_rate_pagate[selected_rata], 2)} EUR)"
+                f"({netto_rate_pagate[selected_rata]:.2f} EUR)"
             )
             amount_widget.setText("0.00")
             return True
 
         tot_mancante = netto_rate_fattura[selected_rata] - netto_rate_pagate[selected_rata]
         error_label.setText("")
-        amount_widget.setText(f"{round(tot_mancante, 2):.2f}")
+        amount_widget.setText(f"{tot_mancante:.2f}")
 
         if netto_rate_pagate[selected_rata] > 0 and tot_mancante >= 5:
             error_label.setText(
                 f"Totale mancante da saldare della rata {selected_rata}: "
-                f"{round(tot_mancante, 2)} EUR"
+                f"{tot_mancante:.2f} EUR"
             )
         return False
 

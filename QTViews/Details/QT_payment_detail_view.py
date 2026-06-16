@@ -387,9 +387,10 @@ class QTPaymentDetailViewH(QWidget):
             rata_combo.addItems(["1"])
             rata_combo.setCurrentText("1")
         else:
-            rata_combo.addItems(["1", "2", "3"])
+            valid_rate = {str(i) for i in range(1, rate_count + 1)}
+            rata_combo.addItems(sorted(valid_rate))
             current_rata = str(self.payment.get(DBPaymentsColumns.LINKED_RATA.value, "1")) if self.payment else "1"
-            rata_combo.setCurrentText(current_rata if current_rata in {"1", "2", "3"} else "1")
+            rata_combo.setCurrentText(current_rata if current_rata in valid_rate else "1")
         rata_combo.blockSignals(False)
 
         # Aggiorna anche la label statica della produzione associata.

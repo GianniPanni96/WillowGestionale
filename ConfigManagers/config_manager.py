@@ -67,6 +67,18 @@ class ConfigManager:
     def update_fiscal_settings(self, new_fiscal_data: dict):
         self.fiscal_rules_manager.update_fiscal_settings(new_fiscal_data)
 
+    def get_invoice_expiry_days(self) -> int:
+        return self.fiscal_rules_manager.get_invoice_expiry_days()
+
+    def update_invoice_expiry_days(self, days: int):
+        self.fiscal_rules_manager.update_invoice_expiry_days(days)
+
+    def get_installment_plans(self) -> dict:
+        return self.fiscal_rules_manager.get_installment_plans()
+
+    def update_installment_plans(self, new_plans: dict):
+        self.fiscal_rules_manager.update_installment_plans(new_plans)
+
     def update_list_field(self, section_name: str, key: str, value: str = None, operation: str = "update"):
         self.catalogs_manager.update_list_field(section_name, key, value, operation)
 

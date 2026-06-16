@@ -66,6 +66,7 @@ class QTInvoicesViewH(QTBaseListView):
         self.user_query_service = app_context.user_query_service
         self.productions_query_service = app_context.productions_query_service
         self.invoice_warning_service = app_context.invoice_warning_service
+        self.fiscal_settings = app_context.fiscal_settings
 
     def fetch_items(self, window_days):
         if window_days is None:
@@ -79,6 +80,7 @@ class QTInvoicesViewH(QTBaseListView):
             self.user_query_service,
             self.productions_query_service,
             self.invoices_query_service,
+            self.fiscal_settings,
         )
 
     def create_table_model(self, rows):

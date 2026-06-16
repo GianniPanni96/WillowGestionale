@@ -30,7 +30,24 @@ class BaseJsonConfigManager:
         self.ensure_exists()
         with open(self.file_path, "r", encoding="utf-8") as file:
             data = json.load(file)
-        return merge_with_defaults(data, self.build_default_data())
+        merged = merge_with_defaults(data, self.build_default_data())
+
+        # Auto-migrazione: se il merge ha aggiunto chiavi di default mancanti
+        # (es. nuovi campi introdotti da un aggiornamento su macchine gia' in
+        # produzione), riscriviamo il file sul disco con i default cosi' che il
+        # JSON di riferimento resti allineato. ``==`` tra dict ignora l'ordine,
+        # quindi non si producono riscritture spurie quando nulla e' cambiato.
+        if merged != data:
+            try:
+                self._ensure_parent_exists()
+                with open(self.file_path, "w", encoding="utf-8") as file:
+                    json.dump(merged, file, indent=4)
+            except OSError:
+                # Un fallimento di scrittura non deve impedire l'avvio: i
+                # default restano comunque applicati in memoria.
+                pass
+
+        return merged
 
     def save(self, data):
         self._ensure_parent_exists()

@@ -68,8 +68,11 @@ def compute_invoice_status(invoice, payments, today: date = None) -> str:
     if num_rate == int(Rateizzazione.UNA.value):
         return _compute_status_1_rata(invoice, paid_rates, today)
 
+    if num_rate == int(Rateizzazione.DUE.value):
+        return _compute_status_n_rate(invoice, paid_rates, today, 2)
+
     if num_rate == int(Rateizzazione.TRE.value):
-        return _compute_status_3_rate(invoice, paid_rates, today)
+        return _compute_status_n_rate(invoice, paid_rates, today, 3)
 
     return ""
 
@@ -112,16 +115,22 @@ def _compute_status_1_rata(invoice, paid_rates, today) -> str:
     return InvoiceSatus.EMESSA.value
 
 
-def _compute_status_3_rate(invoice, paid_rates, today) -> str:
-    paid_count = len(paid_rates & {1, 2, 3})
-    if paid_count == 3:
+def _compute_status_n_rate(invoice, paid_rates, today, num_rate) -> str:
+    """Stato per una fattura rateizzata con ``num_rate`` rate (2 o 3).
+
+    Le scadenze rilevanti sono le prime ``num_rate`` (DATA_SCADENZA_1..N).
+    """
+    rate_indici = set(range(1, num_rate + 1))
+    paid_count = len(paid_rates & rate_indici)
+    if paid_count == num_rate:
         return InvoiceRateizzSatus.PAGATA.value
 
-    scadenze = [
+    all_scadenze = [
         ControllerUtils.parse_date(invoice.get(DBInvoicesColumns.DATA_SCADENZA_1.value) or ""),
         ControllerUtils.parse_date(invoice.get(DBInvoicesColumns.DATA_SCADENZA_2.value) or ""),
         ControllerUtils.parse_date(invoice.get(DBInvoicesColumns.DATA_SCADENZA_3.value) or ""),
     ]
+    scadenze = all_scadenze[:num_rate]
 
     # Rate non pagate ma con scadenza gia' passata.
     overdue_unpaid = sum(
@@ -131,13 +140,13 @@ def _compute_status_3_rate(invoice, paid_rates, today) -> str:
     )
 
     if paid_count == 0:
-        if overdue_unpaid == 3:
+        if overdue_unpaid == num_rate:
             return InvoiceRateizzSatus.SCADUTA.value
         if overdue_unpaid > 0:
             return InvoiceRateizzSatus.CRITICA.value
         return InvoiceRateizzSatus.EMESSA.value
 
-    # 1 o 2 rate pagate.
+    # Almeno una rata pagata ma non tutte.
     if overdue_unpaid > 0:
         return InvoiceRateizzSatus.CRITICA.value
     return InvoiceRateizzSatus.PARZIALMENTE_SALDATA.value

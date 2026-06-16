@@ -241,12 +241,13 @@ class InvoiceAnalyzerService:
                     credito = tot_documento - iva - (ritenuta if netto else 0)
                     totale_credito += credito
 
-            elif num_rate == int(Rateizzazione.TRE.value):
-                credito_per_rata = (tot_documento - iva - (ritenuta if netto else 0)) / 3.0
-                for rata in [1, 2, 3]:
+            elif num_rate > 1:
+                base_credito = tot_documento - iva - (ritenuta if netto else 0)
+                quote = self.fiscal_settings.split_netto(base_credito, num_rate)
+                for rata in range(1, num_rate + 1):
                     paid = any(int(pm.get(DBPaymentsColumns.LINKED_RATA.value, 0)) == rata for pm in payments_maps)
                     if not paid:
-                        totale_credito += credito_per_rata
+                        totale_credito += quote[rata - 1]
 
         return totale_credito
 

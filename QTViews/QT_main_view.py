@@ -53,6 +53,7 @@ from QTViews.MenuWindows.QT_gui_preferences_dialog import (
     QTStartupTabDialog,
 )
 from QTViews.MenuWindows.QT_fiscal_settings_dialog import QTFiscalSettingsDialog
+from QTViews.MenuWindows.QT_installment_plans_dialog import QTInstallmentPlansDialog
 from QTViews.MenuWindows.QT_fiscal_year_closer_dialog import QTFiscalYearCloserDialog
 from QTViews.MenuWindows.QT_warnings_settings_dialog import QTWarningsSettingsDialog
 from QTViews.MenuWindows.QT_load_backup_dialog import QTLoadBackupDialog
@@ -267,6 +268,7 @@ class QTMainWindow(QMainWindow):
 
         fiscal = menubar.addMenu("Dati Fiscali")
         fiscal.addAction("Modifica dati fiscali").triggered.connect(self._open_fiscal_settings)
+        fiscal.addAction("Scadenze e rateizzazione").triggered.connect(self._open_installment_plans_settings)
 
         recurring = menubar.addMenu("Spese Ricorrenti")
         recurring.addAction("Modifica Spese Ricorrenti").triggered.connect(
@@ -916,6 +918,9 @@ class QTMainWindow(QMainWindow):
 
     def _open_fiscal_settings(self):
         QTFiscalSettingsDialog(app_context=self.app_context, parent=self).exec()
+
+    def _open_installment_plans_settings(self):
+        QTInstallmentPlansDialog(app_context=self.app_context, parent=self).exec()
 
     def _open_recurring_expenses(self):
         QTRecurringExpensesDialog(app_context=self.app_context, parent=self).exec()

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -120,7 +121,9 @@ class QTInvoiceCreateViewH(QDialog):
             DBInvoicesColumns.NUMERO_RATE.value,
             "Numero Rate",
             [item.value for item in Rateizzazione],
+            command=self._on_numero_rate_changed,
         )
+        self._build_expiry_days_row()
         self._build_combo_row(
             DBInvoicesColumns.TIPO.value,
             "Tipo Documento",
@@ -152,6 +155,11 @@ class QTInvoiceCreateViewH(QDialog):
         # In creazione la fattura associata e' nascosta finche' non viene
         # selezionato il tipo "NOTA DI CREDITO".
         self._set_field_visible(DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value, False)
+
+        # Stato iniziale dell'entry "giorni di scadenza" in base al numero rate.
+        self._on_numero_rate_changed(
+            self.invoice_widgets[DBInvoicesColumns.NUMERO_RATE.value].currentText()
+        )
 
     def _build_user_row(self):
         users = self.user_query_service.retrieve_users_map_list()
@@ -267,6 +275,20 @@ class QTInvoiceCreateViewH(QDialog):
         self.form_layout.addRow(label, combo)
         self.invoice_widgets[key] = combo
         self.invoice_labels[key] = label
+
+    def _build_expiry_days_row(self):
+        """Entry (visibile solo per la rata singola) per scegliere al volo i
+        giorni di scadenza della fattura, precompilata con la preferenza utente."""
+        spin = QSpinBox()
+        spin.setMinimum(1)
+        spin.setMaximum(365)
+        spin.setSuffix(" giorni")
+        spin.setValue(int(self.fiscal_settings.invoice_expiry_days))
+
+        label = QLabel("Giorni di scadenza")
+        self.form_layout.addRow(label, spin)
+        self.expiry_days_spin = spin
+        self.expiry_days_label = label
 
     def _build_note_row(self):
         text = QTextEdit()
@@ -434,6 +456,13 @@ class QTInvoiceCreateViewH(QDialog):
         rivalsa = servizi * aliquota
         self.invoice_widgets[DBInvoicesColumns.RIVALSA_INPS.value].setText(format(rivalsa, ".2f"))
 
+    def _on_numero_rate_changed(self, value):
+        """Mostra l'entry dei giorni di scadenza solo per la rata singola."""
+        is_single = str(value) == Rateizzazione.UNA.value
+        if hasattr(self, "expiry_days_spin"):
+            self.expiry_days_spin.setVisible(is_single)
+            self.expiry_days_label.setVisible(is_single)
+
     def _on_tipo_changed(self, selected_value):
         is_ndc = selected_value == TipologiaFattura.NOTA_DI_CREDITO.value
         self._set_field_visible(DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value, is_ndc)
@@ -586,6 +615,11 @@ class QTInvoiceCreateViewH(QDialog):
         invoice_data[DBInvoicesColumns.NUMERO_FATTURA.value] += " - " + str(datetime.today().date().year)
         if invoice_data.get(DBInvoicesColumns.TIPO.value) == TipologiaFattura.FATTURA.value:
             invoice_data.pop(DBInvoicesColumns.ID_FATTURA_ASSOCIATA.value, None)
+
+        # Override "al volo" dei giorni di scadenza: rilevante solo per la
+        # rata singola. Il controller lo usa al posto della preferenza utente.
+        if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == Rateizzazione.UNA.value:
+            invoice_data[self.invoice_controller.OVERRIDE_EXPIRY_DAYS_KEY] = self.expiry_days_spin.value()
 
         success, message = self.invoice_controller.save_invoice(invoice_data)
         if not success:

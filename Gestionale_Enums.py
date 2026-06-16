@@ -76,6 +76,7 @@ class PaymentsMethods(Enum):
 
 class Rateizzazione(Enum):
     UNA = "1"
+    DUE = "2"
     TRE = "3"
 
 

@@ -72,6 +72,7 @@ class QTPaymentCreateViewH(QDialog):
         self.invoices_query_service = app_context.invoices_query_service
         self.clients_query_service = app_context.clients_query_service
         self.accounts_query_service = app_context.account_query_service
+        self.fiscal_settings = app_context.fiscal_settings
         self.on_payment_created = on_payment_created
 
         self.setWindowTitle("Aggiungi Nuovo Pagamento")
@@ -288,7 +289,7 @@ class QTPaymentCreateViewH(QDialog):
             rata_combo.setEnabled(False)
             rata_combo.setCurrentText("1")
         else:
-            rata_combo.addItems(["1", "2", "3"])
+            rata_combo.addItems([str(i) for i in range(1, rateizzazione + 1)])
             rata_combo.setEnabled(True)
             rata_combo.setCurrentText("1")
         rata_combo.blockSignals(False)
@@ -306,25 +307,30 @@ class QTPaymentCreateViewH(QDialog):
         if invoice_rateiz == int(Rateizzazione.UNA.value):
             amount_widget.setText(f"{invoice_amount:.2f}")
         else:
-            amount_widget.setText(f"{round(invoice_amount / 3, 2):.2f}")
+            rata_combo: QComboBox = self.payment_widgets[DBPaymentsColumns.LINKED_RATA.value]
+            try:
+                rata_index = int(rata_combo.currentText() or "1")
+            except (TypeError, ValueError):
+                rata_index = 1
+            quota = self.fiscal_settings.quota_for_rata(invoice_amount, invoice_rateiz, rata_index)
+            amount_widget.setText(f"{round(quota, 2):.2f}")
 
     def _control_linked_rata(self, selected_value):
         invoice = self._get_selected_invoice_map()
         if not invoice:
             return False
 
-        # Replica fedele della logica della legacy: distribuiamo il netto
-        # sulle rate, sommiamo i pagamenti gia' esistenti per rata e
+        # Distribuiamo il netto sulle rate secondo il piano di rateizzazione
+        # configurato, sommiamo i pagamenti gia' esistenti per rata e
         # decidiamo se quella selezionata e' gia' saldata.
-        netto_rate_fattura = {"1": 0.0, "2": 0.0, "3": 0.0}
-        netto_rate_pagate = {"1": 0.0, "2": 0.0, "3": 0.0}
-        rate_saldate = {"1": False, "2": False, "3": False}
+        num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
+        netto = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
+        rate_keys = [str(i) for i in range(1, num_rate + 1)]
 
-        if int(invoice[DBInvoicesColumns.NUMERO_RATE.value]) == int(Rateizzazione.UNA.value):
-            netto_rate_fattura["1"] = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value])
-        else:
-            rata = float(invoice[DBInvoicesColumns.NETTO_A_PAGARE.value]) / 3
-            netto_rate_fattura = {"1": rata, "2": rata, "3": rata}
+        quote = self.fiscal_settings.split_netto(netto, num_rate)
+        netto_rate_fattura = {str(i + 1): quote[i] for i in range(len(quote))}
+        netto_rate_pagate = {k: 0.0 for k in rate_keys}
+        rate_saldate = {k: False for k in rate_keys}
 
         payments = self.payments_query_service.retrieve_payments_map_list_by_invoice_id(
             invoice[DBInvoicesColumns.ID.value], year=-1
@@ -334,7 +340,7 @@ class QTPaymentCreateViewH(QDialog):
             if rata in netto_rate_pagate:
                 netto_rate_pagate[rata] += float(payment[DBPaymentsColumns.PAYMENT_AMOUNT.value])
 
-        for rata in ("1", "2", "3"):
+        for rata in rate_keys:
             tot_mancante = netto_rate_fattura[rata] - netto_rate_pagate[rata]
             if netto_rate_pagate[rata] >= netto_rate_fattura[rata] or (5 > tot_mancante > 0):
                 rate_saldate[rata] = True

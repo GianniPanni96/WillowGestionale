@@ -27,10 +27,12 @@ class PaymentWarningService:
         "account_missing": DBPaymentsColumns.CONTO_ID.value,
     }
 
-    def __init__(self, invoices_query_service, payments_query_service=None, accounts_query_service=None):
+    def __init__(self, invoices_query_service, payments_query_service=None, accounts_query_service=None,
+                 fiscal_settings=None):
         self.invoices_query_service = invoices_query_service
         self.payments_query_service = payments_query_service
         self.accounts_query_service = accounts_query_service
+        self.fiscal_settings = fiscal_settings
 
     def collect_warnings_for_list(self, items_list) -> dict[str, WarningInfo]:
         warnings: dict[str, WarningInfo] = {}
@@ -149,13 +151,15 @@ class PaymentWarningService:
             return None
 
         rata = str(payment.get(DBPaymentsColumns.LINKED_RATA.value) or "")
-        if rata not in {"1", "2", "3"}:
+        if rata not in {str(i) for i in range(1, num_rate + 1)}:
             return None
 
         if num_rate == int(Rateizzazione.UNA.value):
             quota_rata = netto if rata == "1" else 0.0
+        elif self.fiscal_settings is not None:
+            quota_rata = self.fiscal_settings.quota_for_rata(netto, num_rate, int(rata))
         else:
-            quota_rata = netto / 3
+            quota_rata = netto / num_rate
 
         try:
             all_payments = self.payments_query_service.retrieve_payments_map_list_by_invoice_id(

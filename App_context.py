@@ -170,6 +170,7 @@ class AppContext:
             invoices_query_service=self.invoices_query_service,
             payments_query_service=self.payments_query_service,
             accounts_query_service=self.account_query_service,
+            fiscal_settings=self.fiscal_settings,
         )
         self.expense_warning_service:ExpenseWarningService = ExpenseWarningService(
             catalogo_elenchi=catalogo_elenchi,

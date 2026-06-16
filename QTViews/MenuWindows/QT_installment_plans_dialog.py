@@ -210,5 +210,10 @@ class QTInstallmentPlansDialog(QDialog):
                     num_rate, new_plans[str(num_rate)]
                 )
 
-        QMessageBox.information(self, "INFO", "Scadenze e rateizzazione aggiornate con successo.")
+        QMessageBox.information(
+            self,
+            "INFO",
+            "Scadenze e rateizzazione aggiornate con successo.\n"
+            "I valori aggiornati saranno visibili al prossimo avvio dell'applicazione.",
+        )
         self.accept()

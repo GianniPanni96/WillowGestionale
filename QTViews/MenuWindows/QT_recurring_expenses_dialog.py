@@ -348,5 +348,10 @@ class QTRecurringExpensesDialog(QDialog):
             QMessageBox.critical(self, "Errore", f"Salvataggio fallito: {exc}")
             return
 
-        QMessageBox.information(self, "Successo", "Modifiche salvate correttamente!")
+        QMessageBox.information(
+            self,
+            "Successo",
+            "Modifiche salvate correttamente.\n"
+            "I dati aggiornati saranno visibili al prossimo avvio dell'applicazione.",
+        )
         self.accept()

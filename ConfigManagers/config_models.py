@@ -330,7 +330,7 @@ class RecurringExpense:
             descr_amount=data.get("amount", {}).get("description", ""),
             supplier=data.get("supplier", {}).get("value", ""),
             descr_supplier=data.get("supplier", {}).get("description", ""),
-            deductible=deductible_value in {"si", "yes", "true"},
+            deductible=deductible_value in {"si", "sì", "yes", "true", "1"},
             descr_deductible=data.get("deductible", {}).get("description", ""),
             deductor=deductor,
             descr_deductor=data.get("deductor", {}).get("description", ""),

@@ -189,7 +189,7 @@ class QTSalaryDetailViewH(QWidget):
             "Dati Generali",
             DBSalariesColumns.AMOUNT.value,
             "Importo (€)",
-            self._make_line_edit(salary_data.get(DBSalariesColumns.AMOUNT.value, "")),
+            self._make_line_edit(salary_data.get(DBSalariesColumns.AMOUNT.value, ""), money=True),
         )
 
         # --- Collegamenti ---
@@ -249,8 +249,13 @@ class QTSalaryDetailViewH(QWidget):
         self.salary_labels[key] = label
         self.section_rows[section_name] = row + 1
 
-    def _make_line_edit(self, value):
+    def _make_line_edit(self, value, money=False):
         edit = QLineEdit()
+        if money and value not in (None, ""):
+            try:
+                value = f"{float(value):.2f}"
+            except (TypeError, ValueError):
+                pass
         edit.setText(str(value) if value is not None else "")
         return edit
 

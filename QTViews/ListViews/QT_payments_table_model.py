@@ -162,7 +162,7 @@ class PaymentsTableModel(WarningSupportMixin, QAbstractTableModel):
             if col == self.COL_FATTURA:
                 return row["invoice_name"]
             if col == self.COL_TOTALE:
-                return f"{round(row['amount'], 2)} €"
+                return f"{row['amount']:.2f} €"
             if col == self.COL_DATA:
                 return row["payment_date"]
             if col == self.COL_RATA:

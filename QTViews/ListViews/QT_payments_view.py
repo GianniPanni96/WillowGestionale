@@ -152,7 +152,7 @@ class QTPaymentsViewH(QTBaseListView):
         tot_payments = analyzer.calculate_tot_payments(include_unpaid_invoice_payments=False)
         return {
             "# PAGAMENTI": str(n_payments),
-            "TOT. PAGAMENTI": f"{round(tot_payments, 2)} €",
+            "TOT. PAGAMENTI": f"{tot_payments:.2f} €",
         }
 
     def id_for_index(self, source_index):
@@ -162,16 +162,10 @@ class QTPaymentsViewH(QTBaseListView):
         return self._source_model.find_row_by_payment_id(item_id)
 
     def open_creator_dialog(self):
-        # Stesso pattern di QTInvoicesViewH / QTProductionsViewH.
-        result = {"id": None}
-
-        def _on_created(payment_id):
-            result["id"] = payment_id
-
+        # Creator non modale: post-creazione gestito da ``_after_primary_create``.
         dialog = QTPaymentCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_payment_created=_on_created,
+            on_payment_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)

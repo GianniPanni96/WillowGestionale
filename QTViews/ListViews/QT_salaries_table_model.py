@@ -128,7 +128,7 @@ class SalariesTableModel(WarningSupportMixin, QAbstractTableModel):
             if col == self.COL_UTENTE:
                 return row["user_name"]
             if col == self.COL_IMPORTO:
-                return f"{round(row['amount'], 2)} €"
+                return f"{row['amount']:.2f} €"
             if col == self.COL_DATA:
                 return row["date"]
             if col == self.COL_CONTO:

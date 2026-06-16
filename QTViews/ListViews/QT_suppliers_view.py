@@ -129,8 +129,8 @@ class QTSuppliersViewH(QTBaseListView):
 
         return {
             "# FORNITORI": str(n_fornitori),
-            "TOT. SPESE": f"{round(tot_spese, 2)} €",
-            "SPESA MEDIA": f"{round(spesa_media, 2)} €",
+            "TOT. SPESE": f"{tot_spese:.2f} €",
+            "SPESA MEDIA": f"{spesa_media:.2f} €",
         }
 
     def _refresh_aggregate_tooltips(self, toggle_value):
@@ -169,20 +169,13 @@ class QTSuppliersViewH(QTBaseListView):
             app_context=self.app_context, parent=self, on_expense_created=_on_created
         )
         dialog.prefill_supplier(row_data.get("name", ""))
-        dialog.exec()
+        self._launch_creator(dialog)
 
     def open_creator_dialog(self):
-        # Stesso pattern di QTInvoicesViewH / QTClientsViewH: contenitore
-        # mutabile riempito dalla callback, leggibile al ritorno di exec().
-        result = {"id": None}
-
-        def _on_created(supplier_id):
-            result["id"] = supplier_id
-
+        # Creator non modale: post-creazione gestito da ``_after_primary_create``.
         dialog = QTSupplierCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_supplier_created=_on_created,
+            on_supplier_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)

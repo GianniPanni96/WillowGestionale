@@ -36,6 +36,38 @@ class InvoiceController:
         self.invoice_analyzer_service: InvoiceAnalyzerService = invoice_analyzer_service
         self.db_model = db_model
 
+    # Chiave transitoria (non colonna DB) usata dal creator per passare
+    # l'override "al volo" dei giorni di scadenza della fattura a rata singola.
+    OVERRIDE_EXPIRY_DAYS_KEY = "OVERRIDE_EXPIRY_DAYS"
+
+    def _compute_scadenze_slots(self, creation_date, numero_rate_value, override_days=None):
+        """Calcola le tre scadenze (slot DB) in base al numero di rate.
+
+        - rata singola: usa l'override "al volo" se presente, altrimenti la
+          preferenza ``invoice_expiry_days``; popola solo DATA_SCADENZA_1.
+        - 2/3 rate: usa gli offset del piano di rateizzazione configurato;
+          le scadenze non pertinenti restano None.
+        """
+        try:
+            num_rate = int(numero_rate_value)
+        except (TypeError, ValueError):
+            num_rate = 1
+
+        single_days = None
+        if num_rate <= 1 and override_days not in (None, ""):
+            try:
+                single_days = int(override_days)
+            except (TypeError, ValueError):
+                single_days = None
+
+        offsets = self.fiscal_settings.day_offsets_for(num_rate, single_rate_days=single_days)
+        dates = ControllerUtils.calculate_expiration_dates(creation_date, offsets) or []
+
+        slots = [None, None, None]
+        for i, d in enumerate(dates[:3]):
+            slots[i] = d
+        return slots
+
     def save_invoice(self, invoice_data):
         """
         Gestisce il salvataggio di una fattura, con validazioni di primo livello.
@@ -126,12 +158,17 @@ class InvoiceController:
             )
 
             #riempio i dati da passare al model
+            _scad1, _scad2, _scad3 = self._compute_scadenze_slots(
+                invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value),
+                invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value),
+                override_days=invoice_data.get(self.OVERRIDE_EXPIRY_DAYS_KEY),
+            )
             invoice_data_prepared = {
                 DBInvoicesColumns.NUMERO_FATTURA.value : invoice_data.get(DBInvoicesColumns.NUMERO_FATTURA.value),  # view
                 DBInvoicesColumns.DATA_CREAZIONE.value : invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value),  # view
-                DBInvoicesColumns.DATA_SCADENZA_1.value : ControllerUtils.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[0],
-                DBInvoicesColumns.DATA_SCADENZA_2.value : ControllerUtils.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[1] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == Rateizzazione.TRE.value else None,
-                DBInvoicesColumns.DATA_SCADENZA_3.value : ControllerUtils.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[2] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == Rateizzazione.TRE.value else None,
+                DBInvoicesColumns.DATA_SCADENZA_1.value : _scad1,
+                DBInvoicesColumns.DATA_SCADENZA_2.value : _scad2,
+                DBInvoicesColumns.DATA_SCADENZA_3.value : _scad3,
                 DBInvoicesColumns.ID_UTENTE.value : id_utente,  # controller(view)
                 DBInvoicesColumns.ID_CLIENTE.value : id_cliente,  # controller(view)
                 DBInvoicesColumns.ID_CONTO.value : conto_id,
@@ -154,12 +191,17 @@ class InvoiceController:
             }
         elif regime_fiscale == RegimeFiscale.FORFETTARIO.value:
             tot_lordo = float(totale_servizi) + float(invoice_data.get(DBInvoicesColumns.RIMBORSI.value)) + float(invoice_data.get(DBInvoicesColumns.RIVALSA_INPS.value))
+            _scad1, _scad2, _scad3 = self._compute_scadenze_slots(
+                invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value),
+                invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value),
+                override_days=invoice_data.get(self.OVERRIDE_EXPIRY_DAYS_KEY),
+            )
             invoice_data_prepared = {
                 DBInvoicesColumns.NUMERO_FATTURA.value: invoice_data.get(DBInvoicesColumns.NUMERO_FATTURA.value),  # view
                 DBInvoicesColumns.DATA_CREAZIONE.value: invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value),  # view
-                DBInvoicesColumns.DATA_SCADENZA_1.value: ControllerUtils.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[0],
-                DBInvoicesColumns.DATA_SCADENZA_2.value: ControllerUtils.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[1] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == Rateizzazione.TRE.value else None,
-                DBInvoicesColumns.DATA_SCADENZA_3.value: ControllerUtils.calculate_three_expiration_dates(invoice_data.get(DBInvoicesColumns.DATA_CREAZIONE.value))[2] if invoice_data.get(DBInvoicesColumns.NUMERO_RATE.value) == Rateizzazione.TRE.value else None,
+                DBInvoicesColumns.DATA_SCADENZA_1.value: _scad1,
+                DBInvoicesColumns.DATA_SCADENZA_2.value: _scad2,
+                DBInvoicesColumns.DATA_SCADENZA_3.value: _scad3,
                 DBInvoicesColumns.ID_UTENTE.value: id_utente,  # controller(view)
                 DBInvoicesColumns.ID_CLIENTE.value: id_cliente,  # controller(view)
                 DBInvoicesColumns.ID_CONTO.value: conto_id,

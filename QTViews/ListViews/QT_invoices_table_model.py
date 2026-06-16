@@ -40,7 +40,7 @@ def _invert_date_string(date_str):
 
 def _status_color(status_value, num_rate):
     try:
-        is_rateizzata = int(num_rate) == int(Rateizzazione.TRE.value)
+        is_rateizzata = int(num_rate) > int(Rateizzazione.UNA.value)
     except (TypeError, ValueError):
         is_rateizzata = False
 
@@ -77,7 +77,7 @@ def _payments_from_join(invoice_with_payments):
     return payments
 
 
-def _rate_colors(invoice_with_payments):
+def _rate_colors(invoice_with_payments, fiscal_settings=None):
     if not invoice_with_payments:
         return [COLOR_NOT_EXISTING, COLOR_NOT_EXISTING, COLOR_NOT_EXISTING]
 
@@ -93,9 +93,19 @@ def _rate_colors(invoice_with_payments):
     try:
         netto = float(fattura[DBInvoicesColumns.NETTO_A_PAGARE.value])
         num_rate = int(fattura[DBInvoicesColumns.NUMERO_RATE.value])
-        importo_per_rata = netto / num_rate
-    except (TypeError, ValueError, ZeroDivisionError):
+    except (TypeError, ValueError):
         return [COLOR_NOT_EXISTING, COLOR_NOT_EXISTING, COLOR_NOT_EXISTING]
+
+    if num_rate < 1:
+        return [COLOR_NOT_EXISTING, COLOR_NOT_EXISTING, COLOR_NOT_EXISTING]
+
+    # Quota teorica per rata: dal piano configurato se disponibile, altrimenti
+    # ripartizione equa.
+    if fiscal_settings is not None:
+        quote = fiscal_settings.split_netto(netto, num_rate)
+    else:
+        per_rata = netto / num_rate
+        quote = [per_rata] * num_rate
 
     pagamenti = {1: 0.0, 2: 0.0, 3: 0.0}
     for payment in invoice_with_payments:
@@ -107,7 +117,7 @@ def _rate_colors(invoice_with_payments):
         if r in pagamenti:
             pagamenti[r] += a
 
-    def color_for(due_date_str, payment_sum):
+    def color_for(due_date_str, payment_sum, importo_per_rata):
         if payment_sum > 0:
             if payment_sum >= importo_per_rata or (importo_per_rata - payment_sum) < 5:
                 return COLOR_GOOD
@@ -121,13 +131,16 @@ def _rate_colors(invoice_with_payments):
             return COLOR_WARNING
         return COLOR_NORMAL
 
-    colors = [color_for(scadenze[0], pagamenti[1])]
-    if scadenze[1] is not None and scadenze[2] is not None:
-        colors.append(color_for(scadenze[1], pagamenti[2]))
-        colors.append(color_for(scadenze[2], pagamenti[3]))
-    else:
-        colors.append(COLOR_NOT_EXISTING)
-        colors.append(COLOR_NOT_EXISTING)
+    # Una cella di colore per ognuna delle prime 3 rate possibili: le rate non
+    # pertinenti al piano (oltre num_rate) restano "non esistenti".
+    colors = []
+    for idx in range(3):
+        rata_index = idx + 1
+        if rata_index <= num_rate and scadenze[idx] is not None:
+            quota = quote[idx] if idx < len(quote) else 0.0
+            colors.append(color_for(scadenze[idx], pagamenti[rata_index], quota))
+        else:
+            colors.append(COLOR_NOT_EXISTING)
     return colors
 
 
@@ -184,6 +197,7 @@ class InvoicesTableModel(WarningSupportMixin, QAbstractTableModel):
         user_query_service,
         productions_query_service,
         invoices_query_service,
+        fiscal_settings=None,
     ):
         rows = []
         for inv in invoices:
@@ -237,7 +251,7 @@ class InvoicesTableModel(WarningSupportMixin, QAbstractTableModel):
                     "creation_date_display": _invert_date_string(creation_date),
                     "status": status_value,
                     "status_color": _status_color(status_value, num_rate),
-                    "rate_colors": _rate_colors(inv_with_payments),
+                    "rate_colors": _rate_colors(inv_with_payments, fiscal_settings),
                     "netto": netto_float,
                     "tipo": inv[DBInvoicesColumns.TIPO.value] or "",
                 }

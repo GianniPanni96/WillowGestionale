@@ -624,29 +624,27 @@ class ControllerUtils:
         return dict(zip(keys, row))
 
     @staticmethod
-    def calculate_three_expiration_dates(creation_date):
+    def calculate_expiration_dates(creation_date, day_offsets):
         """
-        Calcola tre date di scadenza aggiungendo 30, 60 e 90 giorni alla data di creazione.
+        Calcola le date di scadenza aggiungendo alla data di creazione gli offset
+        in giorni indicati in ``day_offsets``.
+
+        Per la rata singola l'offset deriva dalla preferenza utente (default 30gg,
+        limite di legge, estendibile per accordi col cliente). Per le fatture
+        multi-rata gli offset derivano dai piani di rateizzazione configurati
+        (default 60/90gg per 2 rate, 30/60/90gg per 3 rate).
 
         :param creation_date: Data di creazione in formato stringa ("yyyy-mm-dd")
-        :return: Lista di tre date di scadenza in formato stringa ("yyyy-mm-dd")
+        :param day_offsets: Iterabile di offset in giorni
+        :return: Lista di date di scadenza in formato stringa ("yyyy-mm-dd"),
+                 oppure None se la data non e' valida.
         """
         try:
-            # Converte la stringa in un oggetto date
             date_obj = datetime.strptime(creation_date, "%Y-%m-%d").date()
-
-            # Calcola le tre date di scadenza
-            expiration_date_30 = date_obj + timedelta(days=30)
-            expiration_date_60 = date_obj + timedelta(days=60)
-            expiration_date_90 = date_obj + timedelta(days=90)
-
-            # Restituisce le date formattate come stringhe
             return [
-                expiration_date_30.strftime("%Y-%m-%d"),
-                expiration_date_60.strftime("%Y-%m-%d"),
-                expiration_date_90.strftime("%Y-%m-%d")
+                (date_obj + timedelta(days=int(offset))).strftime("%Y-%m-%d")
+                for offset in day_offsets
             ]
         except ValueError as e:
-            # Gestisce errori di formattazione della data
             print(f"Errore nella conversione della data: {e}")
             return None

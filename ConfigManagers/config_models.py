@@ -177,14 +177,72 @@ class AliquotaIva:
 
 
 @dataclass
+class InstallmentPlan:
+    """Piano di rateizzazione per un dato numero di rate.
+
+    ``day_offsets`` sono i giorni (dalla data di emissione) di ciascuna rata;
+    ``amount_split`` sono i pesi di ripartizione del netto (normalizzati a somma
+    qualsiasi: vengono riscalati internamente). Entrambe le liste hanno
+    lunghezza pari al numero di rate.
+    """
+
+    day_offsets: List[int]
+    amount_split: List[float]
+
+    @staticmethod
+    def from_dict(num_rate: int, data: dict) -> "InstallmentPlan":
+        data = data or {}
+        raw_offsets = data.get("day_offsets") or []
+        raw_split = data.get("amount_split") or []
+
+        day_offsets = [_coerce_config_int(v, 0) for v in raw_offsets]
+        amount_split = [_coerce_config_float(v, 0.0) for v in raw_split]
+
+        # Fallback robusti se il piano e' incompleto/corrotto: offset 30/60/90…
+        # e ripartizione equa.
+        if len(day_offsets) != num_rate:
+            day_offsets = [30 * (i + 1) for i in range(num_rate)]
+        if len(amount_split) != num_rate or sum(amount_split) <= 0:
+            amount_split = [1.0] * num_rate
+
+        return InstallmentPlan(day_offsets=day_offsets, amount_split=amount_split)
+
+    def fractions(self) -> List[float]:
+        total = sum(self.amount_split)
+        if total <= 0:
+            n = len(self.amount_split) or 1
+            return [1.0 / n] * n
+        return [w / total for w in self.amount_split]
+
+    def split_amount(self, netto: float) -> List[float]:
+        """Ripartisce ``netto`` sulle rate; l'ultima assorbe l'arrotondamento."""
+        fr = self.fractions()
+        amounts = [round(netto * f, 2) for f in fr]
+        if amounts:
+            amounts[-1] = round(netto - sum(amounts[:-1]), 2)
+        return amounts
+
+
+@dataclass
 class FiscalSettings:
     aliquota_iva: AliquotaIva
     partita_iva_forfettaria: PartitaIVAForfettaria
     partita_iva_ordinaria: PartitaIVAOrdinaria
+    invoice_expiry_days: int = 30
+    installment_plans: Dict[int, InstallmentPlan] = field(default_factory=dict)
 
     @staticmethod
     def from_dict(data: dict):
         fiscal_data = data or {}
+        raw_plans = fiscal_data.get("installment_plans", {}) or {}
+        installment_plans: Dict[int, InstallmentPlan] = {}
+        for key, plan_data in raw_plans.items():
+            try:
+                num_rate = int(key)
+            except (TypeError, ValueError):
+                continue
+            installment_plans[num_rate] = InstallmentPlan.from_dict(num_rate, plan_data)
+
         return FiscalSettings(
             aliquota_iva=AliquotaIva.from_dict(fiscal_data.get("iva", {})),
             partita_iva_forfettaria=PartitaIVAForfettaria.from_dict(
@@ -193,7 +251,44 @@ class FiscalSettings:
             partita_iva_ordinaria=PartitaIVAOrdinaria.from_dict(
                 fiscal_data.get("partita_iva_ordinaria", {})
             ),
+            invoice_expiry_days=_coerce_config_int(fiscal_data.get("invoice_expiry_days"), 30),
+            installment_plans=installment_plans,
         )
+
+    # ------------------------------------------------------------------
+    # Helper per scadenze e ripartizione importi
+    # ------------------------------------------------------------------
+
+    def _plan_for(self, num_rate: int) -> InstallmentPlan:
+        plan = self.installment_plans.get(num_rate)
+        if plan is None:
+            plan = InstallmentPlan.from_dict(num_rate, {})
+        return plan
+
+    def day_offsets_for(self, num_rate: int, single_rate_days: int = None) -> List[int]:
+        """Offset in giorni delle scadenze.
+
+        Per la rata singola usa ``single_rate_days`` (override al volo) se fornito,
+        altrimenti ``invoice_expiry_days``. Per le multi-rata usa il relativo
+        ``InstallmentPlan`` (valori indipendenti dalla preferenza rata singola).
+        """
+        if num_rate <= 1:
+            days = single_rate_days if single_rate_days else self.invoice_expiry_days
+            return [int(days)]
+        return list(self._plan_for(num_rate).day_offsets)
+
+    def split_netto(self, netto: float, num_rate: int) -> List[float]:
+        """Importi per rata (rata singola -> intero netto)."""
+        if num_rate <= 1:
+            return [round(netto, 2)]
+        return self._plan_for(num_rate).split_amount(netto)
+
+    def quota_for_rata(self, netto: float, num_rate: int, rata_index: int) -> float:
+        """Quota della rata ``rata_index`` (1-based)."""
+        amounts = self.split_netto(netto, num_rate)
+        if 1 <= rata_index <= len(amounts):
+            return amounts[rata_index - 1]
+        return 0.0
 
 
 @dataclass
@@ -235,7 +330,7 @@ class RecurringExpense:
             descr_amount=data.get("amount", {}).get("description", ""),
             supplier=data.get("supplier", {}).get("value", ""),
             descr_supplier=data.get("supplier", {}).get("description", ""),
-            deductible=deductible_value in {"si", "yes", "true"},
+            deductible=deductible_value in {"si", "sì", "yes", "true", "1"},
             descr_deductible=data.get("deductible", {}).get("description", ""),
             deductor=deductor,
             descr_deductor=data.get("deductor", {}).get("description", ""),

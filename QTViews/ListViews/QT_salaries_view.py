@@ -142,7 +142,7 @@ class QTSalariesViewH(QTBaseListView):
         tot_salaries = analyzer.calculate_tot_salaries()
         return {
             SalariesAggregateData.NUMERO_SALARI.value: str(n_salaries),
-            SalariesAggregateData.TOT_SALARI.value: f"{round(tot_salaries, 2)} €",
+            SalariesAggregateData.TOT_SALARI.value: f"{tot_salaries:.2f} €",
         }
 
     def id_for_index(self, source_index):
@@ -152,16 +152,10 @@ class QTSalariesViewH(QTBaseListView):
         return self._source_model.find_row_by_salary_id(item_id)
 
     def open_creator_dialog(self):
-        # Stesso pattern delle altre list view migrate.
-        result = {"id": None}
-
-        def _on_created(salary_id):
-            result["id"] = salary_id
-
+        # Creator non modale: post-creazione gestito da ``_after_primary_create``.
         dialog = QTSalaryCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_salary_created=_on_created,
+            on_salary_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)

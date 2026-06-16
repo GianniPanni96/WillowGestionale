@@ -66,6 +66,7 @@ class QTInvoicesViewH(QTBaseListView):
         self.user_query_service = app_context.user_query_service
         self.productions_query_service = app_context.productions_query_service
         self.invoice_warning_service = app_context.invoice_warning_service
+        self.fiscal_settings = app_context.fiscal_settings
 
     def fetch_items(self, window_days):
         if window_days is None:
@@ -79,6 +80,7 @@ class QTInvoicesViewH(QTBaseListView):
             self.user_query_service,
             self.productions_query_service,
             self.invoices_query_service,
+            self.fiscal_settings,
         )
 
     def create_table_model(self, rows):
@@ -141,21 +143,14 @@ class QTInvoicesViewH(QTBaseListView):
         return self._source_model.find_row_by_invoice_id(item_id)
 
     def open_creator_dialog(self):
-        # Il dialog notifica l'esito tramite callback. La salviamo in un
-        # contenitore mutabile cosi' che il chiamante (la base) la legga
-        # dopo che dialog.exec() e' tornato.
-        result = {"id": None}
-
-        def _on_created(invoice_id):
-            result["id"] = invoice_id
-
+        # Creator non modale: il post-creazione è gestito da
+        # ``_after_primary_create`` (reload + selezione + apertura dettaglio).
         dialog = QTInvoiceCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_invoice_created=_on_created,
+            on_invoice_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)
 
     def context_menu_actions(self, row_data: dict) -> list[tuple[str, callable]]:
         return [
@@ -176,4 +171,4 @@ class QTInvoicesViewH(QTBaseListView):
             on_payment_created=_on_created,
         )
         dialog.prefill_invoice(row_data.get("name", ""))
-        dialog.exec()
+        self._launch_creator(dialog)

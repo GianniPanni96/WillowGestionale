@@ -450,5 +450,10 @@ class QTFiscalSettingsDialog(QDialog):
             QMessageBox.critical(self, "ERRORE", f"Impossibile aggiornare i dati fiscali: {exc}")
             return
 
-        QMessageBox.information(self, "INFO", "Dati fiscali aggiornati con successo")
+        QMessageBox.information(
+            self,
+            "INFO",
+            "Dati fiscali aggiornati con successo.\n"
+            "I valori aggiornati saranno visibili al prossimo avvio dell'applicazione.",
+        )
         self.accept()

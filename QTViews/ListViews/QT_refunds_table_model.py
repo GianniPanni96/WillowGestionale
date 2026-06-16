@@ -117,7 +117,7 @@ class RefundsTableModel(WarningSupportMixin, QAbstractTableModel):
             if col == self.COL_CLIENTE:
                 return row["client_name"]
             if col == self.COL_TOTALE:
-                return f"{round(row['amount'], 2)} €"
+                return f"{row['amount']:.2f} €"
             if col == self.COL_DATA:
                 return row["refund_date"]
             if col == self.COL_CONTO:

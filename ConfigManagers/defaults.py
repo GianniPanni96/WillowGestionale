@@ -39,6 +39,24 @@ APP_SETTINGS_DEFAULT = {
 
 FISCAL_RULES_DEFAULT = {
     "fiscal_settings": {
+        # Giorni di scadenza per la fattura a RATA SINGOLA (limite di legge: 30).
+        # Modificabile dalla preferenza "Scadenza fatture".
+        "invoice_expiry_days": 30,
+        # Piani di rateizzazione per le fatture multi-rata. Per ogni numero di
+        # rate sono definiti gli offset in giorni (dalla data di emissione) e
+        # la ripartizione percentuale del netto su ciascuna rata. Indipendenti
+        # dalla preferenza della rata singola. Modificabili dalla preferenza
+        # "Piani di rateizzazione".
+        "installment_plans": {
+            "2": {
+                "day_offsets": [60, 90],
+                "amount_split": [50, 50],
+            },
+            "3": {
+                "day_offsets": [30, 60, 90],
+                "amount_split": [34, 33, 33],
+            },
+        },
         "iva": {
             "no_iva": {"value": "0.00", "description": "Assenza di IVA"},
             "aliquota_iva_ordinaria": {"value": "0.22", "description": "Aliquota IVA standard"},

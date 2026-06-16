@@ -132,9 +132,9 @@ class QTClientsViewH(QTBaseListView):
 
         return {
             "# CLIENTI": str(n_clienti),
-            "TOT. ENTRATE": f"{round(tot_entrate, 2)} €",
-            "TOT. CREDITI": f"{round(tot_crediti, 2)} €",
-            "FATTURA MEDIA": f"{round(media_fattura, 2)} €",
+            "TOT. ENTRATE": f"{tot_entrate:.2f} €",
+            "TOT. CREDITI": f"{tot_crediti:.2f} €",
+            "FATTURA MEDIA": f"{media_fattura:.2f} €",
         }
 
     def _refresh_aggregate_tooltips(self, toggle_value):
@@ -176,7 +176,7 @@ class QTClientsViewH(QTBaseListView):
             app_context=self.app_context, parent=self, on_production_created=_on_created
         )
         dialog.prefill_client(row_data.get("name", ""))
-        dialog.exec()
+        self._launch_creator(dialog)
 
     def _open_refund_create(self, row_data: dict):
         from QTViews.Creators.QT_refund_create_view import QTRefundCreateViewH
@@ -190,21 +190,14 @@ class QTClientsViewH(QTBaseListView):
             app_context=self.app_context, parent=self, on_refund_created=_on_created
         )
         dialog.prefill_client(row_data.get("name", ""))
-        dialog.exec()
+        self._launch_creator(dialog)
 
     def open_creator_dialog(self):
-        # Stesso pattern di QTInvoicesViewH.open_creator_dialog: passiamo
-        # al dialog una callback che riempie un contenitore mutabile con
-        # l'id del nuovo cliente, leggibile dopo che dialog.exec() ritorna.
-        result = {"id": None}
-
-        def _on_created(client_id):
-            result["id"] = client_id
-
+        # Creator non modale: il post-creazione è gestito da
+        # ``_after_primary_create``.
         dialog = QTClientCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_client_created=_on_created,
+            on_client_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)

@@ -2,7 +2,7 @@ import re
 
 from ConfigManagers.base_json_manager import BaseJsonConfigManager
 from ConfigManagers.defaults import FISCAL_RULES_DEFAULT
-from ConfigManagers.type_utils import MISSING, coerce_like_existing_or_default
+from ConfigManagers.type_utils import MISSING, coerce_like_existing_or_default, coerce_to_int
 
 
 class FiscalRulesManager(BaseJsonConfigManager):
@@ -126,3 +126,31 @@ class FiscalRulesManager(BaseJsonConfigManager):
             self.save(current_config)
         except Exception as exc:
             raise Exception(f"Errore durante l'aggiornamento dei dati fiscali: {str(exc)}") from exc
+
+    def get_invoice_expiry_days(self) -> int:
+        data = self.load()
+        val = data.get("fiscal_settings", {}).get("invoice_expiry_days", 30)
+        return coerce_to_int(val, 30)
+
+    def update_invoice_expiry_days(self, days: int):
+        current = self.load()
+        current.setdefault("fiscal_settings", {})["invoice_expiry_days"] = int(days)
+        self.save(current)
+
+    def get_installment_plans(self) -> dict:
+        data = self.load()
+        return data.get("fiscal_settings", {}).get("installment_plans", {})
+
+    def update_installment_plans(self, new_plans: dict):
+        """Aggiorna i piani di rateizzazione. ``new_plans`` e' un dict del tipo
+        ``{"2": {"day_offsets": [...], "amount_split": [...]}, ...}``."""
+        current = self.load()
+        fiscal = current.setdefault("fiscal_settings", {})
+        plans = fiscal.setdefault("installment_plans", {})
+        for key, plan in new_plans.items():
+            target = plans.setdefault(str(key), {})
+            if "day_offsets" in plan:
+                target["day_offsets"] = [int(v) for v in plan["day_offsets"]]
+            if "amount_split" in plan:
+                target["amount_split"] = [float(v) for v in plan["amount_split"]]
+        self.save(current)

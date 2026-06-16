@@ -159,11 +159,11 @@ class ProductionsTableModel(WarningSupportMixin, QAbstractTableModel):
             if col == self.COL_DATA_CONSEGNA:
                 return row["data_consegna"]
             if col == self.COL_TOTALE:
-                return f"{round(row['totale_preventivo'], 2)} €"
+                return f"{row['totale_preventivo']:.2f} €"
             if col == self.COL_DURATA:
                 return f"{round(row['durata'], 2)} h"
             if col == self.COL_PREZZO_ORARIO:
-                return f"{round(row['prezzo_orario'], 2)} €/h"
+                return f"{row['prezzo_orario']:.2f} €/h"
 
         if role == Qt.UserRole:
             if col == self.COL_NOME:

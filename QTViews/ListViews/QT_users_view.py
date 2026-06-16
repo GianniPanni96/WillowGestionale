@@ -231,10 +231,11 @@ class QTUsersViewH(QWidget):
 
     def _open_salary_create(self, user_name: str):
         from QTViews.Creators.QT_salary_create_view import QTSalaryCreateViewH
+        from QTViews.QT_creator_session import launch_creator
 
         dialog = QTSalaryCreateViewH(app_context=self.app_context, parent=self)
         dialog.prefill_user(user_name)
-        dialog.exec()
+        launch_creator(self, self.app_context, dialog)
 
     def _on_add_user(self):
         # Senza almeno un conto corrente la creazione utente non e' possibile
@@ -251,16 +252,21 @@ class QTUsersViewH(QWidget):
         # Import locale per evitare cicli (la classe Creator e' nel modulo
         # ``Creators`` che a sua volta non importa nulla di questa view).
         from QTViews.Creators.QT_user_create_view import QTUserCreateViewH
+        from QTViews.QT_creator_session import launch_creator
 
         dialog = QTUserCreateViewH(
             app_context=self.app_context,
             parent=self,
         )
-        if dialog.exec() == QTUserCreateViewH.Accepted:
+
+        def _on_accepted():
             self._reload_users()
             new_id = dialog.created_user_id
             if new_id is not None and self.on_open_detail is not None:
                 self.on_open_detail(new_id)
+
+        dialog.accepted.connect(_on_accepted)
+        launch_creator(self, self.app_context, dialog)
 
     # ------------------------------------------------------------------
     # API esterna per la main view (refresh dopo edit)

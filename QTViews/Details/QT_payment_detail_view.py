@@ -200,7 +200,7 @@ class QTPaymentDetailViewH(QWidget):
             "Dati Fiscali",
             DBPaymentsColumns.PAYMENT_AMOUNT.value,
             "Importo Pagato (€)",
-            self._make_line_edit(payment_data.get(DBPaymentsColumns.PAYMENT_AMOUNT.value, "")),
+            self._make_line_edit(payment_data.get(DBPaymentsColumns.PAYMENT_AMOUNT.value, ""), money=True),
         )
 
         # --- Collegamenti ---
@@ -273,8 +273,13 @@ class QTPaymentDetailViewH(QWidget):
         self.payment_labels[key] = label
         self.section_rows[section_name] = row + 1
 
-    def _make_line_edit(self, value):
+    def _make_line_edit(self, value, money=False):
         edit = QLineEdit()
+        if money and value not in (None, ""):
+            try:
+                value = f"{float(value):.2f}"
+            except (TypeError, ValueError):
+                pass
         edit.setText(str(value) if value is not None else "")
         return edit
 
@@ -387,9 +392,10 @@ class QTPaymentDetailViewH(QWidget):
             rata_combo.addItems(["1"])
             rata_combo.setCurrentText("1")
         else:
-            rata_combo.addItems(["1", "2", "3"])
+            valid_rate = {str(i) for i in range(1, rate_count + 1)}
+            rata_combo.addItems(sorted(valid_rate))
             current_rata = str(self.payment.get(DBPaymentsColumns.LINKED_RATA.value, "1")) if self.payment else "1"
-            rata_combo.setCurrentText(current_rata if current_rata in {"1", "2", "3"} else "1")
+            rata_combo.setCurrentText(current_rata if current_rata in valid_rate else "1")
         rata_combo.blockSignals(False)
 
         # Aggiorna anche la label statica della produzione associata.

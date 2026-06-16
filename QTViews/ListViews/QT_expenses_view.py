@@ -145,7 +145,7 @@ class QTExpensesViewH(QTBaseListView):
         tot_expenses = analyzer.calculate_tot_expenses()
         return {
             ExpensesAggregateData.NUMERO_SPESE.value: str(n_expenses),
-            ExpensesAggregateData.TOT_SPESE.value: f"{round(tot_expenses, 2)} €",
+            ExpensesAggregateData.TOT_SPESE.value: f"{tot_expenses:.2f} €",
         }
 
     def id_for_index(self, source_index):
@@ -155,16 +155,10 @@ class QTExpensesViewH(QTBaseListView):
         return self._source_model.find_row_by_expense_id(item_id)
 
     def open_creator_dialog(self):
-        # Stesso pattern di QTPaymentsViewH / QTRefundsViewH.
-        result = {"id": None}
-
-        def _on_created(expense_id):
-            result["id"] = expense_id
-
+        # Creator non modale: post-creazione gestito da ``_after_primary_create``.
         dialog = QTExpenseCreateViewH(
             app_context=self.app_context,
             parent=self,
-            on_expense_created=_on_created,
+            on_expense_created=self._after_primary_create,
         )
-        dialog.exec()
-        return result["id"]
+        self._launch_creator(dialog)

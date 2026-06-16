@@ -499,17 +499,22 @@ class QTInvoiceDetailViewH(QWidget):
         prod_combo.blockSignals(False)
 
     def _on_numero_rate_changed(self, value):
-        is_rateizzata = str(value) == Rateizzazione.TRE.value
-        for key in (
-            DBInvoicesColumns.DATA_SCADENZA_2.value,
-            DBInvoicesColumns.DATA_SCADENZA_3.value,
-        ):
+        try:
+            num_rate = int(value)
+        except (TypeError, ValueError):
+            num_rate = 1
+        # Scadenza 2 visibile da 2 rate in su; scadenza 3 solo con 3 rate.
+        visibility = {
+            DBInvoicesColumns.DATA_SCADENZA_2.value: num_rate >= int(Rateizzazione.DUE.value),
+            DBInvoicesColumns.DATA_SCADENZA_3.value: num_rate >= int(Rateizzazione.TRE.value),
+        }
+        for key, visible in visibility.items():
             widget = self.invoice_widgets.get(key)
             label = self.invoice_labels.get(key)
             if widget is not None:
-                widget.setVisible(is_rateizzata)
+                widget.setVisible(visible)
             if label is not None:
-                label.setVisible(is_rateizzata)
+                label.setVisible(visible)
 
     # ------------------------------------------------------------------
     # Warning di consistenza (sev 1): banner senza dismiss + highlight FK
@@ -591,7 +596,12 @@ class QTInvoiceDetailViewH(QWidget):
 
         date_widget: QDateEdit = self.invoice_widgets[DBInvoicesColumns.DATA_CREAZIONE.value]
         rate_value = self._combo_text(DBInvoicesColumns.NUMERO_RATE.value)
-        is_rateizzata = str(rate_value) == Rateizzazione.TRE.value
+        try:
+            num_rate = int(rate_value)
+        except (TypeError, ValueError):
+            num_rate = 1
+        has_scadenza_2 = num_rate >= int(Rateizzazione.DUE.value)
+        has_scadenza_3 = num_rate >= int(Rateizzazione.TRE.value)
 
         def _date_or_none(key):
             w: QDateEdit = self.invoice_widgets[key]
@@ -613,8 +623,8 @@ class QTInvoiceDetailViewH(QWidget):
             DBInvoicesColumns.ID_CONTO.value: id_conto,
             DBInvoicesColumns.NUMERO_RATE.value: rate_value,
             DBInvoicesColumns.DATA_SCADENZA_1.value: _date_or_none(DBInvoicesColumns.DATA_SCADENZA_1.value),
-            DBInvoicesColumns.DATA_SCADENZA_2.value: _date_or_none(DBInvoicesColumns.DATA_SCADENZA_2.value) if is_rateizzata else None,
-            DBInvoicesColumns.DATA_SCADENZA_3.value: _date_or_none(DBInvoicesColumns.DATA_SCADENZA_3.value) if is_rateizzata else None,
+            DBInvoicesColumns.DATA_SCADENZA_2.value: _date_or_none(DBInvoicesColumns.DATA_SCADENZA_2.value) if has_scadenza_2 else None,
+            DBInvoicesColumns.DATA_SCADENZA_3.value: _date_or_none(DBInvoicesColumns.DATA_SCADENZA_3.value) if has_scadenza_3 else None,
             DBInvoicesColumns.ID_PRODUZIONE_ASSOCIATA.value: id_produzione,
             DBInvoicesColumns.NOTE.value: self.invoice_widgets[DBInvoicesColumns.NOTE.value].text().strip(),
         }
@@ -661,11 +671,14 @@ class QTInvoiceDetailViewH(QWidget):
         cards = QHBoxLayout()
         cards.setSpacing(15)
         labels = [("TOTALE PAGAMENTI", totali[0])]
-        if int(invoice[DBInvoicesColumns.NUMERO_RATE.value]) == int(Rateizzazione.TRE.value):
+        try:
+            num_rate = int(invoice[DBInvoicesColumns.NUMERO_RATE.value])
+        except (TypeError, ValueError):
+            num_rate = 1
+        if num_rate > int(Rateizzazione.UNA.value):
             labels += [
-                ("TOTALE RATA 1", totali[1]),
-                ("TOTALE RATA 2", totali[2]),
-                ("TOTALE RATA 3", totali[3]),
+                (f"TOTALE RATA {rata}", totali[rata])
+                for rata in range(1, num_rate + 1)
             ]
         for title, value in labels:
             cards.addWidget(self._make_info_card(title, f"{self._fmt(value)} €"))

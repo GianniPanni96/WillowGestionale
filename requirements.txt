@@ -1,5 +1,6 @@
 # Runtime
 matplotlib==3.10.8
+mplcursors==0.7.1
 numpy==2.4.6
 opencv-python==4.13.0.92
 pandas==2.3.3
@@ -13,3 +14,6 @@ scikit-learn==1.9.0
 pyinstaller==6.16.0
 
 pyside6
+
+# Installer UI (Tkinter-based, usato solo da Installer/installer_app.py)
+customtkinter

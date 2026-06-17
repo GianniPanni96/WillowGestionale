@@ -81,11 +81,11 @@ def _existing_columns(cursor: sqlite3.Cursor, table: str) -> set[str]:
 
 
 def _add_missing_columns(cursor: sqlite3.Cursor):
-    existing = _existing_columns(cursor, "users")
     if "users" not in _all_tables(cursor):
         print("ERRORE: la tabella 'users' non esiste in questo DB.", file=sys.stderr)
         sys.exit(2)
 
+    existing = _existing_columns(cursor, "users")
     added = []
     for col_name, col_type in NEW_COLUMNS:
         if col_name in existing:
@@ -119,15 +119,22 @@ def main():
     db_path = _resolve_db_path()
     print(f"DB target: {db_path}")
 
-    try:
-        _backup_db(db_path)
-    except OSError as exc:
-        print(f"ERRORE creando il backup: {exc}", file=sys.stderr)
-        sys.exit(3)
-
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.cursor()
+        if "users" not in _all_tables(cursor):
+            print("ERRORE: la tabella 'users' non esiste in questo DB.", file=sys.stderr)
+            sys.exit(2)
+        missing = [col_name for col_name, _ in NEW_COLUMNS if col_name not in _existing_columns(cursor, "users")]
+        if not missing:
+            print("Nessuna modifica necessaria: schema gia' allineato.")
+            _verify(cursor)
+            return
+        try:
+            _backup_db(db_path)
+        except OSError as exc:
+            print(f"ERRORE creando il backup: {exc}", file=sys.stderr)
+            sys.exit(3)
         print("Aggiungo le colonne mancanti...")
         added = _add_missing_columns(cursor)
         conn.commit()

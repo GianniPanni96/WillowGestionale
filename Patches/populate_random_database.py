@@ -25,6 +25,8 @@ from Gestionale_Enums import (
     DBSuppliersColumns,
     DBTransfersColumns,
     DBUsersColumns,
+    InvoiceRateizzSatus,
+    InvoiceSatus,
     PaymentsMethods,
     ProductionStatus,
     Rateizzazione,
@@ -53,6 +55,8 @@ TABLES = (
 )
 
 NO_INVOICE_PROVIDER = "nessuno"
+SEED_BATCHES_TABLE = "_seed_batches"
+DEFAULT_BATCH_KEY = "default"
 
 
 FIRST_NAMES = (
@@ -178,6 +182,37 @@ def require_tables(cursor):
             "Il database non contiene tutte le tabelle richieste. Mancano: "
             + ", ".join(missing)
         )
+
+
+def ensure_seed_batches_table(cursor):
+    cursor.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {quote_identifier(SEED_BATCHES_TABLE)} (
+            batch_key TEXT PRIMARY KEY,
+            token TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def existing_seed_batch(cursor, batch_key):
+    cursor.execute(
+        f"SELECT token FROM {quote_identifier(SEED_BATCHES_TABLE)} WHERE batch_key = ?",
+        (batch_key,),
+    )
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
+def record_seed_batch(cursor, batch_key, token):
+    cursor.execute(
+        f"""
+        INSERT INTO {quote_identifier(SEED_BATCHES_TABLE)} (batch_key, token)
+        VALUES (?, ?)
+        """,
+        (batch_key, token),
+    )
 
 
 def resolve_db_path(explicit_path):
@@ -339,10 +374,7 @@ def create_invoices(cursor, token, count, user_ids, client_ids, account_ids, pro
     for index in range(count):
         creation_date = iso_day(days_back=420, days_forward=20)
         rates = Rateizzazione.TRE.value if index % 3 == 0 else Rateizzazione.UNA.value
-        # STATUS in DB = stringa vuota: lo stato e' calcolato on-the-fly
-        # (Utils.Invoice_status_utils.compute_invoice_status). Resta scritto
-        # solo STORNATA come eccezione manuale.
-        status = ""
+        status = InvoiceRateizzSatus.EMESSA.value if rates == Rateizzazione.TRE.value else InvoiceSatus.EMESSA.value
         services, refunds, rivalsa, imponibile, iva, total, withholding, net = invoice_amounts()
         ids.append(
             insert_row(
@@ -493,7 +525,7 @@ def create_refunds(cursor, token, count, client_ids, account_ids):
     return ids
 
 
-def populate(db_path, count, seed):
+def populate(db_path, count, seed, batch_key=DEFAULT_BATCH_KEY, force_new=False):
     if seed is not None:
         random.seed(seed)
 
@@ -504,6 +536,11 @@ def populate(db_path, count, seed):
         conn.execute("PRAGMA foreign_keys = ON")
         cursor = conn.cursor()
         require_tables(cursor)
+        ensure_seed_batches_table(cursor)
+
+        existing_token = existing_seed_batch(cursor, batch_key)
+        if existing_token and not force_new:
+            return existing_token, {table: 0 for table in TABLES}, False
 
         try:
             inserted["accounts"] = create_accounts(cursor, token, count)
@@ -533,12 +570,14 @@ def populate(db_path, count, seed):
             inserted["transfers"] = create_transfers(cursor, token, count, inserted["accounts"])
             inserted["salaries"] = create_salaries(cursor, token, count, inserted["users"], inserted["accounts"])
             inserted["refunds"] = create_refunds(cursor, token, count, inserted["clients"], inserted["accounts"])
+            marker_key = batch_key if not force_new else f"{batch_key}:{token}"
+            record_seed_batch(cursor, marker_key, token)
             conn.commit()
         except Exception:
             conn.rollback()
             raise
 
-    return token, {table: len(ids) for table, ids in inserted.items()}
+    return token, {table: len(ids) for table, ids in inserted.items()}, True
 
 
 def main():
@@ -560,6 +599,16 @@ def main():
         type=int,
         help="Seed opzionale per rendere riproducibile la generazione.",
     )
+    parser.add_argument(
+        "--batch-key",
+        default=DEFAULT_BATCH_KEY,
+        help="Chiave idempotente del lotto generato. Default: default.",
+    )
+    parser.add_argument(
+        "--force-new",
+        action="store_true",
+        help="Genera un nuovo lotto anche se la batch-key esiste gia'.",
+    )
     args = parser.parse_args()
 
     if args.count < 1:
@@ -569,9 +618,11 @@ def main():
     if not db_file.exists():
         raise FileNotFoundError(f"Database non trovato: {db_file}")
 
-    token, counts = populate(db_file, args.count, args.seed)
+    token, counts, inserted = populate(db_file, args.count, args.seed, args.batch_key, args.force_new)
     print(f"Database popolato: {db_file}")
     print(f"Prefisso lotto: {token}")
+    if not inserted:
+        print(f"Lotto '{args.batch_key}' gia' presente: nessun record inserito.")
     for table in TABLES:
         print(f"  {table}: {counts.get(table, 0)} record inseriti")
 

@@ -74,6 +74,15 @@ backups/
 /version_info.txt
 /build/
 
+# Artefatti di build dell'installer e delle patch (generati da release.ps1)
+/build_installer/
+/build_patches/
+/dist_patches/
+
+# Exe delle patch: vengono ricostruiti ad ogni release dagli .spec accanto.
+# Tenerli versionati gonfia inutilmente il repo.
+/Patches/**/*.exe
+
 
 # Python bytecode
 __pycache__/

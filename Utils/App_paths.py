@@ -102,29 +102,41 @@ def _show_error_and_exit(title: str, message: str) -> NoReturn:
 def _resolve_writable_root() -> Path:
     """
     Resolve the writable data directory (gestionale.db, config, Books, Backups).
-    Priority: platform default path → GESTIONALE_DB_PATH env var → fatal error.
-    In dev (non-frozen) mode, falls back to project root only if no usable path is found.
+    Priority: env var GESTIONALE_DB_PATH (trusted if set) -> platform default ->
+    project root in dev -> fatal error in frozen mode.
+
+    Nota: se l'env var e' valorizzata viene RITORNATA anche se la cartella non
+    contiene ancora marker (gestionale.db / Books / ...). Questo serve durante
+    l'install (cartella appena creata, vuota) e in generale evita popup spuri.
+    Il controllo di salute reale (DB esistente, tabelle popolate) e' delegato
+    a Utils.Db_health_check.verify_database_health, chiamato dal Main_bootstrap.
     """
     default_root = _default_data_root()
     env_value = os.environ.get(DB_PATH_ENV_VAR)
     env_root = Path(env_value).expanduser() if env_value else None
 
+    # 1. Env var esplicita: ha sempre precedenza. Anche se "non usable" per i
+    #    marker, ci fidiamo perche' qualcuno l'ha settata di proposito.
+    if env_root is not None:
+        return env_root
+
+    # 2. Default platform path: lo usiamo se contiene almeno un marker noto
+    #    (gestionale.db, Books, ecc.) -> l'utente ha gia' una install qui.
     if _is_usable_writable_root(default_root):
         return default_root
 
-    if env_root and _is_usable_writable_root(env_root):
-        return env_root
-
+    # 3. In modalita' dev cadiamo sulla root del progetto.
     if not is_frozen():
         return _project_root()
 
-    env_display = env_value or "<non valorizzata>"
+    # 4. Frozen, env var assente, default non riconosciuto come install
+    #    esistente: a questo punto non sappiamo davvero dove andare.
     _show_error_and_exit(
         APP_NAME,
         (
             "Impossibile individuare la cartella dati del gestionale.\n\n"
             f"Percorso predefinito verificato:\n{default_root}\n\n"
-            f"Variabile d'ambiente {DB_PATH_ENV_VAR}:\n{env_display}\n\n"
+            f"Variabile d'ambiente {DB_PATH_ENV_VAR}: <non valorizzata>\n\n"
             "Cosa fare:\n"
             "1. Verifica che il gestionale sia stato installato correttamente "
             "e che la cartella dati esista.\n"
@@ -138,8 +150,12 @@ def _resolve_writable_root() -> Path:
 def _resolve_install_root() -> Path:
     """
     Resolve the installation directory (contains exe and Data/).
-    Priority: platform default path → GESTIONALE_INSTALLATION_PATH env var → fatal error.
-    In dev (non-frozen) mode, always returns project root.
+    Priority: env var GESTIONALE_INSTALLATION_PATH (trusted if set) ->
+    platform default -> project root in dev -> fatal error in frozen mode.
+
+    Stessa logica di _resolve_writable_root: se l'env var e' valorizzata viene
+    ritornata anche se la cartella non contiene ancora Data/ (caso install in
+    corso: la cartella e' appena stata creata e Data verra' copiata dopo).
     """
     if not is_frozen():
         return _project_root()
@@ -149,19 +165,21 @@ def _resolve_install_root() -> Path:
         env_value = os.environ.get(INSTALLATION_PATH_ENV_VAR)
         env_root = Path(env_value).expanduser() if env_value else None
 
+        # 1. Env var esplicita: trust.
+        if env_root is not None:
+            return env_root
+
+        # 2. Default platform path: lo usiamo se ha Data/ (install esistente).
         if _is_usable_install_root(default_root):
             return default_root
 
-        if env_root and _is_usable_install_root(env_root):
-            return env_root
-
-        env_display = env_value or "<non valorizzata>"
+        # 3. Frozen e nessuna indicazione utile: fatal.
         _show_error_and_exit(
             APP_NAME,
             (
                 "Impossibile individuare la cartella di installazione del gestionale.\n\n"
                 f"Percorso predefinito verificato:\n{default_root}\n\n"
-                f"Variabile d'ambiente {INSTALLATION_PATH_ENV_VAR}:\n{env_display}\n\n"
+                f"Variabile d'ambiente {INSTALLATION_PATH_ENV_VAR}: <non valorizzata>\n\n"
                 "Cosa fare:\n"
                 f"1. Verifica che il gestionale sia installato in:\n   {default_root}\n"
                 f"2. Se hai installato in un percorso personalizzato, imposta "
@@ -174,9 +192,7 @@ def _resolve_install_root() -> Path:
     # macOS / Linux: env var, then PyInstaller _MEIPASS, then executable directory
     env_value = os.environ.get(INSTALLATION_PATH_ENV_VAR)
     if env_value:
-        env_root = Path(env_value).expanduser()
-        if _is_usable_install_root(env_root):
-            return env_root
+        return Path(env_value).expanduser()
 
     if hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS)

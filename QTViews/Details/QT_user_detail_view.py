@@ -363,13 +363,13 @@ class QTUserDetailViewH(QWidget):
         self._add_sensitive_money_field(
             "Dati Fiscali",
             DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value,
-            "Acconto IRPEF anno scorso",
+            f"Acconto IRPEF \n(versato durante il {datetime.today().year - 1})",
             user_data.get(DBUsersColumns.LAST_YEAR_IRPEF_ACCONTO.value, ""),
         )
         self._add_sensitive_money_field(
             "Dati Fiscali",
             DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value,
-            "Acconto INPS anno scorso",
+            f"Acconto INPS \n(versato durante il {datetime.today().year - 1})",
             user_data.get(DBUsersColumns.LAST_YEAR_INPS_ACCONTO.value, ""),
         )
 

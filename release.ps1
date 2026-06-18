@@ -193,7 +193,7 @@ foreach ($child in Get-ChildItem -Path "Patches" -Force) {
 }
 
 # 4e) README pacchetto (generato da template)
-$readmeTemplate = Join-Path $repoRoot "installer_README_template.md"
+$readmeTemplate = Join-Path $repoRoot "DOCS\installer_README_template.md"
 $readmeDest = Join-Path $packageRoot "README.md"
 if (Test-Path $readmeTemplate) {
     $readmeContent = (Get-Content -Path $readmeTemplate -Raw) -replace '\{\{VERSION\}\}', $ver.semver

@@ -94,18 +94,17 @@ def main():
     db_path = _resolve_db_path()
     print(f"DB target: {db_path}")
 
-    try:
-        _backup_db(db_path)
-    except OSError as exc:
-        print(f"ERRORE creando il backup: {exc}", file=sys.stderr)
-        sys.exit(3)
-
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.cursor()
         if _table_exists(cursor, TABLE_NAME):
             print(f"La tabella '{TABLE_NAME}' esiste gia': nessuna modifica necessaria.")
             return
+        try:
+            _backup_db(db_path)
+        except OSError as exc:
+            print(f"ERRORE creando il backup: {exc}", file=sys.stderr)
+            sys.exit(3)
         print(f"Creo la tabella '{TABLE_NAME}'...")
         cursor.execute(CREATE_TABLE_SQL)
         conn.commit()

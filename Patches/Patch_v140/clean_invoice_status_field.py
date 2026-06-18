@@ -16,9 +16,10 @@ legacy o eventuali strumenti esterni che dovessero ispezionare il campo.
 
 COSA FA LO SCRIPT
 -----------------
-1. Backup di sicurezza del file DB (copia con timestamp).
-2. ``UPDATE invoices SET status = '' WHERE status <> 'STORNATA'``.
-3. Stampa un riepilogo: numero di righe toccate e numero di STORNATA preservate.
+1. Conta le righe effettivamente da correggere.
+2. Se ci sono modifiche da fare, crea un backup di sicurezza del file DB.
+3. ``UPDATE invoices SET status = '' WHERE status <> 'STORNATA'``.
+4. Stampa un riepilogo: numero di righe toccate e numero di STORNATA preservate.
 
 L'operazione e' idempotente: rilanciare lo script non causa danni.
 
@@ -55,14 +56,12 @@ def backup_db(db_path: str) -> str:
     return backup_path
 
 
-def clean_status_field(db_path: str) -> tuple[int, int]:
-    """Esegue l'UPDATE. Ritorna (righe_aggiornate, stornate_preservate)."""
+def count_status_rows(db_path: str) -> tuple[int, int]:
+    """Ritorna (righe_da_aggiornare, stornate_preservate)."""
     status_col = DBInvoicesColumns.STATUS.value
     conn = sqlite3.connect(db_path)
     try:
         cur = conn.cursor()
-
-        # Conteggio diagnostico.
         cur.execute(
             f"SELECT COUNT(*) FROM invoices WHERE {status_col} = ?",
             (STORNATA_VALUE,),
@@ -75,15 +74,26 @@ def clean_status_field(db_path: str) -> tuple[int, int]:
             (STORNATA_VALUE,),
         )
         to_clean = cur.fetchone()[0]
+        return to_clean, stornate_count
+    finally:
+        conn.close()
 
-        # UPDATE: azzera tutto cio' che non e' STORNATA (e non e' gia' vuoto).
+
+def clean_status_field(db_path: str) -> int:
+    """Esegue l'UPDATE. Ritorna il numero di righe aggiornate."""
+    status_col = DBInvoicesColumns.STATUS.value
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+
         cur.execute(
             f"UPDATE invoices SET {status_col} = '' "
             f"WHERE {status_col} IS NOT NULL AND {status_col} <> '' AND {status_col} <> ?",
             (STORNATA_VALUE,),
         )
+        cleaned = cur.rowcount
         conn.commit()
-        return to_clean, stornate_count
+        return cleaned
     finally:
         conn.close()
 
@@ -98,11 +108,17 @@ def main() -> int:
         return 1
 
     print(f"Database: {db_path}")
+    to_clean, preserved = count_status_rows(db_path)
+    if to_clean == 0:
+        print("Nessuno status da pulire: database gia' allineato.")
+        print(f"Fatture STORNATE preservate:         {preserved}")
+        return 0
+
     backup_path = backup_db(db_path)
     print(f"Backup creato: {backup_path}")
 
     try:
-        cleaned, preserved = clean_status_field(db_path)
+        cleaned = clean_status_field(db_path)
     except Exception as exc:
         print(f"[!] Errore durante l'UPDATE: {exc}")
         print(f"    Il DB e' invariato. Il backup resta disponibile in: {backup_path}")

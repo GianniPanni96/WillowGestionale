@@ -23,6 +23,7 @@ from ConfigManagers import (
     RecurringExpense,
 )
 from Utils.App_paths import get_runtime_paths
+from Utils.Db_health_check import verify_database_health
 
 
 def build_app_context():
@@ -32,6 +33,10 @@ def build_app_context():
     path = str(runtime_paths.storage_root)
 
     db_path = str(runtime_paths.db_file)
+
+    # Fail-fast con popup nativo se il DB manca o ha tabelle incomplete:
+    # evita crash silenziosi nei moduli che assumono lo schema completo.
+    verify_database_health(runtime_paths.db_file)
     data_path = str(runtime_paths.data_dir)
     images_path = str(runtime_paths.images_dir)
     books_default_path = str(runtime_paths.books_dir)

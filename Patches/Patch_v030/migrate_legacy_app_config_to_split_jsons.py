@@ -25,6 +25,19 @@ def write_json_file(file_path: Path, payload: dict):
         json.dump(payload, file, indent=4)
 
 
+def all_target_files_exist(storage_root: Path) -> bool:
+    return all(
+        (storage_root / file_name).exists()
+        for file_name in (
+            "app_settings.json",
+            "fiscal_rules.json",
+            "catalogs.json",
+            "recurring_expenses.json",
+            "historical_financial_data.json",
+        )
+    )
+
+
 def build_app_settings_payload(legacy_config: dict) -> dict:
     payload = clone_default_config(APP_SETTINGS_DEFAULT)
     return merge_with_defaults(
@@ -71,10 +84,15 @@ def migrate_legacy_app_config():
     legacy_config_path = runtime_paths.legacy_config_file
 
     if not legacy_config_path.exists():
-        raise FileNotFoundError(
-            f"File legacy non trovato: {legacy_config_path}. "
-            f"Configura correttamente {DB_PATH_ENV_VAR} prima di eseguire lo script."
-        )
+        if all_target_files_exist(storage_root):
+            print("File legacy assente, ma i file di configurazione split esistono gia'.")
+            print("Nessuna migrazione necessaria.")
+            return
+        else:
+            raise FileNotFoundError(
+                f"File legacy non trovato: {legacy_config_path}. "
+                f"Configura correttamente {DB_PATH_ENV_VAR} prima di eseguire lo script."
+            )
 
     legacy_config = read_json_file(legacy_config_path)
 
@@ -92,8 +110,11 @@ def migrate_legacy_app_config():
 
     for file_name, payload in target_files.items():
         target_path = storage_root / file_name
+        if target_path.exists():
+            print(f"Gia' presente, non sovrascrivo: {target_path}")
+            continue
         write_json_file(target_path, payload)
-        print(f"Creato/aggiornato: {target_path}")
+        print(f"Creato: {target_path}")
 
     print("Migrazione completata con successo.")
 

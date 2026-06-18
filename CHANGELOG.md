@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.7.1 (2026-06-18)
+
+### Bug Fixes
+
+- Release.ps1 search README in the correct folder
+  ([`9cf5dc4`](https://github.com/GianniPanni96/WillowGestionale/commit/9cf5dc42501edbed0043c50c0f25865777dbb60b))
+
+
 ## v1.7.0 (2026-06-18)
 
 ### Features

@@ -1,6 +1,18 @@
 # CHANGELOG
 
 
+## v1.7.0 (2026-06-18)
+
+### Features
+
+- Installer now comes with this repo's release. More solid Model.py. Fix about currency rounds
+  absence in Views - Merge pull request #126 from GianniPanni96/Development
+  ([`ed627ec`](https://github.com/GianniPanni96/WillowGestionale/commit/ed627ecbdc272a5130dff38121ae11cfdf196877))
+
+feat: installer now comes with this repo's release. More solid Model.py. Fix about currency rounds
+  absence in Views
+
+
 ## v1.6.0 (2026-06-16)
 
 ### Features
